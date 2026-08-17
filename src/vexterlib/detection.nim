@@ -1,7 +1,7 @@
 ## Evidence-based input format detection.
 
 import std/[os, strutils]
-import ./containers/[zx_spectrum_screen, zx_spectrum_snapshot]
+import ./containers/[zx_spectrum_screen, zx_spectrum_snapshot, zx_spectrum_tap]
 
 type
   VextDetectionConfidence* = enum
@@ -47,6 +47,18 @@ proc detectFormats*(filename: string, data: openArray[byte]):
         description: "file extension is .sna")
     result.add VextDetectionCandidate(
       typeId: ZxSpectrumSnapshotTypeId,
+      confidence: vdcProbable,
+      evidence: evidence
+    )
+
+  if isZxSpectrumTap(data):
+    var evidence = @[VextDetectionEvidence(
+      description: "all TAP blocks have valid lengths and checksums")]
+    if filename.splitFile.ext.toLowerAscii == ".tap":
+      evidence.add VextDetectionEvidence(
+        description: "file extension is .tap")
+    result.add VextDetectionCandidate(
+      typeId: ZxSpectrumTapTypeId,
       confidence: vdcProbable,
       evidence: evidence
     )

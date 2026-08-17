@@ -64,7 +64,7 @@ proc selectedCandidate(options: CliOptions, data: openArray[byte]):
     VextDetectionCandidate =
   if options.inputFormat.len > 0:
     if options.inputFormat notin [ZxSpectrumScreenTypeId,
-        ZxSpectrumSnapshotTypeId]:
+        ZxSpectrumSnapshotTypeId, ZxSpectrumTapTypeId]:
       raise newException(CliError,
         "unsupported input format: " & options.inputFormat)
     if options.inputFormat == ZxSpectrumScreenTypeId and
@@ -75,6 +75,9 @@ proc selectedCandidate(options: CliOptions, data: openArray[byte]):
         not isZxSpectrumSnapshotSize(data.len):
       raise newException(CliError,
         "ZX Spectrum snapshot must contain exactly 49179, 131103, or 147487 bytes")
+    if options.inputFormat == ZxSpectrumTapTypeId and
+        not isZxSpectrumTap(data):
+      raise newException(CliError, "invalid ZX Spectrum TAP container")
     return VextDetectionCandidate(
       typeId: options.inputFormat,
       confidence: vdcProbable,
@@ -90,7 +93,7 @@ proc inspect(options: CliOptions) =
   let data = readBytes(options.input)
   let selected = selectedCandidate(options, data)
   let candidates = detectFormats(options.input, data)
-  let raster = decodeScreenResource(selected.typeId, data)
+  let paths = screenResourcePaths(selected.typeId, data)
 
   if options.json:
     var candidateNodes = newJArray()
@@ -106,20 +109,24 @@ proc inspect(options: CliOptions) =
         "confidence": $candidate.confidence,
         "evidence": evidence
       }
-    var resource = %*{
-      "path": ZxSpectrumScreenResourcePath,
-      "type": ZxSpectrumScreenTypeId,
-      "archetype": raster.archetypeName,
-      "width": raster.width,
-      "height": raster.height
-    }
-    if raster.kind == vrkIndexedAnimation:
-      resource["frames"] = %raster.animation.frames.len
+    var resources = newJArray()
+    for path in paths:
+      let raster = decodeScreenResource(selected.typeId, path, data)
+      var resource = %*{
+        "path": path,
+        "type": ZxSpectrumScreenTypeId,
+        "archetype": raster.archetypeName,
+        "width": raster.width,
+        "height": raster.height
+      }
+      if raster.kind == vrkIndexedAnimation:
+        resource["frames"] = %raster.animation.frames.len
+      resources.add resource
     let document = %*{
       "input": options.input,
       "selectedFormat": selected.typeId,
       "candidates": candidateNodes,
-      "resources": [resource]
+      "resources": resources
     }
     echo document.pretty
   else:
@@ -128,12 +135,14 @@ proc inspect(options: CliOptions) =
     for item in selected.evidence:
       echo "  Evidence: " & item.description
     echo "Resources:"
-    var description = &"  {ZxSpectrumScreenResourcePath}  " &
-      &"{ZxSpectrumScreenTypeId} -> {raster.archetypeName} " &
-      &"{raster.width}x{raster.height}"
-    if raster.kind == vrkIndexedAnimation:
-      description.add &", {raster.animation.frames.len} frame(s)"
-    echo description
+    for path in paths:
+      let raster = decodeScreenResource(selected.typeId, path, data)
+      var description = &"  {path}  " &
+        &"{ZxSpectrumScreenTypeId} -> {raster.archetypeName} " &
+        &"{raster.width}x{raster.height}"
+      if raster.kind == vrkIndexedAnimation:
+        description.add &", {raster.animation.frames.len} frame(s)"
+      echo description
 
 proc bytesToString(data: openArray[byte]): string =
   result = newString(data.len)
@@ -143,12 +152,20 @@ proc bytesToString(data: openArray[byte]): string =
 proc exportResource(options: CliOptions) =
   let data = readBytes(options.input)
   let selected = selectedCandidate(options, data)
-  if options.resource.len > 0 and
-      options.resource != ZxSpectrumScreenResourcePath:
+  let paths = screenResourcePaths(selected.typeId, data)
+  let path = if options.resource.len > 0: options.resource
+             elif paths.len == 1: paths[0]
+             else: ""
+  if path.len == 0:
+    if paths.len == 0:
+      raise newException(CliError, "container exposes no screen resources")
     raise newException(CliError,
-      "resource was not found: " & options.resource)
+      "more than one screen resource is available; use --resource")
+  if path notin paths:
+    raise newException(CliError,
+      "resource was not found: " & path)
 
-  let raster = decodeScreenResource(selected.typeId, data)
+  let raster = decodeScreenResource(selected.typeId, path, data)
   var outputFormat = options.outputFormat
   if outputFormat.len == 0:
     outputFormat = if raster.kind == vrkIndexedAnimation: "gif" else: "png"

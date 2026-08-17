@@ -101,6 +101,28 @@ Fixtures are stored under `tests/fixtures/zx-spectrum.snapshot/`.
 screen-memory region matches its companion raw screen byte-for-byte. Provenance
 and hashes are recorded alongside the files.
 
+## ZX Spectrum TAP container
+
+Type identifier: `zx-spectrum.tap`
+
+A TAP file is a sequence of blocks, each prefixed by a two-byte little-endian
+length. The block bytes comprise a flag, content, and an XOR checksum covering
+the flag and content. Vexter validates every block length and checksum and
+requires each 19-byte header block to be followed immediately by the data block
+it describes.
+
+For now, Vexter exposes only CODE records whose declared length is 6,912 bytes,
+start address is 16,384, and parameter 2 is 32,768. These are decoded through
+the existing ZX Spectrum screen pathway. One qualifying record is exposed as
+`/screen`; multiple records are exposed as `/screen/1`, `/screen/2`, and so on.
+
+Header filenames are ten-byte, space-padded fields. ASCII bytes are retained
+and non-ASCII bytes are currently ignored. Full Spectrum character/token
+handling is deferred until Spectrum tokenising support is added.
+
+Structurally valid block framing and checksums identify the format as
+**probable**, strengthened by a case-insensitive `.tap` extension.
+
 ## Historical implementation coverage
 
 The previous implementation covered formats including:
