@@ -8,6 +8,9 @@ implementation, without importing its source code or development notes.
 The initial product is a command-line tool. A graphical interface will follow
 later, using the same core library.
 
+Implemented and historically supported formats are recorded separately in
+[`docs/formats.md`](docs/formats.md).
+
 This is the fourth major iteration of architecture since the project was
 conceived.
 
@@ -195,55 +198,6 @@ Components should receive only options that apply to them. This will also let a
 future GUI discover and display relevant controls without hard-coding every
 format's settings.
 
-The initial CLI implements the useful subset required by the first format:
-
-```text
-vexter inspect [--json] [--all-candidates] [--input-format FORMAT] INPUT
-
-vexter export [--format png|gif] [--resource PATH]
-              [--input-format FORMAT] [-o OUTPUT] [--force] INPUT
-```
-
-## First format: ZX Spectrum raw screen
-
-A raw ZX Spectrum screen is a 1:1 dump of Spectrum display memory:
-
-- 6,144 bytes of non-linearly arranged bitmap data;
-- 768 bytes of colour attributes;
-- exactly 6,912 bytes in total;
-- a 256 x 192 display; and
-- commonly, but not necessarily, a `.scr` extension.
-
-It has no magic signature. An exact size match, strengthened by a `.scr`
-extension, identifies `zx-spectrum.screen` as **probable**, not certain. The
-container exposes one resource:
-
-```text
-/screen
-```
-
-Raster archetypes are defined together in `archetypes/raster.nim`, leaving room
-for indexed images, indexed animations, and forthcoming true-colour raster
-types. The screen decoder produces a `VextIndexedImage` when no FLASH attribute
-is present. When FLASH is present it instead produces a
-`VextIndexedAnimation`: its first frame is the natural display state and its
-second swaps ink and paper in flashing cells. Both animation frames currently
-have a duration of 320 milliseconds.
-
-Default output is selected through the archetype content:
-
-```text
-non-FLASH screen -> indexed image       -> PNG
-FLASH screen     -> indexed animation   -> GIF
-```
-
-An explicit `--format png` applied to an animation exports its natural first
-frame. This is a required conversion pathway rather than an error caused by the
-resource's animated representation. The PNG and animated GIF encoders have no
-external dependencies. Their first versions favor simple, deterministic
-correctness over file size: PNG uses stored DEFLATE blocks and GIF uses valid
-low-compression LZW output.
-
 ## Tests, fixtures, and provenance
 
 Fixtures are first-class correctness and provenance evidence. Each real fixture
@@ -258,85 +212,18 @@ should record, as applicable:
 Synthetic unit fixtures remain useful but should be distinguishable from
 authentic compatibility fixtures and independently produced control outputs.
 
-The first fixture set is stored under:
-
-```text
-tests/fixtures/zx-spectrum.screen/
-```
-
-It contains `.scr` dumps with PNG controls showing their natural states and GIF
-controls showing their animated states. The primary `colours` fixture was
-freshly produced for this project using a Spectrum program. Its attribute grid
-exhaustively exercises ink, paper, BRIGHT, and FLASH values. The control images
-may be optimized and their encoded structure is not part of the contract. Tests
-compare expanded pixel colours and positions, and animated controls are compared
-as fully composited frames. Palette ordering, compression, chunk layout, frame
-cropping, and other encoding choices are ignored. Fixture-specific provenance,
-coverage, and hashes are recorded alongside the files.
+Control files may be optimized and their encoded structure need not be part of
+the contract. Tests should compare semantic results, such as expanded pixel
+colours and fully composited animation frames, while ignoring irrelevant
+encoding choices. Fixture-specific provenance, coverage, and hashes should be
+recorded alongside the files.
 
 Decoded Vext objects are also tested directly so an importer and exporter defect
 cannot accidentally cancel out. Timing is tested as archetype data rather than
 being inferred from an optimized control file unless timing is explicitly part
 of that fixture's contract.
 
-## Second format: ZX Spectrum 48K snapshot
-
-A 48K `.sna` snapshot is exactly 49,179 bytes long. Its first 27 bytes contain
-processor registers and execution state, followed by a direct 48K RAM image.
-The first 6,912 bytes of that RAM image are the current Spectrum screen.
-
-An exact size match, strengthened by a case-insensitive `.sna` extension,
-identifies `zx-spectrum.snapshot` as **probable**. The snapshot container exposes
-the embedded display through the same canonical resource path:
-
-```text
-/screen
-```
-
-Extracting that resource delegates to the existing `zx-spectrum.screen`
-decoder. It therefore follows the same indexed-animation, default-format, PNG,
-and GIF pathways as a standalone screen dump. The `colours.sna` fixture contains
-the program that produced `colours.scr`; its screen-memory region matches the
-raw screen fixture byte-for-byte.
-
-## Historical compatibility targets
-
-The previous implementation covered formats including:
-
-- IFF ILBM, ACBM, ANIM3, ANIM5, ANIM7, ANIM8, and 8SVX;
-- PCX, QOI, TGA, NetPBM, BMP, ICO, and CUR images;
-- Commodore 64 Koala Painter;
-- AMOS sprite banks, icon banks, bank sets, and programs with paired banks;
-- AmigaDOS `.info` files and diskfonts;
-- Atari DEGAS and NEOchrome;
-- DOOM WAD sprites and textures;
-- ZX Spectrum screens from raw dumps, SNA snapshots, and TAP images, plus FZX
-  fonts;
-- SCUMM versions 3 through 8 rooms, room objects, and costumes;
-- SCI0 through SCI2 pictures, views, sound effects, and speech; and
-- ZIP and LHA archives with recursive container inspection.
-
-This list is a compatibility target and architectural test matrix, not an
-immediate implementation schedule. Early interfaces should be checked against
-representative hard cases so they do not preclude nested containers, companion
-files, composite resources, animation, palettes, audio, metadata, or compound
-artifact output.
-
 ## Near-term development
-
-The current implementation establishes:
-
-- the `vexterlib` public entry point;
-- indexed image and indexed animation values;
-- evidence-based detection for `zx-spectrum.screen`;
-- evidence-based detection for 48K `zx-spectrum.snapshot` files;
-- `/screen` resource inspection;
-- extraction of a snapshot's `/screen` through the shared screen decoder;
-- correct Spectrum bitmap, colour, BRIGHT, and FLASH decoding;
-- dependency-free PNG and animated GIF artifacts;
-- human-readable and JSON inspection;
-- exact resource selection and overwrite protection in `export`; and
-- library and CLI regression tests against the supplied controls.
 
 Likely next steps are to formalize common request, container, resource-tree, and
 diagnostic types before adding enough formats to make premature abstractions
