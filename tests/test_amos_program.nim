@@ -56,7 +56,7 @@ suite "AMOS programs":
     check leaves[^1].path == "/banks/3"
     check leaves[0].text.startsWith("'            Xerxes' Revenge")
     check "SHIP$=SHIP$+\" Begin:" in leaves[0].text
-    check "   [1af60000]" in leaves[0].text
+    check "   Bob Clear" in leaves[0].text
     check leaves[0].text.endsWith("End \n")
 
     let listingExport = exportResource(inspection.resources,

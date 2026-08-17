@@ -53,7 +53,7 @@ suite "vexter CLI":
     let listing = readFile(listingDestination)
     check listing.startsWith("'            Xerxes' Revenge")
     check "SHIP$=SHIP$+\" Begin:" in listing
-    check "[1af60000]" in listing
+    check "Bob Clear" in listing
 
   test "generic AMOS banks inspect as opaque resources":
     let source = getTempDir() / "vexter-cli-music.Abk"
