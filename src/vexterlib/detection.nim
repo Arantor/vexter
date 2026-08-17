@@ -1,7 +1,7 @@
 ## Evidence-based input format detection.
 
 import std/[os, strutils]
-import ./containers/[amiga_iff, amiga_ilbm, amos_bank, amos_bank_set, amos_program,
+import ./containers/[amiga_anim, amiga_iff, amiga_ilbm, amos_bank, amos_bank_set, amos_program,
   amos_sprite_icon_bank,
   zx_spectrum_screen_dump, zx_spectrum_snapshot, zx_spectrum_tap]
 import ./resources/zx_spectrum_screen
@@ -30,7 +30,17 @@ proc detectFormats*(filename: string, data: openArray[byte]):
     seq[VextDetectionCandidate] =
   ## Returns every format candidate recognized from currently available
   ## evidence, ordered from strongest to weakest.
-  if isAmigaIlbm(data):
+  if isAmigaAnim(data):
+    var evidence = @[VextDetectionEvidence(
+      description: "file is a valid FORM ANIM containing ILBM frame forms")]
+    if hasAmigaAnimExtension(filename):
+      evidence.add VextDetectionEvidence(
+        description: "file extension is associated with ANIM")
+    result.add VextDetectionCandidate(
+      typeId: AmigaAnimTypeId,
+      confidence: vdcCertain,
+      evidence: evidence)
+  elif isAmigaIlbm(data):
     var evidence = @[VextDetectionEvidence(
       description: "file is a valid FORM ILBM with BMHD and BODY chunks")]
     if hasAmigaIlbmExtension(filename):

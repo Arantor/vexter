@@ -12,7 +12,7 @@ Vexter currently consists of a reusable Nim library and a thin command-line
 client. It supports:
 
 - detection and inspection of generic IFF FORM containers, indexed Amiga ILBM
-  images, ZX Spectrum raw screen dumps, SNA snapshots,
+  images and IFF ANIM animations, ZX Spectrum raw screen dumps, SNA snapshots,
   TAP containers, tokenised BASIC resources, standalone AMOS banks, AMOS bank
   sets, and AMOS programs;
 - a resource tree containing decoded indexed-raster or identified opaque
@@ -27,7 +27,7 @@ The implemented command-line surface is:
 ```text
 vexter inspect [--json] [--all-candidates] [--input-format FORMAT] INPUT
 
-vexter export [--format png|gif] [--resource PATH]
+vexter export [--format png|gif|apng|txt] [--resource PATH]
               [--input-format FORMAT] [-o OUTPUT] [--force] INPUT
 ```
 
@@ -95,6 +95,7 @@ Matching case-insensitive extensions add supporting evidence.
   even-byte padding;
 - `amiga_ilbm.nim` interprets `FORM ILBM` properties and extracts the image
   source while leaving raster decoding separate;
+- `amiga_anim.nim` parses nested ILBM frame forms and their ANHD/DLTA records;
 - `amos_bank.nim` validates generic `AmBk` headers and lengths and identifies
   otherwise unsupported bank payloads;
 - `amos_bank_set.nim` validates `AmBs` collections and delimits their adjacent
@@ -125,6 +126,12 @@ for one through five ordinary planes and six-plane EHB, and true-colour images
 for HAM/HAM8. Legacy CMAPs whose component low nibbles are uniformly zero are
 expanded by nibble replication. Masks still await an alpha archetype.
 
+`src/vexterlib/resources/amiga_anim_image.nim` reconstructs retained planar
+buffers with ANIM delta methods 5, 7, and 8, including interleave references
+and method-5 XOR used by Deluxe Paint animation brushes. It then renders each
+frame through the same indexed/EHB/HAM ILBM path as still images. Methods 1–4,
+6, and 74 are identified but report explicit unsupported-method errors.
+
 `src/vexterlib/resources/amos_listing.nim` reconstructs diagnostic AMOS source
 text from line records and complex tokens. `amos_listing_tokens.nim` contains
 the imported simple-symbol and recognized-extension mappings. Unknown tokens
@@ -146,7 +153,8 @@ by explanatory `REM VEXTER:` lines only when required. Unknown bytes use
 `⟦ZX:$HH⟧`. A line number at or above 32768 marks the variables boundary.
 
 `src/vexterlib/archetypes/raster.nim` contains the generic indexed image,
-indexed animation, and true-colour image contracts. `src/vexterlib/exporters/` consumes those contracts and
+indexed animation, true-colour image, and true-colour animation contracts.
+`src/vexterlib/exporters/` consumes those contracts and
 has no ZX Spectrum-specific knowledge. `src/vexterlib/artifacts.nim` defines
 the in-memory output contract; callers, not exporters, write files.
 `src/vexterlib/metadata.nim` defines typed key/value metadata currently used
@@ -165,6 +173,7 @@ Stable type identifiers are:
 amiga.iff
 amiga.ilbm
 amiga.ilbm-image
+amiga.anim
 amos.bank
 amos.bank-data
 amos.bank-set
@@ -186,6 +195,12 @@ with header and CAMG metadata. Unknown ILBM chunks remain structurally valid
 and are ignored by the current image decoder. HAM/HAM8 ILBMs expose a
 `VextTrueColourImage` at the same path. True-colour PNG export is supported;
 GIF export requires a future colour-quantization stage.
+
+ANIM containers expose `/animation`. Indexed animations with a stable palette
+default to GIF. HAM animations produce `VextTrueColourAnimation` and default
+to APNG. Palette changes in indexed animations are currently rejected because
+the GIF exporter uses one global colour table. Delta-compressed first frames
+are also deferred pending authentic samples.
 
 Raw screen dumps expose one raster at `/screen`. A 48K SNA additionally exposes
 decoded BASIC at `/listing` when `PROG` points to a valid listing; 128K BASIC
@@ -233,6 +248,9 @@ The routine suites are:
 - `tests/test_amiga_iff_ilbm.nim`: FORM/chunk validation, ILBM planar and
   ByteRun1 decoding, legacy palette expansion, EHB, focused HAM6/HAM8 cases,
   and authentic Deluxe Paint HAM6/HAM8 controls;
+- `tests/test_amiga_anim.nim`: nested ANIM structure, methods 5/7/8, animation
+  brush XOR behavior, timing, GIF routing, APNG output, the authentic TheTour
+  method-5 control, and failure modes;
 - `tests/test_zx_spectrum_screen.nim`: screen decoding, palette/pixel
   correctness, FLASH behavior, and encoder smoke tests;
 - `tests/test_zx_spectrum_snapshot.nim`: SNA detection and screen extraction;

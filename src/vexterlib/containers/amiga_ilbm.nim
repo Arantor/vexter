@@ -32,8 +32,7 @@ proc parseHeader(data: openArray[byte]): AmigaIlbmHeader =
     xAspect: int(data[14]), yAspect: int(data[15]),
     pageWidth: signedWord(data, 16), pageHeight: signedWord(data, 18))
 
-proc parseAmigaIlbm*(data: openArray[byte]): AmigaIlbm =
-  let form = parseAmigaIff(data)
+proc parseAmigaIlbmForm*(form: AmigaIffForm): AmigaIlbm =
   if form.formType != AmigaIlbmFormType:
     raise newException(ValueError, "IFF FORM type is not ILBM")
   var haveHeader, haveBody: bool
@@ -72,6 +71,9 @@ proc parseAmigaIlbm*(data: openArray[byte]): AmigaIlbm =
     raise newException(ValueError, "ILBM must contain at least one bitplane")
   if result.image.header.compression notin [0, 1]:
     raise newException(ValueError, "unsupported ILBM compression")
+
+proc parseAmigaIlbm*(data: openArray[byte]): AmigaIlbm =
+  parseAmigaIlbmForm(parseAmigaIff(data))
 
 proc isAmigaIlbm*(data: openArray[byte]): bool =
   try:

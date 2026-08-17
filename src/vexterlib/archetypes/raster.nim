@@ -13,6 +13,14 @@ type
     width*, height*: int
     pixels*: seq[VextRgb]
 
+  VextTrueColourAnimationFrame* = object
+    image*: VextTrueColourImage
+    durationMs*: int
+
+  VextTrueColourAnimation* = object
+    width*, height*: int
+    frames*: seq[VextTrueColourAnimationFrame]
+
   VextIndexedAnimationFrame* = object
     image*: VextIndexedImage
     durationMs*: int
@@ -25,6 +33,7 @@ type
     vrkIndexedImage
     vrkIndexedAnimation
     vrkTrueColourImage
+    vrkTrueColourAnimation
 
   VextRaster* = object
     case kind*: VextRasterKind
@@ -34,6 +43,8 @@ type
       animation*: VextIndexedAnimation
     of vrkTrueColourImage:
       trueColourImage*: VextTrueColourImage
+    of vrkTrueColourAnimation:
+      trueColourAnimation*: VextTrueColourAnimation
 
 proc pixelAt*(image: VextIndexedImage, x, y: int): uint8 =
   ## Returns the palette index at `(x, y)`.
@@ -55,18 +66,21 @@ proc width*(raster: VextRaster): int =
   of vrkIndexedImage: raster.image.width
   of vrkIndexedAnimation: raster.animation.width
   of vrkTrueColourImage: raster.trueColourImage.width
+  of vrkTrueColourAnimation: raster.trueColourAnimation.width
 
 proc height*(raster: VextRaster): int =
   case raster.kind
   of vrkIndexedImage: raster.image.height
   of vrkIndexedAnimation: raster.animation.height
   of vrkTrueColourImage: raster.trueColourImage.height
+  of vrkTrueColourAnimation: raster.trueColourAnimation.height
 
 proc archetypeName*(raster: VextRaster): string =
   case raster.kind
   of vrkIndexedImage: "VextIndexedImage"
   of vrkIndexedAnimation: "VextIndexedAnimation"
   of vrkTrueColourImage: "VextTrueColourImage"
+  of vrkTrueColourAnimation: "VextTrueColourAnimation"
 
 proc naturalImage*(raster: VextRaster): VextIndexedImage =
   ## Returns a static raster directly or the natural first animation frame.
@@ -77,7 +91,7 @@ proc naturalImage*(raster: VextRaster): VextIndexedImage =
     if raster.animation.frames.len == 0:
       raise newException(ValueError, "indexed animation contains no frames")
     raster.animation.frames[0].image
-  of vrkTrueColourImage:
+  of vrkTrueColourImage, vrkTrueColourAnimation:
     raise newException(ValueError,
       "true-colour raster has no indexed natural image")
 
@@ -93,6 +107,6 @@ proc asIndexedAnimation*(raster: VextRaster): VextIndexedAnimation =
       frames: @[VextIndexedAnimationFrame(
         image: raster.image,
         durationMs: 0)])
-  of vrkTrueColourImage:
+  of vrkTrueColourImage, vrkTrueColourAnimation:
     raise newException(ValueError,
       "true-colour raster cannot be converted to indexed animation")

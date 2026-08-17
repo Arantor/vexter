@@ -74,6 +74,49 @@ Its ImageMagick PNG is used as a layout control after normalizing the PNG's
 retained `$x0` palette components to the required `$xx` values. Attribution
 and redistribution cautions are recorded in [`THIRD_PARTY.md`](../THIRD_PARTY.md).
 
+## Amiga IFF ANIM
+
+Type identifier: `amiga.anim`
+
+An animation is `FORM ANIM` containing nested `FORM ILBM` records. The first
+record is a complete ILBM and establishes dimensions, bitplane depth, palette,
+and CAMG display mode. Later records contain a 40-byte `ANHD` animation header
+and either a `DLTA` delta or, for operation zero, a replacement `BODY`.
+Vexter exposes the result at `/animation`.
+
+Planar frames are retained before rendering because deltas modify individual
+planes. An ANHD interleave of zero means the delta refers to two frames back;
+other values give the explicit reference distance. The second frame falls
+back to the initial frame. Relative times are Amiga jiffies at 1/60 second.
+
+Implemented delta operations are:
+
+- method 5, byte-vertical skip/literal/repeat encoding;
+- method 7, byte opcodes with separate short/long data lists; and
+- method 8, embedded short/long vertical operations, including a final short
+  column when a row is not longword-aligned.
+
+Method 5 also honors the XOR convention and interleave-one layout documented
+for Deluxe Paint animation brushes. This provides implementation support for
+brushes, pending authentic sample verification. Methods 1–4, stereo method 6,
+and reserved method 74 remain structurally identifiable but explicitly
+unsupported; their behavior is not inferred beyond the supplied specification.
+Delta-compressed first frames are likewise deferred.
+
+Indexed ANIMs require a consistent palette and produce
+`VextIndexedAnimation`, defaulting to GIF. HAM frames pass through the ILBM HAM
+renderer and produce `VextTrueColourAnimation`, defaulting to APNG. The APNG
+encoder writes full-size RGB frames, an infinite loop count, and per-frame
+millisecond delays using standard `acTL`, `fcTL`, `IDAT`, and `fdAT` chunks.
+GIF export of true-colour animation remains unavailable without quantization.
+
+Synthetic tests cover methods 5, 7, and 8, brush-style XOR, interleave
+behavior, and APNG structure. The authentic `TheTour.anim` method-5 fixture
+contains 34 reconstructed frames; after normalizing its GIF control's legacy
+`$x0` palette components to `$xx`, every expanded RGB pixel matches. Its last
+two frames reproduce frames zero and one for conventional continuous looping.
+An authentic animation-brush fixture is still needed for verification.
+
 ## ZX Spectrum raw screen
 
 Type identifier: `zx-spectrum.screen`

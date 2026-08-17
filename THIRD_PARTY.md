@@ -29,6 +29,15 @@ true-colour reconstruction. Their redistribution or licensing status has not
 yet been supplied and should be confirmed before distribution outside this
 development context.
 
+## TheTour IFF ANIM fixture
+
+`tests/fixtures/amiga.anim/TheTour.anim` and its GIF rendering control are
+retained to validate method-5 delta reconstruction and conventional ANIM loop
+frames. `TheTour.anim` is bundled with Deluxe Paint and is copyright Electronic
+Arts, consistent with the other supplied Deluxe Paint samples. Its precise
+redistribution or licensing status has not yet been supplied and should be
+established before distribution outside this development context.
+
 ## AMOS program fixture
 
 `tests/fixtures/amos.program/Xerxes' Revenge.AMOS` is an AMOS Basic demo

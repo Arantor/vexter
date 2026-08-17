@@ -19,7 +19,7 @@ type
 proc usage(): string =
   """Usage:
   vexter inspect [--json] [--all-candidates] [--input-format FORMAT] INPUT
-  vexter export [--format png|gif] [--resource PATH]
+  vexter export [--format png|gif|apng|txt] [--resource PATH]
                 [--input-format FORMAT] [-o OUTPUT] [--force] INPUT"""
 
 proc readBytes(path: string): seq[byte] =

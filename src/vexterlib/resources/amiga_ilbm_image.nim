@@ -82,23 +82,40 @@ proc validateDimensions(header: AmigaIlbmHeader) =
     raise newException(ValueError,
       "masked ILBM images require an alpha-capable raster archetype")
 
-proc decodeCodes(source: AmigaIlbmImageSource): seq[uint8] =
+proc decodeAmigaIlbmPlanes*(source: AmigaIlbmImageSource): seq[byte] =
   let header = source.header
-  result = newSeq[uint8](header.width * header.height)
   let rowBytes = ((header.width + 15) div 16) * 2
+  let planeSize = rowBytes * header.height
+  result = newSeq[byte](planeSize * header.planes)
   var bodyOffset = 0
   for y in 0 ..< header.height:
     for plane in 0 ..< header.planes:
       let row = decodeRow(source.body, bodyOffset, rowBytes,
         header.compression)
-      for x in 0 ..< header.width:
-        if (row[x div 8] and (0x80'u8 shr (x mod 8))) != 0:
-          result[y * header.width + x] =
-            result[y * header.width + x] or uint8(1 shl plane)
+      for column, value in row:
+        result[plane * planeSize + y * rowBytes + column] = value
   if bodyOffset != source.body.len:
     raise newException(ValueError, "ILBM BODY has trailing image data")
 
-proc decodeAmigaIlbmImage*(source: AmigaIlbmImageSource): VextIndexedImage =
+proc codesFromPlanes(source: AmigaIlbmImageSource,
+    planes: openArray[byte]): seq[uint8] =
+  let
+    header = source.header
+    rowBytes = ((header.width + 15) div 16) * 2
+    planeSize = rowBytes * header.height
+  if planes.len != planeSize * header.planes:
+    raise newException(ValueError, "ILBM planar buffer has the wrong length")
+  result = newSeq[uint8](header.width * header.height)
+  for y in 0 ..< header.height:
+    for plane in 0 ..< header.planes:
+      for x in 0 ..< header.width:
+        let value = planes[plane * planeSize + y * rowBytes + x div 8]
+        if (value and (0x80'u8 shr (x mod 8))) != 0:
+          result[y * header.width + x] =
+            result[y * header.width + x] or uint8(1 shl plane)
+
+proc renderAmigaIlbmImage*(source: AmigaIlbmImageSource,
+    planes: openArray[byte]): VextIndexedImage =
   let header = source.header
   validateDimensions(header)
   if (source.camg and AmigaIlbmCamgHam) != 0:
@@ -113,7 +130,7 @@ proc decodeAmigaIlbmImage*(source: AmigaIlbmImageSource): VextIndexedImage =
     width: header.width,
     height: header.height,
     palette: decodePalette(source),
-    pixels: decodeCodes(source))
+    pixels: codesFromPlanes(source, planes))
   let requiredColours = if ehb: 32 else: 1 shl header.planes
   while result.palette.len < requiredColours:
     result.palette.add VextRgb()
@@ -126,8 +143,12 @@ proc decodeAmigaIlbmImage*(source: AmigaIlbmImageSource): VextIndexedImage =
   elif result.palette.len > requiredColours:
     result.palette.setLen(requiredColours)
 
+proc decodeAmigaIlbmImage*(source: AmigaIlbmImageSource): VextIndexedImage =
+  renderAmigaIlbmImage(source, decodeAmigaIlbmPlanes(source))
 
-proc decodeAmigaIlbmHam*(source: AmigaIlbmImageSource): VextTrueColourImage =
+
+proc renderAmigaIlbmHam*(source: AmigaIlbmImageSource,
+    planes: openArray[byte]): VextTrueColourImage =
   let header = source.header
   validateDimensions(header)
   if (source.camg and AmigaIlbmCamgHam) == 0:
@@ -139,7 +160,7 @@ proc decodeAmigaIlbmHam*(source: AmigaIlbmImageSource): VextTrueColourImage =
     dataBits = header.planes - (if header.planes mod 2 == 0: 2 else: 1)
     dataMask = (1 shl dataBits) - 1
     maximum = dataMask
-    codes = decodeCodes(source)
+    codes = codesFromPlanes(source, planes)
   var palette = decodePalette(source)
   while palette.len < (1 shl dataBits):
     palette.add VextRgb()
@@ -164,10 +185,17 @@ proc decodeAmigaIlbmHam*(source: AmigaIlbmImageSource): VextTrueColourImage =
         raise newException(ValueError, "invalid HAM modifier code")
       result.pixels[y * header.width + x] = held
 
-proc decodeAmigaIlbmRaster*(source: AmigaIlbmImageSource): VextRaster =
+proc decodeAmigaIlbmHam*(source: AmigaIlbmImageSource): VextTrueColourImage =
+  renderAmigaIlbmHam(source, decodeAmigaIlbmPlanes(source))
+
+proc renderAmigaIlbmRaster*(source: AmigaIlbmImageSource,
+    planes: openArray[byte]): VextRaster =
   if (source.camg and AmigaIlbmCamgHam) != 0:
     VextRaster(kind: vrkTrueColourImage,
-      trueColourImage: decodeAmigaIlbmHam(source))
+      trueColourImage: renderAmigaIlbmHam(source, planes))
   else:
     VextRaster(kind: vrkIndexedImage,
-      image: decodeAmigaIlbmImage(source))
+      image: renderAmigaIlbmImage(source, planes))
+
+proc decodeAmigaIlbmRaster*(source: AmigaIlbmImageSource): VextRaster =
+  renderAmigaIlbmRaster(source, decodeAmigaIlbmPlanes(source))

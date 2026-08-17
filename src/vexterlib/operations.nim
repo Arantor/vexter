@@ -5,11 +5,11 @@ import ./archetypes/raster
 import ./detection
 import ./exporters/[gif, png]
 import ./resource_tree
-import ./containers/[amiga_iff, amiga_ilbm, amos_bank, amos_bank_set, amos_program,
+import ./containers/[amiga_anim, amiga_iff, amiga_ilbm, amos_bank, amos_bank_set, amos_program,
   amos_sprite_icon_bank,
   zx_spectrum_screen_dump, zx_spectrum_snapshot, zx_spectrum_tap]
 import ./metadata
-import ./resources/[amiga_ilbm_image, amos_listing, amos_planar_image, zx_spectrum_basic,
+import ./resources/[amiga_anim_image, amiga_ilbm_image, amos_listing, amos_planar_image, zx_spectrum_basic,
   zx_spectrum_screen]
 
 type
@@ -31,6 +31,8 @@ type
 proc forcedCandidate(typeId: string, data: openArray[byte]):
     VextDetectionCandidate =
   case typeId
+  of AmigaAnimTypeId:
+    discard parseAmigaAnim(data)
   of AmigaIlbmTypeId:
     discard parseAmigaIlbm(data)
   of AmigaIffTypeId:
@@ -135,6 +137,18 @@ proc inspectSource*(filename: string, data: openArray[byte],
     result.selectedFormat = result.candidates[0]
 
   case result.selectedFormat.typeId
+  of AmigaAnimTypeId:
+    let anim = parseAmigaAnim(data)
+    result.resources.roots.add VextResourceNode(
+      path: AmigaAnimResourcePath,
+      typeId: AmigaAnimTypeId,
+      kind: vrnkRaster,
+      raster: decodeAmigaAnim(anim),
+      metadata: @[
+        integerMetadata("frames", anim.frames.len + 1),
+        integerMetadata("planes", anim.initial.image.header.planes),
+        integerMetadata("camg", int(anim.initial.image.camg))
+      ])
   of AmigaIlbmTypeId:
     let ilbm = parseAmigaIlbm(data)
     result.resources.roots.add VextResourceNode(
@@ -270,7 +284,10 @@ proc exportResource*(tree: VextResourceTree,
     result.outputFormat = case resource.kind
       of vrnkText: "txt"
       of vrnkRaster:
-        if resource.raster.kind == vrkIndexedAnimation: "gif" else: "png"
+        case resource.raster.kind
+        of vrkIndexedAnimation: "gif"
+        of vrkTrueColourAnimation: "apng"
+        else: "png"
       else: ""
   case resource.kind
   of vrnkText:
@@ -291,15 +308,25 @@ proc exportResource*(tree: VextResourceTree,
         of vrkTrueColourImage:
           exportPng(resource.raster.trueColourImage,
             request.suggestedName & ".png")
+        of vrkTrueColourAnimation:
+          raise newException(ValueError,
+            "use APNG to export a true-colour animation")
         else:
           exportPng(resource.raster.naturalImage,
             request.suggestedName & ".png")
       of "gif":
-        if resource.raster.kind == vrkTrueColourImage:
+        if resource.raster.kind in {vrkTrueColourImage,
+            vrkTrueColourAnimation}:
           raise newException(ValueError,
             "GIF export requires indexed colour; quantization is not implemented")
         exportGif(resource.raster.asIndexedAnimation,
           request.suggestedName & ".gif")
+      of "apng":
+        if resource.raster.kind != vrkTrueColourAnimation:
+          raise newException(ValueError,
+            "APNG export requires a true-colour animation")
+        exportApng(resource.raster.trueColourAnimation,
+          request.suggestedName & ".png")
       else:
         raise newException(ValueError,
           "unsupported output format: " & result.outputFormat)

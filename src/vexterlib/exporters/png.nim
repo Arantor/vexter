@@ -135,3 +135,72 @@ proc exportPng*(image: VextTrueColourImage,
     suggestedFilename: suggestedFilename,
     mediaType: "image/png",
     data: encoded)
+
+proc trueColourScanlines(image: VextTrueColourImage): seq[byte] =
+  if image.width <= 0 or image.height <= 0 or
+      image.pixels.len != image.width * image.height:
+    raise newException(ValueError, "APNG frame has invalid dimensions or pixels")
+  result = newSeqOfCap[byte]((image.width * 3 + 1) * image.height)
+  for y in 0 ..< image.height:
+    result.add 0
+    for x in 0 ..< image.width:
+      let colour = image.pixels[y * image.width + x]
+      result.add colour.r
+      result.add colour.g
+      result.add colour.b
+
+proc exportApng*(animation: VextTrueColourAnimation,
+    suggestedFilename = "animation.png"): VextArtifactSet =
+  if animation.width <= 0 or animation.height <= 0 or
+      animation.frames.len == 0:
+    raise newException(ValueError, "APNG animation must contain frames")
+  var encoded = @PngSignature
+  var header: seq[byte]
+  header.appendU32(uint32(animation.width))
+  header.appendU32(uint32(animation.height))
+  header.add 8
+  header.add 2 # RGB
+  header.add 0
+  header.add 0
+  header.add 0
+  encoded.addChunk("IHDR", header)
+
+  var animationControl: seq[byte]
+  animationControl.appendU32(uint32(animation.frames.len))
+  animationControl.appendU32(0) # loop forever
+  encoded.addChunk("acTL", animationControl)
+
+  var sequence = 0'u32
+  for index, frame in animation.frames:
+    if frame.image.width != animation.width or
+        frame.image.height != animation.height:
+      raise newException(ValueError, "APNG frame dimensions do not match")
+    var frameControl: seq[byte]
+    frameControl.appendU32(sequence)
+    inc sequence
+    frameControl.appendU32(uint32(animation.width))
+    frameControl.appendU32(uint32(animation.height))
+    frameControl.appendU32(0) # x offset
+    frameControl.appendU32(0) # y offset
+    let delay = min(65535, max(1, frame.durationMs))
+    frameControl.add byte((delay shr 8) and 0xff)
+    frameControl.add byte(delay and 0xff)
+    frameControl.add 0x03 # denominator 1000
+    frameControl.add 0xe8
+    frameControl.add 0 # dispose none
+    frameControl.add 0 # source blend
+    encoded.addChunk("fcTL", frameControl)
+    let compressed = storedZlib(trueColourScanlines(frame.image))
+    if index == 0:
+      encoded.addChunk("IDAT", compressed)
+    else:
+      var frameData: seq[byte]
+      frameData.appendU32(sequence)
+      inc sequence
+      frameData.add compressed
+      encoded.addChunk("fdAT", frameData)
+  encoded.addChunk("IEND", [])
+  result.artifacts.add VextArtifact(
+    suggestedFilename: suggestedFilename,
+    mediaType: "image/apng",
+    data: encoded)
