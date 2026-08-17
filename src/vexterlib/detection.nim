@@ -1,7 +1,7 @@
 ## Evidence-based input format detection.
 
 import std/[os, strutils]
-import ./containers/zx_spectrum_screen
+import ./containers/[zx_spectrum_screen, zx_spectrum_snapshot]
 
 type
   VextDetectionConfidence* = enum
@@ -35,6 +35,18 @@ proc detectFormats*(filename: string, data: openArray[byte]):
         description: "file extension is .scr")
     result.add VextDetectionCandidate(
       typeId: ZxSpectrumScreenTypeId,
+      confidence: vdcProbable,
+      evidence: evidence
+    )
+
+  if data.len == ZxSpectrumSnapshot48Size:
+    var evidence = @[VextDetectionEvidence(
+      description: "file size is exactly 49179 bytes")]
+    if filename.splitFile.ext.toLowerAscii == ".sna":
+      evidence.add VextDetectionEvidence(
+        description: "file extension is .sna")
+    result.add VextDetectionCandidate(
+      typeId: ZxSpectrumSnapshotTypeId,
       confidence: vdcProbable,
       evidence: evidence
     )

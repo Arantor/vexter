@@ -3,6 +3,7 @@ import std/[json, os, osproc, strutils, unittest]
 const
   VexterCliPath {.strdefine.} = "build/vexter"
   FixturePath = "tests/fixtures/zx-spectrum.screen/colours.scr"
+  SnapshotFixturePath = "tests/fixtures/zx-spectrum.snapshot/colours.sna"
 
 proc run(arguments: varargs[string]): tuple[output: string, exitCode: int] =
   var command = quoteShell(VexterCliPath)
@@ -15,7 +16,8 @@ suite "vexter CLI":
     let inspected = run("inspect", FixturePath)
     check inspected.exitCode == 0
     check "Format: zx-spectrum.screen (probable)" in inspected.output
-    check "/screen  VextIndexedAnimation 256x192, 2 frame(s)" in
+    check "/screen  zx-spectrum.screen -> VextIndexedAnimation 256x192, " &
+      "2 frame(s)" in
       inspected.output
 
   test "JSON inspection is structured":
@@ -25,6 +27,7 @@ suite "vexter CLI":
     check document["selectedFormat"].getStr == "zx-spectrum.screen"
     check document["candidates"][0]["confidence"].getStr == "probable"
     check document["resources"][0]["path"].getStr == "/screen"
+    check document["resources"][0]["type"].getStr == "zx-spectrum.screen"
     check document["resources"][0]["frames"].getInt == 2
 
   test "export defaults a FLASH screen to GIF":
@@ -66,3 +69,30 @@ suite "vexter CLI":
       destination, FixturePath)
     check missing.exitCode == 1
     check "resource was not found: /missing" in missing.output
+
+  test "snapshot inspection and screen export use the same pathway":
+    let inspected = run("inspect", SnapshotFixturePath)
+    check inspected.exitCode == 0
+    check "Format: zx-spectrum.snapshot (probable)" in inspected.output
+    check "/screen  zx-spectrum.screen -> VextIndexedAnimation 256x192, " &
+      "2 frame(s)" in
+      inspected.output
+
+    let
+      rawDestination = getTempDir() / "vexter-cli-raw-screen.gif"
+      snapshotDestination = getTempDir() / "vexter-cli-snapshot-screen.gif"
+    for destination in [rawDestination, snapshotDestination]:
+      if fileExists(destination):
+        removeFile(destination)
+    defer:
+      for destination in [rawDestination, snapshotDestination]:
+        if fileExists(destination):
+          removeFile(destination)
+
+    let rawExport = run("export", "--resource", "/screen", "-o",
+      rawDestination, FixturePath)
+    let snapshotExport = run("export", "--resource", "/screen", "-o",
+      snapshotDestination, SnapshotFixturePath)
+    check rawExport.exitCode == 0
+    check snapshotExport.exitCode == 0
+    check readFile(snapshotDestination) == readFile(rawDestination)

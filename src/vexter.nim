@@ -63,14 +63,20 @@ proc parseOptions(arguments: seq[string]): CliOptions =
 proc selectedCandidate(options: CliOptions, data: openArray[byte]):
     VextDetectionCandidate =
   if options.inputFormat.len > 0:
-    if options.inputFormat != ZxSpectrumScreenTypeId:
+    if options.inputFormat notin [ZxSpectrumScreenTypeId,
+        ZxSpectrumSnapshotTypeId]:
       raise newException(CliError,
         "unsupported input format: " & options.inputFormat)
-    if data.len != ZxSpectrumScreenSize:
+    if options.inputFormat == ZxSpectrumScreenTypeId and
+        data.len != ZxSpectrumScreenSize:
       raise newException(CliError,
         "ZX Spectrum screen must contain exactly 6912 bytes")
+    if options.inputFormat == ZxSpectrumSnapshotTypeId and
+        data.len != ZxSpectrumSnapshot48Size:
+      raise newException(CliError,
+        "48K ZX Spectrum snapshot must contain exactly 49179 bytes")
     return VextDetectionCandidate(
-      typeId: ZxSpectrumScreenTypeId,
+      typeId: options.inputFormat,
       confidence: vdcProbable,
       evidence: @[VextDetectionEvidence(
         description: "format selected with --input-format")])
@@ -84,7 +90,7 @@ proc inspect(options: CliOptions) =
   let data = readBytes(options.input)
   let selected = selectedCandidate(options, data)
   let candidates = detectFormats(options.input, data)
-  let animation = decodeZxSpectrumScreen(data)
+  let animation = decodeScreenResource(selected.typeId, data)
 
   if options.json:
     var candidateNodes = newJArray()
@@ -106,6 +112,7 @@ proc inspect(options: CliOptions) =
       "candidates": candidateNodes,
       "resources": [{
         "path": ZxSpectrumScreenResourcePath,
+        "type": ZxSpectrumScreenTypeId,
         "archetype": "VextIndexedAnimation",
         "width": animation.width,
         "height": animation.height,
@@ -119,7 +126,8 @@ proc inspect(options: CliOptions) =
     for item in selected.evidence:
       echo "  Evidence: " & item.description
     echo "Resources:"
-    echo &"  {ZxSpectrumScreenResourcePath}  VextIndexedAnimation " &
+    echo &"  {ZxSpectrumScreenResourcePath}  {ZxSpectrumScreenTypeId} " &
+      "-> VextIndexedAnimation " &
       &"{animation.width}x{animation.height}, {animation.frames.len} frame(s)"
 
 proc bytesToString(data: openArray[byte]): string =
@@ -129,13 +137,13 @@ proc bytesToString(data: openArray[byte]): string =
 
 proc exportResource(options: CliOptions) =
   let data = readBytes(options.input)
-  discard selectedCandidate(options, data)
+  let selected = selectedCandidate(options, data)
   if options.resource.len > 0 and
       options.resource != ZxSpectrumScreenResourcePath:
     raise newException(CliError,
       "resource was not found: " & options.resource)
 
-  let animation = decodeZxSpectrumScreen(data)
+  let animation = decodeScreenResource(selected.typeId, data)
   var outputFormat = options.outputFormat
   if outputFormat.len == 0:
     outputFormat = if animation.frames.len > 1: "gif" else: "png"

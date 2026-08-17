@@ -274,6 +274,26 @@ cannot accidentally cancel out. Timing is tested as archetype data rather than
 being inferred from an optimized control file unless timing is explicitly part
 of that fixture's contract.
 
+## Second format: ZX Spectrum 48K snapshot
+
+A 48K `.sna` snapshot is exactly 49,179 bytes long. Its first 27 bytes contain
+processor registers and execution state, followed by a direct 48K RAM image.
+The first 6,912 bytes of that RAM image are the current Spectrum screen.
+
+An exact size match, strengthened by a case-insensitive `.sna` extension,
+identifies `zx-spectrum.snapshot` as **probable**. The snapshot container exposes
+the embedded display through the same canonical resource path:
+
+```text
+/screen
+```
+
+Extracting that resource delegates to the existing `zx-spectrum.screen`
+decoder. It therefore follows the same indexed-animation, default-format, PNG,
+and GIF pathways as a standalone screen dump. The `colours.sna` fixture contains
+the program that produced `colours.scr`; its screen-memory region matches the
+raw screen fixture byte-for-byte.
+
 ## Historical compatibility targets
 
 The previous implementation covered formats including:
@@ -299,12 +319,14 @@ artifact output.
 
 ## Near-term development
 
-The first vertical slice now establishes:
+The current implementation establishes:
 
 - the `vexterlib` public entry point;
 - indexed image and indexed animation values;
 - evidence-based detection for `zx-spectrum.screen`;
+- evidence-based detection for 48K `zx-spectrum.snapshot` files;
 - `/screen` resource inspection;
+- extraction of a snapshot's `/screen` through the shared screen decoder;
 - correct Spectrum bitmap, colour, BRIGHT, and FLASH decoding;
 - dependency-free PNG and animated GIF artifacts;
 - human-readable and JSON inspection;

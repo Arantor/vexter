@@ -2,3 +2,4 @@
 /nimcache/
 /tests/test_cli
 /tests/test_zx_spectrum_screen
+/tests/test_zx_spectrum_snapshot
