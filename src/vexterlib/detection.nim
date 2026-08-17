@@ -1,0 +1,40 @@
+## Evidence-based input format detection.
+
+import std/[os, strutils]
+import ./containers/zx_spectrum_screen
+
+type
+  VextDetectionConfidence* = enum
+    vdcPossible
+    vdcProbable
+    vdcCertain
+
+  VextDetectionEvidence* = object
+    description*: string
+
+  VextDetectionCandidate* = object
+    typeId*: string
+    confidence*: VextDetectionConfidence
+    evidence*: seq[VextDetectionEvidence]
+
+proc `$`*(confidence: VextDetectionConfidence): string =
+  case confidence
+  of vdcPossible: "possible"
+  of vdcProbable: "probable"
+  of vdcCertain: "certain"
+
+proc detectFormats*(filename: string, data: openArray[byte]):
+    seq[VextDetectionCandidate] =
+  ## Returns every format candidate recognized from currently available
+  ## evidence, ordered from strongest to weakest.
+  if data.len == ZxSpectrumScreenSize:
+    var evidence = @[VextDetectionEvidence(
+      description: "file size is exactly 6912 bytes")]
+    if filename.splitFile.ext.toLowerAscii == ".scr":
+      evidence.add VextDetectionEvidence(
+        description: "file extension is .scr")
+    result.add VextDetectionCandidate(
+      typeId: ZxSpectrumScreenTypeId,
+      confidence: vdcProbable,
+      evidence: evidence
+    )
