@@ -1,8 +1,8 @@
 ## Evidence-based input format detection.
 
 import std/[os, strutils]
-import ./containers/[zx_spectrum_screen_dump, zx_spectrum_snapshot,
-  zx_spectrum_tap]
+import ./containers/[amos_bank, amos_sprite_icon_bank,
+  zx_spectrum_screen_dump, zx_spectrum_snapshot, zx_spectrum_tap]
 import ./resources/zx_spectrum_screen
 
 type
@@ -29,6 +29,32 @@ proc detectFormats*(filename: string, data: openArray[byte]):
     seq[VextDetectionCandidate] =
   ## Returns every format candidate recognized from currently available
   ## evidence, ordered from strongest to weakest.
+  if isAmosBank(data):
+    let bank = parseAmosBank(data)
+    var evidence = @[VextDetectionEvidence(
+      description: "file has a valid AmBk identifier and " & bank.bankType &
+        " bank structure")]
+    if hasAmosBankExtension(filename):
+      evidence.add VextDetectionEvidence(description: "file extension is .abk")
+    result.add VextDetectionCandidate(
+      typeId: AmosBankTypeId,
+      confidence: vdcCertain,
+      evidence: evidence)
+
+  if isAmosSpriteIconBank(data):
+    let bank = parseAmosSpriteIconBank(data)
+    let identifier =
+      if bank.kind == asibkSprite: AmosSpriteBankMagic else: AmosIconBankMagic
+    var evidence = @[VextDetectionEvidence(
+      description: "file has a valid " & identifier &
+        " identifier and sprite/icon bank structure")]
+    if hasAmosSpriteIconBankExtension(filename):
+      evidence.add VextDetectionEvidence(description: "file extension is .abk")
+    result.add VextDetectionCandidate(
+      typeId: bank.amosSpriteIconBankTypeId,
+      confidence: vdcCertain,
+      evidence: evidence)
+
   if isZxSpectrumScreenDump(data):
     var evidence = @[VextDetectionEvidence(
       description: "file size is exactly 6912 bytes")]

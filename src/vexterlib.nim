@@ -2,22 +2,30 @@
 
 import vexterlib/archetypes/raster
 import vexterlib/artifacts
+import vexterlib/containers/amos_bank
+import vexterlib/containers/amos_sprite_icon_bank
 import vexterlib/containers/zx_spectrum_screen_dump
 import vexterlib/containers/zx_spectrum_snapshot
 import vexterlib/containers/zx_spectrum_tap
+import vexterlib/resources/amos_planar_image
 import vexterlib/resources/zx_spectrum_screen
 import vexterlib/detection
+import vexterlib/metadata
 import vexterlib/operations
 import vexterlib/resource_tree
 import vexterlib/exporters/[gif, png]
 
 export raster
 export artifacts
+export amos_bank
+export amos_sprite_icon_bank
+export amos_planar_image
 export zx_spectrum_screen_dump
 export zx_spectrum_screen
 export zx_spectrum_snapshot
 export zx_spectrum_tap
 export detection
+export metadata
 export operations
 export resource_tree
 export gif

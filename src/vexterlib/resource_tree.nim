@@ -1,17 +1,20 @@
 ## Reusable hierarchical resource descriptions returned by container inspection.
 
 import ./archetypes/raster
+import ./metadata
 
 type
   VextResourceNodeKind* = enum
     vrnkGroup
     vrnkRaster
+    vrnkOpaque
 
   VextResourceNode* = ref object
     path*: string
     typeId*: string
     kind*: VextResourceNodeKind
     raster*: VextRaster
+    metadata*: seq[VextMetadataEntry]
     children*: seq[VextResourceNode]
 
   VextResourceTree* = object
@@ -27,6 +30,18 @@ proc addRasterResources(node: VextResourceNode,
 proc rasterResources*(tree: VextResourceTree): seq[VextResourceNode] =
   for root in tree.roots:
     addRasterResources(root, result)
+
+proc addLeafResources(node: VextResourceNode,
+    resources: var seq[VextResourceNode]) =
+  if node.kind != vrnkGroup:
+    resources.add node
+  for child in node.children:
+    addLeafResources(child, resources)
+
+proc leafResources*(tree: VextResourceTree): seq[VextResourceNode] =
+  ## Returns every independently addressable resource in depth-first order.
+  for root in tree.roots:
+    addLeafResources(root, result)
 
 proc findRasterResource*(tree: VextResourceTree,
     path: string): VextResourceNode =

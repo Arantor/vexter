@@ -5,9 +5,10 @@ import ./archetypes/raster
 import ./detection
 import ./exporters/[gif, png]
 import ./resource_tree
-import ./containers/[zx_spectrum_screen_dump, zx_spectrum_snapshot,
-  zx_spectrum_tap]
-import ./resources/zx_spectrum_screen
+import ./containers/[amos_bank, amos_sprite_icon_bank,
+  zx_spectrum_screen_dump, zx_spectrum_snapshot, zx_spectrum_tap]
+import ./metadata
+import ./resources/[amos_planar_image, zx_spectrum_screen]
 
 type
   VextInspection* = object
@@ -28,6 +29,13 @@ type
 proc forcedCandidate(typeId: string, data: openArray[byte]):
     VextDetectionCandidate =
   case typeId
+  of AmosBankTypeId:
+    discard parseAmosBank(data)
+  of AmosSpriteBankTypeId, AmosIconBankTypeId:
+    let bank = parseAmosSpriteIconBank(data)
+    if bank.amosSpriteIconBankTypeId != typeId:
+      raise newException(ValueError,
+        "AMOS bank identifier does not match the selected format")
   of ZxSpectrumScreenDumpTypeId:
     if not isZxSpectrumScreenDump(data):
       raise newException(ValueError,
@@ -54,6 +62,19 @@ proc rasterNode(path: string, data: openArray[byte]): VextResourceNode =
     kind: vrnkRaster,
     raster: decodeZxSpectrumScreen(data))
 
+proc amosRasterNode(path, typeId: string, source: AmosPlanarImage,
+    palette: openArray[VextRgb]): VextResourceNode =
+  VextResourceNode(
+    path: path,
+    typeId: typeId,
+    kind: vrnkRaster,
+    raster: VextRaster(kind: vrkIndexedImage,
+      image: decodeAmosPlanarImage(source, palette)),
+    metadata: @[
+      integerMetadata("hotspot.x", source.hotspotX),
+      integerMetadata("hotspot.y", source.hotspotY)
+    ])
+
 proc inspectSource*(filename: string, data: openArray[byte],
     inputFormat = ""): VextInspection =
   result.candidates = detectFormats(filename, data)
@@ -65,6 +86,31 @@ proc inspectSource*(filename: string, data: openArray[byte],
     result.selectedFormat = result.candidates[0]
 
   case result.selectedFormat.typeId
+  of AmosBankTypeId:
+    let bank = parseAmosBank(data)
+    result.resources.roots.add VextResourceNode(
+      path: "/bank",
+      typeId: AmosBankResourceTypeId,
+      kind: vrnkOpaque,
+      metadata: @[
+        integerMetadata("bank.number", bank.number),
+        integerMetadata("bank.flags", bank.flags),
+        stringMetadata("bank.type", bank.bankType),
+        integerMetadata("data.length", bank.dataLength)
+      ])
+  of AmosSpriteBankTypeId, AmosIconBankTypeId:
+    let bank = parseAmosSpriteIconBank(data)
+    let
+      resourceName = if bank.kind == asibkSprite: "sprite" else: "icon"
+      resourceTypeId =
+        if bank.kind == asibkSprite: AmosSpriteResourceTypeId
+        else: AmosIconResourceTypeId
+      group = VextResourceNode(path: "/" & resourceName, kind: vrnkGroup)
+    for index, image in bank.images:
+      group.children.add amosRasterNode(
+        "/" & resourceName & "/" & $index, resourceTypeId,
+        image, bank.palette)
+    result.resources.roots.add group
   of ZxSpectrumScreenDumpTypeId:
     result.resources.roots.add rasterNode(ZxSpectrumScreenResourcePath,
       extractZxSpectrumScreenDump(data))
@@ -98,10 +144,10 @@ proc exportResource*(tree: VextResourceTree,
         "resource was not found: " & request.resourcePath)
   else:
     if available.len == 0:
-      raise newException(ValueError, "container exposes no screen resources")
+      raise newException(ValueError, "container exposes no raster resources")
     if available.len > 1:
       raise newException(ValueError,
-        "more than one screen resource is available; select one")
+        "more than one raster resource is available; select one")
     resource = available[0]
 
   result.resourcePath = resource.path

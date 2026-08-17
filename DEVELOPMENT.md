@@ -12,8 +12,9 @@ Vexter currently consists of a reusable Nim library and a thin command-line
 client. It supports:
 
 - detection and inspection of ZX Spectrum raw screen dumps, SNA snapshots,
-  and TAP containers;
-- a resource tree containing decoded ZX Spectrum screen resources;
+  TAP containers, standalone AMOS sprite/icon banks, and generic AMOS banks;
+- a resource tree containing decoded indexed-raster or identified opaque
+  resources and metadata;
 - indexed still-image and indexed-animation raster archetypes;
 - PNG export for a still image or an animation's natural first frame; and
 - animated GIF export.
@@ -40,8 +41,8 @@ file bytes
   -> evidence-based detection or a validated forced format
   -> format-specific container parsing and resource extraction
   -> VextResourceTree
-  -> VextRaster resource values
-  -> PNG or GIF exporter
+  -> VextRaster values or identified opaque resources
+  -> PNG or GIF exporter for raster values
   -> in-memory VextArtifactSet
   -> CLI-owned filesystem write
 ```
@@ -72,20 +73,24 @@ export-format defaults do not belong here.
   format was requested, and returns an in-memory artifact set.
 
 `src/vexterlib/resource_tree.nim` defines `VextResourceTree` and
-`VextResourceNode`. Nodes are reference objects and currently have either the
-`vrnkGroup` or `vrnkRaster` kind. `rasterResources` returns raster nodes in
-depth-first tree order; `findRasterResource` performs exact path lookup over
-those raster nodes. Groups are structural and are not exportable raster
-resources.
+`VextResourceNode`. Nodes are reference objects and currently have the
+`vrnkGroup`, `vrnkRaster`, or `vrnkOpaque` kind. `leafResources` returns every
+addressable non-group node, while `rasterResources` returns only raster nodes
+in depth-first tree order. `findRasterResource` performs exact path lookup
+over raster nodes. Groups are structural and opaque resources are inspectable
+but neither is exportable through the current raster export operation.
 
 `src/vexterlib/detection.nim` contains evidence-based detection. Candidates
-are ordered strongest-first. Every current detector returns `vdcProbable`:
-the supported formats lack evidence sufficient for a certain identification.
-Exact sizes or valid TAP structure provide the base evidence and matching
-case-insensitive extensions add evidence.
+are ordered strongest-first. Structurally valid AMOS banks with exact magic
+identifiers are `vdcCertain`; current ZX Spectrum detectors are `vdcProbable`.
+Matching case-insensitive extensions add supporting evidence.
 
 `src/vexterlib/containers/` contains source/container rules:
 
+- `amos_bank.nim` validates generic `AmBk` headers and lengths and identifies
+  otherwise unsupported bank payloads;
+- `amos_sprite_icon_bank.nim` validates standalone `AmSp` and `AmIc` banks,
+  extracts their records and shared palette, and retains image hotspots;
 - `zx_spectrum_screen_dump.nim` validates and extracts a standalone 6,912-byte
   screen dump;
 - `zx_spectrum_snapshot.nim` validates supported SNA sizes and extracts the
@@ -95,6 +100,11 @@ case-insensitive extensions add evidence.
 
 Container modules deal in source structure and extracted resource bytes. They
 must not own raster rendering or exporter behavior.
+
+`src/vexterlib/resources/amos_planar_image.nim` defines reusable AMOS sprite
+and icon image data and converts plane-major data into indexed rasters. The
+bank parser and resource decoder are deliberately separate so ABS/program
+containers can expose the same image resources later.
 
 `src/vexterlib/resources/zx_spectrum_screen.nim` defines the reusable
 `zx-spectrum.screen` resource and its decoder. A standalone screen dump is a
@@ -107,6 +117,8 @@ are present and a two-frame `VextIndexedAnimation` when FLASH is present.
 animation contracts. `src/vexterlib/exporters/` consumes those contracts and
 has no ZX Spectrum-specific knowledge. `src/vexterlib/artifacts.nim` defines
 the in-memory output contract; callers, not exporters, write files.
+`src/vexterlib/metadata.nim` defines typed key/value metadata currently used
+for signed AMOS hotspot coordinates.
 
 The former `containers/zx_spectrum_screen.nim` and top-level
 `vexterlib/resources.nim` screen-dispatch module have been replaced by the
@@ -118,6 +130,12 @@ reintroduce type-switching resource dispatch into the CLI.
 Stable type identifiers are:
 
 ```text
+amos.bank
+amos.bank-data
+amos.sprite-bank
+amos.icon-bank
+amos.sprite
+amos.icon
 zx-spectrum.screen
 zx-spectrum.snapshot
 zx-spectrum.tap
@@ -128,6 +146,17 @@ one qualifying screen exposes `/screen`. A TAP with multiple qualifying
 screens has a `/screen` group and raster children `/screen/1`, `/screen/2`, and
 so on. A structurally valid TAP with no qualifying screen records has an empty
 resource tree.
+
+Standalone AMOS banks expose a structural `/sprite` or `/icon` group and
+zero-based numbered raster children. Hotspots are attached to each child as
+`hotspot.x` and `hotspot.y` integer metadata. The current parser accepts both
+the described header-palette layout and the fixture-confirmed trailing-palette
+layout. ABS bank sets and AMOS program containers are not implemented yet.
+
+Generic `AmBk` files expose one opaque `/bank` resource with header metadata.
+Their payload is deliberately not decoded or exported yet. This preserves an
+identifiable resource in the tree for bank types that are not otherwise
+supported.
 
 When `--input-format` or the corresponding `inspectSource` argument is used,
 the library still validates the bytes against that format. It does not merely
@@ -150,6 +179,11 @@ The routine suites are:
 - `tests/test_zx_spectrum_snapshot.nim`: SNA detection and screen extraction;
 - `tests/test_zx_spectrum_tap.nim`: TAP validation, extraction, and resource
   tree shapes;
+- `tests/test_amos_sprite_icon_bank.nim`: AMOS bank parsing, icon/sprite
+  distinctions, planar rendering against controls, hotspots, and malformed
+  input;
+- `tests/test_amos_bank.nim`: generic bank length masking, labels, opaque
+  resources, metadata, and malformed input;
 - `tests/test_operations.nim`: direct high-level library and resource-tree
   behavior; and
 - `tests/test_cli.nim`: end-to-end CLI inspection, export, defaults, and file
@@ -196,4 +230,3 @@ names there when adding suites, or direct their output into `/tmp`.
   exports is future work.
 - Detection currently parses some inputs again during inspection. There is no
   parsed-container cache or registry abstraction yet.
-

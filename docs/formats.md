@@ -70,6 +70,77 @@ Tests compare expanded pixel colours and positions, with animated controls
 compared as fully composited frames. Palette ordering, compression, chunk
 layout, frame cropping, and other encoding choices are ignored.
 
+## Generic AMOS banks
+
+Type identifier: `amos.bank`
+
+Standalone generic banks use the four-byte `AmBk` identifier and commonly use
+an `.Abk` extension. After the identifier, all values are big-endian:
+
+- a two-byte bank number;
+- two bytes of flags;
+- a four-byte stored length;
+- an eight-byte, space-padded, unterminated ASCII bank-type label; and
+- the bank payload.
+
+Bits 30 and 31 of the stored length describe memory behavior, while bits 28
+and 29 are undefined. Vexter ignores all four high bits. Bits 0 through 27
+contain the payload length plus eight, so Vexter masks the value with
+`$0fffffff` and subtracts eight. The resulting length must exactly match the
+remaining bytes.
+
+Known labels currently include `Music`, `Tracker`, `Amal`, `Data`, `Datas`,
+`Work`, `Asm`, `Code`, `Pac.Pic.`, `Resource`, and `Samples`. Labels outside
+this list remain reportable because they are descriptive rather than a format
+dispatch mechanism.
+
+A structurally valid generic bank is detected as **certain** and exposes one
+opaque `amos.bank-data` resource at `/bank`. Inspection reports `bank.number`,
+`bank.flags`, `bank.type`, and `data.length` metadata. The payload is not yet
+decoded or exportable.
+
+## AMOS sprite and icon banks
+
+Type identifiers: `amos.sprite-bank` and `amos.icon-bank`
+
+Standalone AMOS sprite and icon banks conventionally use an `.Abk` extension;
+matching is case-insensitive. Their four-byte identifiers are `AmSp` and
+`AmIc`, respectively. A valid identifier plus a completely valid bank
+structure identifies the exact bank type as **certain**. The extension adds
+supporting evidence but is not required.
+
+All numeric fields are big-endian. The identifier is followed by a two-byte
+image count and then the image records. Each record contains:
+
+- a two-byte width measured in 16-pixel words;
+- a two-byte pixel height;
+- a two-byte colour depth from one through five bitplanes;
+- signed two-byte X and Y hotspot coordinates; and
+- `widthWords * 2 * height * depth` bytes of planar image data.
+
+The bank's shared 64-byte palette contains 32 big-endian `$0RGB` entries,
+expanded from four to eight bits per channel by nibble replication. Vexter
+accepts it directly after the count, as described for the format, or after all
+image records, as established by the supplied DRAGON fixture.
+
+Planar data is plane-major, beginning with plane zero. Plane zero is the
+least-significant palette-index bit. Words are big-endian and pixels are read
+most-significant bit first, beginning at output column zero.
+
+Sprite banks expose a `/sprite` group with `amos.sprite` raster children at
+`/sprite/0`, `/sprite/1`, and so on. Icon banks analogously expose `/icon` and
+`amos.icon` children. Each child is a `VextIndexedImage` and carries signed
+integer `hotspot.x` and `hotspot.y` metadata. PNG is consequently its default
+export format.
+
+### Fixtures
+
+`tests/fixtures/amos.sprite-bank/DRAGON.Abk` contains ten sprite frames. An
+independently generated GIF stored beside it is the authoritative rendering
+control: every expanded RGB pixel matches the conventional unshifted decode.
+Fixture hashes and details are recorded in that directory's README. Origin
+and attribution are recorded in [`THIRD_PARTY.md`](../THIRD_PARTY.md).
+
 ## ZX Spectrum snapshot
 
 Type identifier: `zx-spectrum.snapshot`

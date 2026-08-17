@@ -63,7 +63,7 @@ proc parseOptions(arguments: seq[string]): CliOptions =
 proc inspect(options: CliOptions) =
   let data = readBytes(options.input)
   let inspection = inspectSource(options.input, data, options.inputFormat)
-  let rasterResources = inspection.resources.rasterResources
+  let resources = inspection.resources.leafResources
 
   if options.json:
     var candidateNodes = newJArray()
@@ -81,17 +81,26 @@ proc inspect(options: CliOptions) =
         "evidence": evidence
       }
     var resourceNodes = newJArray()
-    for item in rasterResources:
-      let raster = item.raster
+    for item in resources:
       var resource = %*{
         "path": item.path,
         "type": item.typeId,
-        "archetype": raster.archetypeName,
-        "width": raster.width,
-        "height": raster.height
+        "kind": (if item.kind == vrnkRaster: "raster" else: "opaque")
       }
-      if raster.kind == vrkIndexedAnimation:
-        resource["frames"] = %raster.animation.frames.len
+      if item.kind == vrnkRaster:
+        let raster = item.raster
+        resource["archetype"] = %raster.archetypeName
+        resource["width"] = %raster.width
+        resource["height"] = %raster.height
+        if raster.kind == vrkIndexedAnimation:
+          resource["frames"] = %raster.animation.frames.len
+      if item.metadata.len > 0:
+        var metadata = newJObject()
+        for entry in item.metadata:
+          metadata[entry.key] = case entry.value.kind
+            of vmvkInteger: %entry.value.integerValue
+            of vmvkString: %entry.value.stringValue
+        resource["metadata"] = metadata
       resourceNodes.add resource
     let document = %*{
       "input": options.input,
@@ -107,14 +116,22 @@ proc inspect(options: CliOptions) =
     for item in inspection.selectedFormat.evidence:
       echo "  Evidence: " & item.description
     echo "Resources:"
-    for item in rasterResources:
-      let raster = item.raster
-      var description = &"  {item.path}  " &
-        &"{item.typeId} -> {raster.archetypeName} " &
-        &"{raster.width}x{raster.height}"
-      if raster.kind == vrkIndexedAnimation:
-        description.add &", {raster.animation.frames.len} frame(s)"
+    for item in resources:
+      var description = &"  {item.path}  {item.typeId}"
+      if item.kind == vrnkRaster:
+        let raster = item.raster
+        description.add &" -> {raster.archetypeName} " &
+          &"{raster.width}x{raster.height}"
+        if raster.kind == vrkIndexedAnimation:
+          description.add &", {raster.animation.frames.len} frame(s)"
+      else:
+        description.add " (opaque)"
       echo description
+      for entry in item.metadata:
+        let value = case entry.value.kind
+          of vmvkInteger: $entry.value.integerValue
+          of vmvkString: entry.value.stringValue
+        echo &"    {entry.key}: {value}"
 
 proc bytesToString(data: openArray[byte]): string =
   result = newString(data.len)

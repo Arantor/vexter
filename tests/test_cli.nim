@@ -4,6 +4,7 @@ const
   VexterCliPath {.strdefine.} = "build/vexter"
   FixturePath = "tests/fixtures/zx-spectrum.screen/colours.scr"
   SnapshotFixturePath = "tests/fixtures/zx-spectrum.snapshot/colours.sna"
+  AmosFixturePath = "tests/fixtures/amos.sprite-bank/DRAGON.Abk"
 
 proc run(arguments: varargs[string]): tuple[output: string, exitCode: int] =
   var command = quoteShell(VexterCliPath)
@@ -12,6 +13,56 @@ proc run(arguments: varargs[string]): tuple[output: string, exitCode: int] =
   execCmdEx(command, options = {poUsePath, poStdErrToStdOut})
 
 suite "vexter CLI":
+  test "generic AMOS banks inspect as opaque resources":
+    let source = getTempDir() / "vexter-cli-music.Abk"
+    writeFile(source, "AmBk\x00\x07\x12\x34\xd0\x00\x00\x0b" &
+      "Music   \x01\x02\x03")
+    defer:
+      if fileExists(source):
+        removeFile(source)
+
+    let inspected = run("inspect", "--json", source)
+    check inspected.exitCode == 0
+    let document = parseJson(inspected.output)
+    check document["selectedFormat"].getStr == "amos.bank"
+    check document["resources"].len == 1
+    check document["resources"][0]["path"].getStr == "/bank"
+    check document["resources"][0]["type"].getStr == "amos.bank-data"
+    check document["resources"][0]["kind"].getStr == "opaque"
+    check document["resources"][0]["metadata"]["bank.number"].getInt == 7
+    check document["resources"][0]["metadata"]["bank.type"].getStr == "Music"
+    check document["resources"][0]["metadata"]["data.length"].getInt == 3
+
+    let exported = run("export", source)
+    check exported.exitCode == 1
+    check "container exposes no raster resources" in exported.output
+
+  test "AMOS banks expose selectable sprites and hotspot metadata":
+    let inspected = run("inspect", "--json", AmosFixturePath)
+    check inspected.exitCode == 0
+    let document = parseJson(inspected.output)
+    check document["selectedFormat"].getStr == "amos.sprite-bank"
+    check document["candidates"][0]["confidence"].getStr == "certain"
+    check document["resources"].len == 10
+    check document["resources"][0]["path"].getStr == "/sprite/0"
+    check document["resources"][0]["type"].getStr == "amos.sprite"
+    check document["resources"][0]["metadata"]["hotspot.x"].getInt == 0
+    check document["resources"][0]["metadata"]["hotspot.y"].getInt == 0
+
+    let destination = getTempDir() / "vexter-cli-dragon.png"
+    if fileExists(destination):
+      removeFile(destination)
+    defer:
+      if fileExists(destination):
+        removeFile(destination)
+    let ambiguous = run("export", "-o", destination, AmosFixturePath)
+    check ambiguous.exitCode == 1
+    check "more than one raster resource is available" in ambiguous.output
+    let exported = run("export", "--resource", "/sprite/0", "-o",
+      destination, AmosFixturePath)
+    check exported.exitCode == 0
+    check readFile(destination).startsWith("\x89PNG\r\n\x1a\n")
+
   test "inspect reports probable format and screen resource":
     let inspected = run("inspect", FixturePath)
     check inspected.exitCode == 0
