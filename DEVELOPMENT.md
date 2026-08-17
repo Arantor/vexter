@@ -97,7 +97,10 @@ Matching case-insensitive extensions add supporting evidence.
   source while leaving raster decoding separate;
 - `amiga_anim.nim` parses nested ILBM frame forms and their ANHD/DLTA records;
 - `amos_bank.nim` validates generic `AmBk` headers and lengths and identifies
-  otherwise unsupported bank payloads;
+  otherwise unsupported bank payloads, retaining those bytes so nested
+  specialized bank resources can be decoded;
+- `amos_packed_picture.nim` parses `Pac.Pic.` screen/picture headers and
+  expands its nested PICDATA/RLEDATA/POINTS compression into planar bytes;
 - `amos_bank_set.nim` validates `AmBs` collections and delimits their adjacent
   generic, sprite, and icon bank members;
 - `amos_program.nim` validates AMOS Basic/Professional headers, locates the
@@ -119,6 +122,12 @@ must not own raster rendering or exporter behavior.
 and icon image data and converts plane-major data into indexed rasters. The
 bank parser and resource decoder are deliberately separate so ABS/program
 containers can expose the same image resources later.
+
+`src/vexterlib/resources/amos_packed_picture_image.nim` converts decompressed
+Pac.Pic. planes and the screen header's `$0RGB` palette into an indexed raster.
+Whole-screen one-through-five-plane pictures are supported. Partial pictures
+without a screen header remain structurally parseable but cannot be rendered
+without an external palette; six-plane Pac.Pic. modes also remain deferred.
 
 `src/vexterlib/resources/amiga_ilbm_image.nim` decodes uncompressed or
 ByteRun1-compressed, row-interleaved ILBM planes. It produces indexed images
@@ -177,6 +186,7 @@ amiga.anim
 amos.bank
 amos.bank-data
 amos.bank-set
+amos.packed-picture
 amos.program
 amos.tokenised-listing
 amos.sprite-bank
@@ -195,6 +205,11 @@ with header and CAMG metadata. Unknown ILBM chunks remain structurally valid
 and are ignored by the current image decoder. HAM/HAM8 ILBMs expose a
 `VextTrueColourImage` at the same path. True-colour PNG export is supported;
 GIF export requires a future colour-quantization stage.
+
+Generic `AmBk` containers continue to expose unknown bank types as opaque bank
+data. A `Pac.Pic.` bank with its screen palette instead exposes an indexed
+`amos.packed-picture` raster at `/picture`; the same bank nested in an `AmBs`
+or AMOS program uses its numbered `/banks/N` resource path.
 
 ANIM containers expose `/animation`. Indexed animations with a stable palette
 default to GIF. HAM animations produce `VextTrueColourAnimation` and default
@@ -263,6 +278,9 @@ The routine suites are:
   input;
 - `tests/test_amos_bank.nim`: generic bank length masking, labels, opaque
   resources, metadata, and malformed input;
+- `tests/test_amos_packed_picture.nim`: authentic two-stage decompression and
+  planar rendering against the Castle AMOS PNG control, nested `AmBs`
+  exposure, PNG export, and palette-less partial-picture behavior;
 - `tests/test_amos_bank_set.nim`: mixed adjacent members, nested resource
   paths, prefix length reporting, export, and structural failures;
 - `tests/test_amos_program.nim`: real Basic and synthetic Professional

@@ -3,6 +3,7 @@
 import vexterlib/archetypes/raster
 import vexterlib/artifacts
 import vexterlib/containers/amos_bank
+import vexterlib/containers/amos_packed_picture
 import vexterlib/containers/amiga_iff
 import vexterlib/containers/amiga_ilbm
 import vexterlib/containers/amiga_anim
@@ -13,6 +14,7 @@ import vexterlib/containers/zx_spectrum_screen_dump
 import vexterlib/containers/zx_spectrum_snapshot
 import vexterlib/containers/zx_spectrum_tap
 import vexterlib/resources/amos_planar_image
+import vexterlib/resources/amos_packed_picture_image
 import vexterlib/resources/amiga_ilbm_image
 import vexterlib/resources/amiga_anim_image
 import vexterlib/resources/amos_listing
@@ -27,6 +29,7 @@ import vexterlib/exporters/[gif, png]
 export raster
 export artifacts
 export amos_bank
+export amos_packed_picture
 export amiga_iff
 export amiga_ilbm
 export amiga_ilbm_image
@@ -36,6 +39,7 @@ export amos_bank_set
 export amos_program
 export amos_sprite_icon_bank
 export amos_planar_image
+export amos_packed_picture_image
 export amos_listing
 export zx_spectrum_screen_dump
 export zx_spectrum_screen

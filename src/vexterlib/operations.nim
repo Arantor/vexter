@@ -5,11 +5,11 @@ import ./archetypes/raster
 import ./detection
 import ./exporters/[gif, png]
 import ./resource_tree
-import ./containers/[amiga_anim, amiga_iff, amiga_ilbm, amos_bank, amos_bank_set, amos_program,
+import ./containers/[amiga_anim, amiga_iff, amiga_ilbm, amos_bank, amos_bank_set, amos_packed_picture, amos_program,
   amos_sprite_icon_bank,
   zx_spectrum_screen_dump, zx_spectrum_snapshot, zx_spectrum_tap]
 import ./metadata
-import ./resources/[amiga_anim_image, amiga_ilbm_image, amos_listing, amos_planar_image, zx_spectrum_basic,
+import ./resources/[amiga_anim_image, amiga_ilbm_image, amos_listing, amos_packed_picture_image, amos_planar_image, zx_spectrum_basic,
   zx_spectrum_screen]
 
 type
@@ -99,6 +99,32 @@ proc amosGenericNode(path: string, bank: AmosBank): VextResourceNode =
       integerMetadata("data.length", bank.dataLength)
     ])
 
+proc amosBankNode(path: string, bank: AmosBank): VextResourceNode =
+  if bank.bankType != AmosPackedPictureBankType:
+    return amosGenericNode(path, bank)
+  let picture = parseAmosPackedPicture(bank.data)
+  let pictureMetadata = @[
+    integerMetadata("bank.number", bank.number),
+    integerMetadata("bank.flags", bank.flags),
+    stringMetadata("bank.type", bank.bankType),
+    integerMetadata("position.x", picture.xOffsetBytes * 8),
+    integerMetadata("position.y", picture.yOffset),
+    integerMetadata("planes", picture.planes)
+  ]
+  if not picture.hasScreenHeader or picture.planes > 5:
+    return VextResourceNode(
+      path: path,
+      typeId: AmosPackedPictureResourceTypeId,
+      kind: vrnkOpaque,
+      metadata: pictureMetadata)
+  VextResourceNode(
+    path: path,
+    typeId: AmosPackedPictureResourceTypeId,
+    kind: vrnkRaster,
+    raster: VextRaster(kind: vrkIndexedImage,
+      image: decodeAmosPackedPicture(picture)),
+    metadata: pictureMetadata)
+
 proc amosSpriteIconGroup(groupPath, resourceBase: string,
     bank: AmosSpriteIconBank): VextResourceNode =
   let resourceTypeId =
@@ -119,7 +145,7 @@ proc amosBankSetGroup(bankSet: AmosBankSet): VextResourceNode =
     let bankPath = "/banks/" & $index
     case entry.kind
     of absekGeneric:
-      result.children.add amosGenericNode(bankPath, entry.genericBank)
+      result.children.add amosBankNode(bankPath, entry.genericBank)
     of absekSprite, absekIcon:
       let resourceName =
         if entry.kind == absekSprite: "sprite" else: "icon"
@@ -196,7 +222,9 @@ proc inspectSource*(filename: string, data: openArray[byte],
     result.resources.roots.add amosBankSetGroup(bankSet)
   of AmosBankTypeId:
     let bank = parseAmosBank(data)
-    result.resources.roots.add amosGenericNode("/bank", bank)
+    let path = if bank.bankType == AmosPackedPictureBankType:
+      AmosPackedPictureResourcePath else: "/bank"
+    result.resources.roots.add amosBankNode(path, bank)
   of AmosSpriteBankTypeId, AmosIconBankTypeId:
     let bank = parseAmosSpriteIconBank(data)
     let resourceName = if bank.kind == asibkSprite: "sprite" else: "icon"

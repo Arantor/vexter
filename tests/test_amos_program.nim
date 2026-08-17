@@ -51,8 +51,10 @@ suite "AMOS programs":
     check leaves[0].kind == vrnkText
     check leaves[0].metadata[0].value.stringValue == "AMOS Basic V1.00"
     check leaves[0].metadata[1].value.integerValue == 6264
-    check rasters.len == 28
+    check rasters.len == 29
     check rasters[0].path == "/banks/0/sprite/0"
+    check rasters[^1].path == "/banks/3"
+    check rasters[^1].typeId == AmosPackedPictureResourceTypeId
     check leaves[^1].path == "/banks/3"
     check leaves[0].text.startsWith("'            Xerxes' Revenge")
     check "SHIP$=SHIP$+\" Begin:" in leaves[0].text

@@ -10,6 +10,17 @@ be confirmed before distributing the fixture outside this development context.
 
 The accompanying `DRAGON.gif` is an independently generated rendering control.
 
+## Castle AMOS packed-picture fixture
+
+`tests/fixtures/amos.pacpic/Castle_AMOS.Abk` is a `Pac.Pic.` picture bank from
+“Castle AMOS”, one of the demo games bundled with AMOS. It is retained to
+validate packed-picture header parsing, two-stage RLE decompression, planar
+rendering, and palette conversion. Its redistribution or licensing status has
+not yet been supplied and should be confirmed before distributing the fixture
+outside this development context.
+
+`Castle_AMOS.png` is the supplied rendering control.
+
 ## Deluxe Paint King Tutenkhamen ILBM fixture
 
 `tests/fixtures/amiga.ilbm/KingTut.LoRes` contains the King Tutenkhamen cover

@@ -16,6 +16,7 @@ type
     flags*: int
     bankType*: string
     dataLength*: int
+    data*: seq[byte]
 
   AmosBankParseResult* = object
     bank*: AmosBank
@@ -54,6 +55,8 @@ proc parseAmosBankPrefix*(data: openArray[byte]): AmosBankParseResult =
     result.bank.bankType.add char(data[offset])
   result.bank.bankType = result.bank.bankType.strip(
     leading = false, trailing = true, chars = {' '})
+  if result.bank.dataLength > 0:
+    result.bank.data = @data[AmosBankHeaderSize ..< result.bytesRead]
 
 proc parseAmosBank*(data: openArray[byte]): AmosBank =
   let parsed = parseAmosBankPrefix(data)
