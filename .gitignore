@@ -8,4 +8,5 @@
 /tests/test_operations
 /tests/test_zx_spectrum_screen
 /tests/test_zx_spectrum_snapshot
+/tests/test_zx_spectrum_basic
 /tests/test_zx_spectrum_tap

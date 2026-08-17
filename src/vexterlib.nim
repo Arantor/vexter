@@ -12,6 +12,7 @@ import vexterlib/containers/zx_spectrum_tap
 import vexterlib/resources/amos_planar_image
 import vexterlib/resources/amos_listing
 import vexterlib/resources/zx_spectrum_screen
+import vexterlib/resources/zx_spectrum_basic
 import vexterlib/detection
 import vexterlib/metadata
 import vexterlib/operations
@@ -28,6 +29,7 @@ export amos_planar_image
 export amos_listing
 export zx_spectrum_screen_dump
 export zx_spectrum_screen
+export zx_spectrum_basic
 export zx_spectrum_snapshot
 export zx_spectrum_tap
 export detection

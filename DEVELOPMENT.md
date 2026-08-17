@@ -12,7 +12,8 @@ Vexter currently consists of a reusable Nim library and a thin command-line
 client. It supports:
 
 - detection and inspection of ZX Spectrum raw screen dumps, SNA snapshots,
-  TAP containers, standalone AMOS banks, AMOS bank sets, and AMOS programs;
+  TAP containers, tokenised BASIC resources, standalone AMOS banks, AMOS bank
+  sets, and AMOS programs;
 - a resource tree containing decoded indexed-raster or identified opaque
   resources, decoded text resources, and metadata;
 - indexed still-image and indexed-animation raster archetypes;
@@ -98,10 +99,11 @@ Matching case-insensitive extensions add supporting evidence.
   extracts their records and shared palette, and retains image hotspots;
 - `zx_spectrum_screen_dump.nim` validates and extracts a standalone 6,912-byte
   screen dump;
-- `zx_spectrum_snapshot.nim` validates supported SNA sizes and extracts the
-  current 6,912-byte display-memory region; and
+- `zx_spectrum_snapshot.nim` validates supported SNA sizes, extracts the
+  current 6,912-byte display-memory region, and locates BASIC in 48K RAM via
+  the `PROG` system variable; and
 - `zx_spectrum_tap.nim` validates TAP block framing/checksums and extracts
-  qualifying CODE screen records.
+  qualifying CODE screen records and Program records.
 
 Container modules deal in source structure and extracted resource bytes. They
 must not own raster rendering or exporter behavior.
@@ -123,6 +125,13 @@ container whose type identifier currently aliases this resource identifier;
 snapshots and TAP files expose the same resource type from within different
 container types. The decoder returns a `VextIndexedImage` when no FLASH bits
 are present and a two-frame `VextIndexedAnimation` when FLASH is present.
+
+`src/vexterlib/resources/zx_spectrum_basic.nim` reconstructs readable UTF-8
+source from tokenised Spectrum BASIC line records. Fixed block graphics use
+Unicode quadrant/block characters. Runtime-defined UDGs and embedded display
+controls use reversible `⟦UDG A⟧` and `⟦INK 2⟧`-style annotations, preceded
+by explanatory `REM VEXTER:` lines only when required. Unknown bytes use
+`⟦ZX:$HH⟧`. A line number at or above 32768 marks the variables boundary.
 
 `src/vexterlib/archetypes/raster.nim` contains the generic indexed raster and
 animation contracts. `src/vexterlib/exporters/` consumes those contracts and
@@ -153,13 +162,16 @@ amos.icon
 zx-spectrum.screen
 zx-spectrum.snapshot
 zx-spectrum.tap
+zx-spectrum.basic
 ```
 
-Raw screen dumps and SNA snapshots expose one raster at `/screen`. A TAP with
+Raw screen dumps expose one raster at `/screen`. A 48K SNA additionally exposes
+decoded BASIC at `/listing` when `PROG` points to a valid listing; 128K BASIC
+extraction is pending confirmed paging semantics. A TAP with
 one qualifying screen exposes `/screen`. A TAP with multiple qualifying
 screens has a `/screen` group and raster children `/screen/1`, `/screen/2`, and
-so on. A structurally valid TAP with no qualifying screen records has an empty
-resource tree.
+so on. Program TAP records analogously expose `/listing` or numbered listing
+children. A structurally valid TAP with no supported records has an empty tree.
 
 Standalone AMOS banks expose a structural `/sprite` or `/icon` group and
 zero-based numbered raster children. Hotspots are attached to each child as
@@ -199,6 +211,8 @@ The routine suites are:
 - `tests/test_zx_spectrum_screen.nim`: screen decoding, palette/pixel
   correctness, FLASH behavior, and encoder smoke tests;
 - `tests/test_zx_spectrum_snapshot.nim`: SNA detection and screen extraction;
+- `tests/test_zx_spectrum_basic.nim`: token, graphics, annotation, boundary,
+  and 48K SNA BASIC extraction behavior;
 - `tests/test_zx_spectrum_tap.nim`: TAP validation, extraction, and resource
   tree shapes;
 - `tests/test_amos_sprite_icon_bank.nim`: AMOS bank parsing, icon/sprite

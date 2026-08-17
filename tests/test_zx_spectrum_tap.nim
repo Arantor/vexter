@@ -31,7 +31,28 @@ proc screenRecord(name: string, fill: byte): seq[byte] =
   result.add tapBlock(ZxSpectrumTapDataFlag,
     newSeqWith(ZxSpectrumScreenSize, fill))
 
+proc basicLine(number: int, body: openArray[byte]): seq[byte] =
+  result = @[byte(number shr 8), byte(number), byte((body.len + 1) and 0xff),
+    byte((body.len + 1) shr 8)]
+  result.add body
+  result.add 0x0d'u8
+
 suite "ZX Spectrum TAP container":
+  test "Program records expose tokenised BASIC listings":
+    let
+      program = basicLine(10, @[0xf2'u8, byte('1')])
+      tap = tapHeader("PROGRAM", program.len, 10,
+        kind = ZxSpectrumTapProgramType, parameter2 = program.len) &
+        tapBlock(ZxSpectrumTapDataFlag, program)
+      listings = parseZxSpectrumTapBasic(tap)
+      tree = inspectSource("program.tap", tap).resources
+    check listings.len == 1
+    check listings[0].name == "PROGRAM"
+    check decodeZxSpectrumBasic(listings[0].data) == " 10 PAUSE 1"
+    check tree.leafResources.len == 1
+    check tree.leafResources[0].path == ZxSpectrumBasicResourcePath
+    check tree.leafResources[0].text == " 10 PAUSE 1"
+
   test "one CODE screen is detected and exposed as /screen":
     let tap = screenRecord("SCREEN", 0x5a)
     let candidates = detectFormats("display.TAP", tap)

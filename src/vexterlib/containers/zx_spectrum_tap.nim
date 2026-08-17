@@ -2,6 +2,7 @@
 
 import std/[strformat, strutils]
 import ../resources/zx_spectrum_screen
+import ../resources/zx_spectrum_basic
 
 const
   ZxSpectrumTapTypeId* = "zx-spectrum.tap"
@@ -9,6 +10,7 @@ const
   ZxSpectrumTapHeaderFlag* = 0x00'u8
   ZxSpectrumTapDataFlag* = 0xff'u8
   ZxSpectrumTapCodeType* = 3'u8
+  ZxSpectrumTapProgramType* = 0'u8
   ZxSpectrumTapScreenAddress* = 16384
   ZxSpectrumTapCodeParameter2* = 32768
 
@@ -17,6 +19,10 @@ type
     bytes: seq[byte]
 
   ZxSpectrumTapScreen* = object
+    name*: string
+    data*: seq[byte]
+
+  ZxSpectrumTapBasic* = object
     name*: string
     data*: seq[byte]
 
@@ -82,6 +88,35 @@ proc parseZxSpectrumTapScreens*(data: openArray[byte]): seq[ZxSpectrumTapScreen]
         result.add ZxSpectrumTapScreen(
           name: asciiName(header),
           data: @payloadBlock[1 ..< payloadBlock.high])
+      index += 2
+    else:
+      inc index
+
+proc parseZxSpectrumTapBasic*(data: openArray[byte]): seq[ZxSpectrumTapBasic] =
+  ## Validates the TAP and extracts adjacent Program header/data records. The
+  ## decoder uses the BASIC line boundary, so any saved variables may remain in
+  ## the returned payload without being rendered as source.
+  let blocks = parseBlocks(data)
+  var index = 0
+  while index < blocks.len:
+    let header = blocks[index].bytes
+    if header.len == ZxSpectrumTapHeaderBlockSize and
+        header[0] == ZxSpectrumTapHeaderFlag:
+      let declaredLength = littleEndianWord(header, 12)
+      if index + 1 >= blocks.len:
+        raise newException(ValueError,
+          "ZX Spectrum TAP header is missing its data block")
+      let payloadBlock = blocks[index + 1].bytes
+      if payloadBlock[0] != ZxSpectrumTapDataFlag:
+        raise newException(ValueError,
+          "ZX Spectrum TAP header is not followed by a data block")
+      if payloadBlock.len != declaredLength + 2:
+        raise newException(ValueError,
+          "ZX Spectrum TAP data length does not match its header")
+      if header[1] == ZxSpectrumTapProgramType:
+        let payload = @payloadBlock[1 ..< payloadBlock.high]
+        discard decodeZxSpectrumBasic(payload)
+        result.add ZxSpectrumTapBasic(name: asciiName(header), data: payload)
       index += 2
     else:
       inc index

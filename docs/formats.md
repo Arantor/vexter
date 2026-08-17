@@ -228,6 +228,13 @@ embedded display as a `zx-spectrum.screen` resource through the canonical path:
 Extraction delegates to the raw-screen decoder and consequently follows the
 same indexed-image or indexed-animation and PNG/GIF pathways.
 
+For 48K snapshots, Vexter also reads the little-endian `PROG` system variable
+at address `$5C53`. Since an SNA omits ROM, an address is translated to a file
+offset by subtracting `$4000` and adding the 27-byte header. A structurally
+valid listing is exposed as `zx-spectrum.basic` at `/listing`. BASIC extraction
+from 128K snapshots is intentionally deferred until active-bank semantics are
+confirmed.
+
 ### Fixtures
 
 Fixtures are stored under `tests/fixtures/zx-spectrum.snapshot/`.
@@ -235,6 +242,28 @@ Fixtures are stored under `tests/fixtures/zx-spectrum.snapshot/`.
 `colours-listing.sna` captures its non-flashing BASIC listing. Each snapshot's
 screen-memory region matches its companion raw screen byte-for-byte. Provenance
 and hashes are recorded alongside the files.
+
+## ZX Spectrum tokenised BASIC
+
+Type identifier: `zx-spectrum.basic`
+
+Each line begins with a two-byte big-endian line number and a two-byte
+little-endian byte length, and ends with `$0D`. A following line-number field
+of 32768 or greater marks the variables boundary. Bytes 32 through 127 retain
+their ASCII values; bytes `$A5` through `$FF` expand through the Spectrum BASIC
+keyword table. The `$0E` marker and five-byte calculator representation that
+follow a textual number are omitted.
+
+Block graphics `$80` through `$8F` map to Unicode quadrant/block characters;
+in particular `$8F` becomes `█`. Since UDG shapes are runtime-defined, bytes
+`$90` through `$A4` render reversibly as `⟦UDG A⟧` through `⟦UDG U⟧` rather
+than pretending to know their appearance. Display controls embedded in strings
+render as annotations such as `⟦INK 2⟧`, `⟦INVERSE 1⟧`, and `⟦AT 10 5⟧`.
+When annotations occur, explanatory `REM VEXTER:` lines precede the listing.
+Other unrecognised bytes remain visible as `⟦ZX:$HH⟧`.
+
+TAP Program header/data pairs expose the same text resource. One listing uses
+`/listing`; multiple listings use `/listing/1`, `/listing/2`, and so on.
 
 ## ZX Spectrum TAP container
 
@@ -246,14 +275,15 @@ the flag and content. Vexter validates every block length and checksum and
 requires each 19-byte header block to be followed immediately by the data block
 it describes.
 
-For now, Vexter exposes only CODE records whose declared length is 6,912 bytes,
-start address is 16,384, and parameter 2 is 32,768. These are decoded through
-the existing ZX Spectrum screen pathway. One qualifying record is exposed as
-`/screen`; multiple records are exposed as `/screen/1`, `/screen/2`, and so on.
+Vexter exposes CODE records whose declared length is 6,912 bytes, start address
+is 16,384, and parameter 2 is 32,768 through the existing screen pathway. One
+qualifying record is exposed as `/screen`; multiple records are exposed as
+`/screen/1`, `/screen/2`, and so on. Program records containing structurally
+valid tokenised BASIC are exposed through the listing paths described above.
 
 Header filenames are ten-byte, space-padded fields. ASCII bytes are retained
-and non-ASCII bytes are currently ignored. Full Spectrum character/token
-handling is deferred until Spectrum tokenising support is added.
+and non-ASCII bytes are currently ignored; full Spectrum filename-character
+handling remains deferred.
 
 Structurally valid block framing and checksums identify the format as
 **probable**, strengthened by a case-insensitive `.tap` extension.

@@ -1,6 +1,7 @@
 ## Validation and resource extraction for uncompressed ZX Spectrum snapshots.
 
 import ../resources/zx_spectrum_screen
+import ../resources/zx_spectrum_basic
 
 const
   ZxSpectrumSnapshotTypeId* = "zx-spectrum.snapshot"
@@ -8,6 +9,8 @@ const
   ZxSpectrumSnapshot128Size* = 131103
   ZxSpectrumSnapshot128ExtendedSize* = 147487
   ZxSpectrumSnapshotHeaderSize* = 27
+  ZxSpectrumProgSystemVariable* = 0x5c53
+  ZxSpectrumRamAddress* = 0x4000
 
 proc isZxSpectrumSnapshotSize*(size: int): bool =
   ## Returns whether `size` is one of the supported 48K or 128K SNA sizes.
@@ -22,3 +25,19 @@ proc extractZxSpectrumSnapshotScreen*(data: openArray[byte]): seq[byte] =
   result = newSeq[byte](ZxSpectrumScreenSize)
   for index in 0 ..< ZxSpectrumScreenSize:
     result[index] = data[ZxSpectrumSnapshotHeaderSize + index]
+
+proc extractZxSpectrumSnapshotBasic*(data: openArray[byte]): string =
+  ## Extracts BASIC from a 48K SNA. 128K paging semantics are deliberately not
+  ## guessed; callers should continue to expose only the screen for those files.
+  if data.len != ZxSpectrumSnapshot48Size:
+    raise newException(ValueError,
+      "ZX Spectrum BASIC extraction currently supports only 48K SNA files")
+  let variableOffset = ZxSpectrumSnapshotHeaderSize +
+    ZxSpectrumProgSystemVariable - ZxSpectrumRamAddress
+  let programAddress = int(data[variableOffset]) or
+    (int(data[variableOffset + 1]) shl 8)
+  if programAddress < ZxSpectrumRamAddress or programAddress > 0xffff:
+    raise newException(ValueError, "invalid ZX Spectrum PROG system variable")
+  let programOffset = ZxSpectrumSnapshotHeaderSize +
+    programAddress - ZxSpectrumRamAddress
+  decodeZxSpectrumBasic(data.toOpenArray(programOffset, data.high))

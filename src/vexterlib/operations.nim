@@ -9,7 +9,8 @@ import ./containers/[amos_bank, amos_bank_set, amos_program,
   amos_sprite_icon_bank,
   zx_spectrum_screen_dump, zx_spectrum_snapshot, zx_spectrum_tap]
 import ./metadata
-import ./resources/[amos_listing, amos_planar_image, zx_spectrum_screen]
+import ./resources/[amos_listing, amos_planar_image, zx_spectrum_basic,
+  zx_spectrum_screen]
 
 type
   VextInspection* = object
@@ -159,6 +160,15 @@ proc inspectSource*(filename: string, data: openArray[byte],
   of ZxSpectrumSnapshotTypeId:
     result.resources.roots.add rasterNode(ZxSpectrumScreenResourcePath,
       extractZxSpectrumSnapshotScreen(data))
+    if data.len == ZxSpectrumSnapshot48Size:
+      try:
+        result.resources.roots.add VextResourceNode(
+          path: ZxSpectrumBasicResourcePath,
+          typeId: ZxSpectrumBasicTypeId,
+          kind: vrnkText,
+          text: extractZxSpectrumSnapshotBasic(data))
+      except ValueError:
+        discard
   of ZxSpectrumTapTypeId:
     let screens = parseZxSpectrumTapScreens(data)
     if screens.len == 1:
@@ -171,6 +181,24 @@ proc inspectSource*(filename: string, data: openArray[byte],
       for index, screen in screens:
         group.children.add rasterNode(
           ZxSpectrumScreenResourcePath & "/" & $(index + 1), screen.data)
+      result.resources.roots.add group
+    let listings = parseZxSpectrumTapBasic(data)
+    if listings.len == 1:
+      result.resources.roots.add VextResourceNode(
+        path: ZxSpectrumBasicResourcePath,
+        typeId: ZxSpectrumBasicTypeId,
+        kind: vrnkText,
+        text: decodeZxSpectrumBasic(listings[0].data))
+    elif listings.len > 1:
+      let group = VextResourceNode(
+        path: ZxSpectrumBasicResourcePath,
+        kind: vrnkGroup)
+      for index, listing in listings:
+        group.children.add VextResourceNode(
+          path: ZxSpectrumBasicResourcePath & "/" & $(index + 1),
+          typeId: ZxSpectrumBasicTypeId,
+          kind: vrnkText,
+          text: decodeZxSpectrumBasic(listing.data))
       result.resources.roots.add group
   else:
     discard
