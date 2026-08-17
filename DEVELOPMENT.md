@@ -231,8 +231,8 @@ uses its natural first frame.
 The routine suites are:
 
 - `tests/test_amiga_iff_ilbm.nim`: FORM/chunk validation, ILBM planar and
-  ByteRun1 decoding, legacy palette expansion, EHB, synthetic HAM6/HAM8, and
-  authentic Deluxe Paint HAM8 controls;
+  ByteRun1 decoding, legacy palette expansion, EHB, focused HAM6/HAM8 cases,
+  and authentic Deluxe Paint HAM6/HAM8 controls;
 - `tests/test_zx_spectrum_screen.nim`: screen decoding, palette/pixel
   correctness, FLASH behavior, and encoder smoke tests;
 - `tests/test_zx_spectrum_snapshot.nim`: SNA detection and screen extraction;

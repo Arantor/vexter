@@ -164,7 +164,7 @@ suite "Amiga IFF ILBM":
     check image.colourAt(2, 0) == VextRgb(r: 255, g: 129, b: 3)
     check image.colourAt(3, 0) == VextRgb(r: 255, g: 129, b: 0)
 
-  test "Deluxe Paint HAM samples match their PNG controls":
+  test "Deluxe Paint HAM8 samples match their PNG controls":
     let fixtures = [
       ("TutGallery.Ham", 628740'u32,
         "8C39CF0652F8131452541645FCF97F81D5311CBB"),
@@ -185,6 +185,23 @@ suite "Amiga IFF ILBM":
       check raster.width == 640
       check raster.height == 400
       check rgbDigest(raster.trueColourImage) == fixture[2]
+
+  test "Deluxe Paint Aquarium is an authentic HAM6 control":
+    let
+      path = "tests/fixtures/amiga.ilbm/AquariumBackground.Ham"
+      parsed = parseAmigaIlbm(readBytes(path))
+      raster = inspectSource(path, readBytes(path)).resources.
+        rasterResources[0].raster
+    check parsed.image.header.planes == 6
+    check parsed.image.camg == 0x4800'u32
+    check (parsed.image.camg and AmigaIlbmCamgHam) != 0
+    check raster.kind == vrkTrueColourImage
+    check raster.width == 320
+    check raster.height == 200
+    # ImageMagick's supplied PNG leaves four-bit HAM components at $x0.
+    # Replicating those nibbles to $xx produces this exact RGB digest.
+    check rgbDigest(raster.trueColourImage) ==
+      "DE1856294087A8BD6C636DCC003C2B9B0AC10BDE"
 
   test "generic FORM chunks remain identifiable and padded":
     let

@@ -64,8 +64,10 @@ alpha-capable archetype and are rejected rather than losing transparency.
 The authentic Deluxe Paint 4.5 AGA samples `TutGallery.Ham` and
 `EAWorld.Ham8` both decode byte-for-byte to the RGB pixels in their supplied
 PNG controls. Both files declare eight source planes, despite the shorter
-`.Ham` suffix on the former, so authentic HAM6 fixture coverage is still
-pending; focused synthetic tests cover the six-plane rules meanwhile.
+`.Ham` suffix on the former. The 320×200 `AquariumBackground.Ham` declares six
+planes and provides authentic HAM6 coverage. Its ImageMagick PNG retains
+four-bit component levels as `$x0`; after the same documented normalization to
+`$xx` used for legacy palettes, all expanded RGB pixels match exactly.
 
 The King Tutenkhamen fixture is 320×200, five-plane, and ByteRun1-compressed.
 Its ImageMagick PNG is used as a layout control after normalizing the PNG's

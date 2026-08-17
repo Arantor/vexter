@@ -21,12 +21,13 @@ be confirmed before distributing the fixture outside this development context.
 
 `KingTut.png` is an ImageMagick conversion retained as a rendering control.
 
-`tests/fixtures/amiga.ilbm/TutGallery.Ham` and `EAWorld.Ham8` are sample
-images shipped with Deluxe Paint 4.5 AGA, copyright Electronic Arts 1992.
-Their accompanying PNG files are independent rendering controls. They are
-retained to validate HAM true-colour reconstruction. Their redistribution or
-licensing status has not yet been supplied and should be confirmed before
-distribution outside this development context.
+`tests/fixtures/amiga.ilbm/AquariumBackground.Ham`, `TutGallery.Ham`, and
+`EAWorld.Ham8` are sample images shipped with Deluxe Paint 4.5 AGA, copyright
+Electronic Arts 1992. Their accompanying PNG files are independent rendering
+controls created with ImageMagick. They are retained to validate HAM6 and HAM8
+true-colour reconstruction. Their redistribution or licensing status has not
+yet been supplied and should be confirmed before distribution outside this
+development context.
 
 ## AMOS program fixture
 
