@@ -7,6 +7,7 @@ type
   VextResourceNodeKind* = enum
     vrnkGroup
     vrnkRaster
+    vrnkText
     vrnkOpaque
 
   VextResourceNode* = ref object
@@ -14,6 +15,7 @@ type
     typeId*: string
     kind*: VextResourceNodeKind
     raster*: VextRaster
+    text*: string
     metadata*: seq[VextMetadataEntry]
     children*: seq[VextResourceNode]
 

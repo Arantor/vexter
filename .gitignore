@@ -2,6 +2,8 @@
 /nimcache/
 /tests/test_cli
 /tests/test_amos_bank
+/tests/test_amos_bank_set
+/tests/test_amos_program
 /tests/test_amos_sprite_icon_bank
 /tests/test_operations
 /tests/test_zx_spectrum_screen

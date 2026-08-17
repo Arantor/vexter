@@ -22,6 +22,14 @@ type
     images*: seq[AmosPlanarImage]
     palette*: seq[VextRgb]
 
+  AmosSpriteIconBankParseResult* = object
+    bank*: AmosSpriteIconBank
+    bytesRead*: int
+
+  AmosImageRecords = object
+    images: seq[AmosPlanarImage]
+    endOffset: int
+
 proc bigEndianWord(data: openArray[byte], offset: int): int {.inline.} =
   (int(data[offset]) shl 8) or int(data[offset + 1])
 
@@ -36,13 +44,11 @@ proc magic(data: openArray[byte]): string =
   for index in 0 ..< 4:
     result[index] = char(data[index])
 
-proc parseLayout(data: openArray[byte], kind: AmosSpriteIconBankKind,
-    imageCount, recordsOffset, recordsEnd, paletteOffset: int):
-    AmosSpriteIconBank =
-  result.kind = kind
+proc parseRecords(data: openArray[byte], imageCount,
+    recordsOffset: int): AmosImageRecords =
   var offset = recordsOffset
   for imageIndex in 0 ..< imageCount:
-    if offset + AmosBankImageHeaderSize > recordsEnd:
+    if offset + AmosBankImageHeaderSize > data.len:
       raise newException(ValueError, "truncated AMOS sprite/icon image header")
     let
       widthWords = bigEndianWord(data, offset)
@@ -56,7 +62,7 @@ proc parseLayout(data: openArray[byte], kind: AmosSpriteIconBankKind,
       raise newException(ValueError, "AMOS image depth must be between 1 and 5")
     let planeDataSize = widthWords * 2 * height * depth
     offset += AmosBankImageHeaderSize
-    if planeDataSize > recordsEnd - offset:
+    if planeDataSize > data.len - offset:
       raise newException(ValueError, "truncated AMOS sprite/icon planar data")
     result.images.add AmosPlanarImage(
       widthWords: widthWords,
@@ -66,17 +72,20 @@ proc parseLayout(data: openArray[byte], kind: AmosSpriteIconBankKind,
       hotspotY: hotspotY,
       planeData: @data[offset ..< offset + planeDataSize])
     offset += planeDataSize
+  result.endOffset = offset
 
-  if offset != recordsEnd:
-    raise newException(ValueError, "unexpected data in AMOS sprite/icon bank")
+proc parsePalette(data: openArray[byte], paletteOffset: int): seq[VextRgb] =
+  if paletteOffset > data.len - AmosBankPaletteSize:
+    raise newException(ValueError, "truncated AMOS sprite/icon palette")
   for index in 0 ..< AmosPaletteEntries:
     let value = bigEndianWord(data, paletteOffset + index * 2)
-    result.palette.add VextRgb(
+    result.add VextRgb(
       r: uint8((value shr 8) and 0x0f) * 17,
       g: uint8((value shr 4) and 0x0f) * 17,
       b: uint8(value and 0x0f) * 17)
 
-proc parseAmosSpriteIconBank*(data: openArray[byte]): AmosSpriteIconBank =
+proc parseAmosSpriteIconBankPrefix*(data: openArray[byte]):
+    AmosSpriteIconBankParseResult =
   let kind = case data.magic
     of AmosSpriteBankMagic: asibkSprite
     of AmosIconBankMagic: asibkIcon
@@ -87,11 +96,25 @@ proc parseAmosSpriteIconBank*(data: openArray[byte]): AmosSpriteIconBank =
     raise newException(ValueError, "truncated AMOS sprite/icon bank")
   let imageCount = bigEndianWord(data, 4)
   try:
-    return parseLayout(data, kind, imageCount, 6,
-      data.len - AmosBankPaletteSize, data.len - AmosBankPaletteSize)
+    let records = parseRecords(data, imageCount, 6)
+    result.bank = AmosSpriteIconBank(
+      kind: kind,
+      images: records.images,
+      palette: parsePalette(data, records.endOffset))
+    result.bytesRead = records.endOffset + AmosBankPaletteSize
   except ValueError:
-    return parseLayout(data, kind, imageCount, 6 + AmosBankPaletteSize,
-      data.len, 6)
+    let records = parseRecords(data, imageCount, 6 + AmosBankPaletteSize)
+    result.bank = AmosSpriteIconBank(
+      kind: kind,
+      images: records.images,
+      palette: parsePalette(data, 6))
+    result.bytesRead = records.endOffset
+
+proc parseAmosSpriteIconBank*(data: openArray[byte]): AmosSpriteIconBank =
+  let parsed = parseAmosSpriteIconBankPrefix(data)
+  if parsed.bytesRead != data.len:
+    raise newException(ValueError, "unexpected data after AMOS sprite/icon bank")
+  parsed.bank
 
 proc isAmosSpriteIconBank*(data: openArray[byte]): bool =
   try:

@@ -5,6 +5,8 @@ const
   FixturePath = "tests/fixtures/zx-spectrum.screen/colours.scr"
   SnapshotFixturePath = "tests/fixtures/zx-spectrum.snapshot/colours.sna"
   AmosFixturePath = "tests/fixtures/amos.sprite-bank/DRAGON.Abk"
+  AmosProgramFixturePath =
+    "tests/fixtures/amos.program/Xerxes' Revenge.AMOS"
 
 proc run(arguments: varargs[string]): tuple[output: string, exitCode: int] =
   var command = quoteShell(VexterCliPath)
@@ -13,6 +15,46 @@ proc run(arguments: varargs[string]): tuple[output: string, exitCode: int] =
   execCmdEx(command, options = {poUsePath, poStdErrToStdOut})
 
 suite "vexter CLI":
+  test "AMOS programs expose listings and attached bank resources":
+    let inspected = run("inspect", "--json", AmosProgramFixturePath)
+    check inspected.exitCode == 0
+    let document = parseJson(inspected.output)
+    check document["selectedFormat"].getStr == "amos.program"
+    check document["resources"].len == 32
+    check document["resources"][0]["path"].getStr == "/listing"
+    check document["resources"][0]["kind"].getStr == "text"
+    check document["resources"][0]["metadata"]["amos.header"].getStr ==
+      "AMOS Basic V1.00"
+    check document["resources"][0]["metadata"]["data.length"].getInt == 6264
+    check document["resources"][1]["path"].getStr ==
+      "/banks/0/sprite/0"
+    check document["resources"][^1]["path"].getStr == "/banks/3"
+
+    let destination = getTempDir() / "vexter-cli-xerxes-sprite.png"
+    if fileExists(destination):
+      removeFile(destination)
+    defer:
+      if fileExists(destination):
+        removeFile(destination)
+    let exported = run("export", "--resource", "/banks/0/sprite/0", "-o",
+      destination, AmosProgramFixturePath)
+    check exported.exitCode == 0
+    check readFile(destination).startsWith("\x89PNG\r\n\x1a\n")
+
+    let listingDestination = getTempDir() / "vexter-cli-xerxes.txt"
+    if fileExists(listingDestination):
+      removeFile(listingDestination)
+    defer:
+      if fileExists(listingDestination):
+        removeFile(listingDestination)
+    let listingExport = run("export", "--resource", "/listing", "-o",
+      listingDestination, AmosProgramFixturePath)
+    check listingExport.exitCode == 0
+    let listing = readFile(listingDestination)
+    check listing.startsWith("'            Xerxes' Revenge")
+    check "SHIP$=SHIP$+\" Begin:" in listing
+    check "[1af60000]" in listing
+
   test "generic AMOS banks inspect as opaque resources":
     let source = getTempDir() / "vexter-cli-music.Abk"
     writeFile(source, "AmBk\x00\x07\x12\x34\xd0\x00\x00\x0b" &

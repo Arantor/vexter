@@ -12,9 +12,9 @@ Vexter currently consists of a reusable Nim library and a thin command-line
 client. It supports:
 
 - detection and inspection of ZX Spectrum raw screen dumps, SNA snapshots,
-  TAP containers, standalone AMOS sprite/icon banks, and generic AMOS banks;
+  TAP containers, standalone AMOS banks, AMOS bank sets, and AMOS programs;
 - a resource tree containing decoded indexed-raster or identified opaque
-  resources and metadata;
+  resources, decoded text resources, and metadata;
 - indexed still-image and indexed-animation raster archetypes;
 - PNG export for a still image or an animation's natural first frame; and
 - animated GIF export.
@@ -41,8 +41,8 @@ file bytes
   -> evidence-based detection or a validated forced format
   -> format-specific container parsing and resource extraction
   -> VextResourceTree
-  -> VextRaster values or identified opaque resources
-  -> PNG or GIF exporter for raster values
+  -> raster, text, or identified opaque resources
+  -> PNG/GIF raster export or plain-text export
   -> in-memory VextArtifactSet
   -> CLI-owned filesystem write
 ```
@@ -74,7 +74,8 @@ export-format defaults do not belong here.
 
 `src/vexterlib/resource_tree.nim` defines `VextResourceTree` and
 `VextResourceNode`. Nodes are reference objects and currently have the
-`vrnkGroup`, `vrnkRaster`, or `vrnkOpaque` kind. `leafResources` returns every
+`vrnkGroup`, `vrnkRaster`, `vrnkText`, or `vrnkOpaque` kind. `leafResources`
+returns every
 addressable non-group node, while `rasterResources` returns only raster nodes
 in depth-first tree order. `findRasterResource` performs exact path lookup
 over raster nodes. Groups are structural and opaque resources are inspectable
@@ -89,6 +90,10 @@ Matching case-insensitive extensions add supporting evidence.
 
 - `amos_bank.nim` validates generic `AmBk` headers and lengths and identifies
   otherwise unsupported bank payloads;
+- `amos_bank_set.nim` validates `AmBs` collections and delimits their adjacent
+  generic, sprite, and icon bank members;
+- `amos_program.nim` validates AMOS Basic/Professional headers, locates the
+  tokenised listing boundary, and parses the mandatory bank-set appendix;
 - `amos_sprite_icon_bank.nim` validates standalone `AmSp` and `AmIc` banks,
   extracts their records and shared palette, and retains image hotspots;
 - `zx_spectrum_screen_dump.nim` validates and extracts a standalone 6,912-byte
@@ -105,6 +110,12 @@ must not own raster rendering or exporter behavior.
 and icon image data and converts plane-major data into indexed rasters. The
 bank parser and resource decoder are deliberately separate so ABS/program
 containers can expose the same image resources later.
+
+`src/vexterlib/resources/amos_listing.nim` reconstructs diagnostic AMOS source
+text from line records and complex tokens. `amos_listing_tokens.nim` contains
+the imported simple-symbol and recognized-extension mappings. Unknown tokens
+remain visible as bracketed hexadecimal. Encrypted procedures are an explicit
+TODO and diagnostic rather than silently misdecoded.
 
 `src/vexterlib/resources/zx_spectrum_screen.nim` defines the reusable
 `zx-spectrum.screen` resource and its decoder. A standalone screen dump is a
@@ -132,6 +143,9 @@ Stable type identifiers are:
 ```text
 amos.bank
 amos.bank-data
+amos.bank-set
+amos.program
+amos.tokenised-listing
 amos.sprite-bank
 amos.icon-bank
 amos.sprite
@@ -151,12 +165,20 @@ Standalone AMOS banks expose a structural `/sprite` or `/icon` group and
 zero-based numbered raster children. Hotspots are attached to each child as
 `hotspot.x` and `hotspot.y` integer metadata. The current parser accepts both
 the described header-palette layout and the fixture-confirmed trailing-palette
-layout. ABS bank sets and AMOS program containers are not implemented yet.
+layout.
 
 Generic `AmBk` files expose one opaque `/bank` resource with header metadata.
 Their payload is deliberately not decoded or exported yet. This preserves an
 identifiable resource in the tree for bank types that are not otherwise
 supported.
+
+AMOS `AmBs` sets expose a `/banks` group. Generic members are opaque
+`/banks/N` leaves; sprite and icon members expose numbered raster children
+beneath their member path. Prefix-aware member and set parsers also delimit
+the `AmBs` appendix inside an AMOS program. `/listing` is decoded into an
+exportable text resource, while attached banks retain the standalone set's
+`/banks/N` hierarchy. The decoder is intentionally textual/diagnostic rather
+than an AST and preserves unsupported tokens as hexadecimal.
 
 When `--input-format` or the corresponding `inspectSource` argument is used,
 the library still validates the bytes against that format. It does not merely
@@ -184,6 +206,11 @@ The routine suites are:
   input;
 - `tests/test_amos_bank.nim`: generic bank length masking, labels, opaque
   resources, metadata, and malformed input;
+- `tests/test_amos_bank_set.nim`: mixed adjacent members, nested resource
+  paths, prefix length reporting, export, and structural failures;
+- `tests/test_amos_program.nim`: real Basic and synthetic Professional
+  headers, listing boundaries, mandatory appendices, nested bank resources,
+  export, and malformed input;
 - `tests/test_operations.nim`: direct high-level library and resource-tree
   behavior; and
 - `tests/test_cli.nim`: end-to-end CLI inspection, export, defaults, and file

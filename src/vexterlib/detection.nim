@@ -1,7 +1,8 @@
 ## Evidence-based input format detection.
 
 import std/[os, strutils]
-import ./containers/[amos_bank, amos_sprite_icon_bank,
+import ./containers/[amos_bank, amos_bank_set, amos_program,
+  amos_sprite_icon_bank,
   zx_spectrum_screen_dump, zx_spectrum_snapshot, zx_spectrum_tap]
 import ./resources/zx_spectrum_screen
 
@@ -29,6 +30,31 @@ proc detectFormats*(filename: string, data: openArray[byte]):
     seq[VextDetectionCandidate] =
   ## Returns every format candidate recognized from currently available
   ## evidence, ordered from strongest to weakest.
+  if isAmosProgram(data):
+    let program = parseAmosProgram(data)
+    var evidence = @[VextDetectionEvidence(
+      description: "file has a valid " & program.header &
+        " header, tokenised listing boundary, and AmBs appendix")]
+    if hasAmosProgramExtension(filename):
+      evidence.add VextDetectionEvidence(
+        description: "file extension is .amos")
+    result.add VextDetectionCandidate(
+      typeId: AmosProgramTypeId,
+      confidence: vdcCertain,
+      evidence: evidence)
+
+  if isAmosBankSet(data):
+    let bankSet = parseAmosBankSet(data)
+    var evidence = @[VextDetectionEvidence(
+      description: "file has a valid AmBs identifier and " &
+        $bankSet.banks.len & " valid bank member(s)")]
+    if hasAmosBankSetExtension(filename):
+      evidence.add VextDetectionEvidence(description: "file extension is .abs")
+    result.add VextDetectionCandidate(
+      typeId: AmosBankSetTypeId,
+      confidence: vdcCertain,
+      evidence: evidence)
+
   if isAmosBank(data):
     let bank = parseAmosBank(data)
     var evidence = @[VextDetectionEvidence(

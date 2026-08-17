@@ -5,10 +5,11 @@ import ./archetypes/raster
 import ./detection
 import ./exporters/[gif, png]
 import ./resource_tree
-import ./containers/[amos_bank, amos_sprite_icon_bank,
+import ./containers/[amos_bank, amos_bank_set, amos_program,
+  amos_sprite_icon_bank,
   zx_spectrum_screen_dump, zx_spectrum_snapshot, zx_spectrum_tap]
 import ./metadata
-import ./resources/[amos_planar_image, zx_spectrum_screen]
+import ./resources/[amos_listing, amos_planar_image, zx_spectrum_screen]
 
 type
   VextInspection* = object
@@ -29,6 +30,10 @@ type
 proc forcedCandidate(typeId: string, data: openArray[byte]):
     VextDetectionCandidate =
   case typeId
+  of AmosProgramTypeId:
+    discard parseAmosProgram(data)
+  of AmosBankSetTypeId:
+    discard parseAmosBankSet(data)
   of AmosBankTypeId:
     discard parseAmosBank(data)
   of AmosSpriteBankTypeId, AmosIconBankTypeId:
@@ -75,6 +80,45 @@ proc amosRasterNode(path, typeId: string, source: AmosPlanarImage,
       integerMetadata("hotspot.y", source.hotspotY)
     ])
 
+proc amosGenericNode(path: string, bank: AmosBank): VextResourceNode =
+  VextResourceNode(
+    path: path,
+    typeId: AmosBankResourceTypeId,
+    kind: vrnkOpaque,
+    metadata: @[
+      integerMetadata("bank.number", bank.number),
+      integerMetadata("bank.flags", bank.flags),
+      stringMetadata("bank.type", bank.bankType),
+      integerMetadata("data.length", bank.dataLength)
+    ])
+
+proc amosSpriteIconGroup(groupPath, resourceBase: string,
+    bank: AmosSpriteIconBank): VextResourceNode =
+  let resourceTypeId =
+    if bank.kind == asibkSprite: AmosSpriteResourceTypeId
+    else: AmosIconResourceTypeId
+  result = VextResourceNode(
+    path: groupPath,
+    typeId: bank.amosSpriteIconBankTypeId,
+    kind: vrnkGroup)
+  for index, image in bank.images:
+    result.children.add amosRasterNode(
+      resourceBase & "/" & $index, resourceTypeId, image, bank.palette)
+
+proc amosBankSetGroup(bankSet: AmosBankSet): VextResourceNode =
+  result = VextResourceNode(
+    path: "/banks", typeId: AmosBankSetTypeId, kind: vrnkGroup)
+  for index, entry in bankSet.banks:
+    let bankPath = "/banks/" & $index
+    case entry.kind
+    of absekGeneric:
+      result.children.add amosGenericNode(bankPath, entry.genericBank)
+    of absekSprite, absekIcon:
+      let resourceName =
+        if entry.kind == absekSprite: "sprite" else: "icon"
+      result.children.add amosSpriteIconGroup(bankPath,
+        bankPath & "/" & resourceName, entry.spriteIconBank)
+
 proc inspectSource*(filename: string, data: openArray[byte],
     inputFormat = ""): VextInspection =
   result.candidates = detectFormats(filename, data)
@@ -86,31 +130,29 @@ proc inspectSource*(filename: string, data: openArray[byte],
     result.selectedFormat = result.candidates[0]
 
   case result.selectedFormat.typeId
+  of AmosProgramTypeId:
+    let program = parseAmosProgram(data)
+    result.resources.roots.add VextResourceNode(
+      path: "/listing",
+      typeId: AmosListingResourceTypeId,
+      kind: vrnkText,
+      text: decodeAmosListing(program.listingData),
+      metadata: @[
+        stringMetadata("amos.header", program.header),
+        integerMetadata("data.length", program.listingLength)
+      ])
+    result.resources.roots.add amosBankSetGroup(program.bankSet)
+  of AmosBankSetTypeId:
+    let bankSet = parseAmosBankSet(data)
+    result.resources.roots.add amosBankSetGroup(bankSet)
   of AmosBankTypeId:
     let bank = parseAmosBank(data)
-    result.resources.roots.add VextResourceNode(
-      path: "/bank",
-      typeId: AmosBankResourceTypeId,
-      kind: vrnkOpaque,
-      metadata: @[
-        integerMetadata("bank.number", bank.number),
-        integerMetadata("bank.flags", bank.flags),
-        stringMetadata("bank.type", bank.bankType),
-        integerMetadata("data.length", bank.dataLength)
-      ])
+    result.resources.roots.add amosGenericNode("/bank", bank)
   of AmosSpriteBankTypeId, AmosIconBankTypeId:
     let bank = parseAmosSpriteIconBank(data)
-    let
-      resourceName = if bank.kind == asibkSprite: "sprite" else: "icon"
-      resourceTypeId =
-        if bank.kind == asibkSprite: AmosSpriteResourceTypeId
-        else: AmosIconResourceTypeId
-      group = VextResourceNode(path: "/" & resourceName, kind: vrnkGroup)
-    for index, image in bank.images:
-      group.children.add amosRasterNode(
-        "/" & resourceName & "/" & $index, resourceTypeId,
-        image, bank.palette)
-    result.resources.roots.add group
+    let resourceName = if bank.kind == asibkSprite: "sprite" else: "icon"
+    result.resources.roots.add amosSpriteIconGroup(
+      "/" & resourceName, "/" & resourceName, bank)
   of ZxSpectrumScreenDumpTypeId:
     result.resources.roots.add rasterNode(ZxSpectrumScreenResourcePath,
       extractZxSpectrumScreenDump(data))
@@ -135,13 +177,23 @@ proc inspectSource*(filename: string, data: openArray[byte],
 
 proc exportResource*(tree: VextResourceTree,
     request: VextExportRequest): VextExportResult =
-  let available = tree.rasterResources
+  var available: seq[VextResourceNode]
+  for item in tree.leafResources:
+    if item.kind in {vrnkRaster, vrnkText}:
+      available.add item
   var resource: VextResourceNode
   if request.resourcePath.len > 0:
-    resource = tree.findRasterResource(request.resourcePath)
+    for item in available:
+      if item.path == request.resourcePath:
+        resource = item
+        break
     if resource.isNil:
-      raise newException(ValueError,
-        "resource was not found: " & request.resourcePath)
+      for item in tree.leafResources:
+        if item.path == request.resourcePath:
+          raise newException(ValueError,
+            "resource is not exportable: " & request.resourcePath)
+      raise newException(ValueError, "resource was not found: " &
+        request.resourcePath)
   else:
     if available.len == 0:
       raise newException(ValueError, "container exposes no raster resources")
@@ -153,13 +205,32 @@ proc exportResource*(tree: VextResourceTree,
   result.resourcePath = resource.path
   result.outputFormat = request.outputFormat
   if result.outputFormat.len == 0:
-    result.outputFormat =
-      if resource.raster.kind == vrkIndexedAnimation: "gif" else: "png"
-  result.artifacts = case result.outputFormat
-    of "png": exportPng(resource.raster.naturalImage,
-      request.suggestedName & ".png")
-    of "gif": exportGif(resource.raster.asIndexedAnimation,
-      request.suggestedName & ".gif")
-    else:
+    result.outputFormat = case resource.kind
+      of vrnkText: "txt"
+      of vrnkRaster:
+        if resource.raster.kind == vrkIndexedAnimation: "gif" else: "png"
+      else: ""
+  case resource.kind
+  of vrnkText:
+    if result.outputFormat != "txt":
       raise newException(ValueError,
         "unsupported output format: " & result.outputFormat)
+    var bytes = newSeq[byte](resource.text.len)
+    for index, value in resource.text:
+      bytes[index] = byte(value)
+    result.artifacts.artifacts.add VextArtifact(
+      suggestedFilename: request.suggestedName & ".txt",
+      mediaType: "text/plain; charset=utf-8",
+      data: bytes)
+  of vrnkRaster:
+    result.artifacts = case result.outputFormat
+      of "png": exportPng(resource.raster.naturalImage,
+        request.suggestedName & ".png")
+      of "gif": exportGif(resource.raster.asIndexedAnimation,
+        request.suggestedName & ".gif")
+      else:
+        raise newException(ValueError,
+          "unsupported output format: " & result.outputFormat)
+  else:
+    raise newException(ValueError, "resource is not exportable: " &
+      resource.path)

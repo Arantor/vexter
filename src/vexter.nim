@@ -85,7 +85,10 @@ proc inspect(options: CliOptions) =
       var resource = %*{
         "path": item.path,
         "type": item.typeId,
-        "kind": (if item.kind == vrnkRaster: "raster" else: "opaque")
+        "kind": (case item.kind
+          of vrnkRaster: "raster"
+          of vrnkText: "text"
+          else: "opaque")
       }
       if item.kind == vrnkRaster:
         let raster = item.raster
@@ -124,6 +127,8 @@ proc inspect(options: CliOptions) =
           &"{raster.width}x{raster.height}"
         if raster.kind == vrkIndexedAnimation:
           description.add &", {raster.animation.frames.len} frame(s)"
+      elif item.kind == vrnkText:
+        description.add " (text)"
       else:
         description.add " (opaque)"
       echo description

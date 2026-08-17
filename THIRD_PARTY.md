@@ -9,3 +9,11 @@ Its redistribution or licensing status has not yet been supplied and should
 be confirmed before distributing the fixture outside this development context.
 
 The accompanying `DRAGON.gif` is an independently generated rendering control.
+
+## AMOS program fixture
+
+`tests/fixtures/amos.program/Xerxes' Revenge.AMOS` is an AMOS Basic demo
+program created by Peter J. Hickman and shipped with AMOS. It is retained as a
+compatibility fixture for tokenised program boundaries and attached banks.
+Its redistribution or licensing status has not yet been supplied and should
+be confirmed before distributing the fixture outside this development context.

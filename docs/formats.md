@@ -99,6 +99,70 @@ opaque `amos.bank-data` resource at `/bank`. Inspection reports `bank.number`,
 `bank.flags`, `bank.type`, and `data.length` metadata. The payload is not yet
 decoded or exportable.
 
+## AMOS bank sets
+
+Type identifier: `amos.bank-set`
+
+An AMOS bank set starts with the four-byte `AmBs` identifier and a two-byte
+big-endian member count. Exactly that many complete `AmBk`, `AmSp`, or `AmIc`
+banks follow immediately, without padding or an offset table. Standalone bank
+sets conventionally use an `.Abs` extension, matched case-insensitively.
+
+Every member is structurally validated with the same parser used for its
+standalone form. Prefix-aware parsing reports each member's exact consumed
+length, allowing the next magic identifier to be read directly. Unknown bank
+identifiers, truncated members, count mismatches, and trailing data invalidate
+the standalone set. The same prefix API delimits the bank-set appendix in an
+AMOS program container.
+
+A valid set is detected as **certain**. It exposes a `/banks` group with
+zero-based member paths. Generic banks appear as opaque `/banks/N` resources.
+Sprite and icon resources appear at `/banks/N/sprite/I` and
+`/banks/N/icon/I`, retaining the same raster types and hotspot metadata as
+standalone banks. Supported raster members can be exported individually even
+when other members remain opaque.
+
+## AMOS programs
+
+Type identifier: `amos.program`
+
+Tokenised AMOS programs conventionally use an `.AMOS` extension. They begin
+with a 16-byte ASCII header whose prefix is either `AMOS Pro` or `AMOS Basic`.
+Professional headers commonly, but not invariably, append a version such as
+`AMOS Pro101` within those 16 bytes. The full header is retained as metadata
+after trailing spaces and nulls are removed.
+
+The header is followed by a four-byte big-endian byte length and exactly that
+many bytes of tokenised listing data. Each listing line records its word
+length and indentation, contains its tokens, and ends with a two-byte null
+token. An `AmBs` bank-set appendix follows at the resulting boundary. The
+appendix is mandatory even when its member count is zero.
+
+A program with a recognized header, a valid listing boundary, and a complete
+bank appendix is detected as **certain**. `/listing` is an exportable text
+resource with `amos.header` and encoded `data.length` metadata and defaults to
+`.txt`. Attached banks use the same `/banks/N` hierarchy as a standalone set,
+so supported sprite and icon resources can be inspected and exported directly
+from the program while other banks remain opaque.
+
+The listing decoder reconstructs source text rather than an AST. Simple tokens
+use the imported AMOS symbol mapping, retaining distinct token identifiers
+even where overloaded forms render identically. Complex tokens cover variable
+and procedure names, labels and references, strings, binary/hex/integer/single
+values, comments, flow-control records, and recognized extension commands.
+Unknown ordinary tokens render the unparsed remainder of their line as
+bracketed lowercase hexadecimal. Unknown extension tokens render as
+`[ext N hex]`. Encrypted procedure bodies are not decoded yet and emit an
+explicit `[encrypted procedure]` diagnostic marker.
+
+### Fixtures
+
+`tests/fixtures/amos.program/Xerxes' Revenge.AMOS` is an AMOS Basic demo with
+a 6,264-byte tokenised listing and four attached banks. It establishes the
+listing boundary and nested extraction of 28 sprites alongside two `Datas`
+banks and one `Pac.Pic.` bank. Provenance, coverage, and its hash are recorded
+beside the fixture and in [`THIRD_PARTY.md`](../THIRD_PARTY.md).
+
 ## AMOS sprite and icon banks
 
 Type identifiers: `amos.sprite-bank` and `amos.icon-bank`
