@@ -42,11 +42,13 @@ suite "48K ZX Spectrum SNA snapshot":
     check extracted == readBytes(ScreenFixturePath)
 
   test "screen resource follows the indexed animation pathway":
-    let animation = decodeScreenResource(ZxSpectrumSnapshotTypeId,
+    let raster = decodeScreenResource(ZxSpectrumSnapshotTypeId,
       readBytes(SnapshotFixturePath))
 
-    check animation.width == 256
-    check animation.height == 192
+    check raster.kind == vrkIndexedAnimation
+    let animation = raster.animation
+    check raster.width == 256
+    check raster.height == 192
     check animation.frames.len == 2
     check rgbDigest(animation.frames[0].image) ==
       "D015DC2D86191595A79AD76A67CB81D05890DD63"
@@ -57,3 +59,15 @@ suite "48K ZX Spectrum SNA snapshot":
     expect ValueError:
       discard extractZxSpectrumSnapshotScreen(
         newSeq[byte](ZxSpectrumSnapshot48Size - 1))
+
+  test "listing snapshot exposes a non-animated indexed image":
+    let
+      snapshot = readBytes(
+        "tests/fixtures/zx-spectrum.snapshot/colours-listing.sna")
+      screen = readBytes(
+        "tests/fixtures/zx-spectrum.screen/colours-listing.scr")
+      raster = decodeScreenResource(ZxSpectrumSnapshotTypeId, snapshot)
+    check extractZxSpectrumSnapshotScreen(snapshot) == screen
+    check raster.kind == vrkIndexedImage
+    check raster.image.width == 256
+    check raster.image.height == 192

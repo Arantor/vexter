@@ -1,6 +1,6 @@
 ## Minimal dependency-free indexed PNG exporter.
 
-import ../archetypes/indexed_animation
+import ../archetypes/raster
 import ../artifacts
 
 const PngSignature = [137'u8, 80, 78, 71, 13, 10, 26, 10]

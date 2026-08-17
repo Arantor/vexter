@@ -50,7 +50,7 @@ suite "vexter CLI":
     let forced = run("export", "--force", "-o", destination, FixturePath)
     check forced.exitCode == 0
 
-  test "export accepts an exact resource and explicit PNG format":
+  test "FLASH animation can be explicitly exported as a real PNG":
     let destination = getTempDir() / "vexter-cli-colours.png"
     if fileExists(destination):
       removeFile(destination)
@@ -96,3 +96,35 @@ suite "vexter CLI":
     check rawExport.exitCode == 0
     check snapshotExport.exitCode == 0
     check readFile(snapshotDestination) == readFile(rawDestination)
+
+  test "non-FLASH snapshot inspects and defaults to PNG":
+    let
+      listingSnapshot =
+        "tests/fixtures/zx-spectrum.snapshot/colours-listing.sna"
+      listingScreen =
+        "tests/fixtures/zx-spectrum.screen/colours-listing.scr"
+      snapshotDestination = getTempDir() / "vexter-listing-snapshot.png"
+      screenDestination = getTempDir() / "vexter-listing-screen.png"
+    for destination in [snapshotDestination, screenDestination]:
+      if fileExists(destination):
+        removeFile(destination)
+    defer:
+      for destination in [snapshotDestination, screenDestination]:
+        if fileExists(destination):
+          removeFile(destination)
+
+    let inspected = run("inspect", "--json", listingSnapshot)
+    check inspected.exitCode == 0
+    let document = parseJson(inspected.output)
+    check document["resources"][0]["archetype"].getStr ==
+      "VextIndexedImage"
+    check not document["resources"][0].hasKey("frames")
+
+    let snapshotExport = run("export", "--resource", "/screen", "-o",
+      snapshotDestination, listingSnapshot)
+    let screenExport = run("export", "--resource", "/screen", "-o",
+      screenDestination, listingScreen)
+    check snapshotExport.exitCode == 0
+    check screenExport.exitCode == 0
+    check readFile(snapshotDestination).startsWith("\x89PNG\r\n\x1a\n")
+    check readFile(snapshotDestination) == readFile(screenDestination)

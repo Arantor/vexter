@@ -29,15 +29,17 @@ suite "ZX Spectrum raw screen":
   test "colours control covers ink, paper, BRIGHT, and FLASH":
     let fixture = readBytes(FixturePath)
     let candidates = detectFormats(FixturePath, fixture)
-    let animation = decodeZxSpectrumScreen(fixture)
+    let raster = decodeZxSpectrumScreen(fixture)
 
     check candidates.len == 1
     check candidates[0].typeId == ZxSpectrumScreenTypeId
     check candidates[0].confidence == vdcProbable
     check candidates[0].evidence.len == 2
 
-    check animation.width == 256
-    check animation.height == 192
+    check raster.kind == vrkIndexedAnimation
+    let animation = raster.animation
+    check raster.width == 256
+    check raster.height == 192
     check animation.frames.len == 2
     check animation.frames[0].durationMs == 320
     check animation.frames[1].durationMs == 320
@@ -86,7 +88,16 @@ suite "ZX Spectrum raw screen":
     expect ValueError:
       discard decodeZxSpectrumScreen(newSeq[byte](ZxSpectrumScreenSize - 1))
 
-  test "a non-FLASH screen produces one frame":
+  test "a non-FLASH screen produces an indexed image":
     var screen = newSeq[byte](ZxSpectrumScreenSize)
-    let animation = decodeZxSpectrumScreen(screen)
-    check animation.frames.len == 1
+    let raster = decodeZxSpectrumScreen(screen)
+    check raster.kind == vrkIndexedImage
+    check raster.image.width == 256
+    check raster.image.height == 192
+
+  test "listing fixture produces an indexed image":
+    let raster = decodeZxSpectrumScreen(readBytes(
+      "tests/fixtures/zx-spectrum.screen/colours-listing.scr"))
+    check raster.kind == vrkIndexedImage
+    check raster.image.width == 256
+    check raster.image.height == 192

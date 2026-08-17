@@ -1,6 +1,6 @@
 ## Decoder for a raw 6,912-byte ZX Spectrum screen memory dump.
 
-import ../archetypes/indexed_animation
+import ../archetypes/raster
 
 const
   ZxSpectrumScreenTypeId* = "zx-spectrum.screen"
@@ -72,22 +72,29 @@ proc hasFlashAttributes*(data: openArray[byte]): bool =
     if (data[offset] and 0x80) != 0:
       return true
 
-proc decodeZxSpectrumScreen*(data: openArray[byte]): VextIndexedAnimation =
-  ## Decodes a raw screen into one natural frame, plus the swapped FLASH phase
-  ## when any attribute has its FLASH bit set.
+proc decodeZxSpectrumScreen*(data: openArray[byte]): VextRaster =
+  ## Decodes a raw screen into an indexed image, or an indexed animation when
+  ## any attribute has its FLASH bit set.
   if data.len != ZxSpectrumScreenSize:
     raise newException(ValueError,
       "ZX Spectrum screen must contain exactly 6912 bytes")
 
-  result.width = ZxSpectrumScreenWidth
-  result.height = ZxSpectrumScreenHeight
-  result.frames.add VextIndexedAnimationFrame(
-    image: decodeFrame(data, false),
-    durationMs: ZxSpectrumFlashFrameDurationMs
-  )
+  let natural = decodeFrame(data, false)
+  if not data.hasFlashAttributes:
+    return VextRaster(kind: vrkIndexedImage, image: natural)
 
-  if data.hasFlashAttributes:
-    result.frames.add VextIndexedAnimationFrame(
-      image: decodeFrame(data, true),
-      durationMs: ZxSpectrumFlashFrameDurationMs
+  result = VextRaster(
+    kind: vrkIndexedAnimation,
+    animation: VextIndexedAnimation(
+      width: ZxSpectrumScreenWidth,
+      height: ZxSpectrumScreenHeight,
+      frames: @[
+        VextIndexedAnimationFrame(
+          image: natural,
+          durationMs: ZxSpectrumFlashFrameDurationMs),
+        VextIndexedAnimationFrame(
+          image: decodeFrame(data, true),
+          durationMs: ZxSpectrumFlashFrameDurationMs)
+      ]
     )
+  )

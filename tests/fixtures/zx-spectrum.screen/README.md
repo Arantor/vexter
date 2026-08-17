@@ -25,3 +25,16 @@ SHA-256:
 00fce7baf6e79dc4e647c2e1ca8806fe3facb1ef68e72d1c0f8cfb012fb32db2  colours.png
 1cdc82dc8870ec5908ac321ba4e45d65ef5ff6e11732544ba05fd4e4baae4292  colours.gif
 ```
+
+## `colours-listing.scr`
+
+This is a second screen from the same project program, captured while it was in
+the BASIC editor with no FLASH attributes present. It is the screen-memory
+control for `zx-spectrum.snapshot/colours-listing.sna` and proves that a static
+Spectrum screen produces a `VextIndexedImage` rather than an animation.
+
+SHA-256:
+
+```text
+dc2641506aacd9505d6a85ac9dbaab039cce356a457ec7f0ecb37cb0954820ab  colours-listing.scr
+```

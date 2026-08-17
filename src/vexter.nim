@@ -90,7 +90,7 @@ proc inspect(options: CliOptions) =
   let data = readBytes(options.input)
   let selected = selectedCandidate(options, data)
   let candidates = detectFormats(options.input, data)
-  let animation = decodeScreenResource(selected.typeId, data)
+  let raster = decodeScreenResource(selected.typeId, data)
 
   if options.json:
     var candidateNodes = newJArray()
@@ -106,18 +106,20 @@ proc inspect(options: CliOptions) =
         "confidence": $candidate.confidence,
         "evidence": evidence
       }
+    var resource = %*{
+      "path": ZxSpectrumScreenResourcePath,
+      "type": ZxSpectrumScreenTypeId,
+      "archetype": raster.archetypeName,
+      "width": raster.width,
+      "height": raster.height
+    }
+    if raster.kind == vrkIndexedAnimation:
+      resource["frames"] = %raster.animation.frames.len
     let document = %*{
       "input": options.input,
       "selectedFormat": selected.typeId,
       "candidates": candidateNodes,
-      "resources": [{
-        "path": ZxSpectrumScreenResourcePath,
-        "type": ZxSpectrumScreenTypeId,
-        "archetype": "VextIndexedAnimation",
-        "width": animation.width,
-        "height": animation.height,
-        "frames": animation.frames.len
-      }]
+      "resources": [resource]
     }
     echo document.pretty
   else:
@@ -126,9 +128,12 @@ proc inspect(options: CliOptions) =
     for item in selected.evidence:
       echo "  Evidence: " & item.description
     echo "Resources:"
-    echo &"  {ZxSpectrumScreenResourcePath}  {ZxSpectrumScreenTypeId} " &
-      "-> VextIndexedAnimation " &
-      &"{animation.width}x{animation.height}, {animation.frames.len} frame(s)"
+    var description = &"  {ZxSpectrumScreenResourcePath}  " &
+      &"{ZxSpectrumScreenTypeId} -> {raster.archetypeName} " &
+      &"{raster.width}x{raster.height}"
+    if raster.kind == vrkIndexedAnimation:
+      description.add &", {raster.animation.frames.len} frame(s)"
+    echo description
 
 proc bytesToString(data: openArray[byte]): string =
   result = newString(data.len)
@@ -143,15 +148,15 @@ proc exportResource(options: CliOptions) =
     raise newException(CliError,
       "resource was not found: " & options.resource)
 
-  let animation = decodeScreenResource(selected.typeId, data)
+  let raster = decodeScreenResource(selected.typeId, data)
   var outputFormat = options.outputFormat
   if outputFormat.len == 0:
-    outputFormat = if animation.frames.len > 1: "gif" else: "png"
+    outputFormat = if raster.kind == vrkIndexedAnimation: "gif" else: "png"
 
   let artifacts = case outputFormat
-    of "png": exportPng(animation.frames[0].image,
+    of "png": exportPng(raster.naturalImage,
       options.input.splitFile.name & ".png")
-    of "gif": exportGif(animation,
+    of "gif": exportGif(raster.asIndexedAnimation,
       options.input.splitFile.name & ".gif")
     else:
       raise newException(CliError,

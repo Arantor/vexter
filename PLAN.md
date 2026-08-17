@@ -222,22 +222,27 @@ container exposes one resource:
 /screen
 ```
 
-The current decoder produces a `VextIndexedAnimation`. Its first frame is the
-natural display state. If any attribute has its FLASH bit set, a second frame
-swaps ink and paper in flashing cells. Both frames currently have a duration of
-320 milliseconds. A screen without FLASH has one frame.
+Raster archetypes are defined together in `archetypes/raster.nim`, leaving room
+for indexed images, indexed animations, and forthcoming true-colour raster
+types. The screen decoder produces a `VextIndexedImage` when no FLASH attribute
+is present. When FLASH is present it instead produces a
+`VextIndexedAnimation`: its first frame is the natural display state and its
+second swaps ink and paper in flashing cells. Both animation frames currently
+have a duration of 320 milliseconds.
 
 Default output is selected through the archetype content:
 
 ```text
-non-FLASH screen -> one-frame indexed animation -> PNG
-FLASH screen     -> two-frame indexed animation -> GIF
+non-FLASH screen -> indexed image       -> PNG
+FLASH screen     -> indexed animation   -> GIF
 ```
 
-An explicit `--format png` exports the natural first frame. The PNG and animated
-GIF encoders have no external dependencies. Their first versions favor simple,
-deterministic correctness over file size: PNG uses stored DEFLATE blocks and
-GIF uses valid low-compression LZW output.
+An explicit `--format png` applied to an animation exports its natural first
+frame. This is a required conversion pathway rather than an error caused by the
+resource's animated representation. The PNG and animated GIF encoders have no
+external dependencies. Their first versions favor simple, deterministic
+correctness over file size: PNG uses stored DEFLATE blocks and GIF uses valid
+low-compression LZW output.
 
 ## Tests, fixtures, and provenance
 

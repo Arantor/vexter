@@ -1,6 +1,6 @@
 ## Decoder entry points for uncompressed 48K ZX Spectrum SNA snapshots.
 
-import ../archetypes/indexed_animation
+import ../archetypes/raster
 import ./zx_spectrum_screen
 
 const
@@ -18,6 +18,6 @@ proc extractZxSpectrumSnapshotScreen*(data: openArray[byte]): seq[byte] =
     result[index] = data[ZxSpectrumSnapshotHeaderSize + index]
 
 proc decodeZxSpectrumSnapshotScreen*(data: openArray[byte]):
-    VextIndexedAnimation =
+    VextRaster =
   ## Extracts and decodes the snapshot's current screen.
   decodeZxSpectrumScreen(extractZxSpectrumSnapshotScreen(data))

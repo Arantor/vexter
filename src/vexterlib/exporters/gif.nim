@@ -1,6 +1,6 @@
 ## Minimal dependency-free indexed animated GIF exporter.
 
-import ../archetypes/indexed_animation
+import ../archetypes/raster
 import ../artifacts
 
 proc appendU16(data: var seq[byte], value: int) =
