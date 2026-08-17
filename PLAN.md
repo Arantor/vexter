@@ -14,6 +14,18 @@ Implemented and historically supported formats are recorded separately in
 This is the fourth major iteration of architecture since the project was
 conceived.
 
+## Source and research policy
+
+Do not search the internet for Vexter research or implementation resources.
+Format knowledge must come from established knowledge already available to the
+developer or from documentation and samples supplied directly to the project.
+If that information is insufficient or uncertain, stop and ask for the needed
+documentation or clarification rather than looking it up externally.
+
+User-supplied format documentation and fixtures should be recorded with enough
+provenance to explain what informed the implementation and what behavior the
+tests establish.
+
 ## Architectural model
 
 Vexter separates format-specific input handling from generic transformations
