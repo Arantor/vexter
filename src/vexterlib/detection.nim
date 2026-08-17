@@ -39,9 +39,9 @@ proc detectFormats*(filename: string, data: openArray[byte]):
       evidence: evidence
     )
 
-  if data.len == ZxSpectrumSnapshot48Size:
+  if isZxSpectrumSnapshotSize(data.len):
     var evidence = @[VextDetectionEvidence(
-      description: "file size is exactly 49179 bytes")]
+      description: "file size is exactly " & $data.len & " bytes")]
     if filename.splitFile.ext.toLowerAscii == ".sna":
       evidence.add VextDetectionEvidence(
         description: "file extension is .sna")

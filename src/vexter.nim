@@ -72,9 +72,9 @@ proc selectedCandidate(options: CliOptions, data: openArray[byte]):
       raise newException(CliError,
         "ZX Spectrum screen must contain exactly 6912 bytes")
     if options.inputFormat == ZxSpectrumSnapshotTypeId and
-        data.len != ZxSpectrumSnapshot48Size:
+        not isZxSpectrumSnapshotSize(data.len):
       raise newException(CliError,
-        "48K ZX Spectrum snapshot must contain exactly 49179 bytes")
+        "ZX Spectrum snapshot must contain exactly 49179, 131103, or 147487 bytes")
     return VextDetectionCandidate(
       typeId: options.inputFormat,
       confidence: vdcProbable,

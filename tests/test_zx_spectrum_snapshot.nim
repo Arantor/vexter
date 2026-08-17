@@ -23,13 +23,15 @@ proc rgbDigest(image: VextIndexedImage): string =
     rgb.add char(colour.b)
   $secureHash(rgb)
 
-suite "48K ZX Spectrum SNA snapshot":
+suite "ZX Spectrum SNA snapshot":
   test "registration uses stable type and probable evidence":
     let snapshot = readBytes(SnapshotFixturePath)
     let candidates = detectFormats("COLOURS.SNA", snapshot)
 
     check ZxSpectrumSnapshotTypeId == "zx-spectrum.snapshot"
     check ZxSpectrumSnapshot48Size == 49179
+    check ZxSpectrumSnapshot128Size == 131103
+    check ZxSpectrumSnapshot128ExtendedSize == 147487
     check ZxSpectrumSnapshotHeaderSize == 27
     check candidates.len == 1
     check candidates[0].typeId == ZxSpectrumSnapshotTypeId
@@ -59,6 +61,24 @@ suite "48K ZX Spectrum SNA snapshot":
     expect ValueError:
       discard extractZxSpectrumSnapshotScreen(
         newSeq[byte](ZxSpectrumSnapshot48Size - 1))
+
+  test "both 128K layouts are detected and expose screen memory at offset 27":
+    for size in [ZxSpectrumSnapshot128Size,
+        ZxSpectrumSnapshot128ExtendedSize]:
+      var snapshot = newSeq[byte](size)
+      for index in 0 ..< ZxSpectrumScreenSize:
+        snapshot[ZxSpectrumSnapshotHeaderSize + index] = byte(index mod 256)
+
+      let candidates = detectFormats("synthetic.SNA", snapshot)
+      check candidates.len == 1
+      check candidates[0].typeId == ZxSpectrumSnapshotTypeId
+      check candidates[0].confidence == vdcProbable
+      check candidates[0].evidence.len == 2
+
+      let screen = extractZxSpectrumSnapshotScreen(snapshot)
+      check screen.len == ZxSpectrumScreenSize
+      for index, value in screen:
+        check value == byte(index mod 256)
 
   test "listing snapshot exposes a non-animated indexed image":
     let
