@@ -1,7 +1,6 @@
-## Decoder entry points for uncompressed ZX Spectrum SNA snapshots.
+## Validation and resource extraction for uncompressed ZX Spectrum snapshots.
 
-import ../archetypes/raster
-import ./zx_spectrum_screen
+import ../resources/zx_spectrum_screen
 
 const
   ZxSpectrumSnapshotTypeId* = "zx-spectrum.snapshot"
@@ -23,8 +22,3 @@ proc extractZxSpectrumSnapshotScreen*(data: openArray[byte]): seq[byte] =
   result = newSeq[byte](ZxSpectrumScreenSize)
   for index in 0 ..< ZxSpectrumScreenSize:
     result[index] = data[ZxSpectrumSnapshotHeaderSize + index]
-
-proc decodeZxSpectrumSnapshotScreen*(data: openArray[byte]):
-    VextRaster =
-  ## Extracts and decodes the snapshot's current screen.
-  decodeZxSpectrumScreen(extractZxSpectrumSnapshotScreen(data))

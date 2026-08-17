@@ -40,13 +40,19 @@ suite "ZX Spectrum TAP container":
     check candidates[0].typeId == ZxSpectrumTapTypeId
     check candidates[0].confidence == vdcProbable
     check candidates[0].evidence.len == 2
-    check screenResourcePaths(ZxSpectrumTapTypeId, tap) == @["/screen"]
+    let resources = inspectSource("display.TAP", tap).resources.rasterResources
+    check resources.len == 1
+    check resources[0].path == "/screen"
     check extractZxSpectrumTapScreen(tap, "/screen") ==
       newSeqWith(ZxSpectrumScreenSize, 0x5a'u8)
 
   test "multiple CODE screens receive numbered paths":
     let tap = screenRecord("FIRST", 1) & screenRecord("SECOND", 2)
     check zxSpectrumTapScreenPaths(tap) == @["/screen/1", "/screen/2"]
+    let tree = inspectSource("screens.tap", tap).resources
+    check tree.roots.len == 1
+    check tree.roots[0].kind == vrnkGroup
+    check tree.roots[0].children.len == 2
     check extractZxSpectrumTapScreen(tap, "/screen/1")[0] == 1
     check extractZxSpectrumTapScreen(tap, "/screen/2")[0] == 2
     expect ValueError:
@@ -57,6 +63,7 @@ suite "ZX Spectrum TAP container":
       tapBlock(ZxSpectrumTapDataFlag, @[1'u8, 2, 3, 4])
     check isZxSpectrumTap(tap)
     check zxSpectrumTapScreenPaths(tap).len == 0
+    check inspectSource("other.tap", tap).resources.roots.len == 0
 
   test "bad checksums, truncation, and mismatched lengths are rejected":
     var badChecksum = screenRecord("BAD", 0)

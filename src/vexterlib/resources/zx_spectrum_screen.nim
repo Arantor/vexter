@@ -1,4 +1,4 @@
-## Decoder for a raw 6,912-byte ZX Spectrum screen memory dump.
+## Reusable decoder for a 6,912-byte ZX Spectrum screen resource.
 
 import ../archetypes/raster
 

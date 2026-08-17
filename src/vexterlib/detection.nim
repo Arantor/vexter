@@ -1,7 +1,9 @@
 ## Evidence-based input format detection.
 
 import std/[os, strutils]
-import ./containers/[zx_spectrum_screen, zx_spectrum_snapshot, zx_spectrum_tap]
+import ./containers/[zx_spectrum_screen_dump, zx_spectrum_snapshot,
+  zx_spectrum_tap]
+import ./resources/zx_spectrum_screen
 
 type
   VextDetectionConfidence* = enum
@@ -27,10 +29,10 @@ proc detectFormats*(filename: string, data: openArray[byte]):
     seq[VextDetectionCandidate] =
   ## Returns every format candidate recognized from currently available
   ## evidence, ordered from strongest to weakest.
-  if data.len == ZxSpectrumScreenSize:
+  if isZxSpectrumScreenDump(data):
     var evidence = @[VextDetectionEvidence(
       description: "file size is exactly 6912 bytes")]
-    if filename.splitFile.ext.toLowerAscii == ".scr":
+    if hasZxSpectrumScreenDumpExtension(filename):
       evidence.add VextDetectionEvidence(
         description: "file extension is .scr")
     result.add VextDetectionCandidate(

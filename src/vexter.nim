@@ -60,46 +60,17 @@ proc parseOptions(arguments: seq[string]): CliOptions =
   if result.input.len == 0:
     raise newException(CliError, "no input was provided")
 
-proc selectedCandidate(options: CliOptions, data: openArray[byte]):
-    VextDetectionCandidate =
-  if options.inputFormat.len > 0:
-    if options.inputFormat notin [ZxSpectrumScreenTypeId,
-        ZxSpectrumSnapshotTypeId, ZxSpectrumTapTypeId]:
-      raise newException(CliError,
-        "unsupported input format: " & options.inputFormat)
-    if options.inputFormat == ZxSpectrumScreenTypeId and
-        data.len != ZxSpectrumScreenSize:
-      raise newException(CliError,
-        "ZX Spectrum screen must contain exactly 6912 bytes")
-    if options.inputFormat == ZxSpectrumSnapshotTypeId and
-        not isZxSpectrumSnapshotSize(data.len):
-      raise newException(CliError,
-        "ZX Spectrum snapshot must contain exactly 49179, 131103, or 147487 bytes")
-    if options.inputFormat == ZxSpectrumTapTypeId and
-        not isZxSpectrumTap(data):
-      raise newException(CliError, "invalid ZX Spectrum TAP container")
-    return VextDetectionCandidate(
-      typeId: options.inputFormat,
-      confidence: vdcProbable,
-      evidence: @[VextDetectionEvidence(
-        description: "format selected with --input-format")])
-
-  let candidates = detectFormats(options.input, data)
-  if candidates.len == 0:
-    raise newException(CliError, "input format was not recognized")
-  candidates[0]
-
 proc inspect(options: CliOptions) =
   let data = readBytes(options.input)
-  let selected = selectedCandidate(options, data)
-  let candidates = detectFormats(options.input, data)
-  let paths = screenResourcePaths(selected.typeId, data)
+  let inspection = inspectSource(options.input, data, options.inputFormat)
+  let rasterResources = inspection.resources.rasterResources
 
   if options.json:
     var candidateNodes = newJArray()
     let shownCandidates =
-      if options.allCandidates and options.inputFormat.len == 0: candidates
-      else: @[selected]
+      if options.allCandidates and options.inputFormat.len == 0:
+        inspection.candidates
+      else: @[inspection.selectedFormat]
     for candidate in shownCandidates:
       var evidence = newJArray()
       for item in candidate.evidence:
@@ -109,36 +80,37 @@ proc inspect(options: CliOptions) =
         "confidence": $candidate.confidence,
         "evidence": evidence
       }
-    var resources = newJArray()
-    for path in paths:
-      let raster = decodeScreenResource(selected.typeId, path, data)
+    var resourceNodes = newJArray()
+    for item in rasterResources:
+      let raster = item.raster
       var resource = %*{
-        "path": path,
-        "type": ZxSpectrumScreenTypeId,
+        "path": item.path,
+        "type": item.typeId,
         "archetype": raster.archetypeName,
         "width": raster.width,
         "height": raster.height
       }
       if raster.kind == vrkIndexedAnimation:
         resource["frames"] = %raster.animation.frames.len
-      resources.add resource
+      resourceNodes.add resource
     let document = %*{
       "input": options.input,
-      "selectedFormat": selected.typeId,
+      "selectedFormat": inspection.selectedFormat.typeId,
       "candidates": candidateNodes,
-      "resources": resources
+      "resources": resourceNodes
     }
     echo document.pretty
   else:
     echo options.input
-    echo &"Format: {selected.typeId} ({selected.confidence})"
-    for item in selected.evidence:
+    echo &"Format: {inspection.selectedFormat.typeId} " &
+      &"({inspection.selectedFormat.confidence})"
+    for item in inspection.selectedFormat.evidence:
       echo "  Evidence: " & item.description
     echo "Resources:"
-    for path in paths:
-      let raster = decodeScreenResource(selected.typeId, path, data)
-      var description = &"  {path}  " &
-        &"{ZxSpectrumScreenTypeId} -> {raster.archetypeName} " &
+    for item in rasterResources:
+      let raster = item.raster
+      var description = &"  {item.path}  " &
+        &"{item.typeId} -> {raster.archetypeName} " &
         &"{raster.width}x{raster.height}"
       if raster.kind == vrkIndexedAnimation:
         description.add &", {raster.animation.frames.len} frame(s)"
@@ -151,40 +123,20 @@ proc bytesToString(data: openArray[byte]): string =
 
 proc exportResource(options: CliOptions) =
   let data = readBytes(options.input)
-  let selected = selectedCandidate(options, data)
-  let paths = screenResourcePaths(selected.typeId, data)
-  let path = if options.resource.len > 0: options.resource
-             elif paths.len == 1: paths[0]
-             else: ""
-  if path.len == 0:
-    if paths.len == 0:
-      raise newException(CliError, "container exposes no screen resources")
-    raise newException(CliError,
-      "more than one screen resource is available; use --resource")
-  if path notin paths:
-    raise newException(CliError,
-      "resource was not found: " & path)
-
-  let raster = decodeScreenResource(selected.typeId, path, data)
-  var outputFormat = options.outputFormat
-  if outputFormat.len == 0:
-    outputFormat = if raster.kind == vrkIndexedAnimation: "gif" else: "png"
-
-  let artifacts = case outputFormat
-    of "png": exportPng(raster.naturalImage,
-      options.input.splitFile.name & ".png")
-    of "gif": exportGif(raster.asIndexedAnimation,
-      options.input.splitFile.name & ".gif")
-    else:
-      raise newException(CliError,
-        "unsupported output format: " & outputFormat)
+  let inspection = inspectSource(options.input, data, options.inputFormat)
+  let exported = vexterlib.exportResource(inspection.resources,
+    VextExportRequest(
+      resourcePath: options.resource,
+      outputFormat: options.outputFormat,
+      suggestedName: options.input.splitFile.name))
+  let artifacts = exported.artifacts
 
   if artifacts.artifacts.len != 1:
     raise newException(CliError,
       "export produced multiple artifacts; an output directory is required")
   let artifact = artifacts.artifacts[0]
   let destination = if options.output.len > 0: options.output
-                    else: options.input.changeFileExt(outputFormat)
+                    else: options.input.changeFileExt(exported.outputFormat)
   if fileExists(destination) and not options.force:
     raise newException(CliError,
       "output already exists (use --force): " & destination)

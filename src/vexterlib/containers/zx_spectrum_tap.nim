@@ -1,8 +1,7 @@
 ## Parser and screen-resource extraction for ZX Spectrum TAP containers.
 
 import std/[strformat, strutils]
-import ../archetypes/raster
-import ./zx_spectrum_screen
+import ../resources/zx_spectrum_screen
 
 const
   ZxSpectrumTapTypeId* = "zx-spectrum.tap"
@@ -109,6 +108,3 @@ proc extractZxSpectrumTapScreen*(data: openArray[byte], path: string): seq[byte]
     if path == &"{ZxSpectrumScreenResourcePath}/{index + 1}":
       return screens[index].data
   raise newException(ValueError, "resource was not found: " & path)
-
-proc decodeZxSpectrumTapScreen*(data: openArray[byte], path: string): VextRaster =
-  decodeZxSpectrumScreen(extractZxSpectrumTapScreen(data, path))

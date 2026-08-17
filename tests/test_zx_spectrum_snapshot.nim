@@ -44,8 +44,9 @@ suite "ZX Spectrum SNA snapshot":
     check extracted == readBytes(ScreenFixturePath)
 
   test "screen resource follows the indexed animation pathway":
-    let raster = decodeScreenResource(ZxSpectrumSnapshotTypeId,
+    let inspection = inspectSource(SnapshotFixturePath,
       readBytes(SnapshotFixturePath))
+    let raster = inspection.resources.rasterResources[0].raster
 
     check raster.kind == vrkIndexedAnimation
     let animation = raster.animation
@@ -86,7 +87,8 @@ suite "ZX Spectrum SNA snapshot":
         "tests/fixtures/zx-spectrum.snapshot/colours-listing.sna")
       screen = readBytes(
         "tests/fixtures/zx-spectrum.screen/colours-listing.scr")
-      raster = decodeScreenResource(ZxSpectrumSnapshotTypeId, snapshot)
+      raster = inspectSource("listing.sna", snapshot).resources.
+        rasterResources[0].raster
     check extractZxSpectrumSnapshotScreen(snapshot) == screen
     check raster.kind == vrkIndexedImage
     check raster.image.width == 256
