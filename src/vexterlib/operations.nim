@@ -5,11 +5,11 @@ import ./archetypes/raster
 import ./detection
 import ./exporters/[gif, png]
 import ./resource_tree
-import ./containers/[amos_bank, amos_bank_set, amos_program,
+import ./containers/[amiga_iff, amiga_ilbm, amos_bank, amos_bank_set, amos_program,
   amos_sprite_icon_bank,
   zx_spectrum_screen_dump, zx_spectrum_snapshot, zx_spectrum_tap]
 import ./metadata
-import ./resources/[amos_listing, amos_planar_image, zx_spectrum_basic,
+import ./resources/[amiga_ilbm_image, amos_listing, amos_planar_image, zx_spectrum_basic,
   zx_spectrum_screen]
 
 type
@@ -31,6 +31,10 @@ type
 proc forcedCandidate(typeId: string, data: openArray[byte]):
     VextDetectionCandidate =
   case typeId
+  of AmigaIlbmTypeId:
+    discard parseAmigaIlbm(data)
+  of AmigaIffTypeId:
+    discard parseAmigaIff(data)
   of AmosProgramTypeId:
     discard parseAmosProgram(data)
   of AmosBankSetTypeId:
@@ -131,6 +135,36 @@ proc inspectSource*(filename: string, data: openArray[byte],
     result.selectedFormat = result.candidates[0]
 
   case result.selectedFormat.typeId
+  of AmigaIlbmTypeId:
+    let ilbm = parseAmigaIlbm(data)
+    result.resources.roots.add VextResourceNode(
+      path: AmigaIlbmImageResourcePath,
+      typeId: AmigaIlbmImageTypeId,
+      kind: vrnkRaster,
+      raster: decodeAmigaIlbmRaster(ilbm.image),
+      metadata: @[
+        integerMetadata("planes", ilbm.image.header.planes),
+        integerMetadata("position.x", ilbm.image.header.x),
+        integerMetadata("position.y", ilbm.image.header.y),
+        integerMetadata("aspect.x", ilbm.image.header.xAspect),
+        integerMetadata("aspect.y", ilbm.image.header.yAspect),
+        integerMetadata("camg", int(ilbm.image.camg))
+      ])
+  of AmigaIffTypeId:
+    let form = parseAmigaIff(data)
+    let group = VextResourceNode(
+      path: "/chunks", typeId: AmigaIffTypeId, kind: vrnkGroup,
+      metadata: @[stringMetadata("form.type", form.formType)])
+    for index, chunk in form.chunks:
+      group.children.add VextResourceNode(
+        path: "/chunks/" & $index,
+        typeId: "amiga.iff-chunk",
+        kind: vrnkOpaque,
+        metadata: @[
+          stringMetadata("chunk.id", chunk.id),
+          integerMetadata("data.length", chunk.data.len)
+        ])
+    result.resources.roots.add group
   of AmosProgramTypeId:
     let program = parseAmosProgram(data)
     result.resources.roots.add VextResourceNode(
@@ -252,10 +286,20 @@ proc exportResource*(tree: VextResourceTree,
       data: bytes)
   of vrnkRaster:
     result.artifacts = case result.outputFormat
-      of "png": exportPng(resource.raster.naturalImage,
-        request.suggestedName & ".png")
-      of "gif": exportGif(resource.raster.asIndexedAnimation,
-        request.suggestedName & ".gif")
+      of "png":
+        case resource.raster.kind
+        of vrkTrueColourImage:
+          exportPng(resource.raster.trueColourImage,
+            request.suggestedName & ".png")
+        else:
+          exportPng(resource.raster.naturalImage,
+            request.suggestedName & ".png")
+      of "gif":
+        if resource.raster.kind == vrkTrueColourImage:
+          raise newException(ValueError,
+            "GIF export requires indexed colour; quantization is not implemented")
+        exportGif(resource.raster.asIndexedAnimation,
+          request.suggestedName & ".gif")
       else:
         raise newException(ValueError,
           "unsupported output format: " & result.outputFormat)

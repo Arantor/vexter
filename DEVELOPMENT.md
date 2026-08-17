@@ -11,12 +11,14 @@ format coverage in greater detail.
 Vexter currently consists of a reusable Nim library and a thin command-line
 client. It supports:
 
-- detection and inspection of ZX Spectrum raw screen dumps, SNA snapshots,
+- detection and inspection of generic IFF FORM containers, indexed Amiga ILBM
+  images, ZX Spectrum raw screen dumps, SNA snapshots,
   TAP containers, tokenised BASIC resources, standalone AMOS banks, AMOS bank
   sets, and AMOS programs;
 - a resource tree containing decoded indexed-raster or identified opaque
   resources, decoded text resources, and metadata;
-- indexed still-image and indexed-animation raster archetypes;
+- indexed still-image, indexed-animation, and true-colour image raster
+  archetypes;
 - PNG export for a still image or an animation's natural first frame; and
 - animated GIF export.
 
@@ -89,6 +91,10 @@ Matching case-insensitive extensions add supporting evidence.
 
 `src/vexterlib/containers/` contains source/container rules:
 
+- `amiga_iff.nim` validates generic IFF `FORM` lengths, chunk boundaries, and
+  even-byte padding;
+- `amiga_ilbm.nim` interprets `FORM ILBM` properties and extracts the image
+  source while leaving raster decoding separate;
 - `amos_bank.nim` validates generic `AmBk` headers and lengths and identifies
   otherwise unsupported bank payloads;
 - `amos_bank_set.nim` validates `AmBs` collections and delimits their adjacent
@@ -113,6 +119,12 @@ and icon image data and converts plane-major data into indexed rasters. The
 bank parser and resource decoder are deliberately separate so ABS/program
 containers can expose the same image resources later.
 
+`src/vexterlib/resources/amiga_ilbm_image.nim` decodes uncompressed or
+ByteRun1-compressed, row-interleaved ILBM planes. It produces indexed images
+for one through five ordinary planes and six-plane EHB, and true-colour images
+for HAM/HAM8. Legacy CMAPs whose component low nibbles are uniformly zero are
+expanded by nibble replication. Masks still await an alpha archetype.
+
 `src/vexterlib/resources/amos_listing.nim` reconstructs diagnostic AMOS source
 text from line records and complex tokens. `amos_listing_tokens.nim` contains
 the imported simple-symbol and recognized-extension mappings. Unknown tokens
@@ -133,8 +145,8 @@ controls use reversible `⟦UDG A⟧` and `⟦INK 2⟧`-style annotations, prece
 by explanatory `REM VEXTER:` lines only when required. Unknown bytes use
 `⟦ZX:$HH⟧`. A line number at or above 32768 marks the variables boundary.
 
-`src/vexterlib/archetypes/raster.nim` contains the generic indexed raster and
-animation contracts. `src/vexterlib/exporters/` consumes those contracts and
+`src/vexterlib/archetypes/raster.nim` contains the generic indexed image,
+indexed animation, and true-colour image contracts. `src/vexterlib/exporters/` consumes those contracts and
 has no ZX Spectrum-specific knowledge. `src/vexterlib/artifacts.nim` defines
 the in-memory output contract; callers, not exporters, write files.
 `src/vexterlib/metadata.nim` defines typed key/value metadata currently used
@@ -150,6 +162,9 @@ reintroduce type-switching resource dispatch into the CLI.
 Stable type identifiers are:
 
 ```text
+amiga.iff
+amiga.ilbm
+amiga.ilbm-image
 amos.bank
 amos.bank-data
 amos.bank-set
@@ -164,6 +179,13 @@ zx-spectrum.snapshot
 zx-spectrum.tap
 zx-spectrum.basic
 ```
+
+Generic IFF forms expose an inspectable `/chunks` group with opaque numbered
+chunk resources. Supported ILBMs instead expose one indexed raster at `/image`
+with header and CAMG metadata. Unknown ILBM chunks remain structurally valid
+and are ignored by the current image decoder. HAM/HAM8 ILBMs expose a
+`VextTrueColourImage` at the same path. True-colour PNG export is supported;
+GIF export requires a future colour-quantization stage.
 
 Raw screen dumps expose one raster at `/screen`. A 48K SNA additionally exposes
 decoded BASIC at `/listing` when `PROG` points to a valid listing; 128K BASIC
@@ -208,6 +230,9 @@ uses its natural first frame.
 
 The routine suites are:
 
+- `tests/test_amiga_iff_ilbm.nim`: FORM/chunk validation, ILBM planar and
+  ByteRun1 decoding, legacy palette expansion, EHB, synthetic HAM6/HAM8, and
+  authentic Deluxe Paint HAM8 controls;
 - `tests/test_zx_spectrum_screen.nim`: screen decoding, palette/pixel
   correctness, FLASH behavior, and encoder smoke tests;
 - `tests/test_zx_spectrum_snapshot.nim`: SNA detection and screen extraction;

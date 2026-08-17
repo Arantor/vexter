@@ -101,3 +101,37 @@ proc exportPng*(image: VextIndexedImage,
     suggestedFilename: suggestedFilename,
     mediaType: "image/png",
     data: encoded)
+
+proc exportPng*(image: VextTrueColourImage,
+    suggestedFilename = "image.png"): VextArtifactSet =
+  if image.width <= 0 or image.height <= 0:
+    raise newException(ValueError, "PNG image dimensions must be positive")
+  if image.pixels.len != image.width * image.height:
+    raise newException(ValueError, "PNG pixel buffer has the wrong length")
+
+  var encoded = @PngSignature
+  var header: seq[byte]
+  header.appendU32(uint32(image.width))
+  header.appendU32(uint32(image.height))
+  header.add 8 # bit depth
+  header.add 2 # true-colour RGB
+  header.add 0 # compression
+  header.add 0 # filter
+  header.add 0 # no interlace
+  encoded.addChunk("IHDR", header)
+
+  var scanlines = newSeqOfCap[byte]((image.width * 3 + 1) * image.height)
+  for y in 0 ..< image.height:
+    scanlines.add 0
+    for x in 0 ..< image.width:
+      let colour = image.pixels[y * image.width + x]
+      scanlines.add colour.r
+      scanlines.add colour.g
+      scanlines.add colour.b
+  encoded.addChunk("IDAT", storedZlib(scanlines))
+  encoded.addChunk("IEND", [])
+
+  result.artifacts.add VextArtifact(
+    suggestedFilename: suggestedFilename,
+    mediaType: "image/png",
+    data: encoded)

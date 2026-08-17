@@ -1,6 +1,7 @@
 /build/
 /nimcache/
 /tests/test_cli
+/tests/test_amiga_iff_ilbm
 /tests/test_amos_bank
 /tests/test_amos_bank_set
 /tests/test_amos_program

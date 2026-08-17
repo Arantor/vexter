@@ -16,6 +16,62 @@ vexter export [--format png|gif] [--resource PATH]
               [--input-format FORMAT] [-o OUTPUT] [--force] INPUT
 ```
 
+## Amiga IFF and ILBM
+
+Container type identifier: `amiga.iff`
+
+Image/container type identifier: `amiga.ilbm`
+
+Raster type identifier: `amiga.ilbm-image`
+
+IFF files begin with `FORM`, a big-endian length covering the four-byte form
+type and all following chunks, and the form type itself. Each chunk has a
+four-byte identifier, big-endian payload length, payload, and one external pad
+byte when the payload length is odd. Generic, structurally valid forms expose
+an inspectable `/chunks` group with numbered opaque chunk resources and chunk
+identifier/length metadata.
+
+An ILBM is `FORM ILBM`. Vexter requires a 20-byte `BMHD` before its single
+`BODY`; optional `CMAP` and four-byte `CAMG` properties must also precede the
+body. Unknown chunks are skipped through the generic IFF framing. The image is
+exposed as an indexed raster at `/image`.
+
+ILBM rows are padded to 16-pixel word boundaries. For every scanline, plane
+rows occur in order from plane zero (the least-significant palette-index bit)
+upward, with the most-significant pixel bit first within each byte. Compression
+zero is read directly. Compression one uses ByteRun1 independently for every
+plane-row; runs may not cross row boundaries.
+
+Ordinary indexed images with one through five planes are supported. A `CAMG`
+EHB flag selects six-plane Extra Half-Brite: palette indices 32 through 63 are
+generated from colours 0 through 31 by shifting each expanded RGB component
+right once. If every component in a CMAP has a zero low nibble, Vexter treats
+it as legacy Amiga four-bit storage and expands `$x0` to `$xx`; otherwise the
+eight-bit component values are retained unchanged.
+
+HAM and HAM8 decode to `VextTrueColourImage`. At the beginning of each
+scanline the held colour is black. A mode-zero code selects a base CMAP entry;
+the other modes replace blue, red, or green respectively while retaining the
+other two held components. HAM uses four data bits and HAM8 uses six, expanded
+to eight-bit components across the full 0–255 range. The uncommon five- and
+seven-plane variants with a single mode bit follow the same decoder.
+
+True-colour images export to RGB PNG. GIF remains limited to indexed rasters;
+Vexter reports that quantization is not implemented instead of silently
+reducing colours. Mask planes and transparent-colour images still require an
+alpha-capable archetype and are rejected rather than losing transparency.
+
+The authentic Deluxe Paint 4.5 AGA samples `TutGallery.Ham` and
+`EAWorld.Ham8` both decode byte-for-byte to the RGB pixels in their supplied
+PNG controls. Both files declare eight source planes, despite the shorter
+`.Ham` suffix on the former, so authentic HAM6 fixture coverage is still
+pending; focused synthetic tests cover the six-plane rules meanwhile.
+
+The King Tutenkhamen fixture is 320×200, five-plane, and ByteRun1-compressed.
+Its ImageMagick PNG is used as a layout control after normalizing the PNG's
+retained `$x0` palette components to the required `$xx` values. Attribution
+and redistribution cautions are recorded in [`THIRD_PARTY.md`](../THIRD_PARTY.md).
+
 ## ZX Spectrum raw screen
 
 Type identifier: `zx-spectrum.screen`
