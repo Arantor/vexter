@@ -1,0 +1,199 @@
+# Vexter development state
+
+This document describes the repository as it exists now. It is the starting
+point for maintenance and implementation work. [`PLAN.md`](PLAN.md) describes
+the intended trajectory and must not be read as a list of implemented
+features. [`docs/formats.md`](docs/formats.md) records current and historical
+format coverage in greater detail.
+
+## Current product surface
+
+Vexter currently consists of a reusable Nim library and a thin command-line
+client. It supports:
+
+- detection and inspection of ZX Spectrum raw screen dumps, SNA snapshots,
+  and TAP containers;
+- a resource tree containing decoded ZX Spectrum screen resources;
+- indexed still-image and indexed-animation raster archetypes;
+- PNG export for a still image or an animation's natural first frame; and
+- animated GIF export.
+
+The implemented command-line surface is:
+
+```text
+vexter inspect [--json] [--all-candidates] [--input-format FORMAT] INPUT
+
+vexter export [--format png|gif] [--resource PATH]
+              [--input-format FORMAT] [-o OUTPUT] [--force] INPUT
+```
+
+There is no GUI, recursive container traversal, `export-all`, path-pattern
+selection, or generalized handler registry yet. Those and the broader option
+surface shown in `PLAN.md` are future work.
+
+## Architectural flow
+
+The currently implemented path through the application is:
+
+```text
+file bytes
+  -> evidence-based detection or a validated forced format
+  -> format-specific container parsing and resource extraction
+  -> VextResourceTree
+  -> VextRaster resource values
+  -> PNG or GIF exporter
+  -> in-memory VextArtifactSet
+  -> CLI-owned filesystem write
+```
+
+The library owns detection, forced-format validation, container inspection,
+resource construction and selection, default output-format choice, and
+exporter invocation. The CLI owns argument parsing, reading source files,
+formatting inspection output, destination selection, collision policy, and
+writing artifacts. Keep these responsibilities separated so a future GUI can
+call `vexterlib` without reproducing CLI behavior.
+
+## Source layout and responsibilities
+
+`src/vexterlib.nim` is the public facade. It imports and re-exports the current
+public library modules.
+
+`src/vexter.nim` is the CLI. It should remain a thin client of the operations
+API. In particular, format validation, resource selection, decoding, and
+export-format defaults do not belong here.
+
+`src/vexterlib/operations.nim` brokers high-level library work:
+
+- `inspectSource` detects or validates a format and builds a decoded resource
+  tree;
+- `VextInspection` carries the selected candidate, all detected candidates,
+  and the resource tree; and
+- `exportResource` selects one raster resource, chooses PNG or GIF when no
+  format was requested, and returns an in-memory artifact set.
+
+`src/vexterlib/resource_tree.nim` defines `VextResourceTree` and
+`VextResourceNode`. Nodes are reference objects and currently have either the
+`vrnkGroup` or `vrnkRaster` kind. `rasterResources` returns raster nodes in
+depth-first tree order; `findRasterResource` performs exact path lookup over
+those raster nodes. Groups are structural and are not exportable raster
+resources.
+
+`src/vexterlib/detection.nim` contains evidence-based detection. Candidates
+are ordered strongest-first. Every current detector returns `vdcProbable`:
+the supported formats lack evidence sufficient for a certain identification.
+Exact sizes or valid TAP structure provide the base evidence and matching
+case-insensitive extensions add evidence.
+
+`src/vexterlib/containers/` contains source/container rules:
+
+- `zx_spectrum_screen_dump.nim` validates and extracts a standalone 6,912-byte
+  screen dump;
+- `zx_spectrum_snapshot.nim` validates supported SNA sizes and extracts the
+  current 6,912-byte display-memory region; and
+- `zx_spectrum_tap.nim` validates TAP block framing/checksums and extracts
+  qualifying CODE screen records.
+
+Container modules deal in source structure and extracted resource bytes. They
+must not own raster rendering or exporter behavior.
+
+`src/vexterlib/resources/zx_spectrum_screen.nim` defines the reusable
+`zx-spectrum.screen` resource and its decoder. A standalone screen dump is a
+container whose type identifier currently aliases this resource identifier;
+snapshots and TAP files expose the same resource type from within different
+container types. The decoder returns a `VextIndexedImage` when no FLASH bits
+are present and a two-frame `VextIndexedAnimation` when FLASH is present.
+
+`src/vexterlib/archetypes/raster.nim` contains the generic indexed raster and
+animation contracts. `src/vexterlib/exporters/` consumes those contracts and
+has no ZX Spectrum-specific knowledge. `src/vexterlib/artifacts.nim` defines
+the in-memory output contract; callers, not exporters, write files.
+
+The former `containers/zx_spectrum_screen.nim` and top-level
+`vexterlib/resources.nim` screen-dispatch module have been replaced by the
+container/resource split, generic resource tree, and operations layer. Do not
+reintroduce type-switching resource dispatch into the CLI.
+
+## Current format and resource behavior
+
+Stable type identifiers are:
+
+```text
+zx-spectrum.screen
+zx-spectrum.snapshot
+zx-spectrum.tap
+```
+
+Raw screen dumps and SNA snapshots expose one raster at `/screen`. A TAP with
+one qualifying screen exposes `/screen`. A TAP with multiple qualifying
+screens has a `/screen` group and raster children `/screen/1`, `/screen/2`, and
+so on. A structurally valid TAP with no qualifying screen records has an empty
+resource tree.
+
+When `--input-format` or the corresponding `inspectSource` argument is used,
+the library still validates the bytes against that format. It does not merely
+label arbitrary data. Unsupported identifiers and invalid data raise
+`ValueError`; the CLI catches library errors and presents them with its normal
+`vexter:` diagnostic prefix.
+
+Single-resource export selects the requested exact raster path. When the path
+is omitted, it succeeds only if exactly one raster is available. It fails for
+zero or multiple raster resources. The natural default is GIF for an indexed
+animation and PNG for an indexed image. Explicit PNG export of an animation
+uses its natural first frame.
+
+## Tests and fixtures
+
+The routine suites are:
+
+- `tests/test_zx_spectrum_screen.nim`: screen decoding, palette/pixel
+  correctness, FLASH behavior, and encoder smoke tests;
+- `tests/test_zx_spectrum_snapshot.nim`: SNA detection and screen extraction;
+- `tests/test_zx_spectrum_tap.nim`: TAP validation, extraction, and resource
+  tree shapes;
+- `tests/test_operations.nim`: direct high-level library and resource-tree
+  behavior; and
+- `tests/test_cli.nim`: end-to-end CLI inspection, export, defaults, and file
+  collision behavior.
+
+`vx4.nimble` builds the CLI before running these suites. Authentic and
+project-produced fixtures live under `tests/fixtures/`, with provenance and
+hash records alongside them.
+
+The current machine must run sustained work at low priority and with at most
+two concurrent processes. A suitable full run is:
+
+```sh
+nice -n 15 nimble test
+```
+
+If Nimble attempts to manage or download a compiler, or cannot write its user
+configuration/cache in a restricted environment, invoke the `nim c` commands
+from the `test` task directly. Use a writable per-target cache such as
+`--nimcache:/tmp/vx4-nimcache-operations`. Run the commands sequentially and
+keep `nice -n 15` on each invocation. CLI tests accept a separately built
+binary with:
+
+```text
+-d:VexterCliPath=/path/to/vexter
+```
+
+Generated test executables are ignored in `.gitignore`; add new test binary
+names there when adding suites, or direct their output into `/tmp`.
+
+## Constraints and near-term maintenance notes
+
+- Preserve the clean-room source policy in `PLAN.md`. Do not browse for
+  Vexter research or format implementation details.
+- Preserve stable type identifiers and canonical resource paths unless a
+  deliberate compatibility change is agreed.
+- Prefer generic resource/archetype operations over format-specific branches
+  in frontends and exporters.
+- Resource nodes currently carry already-decoded raster values. Lazy decoding,
+  alternate representations, structured metadata, handler registration, and
+  recursive containers are not implemented yet.
+- Export currently expects one artifact at the CLI boundary. The artifact API
+  already permits multiple files, but CLI directory handling for compound
+  exports is future work.
+- Detection currently parses some inputs again during inspection. There is no
+  parsed-container cache or registry abstraction yet.
+
