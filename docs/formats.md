@@ -181,8 +181,9 @@ and reserved method 74 remain structurally identifiable but explicitly
 unsupported; their behavior is not inferred beyond the supplied specification.
 Delta-compressed first frames are likewise deferred.
 
-Indexed ANIMs produce `VextIndexedAnimation`. Those with one opaque shared
-palette default to GIF. HAM frames pass through the ILBM HAM renderer and
+Indexed ANIMs produce `VextIndexedAnimation`. GIF-compatible animations default
+to GIF, including frames with distinct palettes or binary transparency. HAM
+frames pass through the ILBM HAM renderer and
 produce `VextTrueColourAnimation`, defaulting to APNG. The APNG encoder writes
 full-size RGB or RGBA frames, an infinite loop count, and per-frame millisecond
 delays using standard `acTL`, `fcTL`, `IDAT`, and `fdAT` chunks. Indexed images
@@ -555,13 +556,45 @@ as opaque, preserving the usual legacy interpretation.
 Both indexed and true-colour raster archetypes can carry per-pixel alpha.
 Omitting the alpha buffer means fully opaque; `alphaAt`, `rgbaAt`, and
 `hasAlpha` expose it uniformly. PNG and APNG export select RGBA output whenever
-any non-opaque alpha is present. GIF export currently rejects alpha-bearing
-images rather than silently discarding transparency.
+any non-opaque alpha is present. GIF export supports binary alpha when a
+transparent palette index is available; partial alpha remains APNG-only.
 
 Synthetic tests cover Windows and OS/2 headers, wrapped and standalone input,
 palette conversion, row orientation and padding, 24-bit colour, 16-bit
 bitfields, RLE4/RLE8, invalid offsets, incompatible compression, and
 truncation. Authentic compatibility fixtures remain desirable.
+
+## GIF images and animations
+
+Container type identifier: `gif`
+
+Raster type identifier: `gif.image`
+
+GIF87a and GIF89a import validates the logical screen, global and local colour
+tables, image rectangles, extension/data sub-block framing, LZW minimum code
+size, and final trailer. The exact signature and valid block stream identify
+the format as **certain**; `.gif` adds supporting evidence. Extension labels
+and expanded data lengths are retained as numbered metadata alongside version,
+frame count, background index, and pixel aspect ratio.
+
+Image data is expanded with the GIF clear/end-code LZW dictionary and restored
+from four-pass interlaced order when selected. Each image rectangle uses its
+local table or the logical screen's global table. GIF89a graphic controls
+supply binary transparency, hundredth-second delays, and none, background, or
+previous disposal. Frames are composited into full logical-screen images and
+exposed at `/image` as a `VextIndexedAnimation`.
+
+A single-image GIF deliberately remains a one-frame indexed animation, so its
+natural output is GIF rather than PNG. GIF export writes a local colour table
+for every frame, allowing imported animations and other indexed animations to
+change palettes. Fully transparent/opaque per-pixel alpha is mapped to a free
+transparent palette index. Partial alpha or a frame that cannot fit into 256
+colours is not quantized and instead remains suitable for APNG.
+
+Synthetic tests cover GIF87a routing, GIF89a local tables/transparency,
+interlacing, changing-palette round trips, and malformed LZW/trailers. The
+existing independently encoded Spectrum, AMOS sprite, and 34-frame Amiga ANIM
+GIF controls all complete the import pipeline.
 
 ## PNG images
 

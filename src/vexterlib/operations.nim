@@ -6,10 +6,10 @@ import ./detection
 import ./exporters/[gif, png]
 import ./resource_tree
 import ./containers/[amiga_acbm, amiga_adf, amiga_anim, amiga_iff, amiga_ilbm, amos_bank, amos_bank_set, amos_packed_picture, amos_program,
-  amos_sprite_icon_bank, bmp, pcx, png_container,
+  amos_sprite_icon_bank, bmp, gif_container, pcx, png_container,
   zip_archive, zx_spectrum_screen_dump, zx_spectrum_snapshot, zx_spectrum_tap]
 import ./metadata
-import ./resources/[amiga_anim_image, amiga_ilbm_image, amos_listing, amos_packed_picture_image, amos_planar_image, bmp_image, png_image, zx_spectrum_basic,
+import ./resources/[amiga_anim_image, amiga_ilbm_image, amos_listing, amos_packed_picture_image, amos_planar_image, bmp_image, gif_image, png_image, zx_spectrum_basic,
   pcx_image, zx_spectrum_screen]
 
 type
@@ -53,6 +53,8 @@ proc forcedCandidate(typeId: string, data: openArray[byte]):
     discard parseDib(data)
   of PngTypeId:
     discard parsePng(data)
+  of GifTypeId:
+    discard parseGif(data)
   of PcxTypeId:
     discard parsePcx(data)
   of ZipArchiveTypeId:
@@ -288,6 +290,22 @@ proc inspectSourceDepth(filename: string, data: openArray[byte],
     result.selectedFormat = result.candidates[0]
 
   case result.selectedFormat.typeId
+  of GifTypeId:
+    let source = parseGif(data)
+    var metadata = @[
+      stringMetadata("gif.version", source.version),
+      integerMetadata("frames", source.frames.len),
+      integerMetadata("background-index", source.backgroundIndex),
+      integerMetadata("pixel-aspect-ratio", source.pixelAspectRatio),
+      integerMetadata("extensions", source.extensions.len)]
+    for index, extension in source.extensions:
+      metadata.add integerMetadata("extension." & $index & ".label",
+        extension.label)
+      metadata.add integerMetadata("extension." & $index & ".length",
+        extension.dataLength)
+    result.resources.roots.add VextResourceNode(path: GifImageResourcePath,
+      typeId: GifImageTypeId, kind: vrnkRaster, raster: decodeGif(source),
+      metadata: metadata)
   of PngTypeId:
     let source = parsePng(data)
     var metadata = @[
@@ -507,14 +525,7 @@ proc exportResource*(tree: VextResourceTree,
       of vrnkRaster:
         case resource.raster.kind
         of vrkIndexedAnimation:
-          var gifCompatible = resource.raster.animation.frames.len > 0
-          if gifCompatible:
-            let palette = resource.raster.animation.frames[0].image.palette
-            for frame in resource.raster.animation.frames:
-              if frame.image.palette != palette or frame.image.hasAlpha:
-                gifCompatible = false
-                break
-          if gifCompatible: "gif" else: "apng"
+          if resource.raster.animation.gifCompatible: "gif" else: "apng"
         of vrkTrueColourAnimation: "apng"
         else: "png"
       else: ""

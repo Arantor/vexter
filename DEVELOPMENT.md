@@ -12,7 +12,7 @@ Vexter currently consists of a reusable Nim library and a thin command-line
 client. It supports:
 
 - detection and inspection of generic IFF FORM containers, indexed Amiga ILBM
-  and ACBM images, IFF ANIM animations, PCX, BMP/DIB, and PNG images, AmigaDOS ADF filesystems, ZIP archives, ZX Spectrum raw screen dumps, SNA snapshots,
+  and ACBM images, IFF ANIM animations, PCX, BMP/DIB, PNG, and GIF87a/GIF89a images, AmigaDOS ADF filesystems, ZIP archives, ZX Spectrum raw screen dumps, SNA snapshots,
   TAP containers, tokenised BASIC resources, standalone AMOS banks, AMOS bank
   sets, and AMOS programs;
 - a resource tree containing decoded indexed-raster or identified opaque
@@ -106,6 +106,8 @@ Matching case-insensitive extensions add supporting evidence.
 - `png_container.nim` validates PNG signatures, chunk framing/order, CRC-32,
   image properties, palettes, transparency, and concatenated IDAT data while
   retaining every known or unknown chunk for metadata;
+- `gif_container.nim` validates GIF87a/GIF89a logical screens, global/local
+  colour tables, extensions, image descriptors, and LZW data sub-blocks;
 - `amiga_iff.nim` validates generic IFF `FORM` lengths, chunk boundaries, and
   even-byte padding;
 - `amiga_acbm.nim` interprets `FORM ACBM` properties and extracts its
@@ -160,6 +162,10 @@ scanline, expands all standard colour types and legal bit depths, applies
 palette or `tRNS` alpha, and reconstructs Adam7 passes. APNG and unknown chunks
 are distinguished: valid APNG frame streams are decomposed and composited into
 a true-colour animation, while unknown chunks remain metadata-only.
+
+`src/vexterlib/resources/gif_image.nim` expands GIF LZW codes, restores
+interlaced rows, applies global/local palettes and binary transparency, and
+composites frame rectangles using GIF disposal rules into full indexed frames.
 
 `src/vexterlib/resources/amiga_ilbm_image.nim` decodes uncompressed or
 ByteRun1-compressed planar data: scanline-interleaved planes from ILBM `BODY`
@@ -240,6 +246,8 @@ windows.dib
 windows.bitmap
 png
 png.image
+gif
+gif.image
 amiga.iff
 amiga.acbm
 amiga.ilbm
@@ -317,18 +325,26 @@ source/over blend and none/background/previous disposal operations, and exposed
 as a full-frame true-colour animation. Unknown standard/private chunks remain
 reported metadata and do not cause import failure.
 
+GIF87a and GIF89a files expose `/image` as a `VextIndexedAnimation`, including
+single-image files. LZW, interlacing, global/local colour tables, transparency,
+delays, and none/background/previous disposal are decoded into full-canvas
+frames. Retaining a one-frame animation deliberately makes GIF the natural
+output for static GIF input. GIF export uses per-frame local colour tables and
+binary transparency, so palette changes are supported. Partial alpha or a
+composited frame exceeding 256 colours instead requires APNG.
+
 Generic `AmBk` containers continue to expose unknown bank types as opaque bank
 data. A `Pac.Pic.` bank with its screen palette instead exposes an indexed
 `amos.packed-picture` raster at `/picture`; the same bank nested in an `AmBs`
 or AMOS program uses its numbered `/banks/N` resource path.
 
-ANIM containers expose `/animation`. Indexed animations that share an opaque
-palette default to GIF, while HAM animations produce
+ANIM containers expose `/animation`. GIF-compatible indexed animations default
+to GIF, while HAM animations produce
 `VextTrueColourAnimation` and default to APNG. Indexed images and animations
 can also be explicitly exported as APNG; frames are expanded through their own
 palettes, so palette changes and per-pixel alpha are preserved. When an
-indexed animation cannot be represented by GIF because of palette changes or
-alpha, APNG becomes its natural default. Delta-compressed first frames remain
+indexed animation cannot be represented by GIF because of partial alpha or
+palette capacity, APNG becomes its natural default. Delta-compressed first frames remain
 deferred pending authentic samples.
 
 Raw screen dumps expose one raster at `/screen`. A 48K SNA additionally exposes
@@ -367,8 +383,8 @@ label arbitrary data. Unsupported identifiers and invalid data raise
 Single-resource export selects the requested exact raster path. When the path
 is omitted, it succeeds only if exactly one raster is available. It fails for
 zero or multiple raster resources. The natural default is GIF for a
-GIF-compatible indexed animation, APNG for an indexed animation with changing
-palettes or alpha, and PNG for an indexed image. Explicit PNG export of an
+GIF-compatible indexed animation, APNG for an indexed animation with partial
+alpha or another GIF-incompatible property, and PNG for an indexed image. Explicit PNG export of an
 animation uses its natural first frame; explicit APNG is available for every
 indexed raster that can be sent to GIF.
 
@@ -390,6 +406,9 @@ The routine suites are:
   export round trips, private chunk tolerance, metadata retention, CRCs,
   malformed required chunks, and every existing independently encoded PNG
   control;
+- `tests/test_gif.nim`: GIF87a/GIF89a, LZW, interlacing, global/local palettes,
+  transparency, changing-palette export, static GIF routing, corruption, and
+  all existing independently encoded GIF controls;
 - `tests/test_amiga_iff_ilbm.nim`: FORM/chunk validation, ILBM planar and
   ByteRun1 decoding, legacy palette expansion, EHB, focused HAM6/HAM8 cases,
   and authentic Deluxe Paint HAM6/HAM8 controls;
