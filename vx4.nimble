@@ -9,6 +9,7 @@ task test, "Run the test suite":
   exec "nim c --path:src -o:build/vexter src/vexter.nim"
   exec "nim c -r --path:src tests/test_amiga_iff_ilbm.nim"
   exec "nim c -r --path:src tests/test_amiga_anim.nim"
+  exec "nim c -r --path:src tests/test_amiga_adf.nim"
   exec "nim c -r --path:src tests/test_zx_spectrum_screen.nim"
   exec "nim c -r --path:src tests/test_zx_spectrum_snapshot.nim"
   exec "nim c -r --path:src tests/test_zx_spectrum_basic.nim"

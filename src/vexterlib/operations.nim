@@ -5,7 +5,7 @@ import ./archetypes/raster
 import ./detection
 import ./exporters/[gif, png]
 import ./resource_tree
-import ./containers/[amiga_anim, amiga_iff, amiga_ilbm, amos_bank, amos_bank_set, amos_packed_picture, amos_program,
+import ./containers/[amiga_adf, amiga_anim, amiga_iff, amiga_ilbm, amos_bank, amos_bank_set, amos_packed_picture, amos_program,
   amos_sprite_icon_bank,
   zx_spectrum_screen_dump, zx_spectrum_snapshot, zx_spectrum_tap]
 import ./metadata
@@ -13,10 +13,16 @@ import ./resources/[amiga_anim_image, amiga_ilbm_image, amos_listing, amos_packe
   zx_spectrum_screen]
 
 type
+  VextInspectionWarning* = object
+    path*: string
+    format*: string
+    message*: string
+
   VextInspection* = object
     selectedFormat*: VextDetectionCandidate
     candidates*: seq[VextDetectionCandidate]
     resources*: VextResourceTree
+    warnings*: seq[VextInspectionWarning]
 
   VextExportRequest* = object
     resourcePath*: string
@@ -31,6 +37,8 @@ type
 proc forcedCandidate(typeId: string, data: openArray[byte]):
     VextDetectionCandidate =
   case typeId
+  of AmigaAdfTypeId:
+    discard parseAmigaAdf(data)
   of AmigaAnimTypeId:
     discard parseAmigaAnim(data)
   of AmigaIlbmTypeId:
@@ -152,8 +160,76 @@ proc amosBankSetGroup(bankSet: AmosBankSet): VextResourceNode =
       result.children.add amosSpriteIconGroup(bankPath,
         bankPath & "/" & resourceName, entry.spriteIconBank)
 
-proc inspectSource*(filename: string, data: openArray[byte],
-    inputFormat = ""): VextInspection =
+proc inspectSourceDepth(filename: string, data: openArray[byte],
+    inputFormat: string, depth: int, ignoreWarnings: bool): VextInspection
+
+proc rebaseNode(node: VextResourceNode, prefix: string) =
+  node.path = prefix & node.path
+  for child in node.children:
+    rebaseNode(child, prefix)
+
+proc adfEntryNode(entry: AmigaAdfEntry, parentPath: string,
+    depth: int, ignoreWarnings: bool,
+    warnings: var seq[VextInspectionWarning]): VextResourceNode =
+  let path = parentPath & "/" & entry.name
+  let commonMetadata = @[
+    integerMetadata("adf.block", entry.sector),
+    stringMetadata("adf.name", entry.name),
+    stringMetadata("adf.comment", entry.comment)
+  ]
+  case entry.kind
+  of aaekDirectory:
+    result = VextResourceNode(
+      path: path, typeId: AmigaAdfDirectoryTypeId, kind: vrnkGroup,
+      metadata: commonMetadata)
+    for child in entry.children:
+      result.children.add adfEntryNode(child, path, depth, ignoreWarnings,
+        warnings)
+  of aaekLink:
+    result = VextResourceNode(
+      path: path, typeId: AmigaAdfLinkTypeId, kind: vrnkOpaque,
+      metadata: commonMetadata)
+  of aaekFile:
+    var metadata = commonMetadata
+    metadata.add integerMetadata("data.length", entry.size)
+    if depth >= 8:
+      return VextResourceNode(
+        path: path, typeId: AmigaAdfFileTypeId, kind: vrnkOpaque,
+        data: entry.data, metadata: metadata)
+    let candidates = detectFormats(entry.name, entry.data)
+    if candidates.len == 0:
+      return VextResourceNode(
+        path: path, typeId: AmigaAdfFileTypeId, kind: vrnkOpaque,
+        data: entry.data, metadata: metadata)
+    var nested: VextInspection
+    try:
+      nested = inspectSourceDepth(entry.name, entry.data, "", depth + 1,
+        ignoreWarnings)
+    except ValueError as error:
+      if ignoreWarnings:
+        warnings.add VextInspectionWarning(
+          path: path, format: candidates[0].typeId, message: error.msg)
+        metadata.add stringMetadata("decode.format", candidates[0].typeId)
+        metadata.add stringMetadata("decode.warning", error.msg)
+        return VextResourceNode(
+          path: path, typeId: AmigaAdfFileTypeId, kind: vrnkOpaque,
+          data: entry.data, metadata: metadata)
+      raise newException(ValueError,
+        "while inspecting nested resource " & path & ": " & error.msg)
+    for warning in nested.warnings:
+      warnings.add VextInspectionWarning(
+        path: path & warning.path,
+        format: warning.format,
+        message: warning.message)
+    result = VextResourceNode(
+      path: path, typeId: nested.selectedFormat.typeId, kind: vrnkGroup,
+      data: entry.data, metadata: metadata)
+    for root in nested.resources.roots:
+      rebaseNode(root, path)
+      result.children.add root
+
+proc inspectSourceDepth(filename: string, data: openArray[byte],
+    inputFormat: string, depth: int, ignoreWarnings: bool): VextInspection =
   result.candidates = detectFormats(filename, data)
   if inputFormat.len > 0:
     result.selectedFormat = forcedCandidate(inputFormat, data)
@@ -163,6 +239,20 @@ proc inspectSource*(filename: string, data: openArray[byte],
     result.selectedFormat = result.candidates[0]
 
   case result.selectedFormat.typeId
+  of AmigaAdfTypeId:
+    let volume = parseAmigaAdf(data)
+    let disk = VextResourceNode(
+      path: "/disk", typeId: AmigaAdfTypeId, kind: vrnkGroup,
+      metadata: @[
+        stringMetadata("volume.name", volume.name),
+        stringMetadata("filesystem", volume.filesystem),
+        integerMetadata("filesystem.flags", volume.flags),
+        integerMetadata("root.block", volume.rootBlock)
+      ])
+    for entry in volume.entries:
+      disk.children.add adfEntryNode(entry, "/disk", depth, ignoreWarnings,
+        result.warnings)
+    result.resources.roots.add disk
   of AmigaAnimTypeId:
     let anim = parseAmigaAnim(data)
     result.resources.roots.add VextResourceNode(
@@ -278,6 +368,10 @@ proc inspectSource*(filename: string, data: openArray[byte],
       result.resources.roots.add group
   else:
     discard
+
+proc inspectSource*(filename: string, data: openArray[byte],
+    inputFormat = "", ignoreWarnings = false): VextInspection =
+  inspectSourceDepth(filename, data, inputFormat, 0, ignoreWarnings)
 
 proc exportResource*(tree: VextResourceTree,
     request: VextExportRequest): VextExportResult =

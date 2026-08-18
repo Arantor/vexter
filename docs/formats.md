@@ -10,11 +10,51 @@ implementation schedule.
 The currently implemented formats use this subset of the intended CLI:
 
 ```text
-vexter inspect [--json] [--all-candidates] [--input-format FORMAT] INPUT
+vexter inspect [--json] [--all-candidates] [--ignore-warnings]
+               [--input-format FORMAT] INPUT
 
-vexter export [--format png|gif] [--resource PATH]
-              [--input-format FORMAT] [-o OUTPUT] [--force] INPUT
+vexter export [--format png|gif|apng|txt] [--resource PATH]
+              [--input-format FORMAT] [-o OUTPUT] [--force]
+              [--ignore-warnings] INPUT
 ```
+
+## Amiga ADF filesystems
+
+Container type identifier: `amiga.adf`
+
+ADF files are sector-for-sector images of Amiga floppy disks. Vexter supports
+the standard 901,120-byte DD and 1,802,240-byte HD geometries with 512-byte
+sectors. Detection requires a `DOS` boot signature with a defined filesystem
+flag and a structurally valid, checksummed root block at the physical midpoint;
+the case-insensitive `.adf` suffix supplies additional evidence but is not
+required.
+
+OFS and FFS filesystems are supported, including their international and
+directory-cache flag variants. Directories are enumerated through all 72 root
+or directory hash buckets and their collision chains. Files are reconstructed
+from reverse-ordered data pointers and chained extension blocks. FFS sectors
+contain 512 raw data bytes; OFS data headers and checksums are validated and
+removed from their 488-byte payloads. Block bounds, metadata checksums, and
+directory/data/extension cycles are rejected.
+
+The volume appears as `/disk`. Directories become nested
+`amiga.adf-directory` groups. Unknown files become `amiga.adf-file` opaque
+nodes whose exact bytes remain available through the library. When a file is
+recognized as another supported format, it becomes a group and that format's
+normal resource paths are rebased below it. For example, a Spectrum screen
+named `display.scr` appears as `/disk/display.scr/screen`. Nested inspection is
+limited to eight container layers. AmigaDOS hard and soft links are currently
+identified as `amiga.adf-link` leaves but are not followed. If a recognized
+contained file is structurally valid but its resource decoding fails, the
+error includes that file's `/disk/...` path and preserves the original decoder
+message. `--ignore-warnings` instead retains the child as an opaque file and
+continues inspecting its siblings. Human inspection prints collected warnings;
+JSON inspection returns their `path`, `format`, and `message` fields.
+
+Tests build compact logical filesystems within standard-size synthetic DD
+images. They cover FFS subdirectories, OFS header removal, exact file bytes,
+nested Spectrum decoding, signature and checksum validation, and cycle
+rejection. No third-party ADF fixture is currently stored in the repository.
 
 ## Amiga IFF and ILBM
 
@@ -253,8 +293,23 @@ and procedure names, labels and references, strings, binary/hex/integer/single
 values, comments, flow-control records, and recognized extension commands.
 Unknown ordinary tokens render the unparsed remainder of their line as
 bracketed lowercase hexadecimal. Unknown extension tokens render as
-`[ext N hex]`. Encrypted procedure bodies are not decoded yet and emit an
-explicit `[encrypted procedure]` diagnostic marker.
+`[ext N hex]`. Encrypted procedure bodies are restored before line decoding.
+For each encrypted line, bytes after its four-byte cleartext prefix are XORed
+with the evolving AMOS key, secondary key, and procedure-derived key. Compiled
+procedures are not treated as encrypted. Invalid boundaries and line framing
+remain explicit errors.
+
+The `Fold.Acc` editor accessory supplied during development uses the same
+outer program and bank-appendix structure as an ordinary AMOS program. Its
+distinctive content is a 656-byte encrypted procedure body. Decryption reveals
+the procedure-locking implementation; any unknown commands remain represented
+by the normal bracketed hexadecimal diagnostics. Vexter therefore currently
+treats it as `amos.program`; a separate accessory type would require structural
+evidence beyond its `.Acc` filename.
+The decrypted source additionally confirms `$011c` as `Border$`, `$0cd8` as
+`Default Palette`, `$220a` as `Bset`, `$2296` as `Areg`, and `$22a2` as
+`Dreg`. With these mappings the accessory has no diagnostic unknown-token
+forms left.
 
 ### Fixtures
 

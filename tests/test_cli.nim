@@ -15,6 +15,11 @@ proc run(arguments: varargs[string]): tuple[output: string, exitCode: int] =
   execCmdEx(command, options = {poUsePath, poStdErrToStdOut})
 
 suite "vexter CLI":
+  test "ignore-warnings is accepted for recursive inspection":
+    let inspected = run("inspect", "--ignore-warnings", FixturePath)
+    check inspected.exitCode == 0
+    check "Format: zx-spectrum.screen" in inspected.output
+
   test "AMOS programs expose listings and attached bank resources":
     let inspected = run("inspect", "--json", AmosProgramFixturePath)
     check inspected.exitCode == 0

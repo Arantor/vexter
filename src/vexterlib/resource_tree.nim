@@ -16,6 +16,7 @@ type
     kind*: VextResourceNodeKind
     raster*: VextRaster
     text*: string
+    data*: seq[byte]
     metadata*: seq[VextMetadataEntry]
     children*: seq[VextResourceNode]
 

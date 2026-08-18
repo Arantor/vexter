@@ -10,6 +10,7 @@ type
     json: bool
     allCandidates: bool
     force: bool
+    ignoreWarnings: bool
     inputFormat: string
     outputFormat: string
     resource: string
@@ -18,9 +19,11 @@ type
 
 proc usage(): string =
   """Usage:
-  vexter inspect [--json] [--all-candidates] [--input-format FORMAT] INPUT
+  vexter inspect [--json] [--all-candidates] [--ignore-warnings]
+                 [--input-format FORMAT] INPUT
   vexter export [--format png|gif|apng|txt] [--resource PATH]
-                [--input-format FORMAT] [-o OUTPUT] [--force] INPUT"""
+                [--input-format FORMAT] [-o OUTPUT] [--force]
+                [--ignore-warnings] INPUT"""
 
 proc readBytes(path: string): seq[byte] =
   let contents = readFile(path)
@@ -39,6 +42,8 @@ proc parseOptions(arguments: seq[string]): CliOptions =
       result.allCandidates = true
     of "--force":
       result.force = true
+    of "--ignore-warnings":
+      result.ignoreWarnings = true
     of "--input-format", "--format", "--resource", "-o":
       inc index
       if index >= arguments.len:
@@ -62,7 +67,8 @@ proc parseOptions(arguments: seq[string]): CliOptions =
 
 proc inspect(options: CliOptions) =
   let data = readBytes(options.input)
-  let inspection = inspectSource(options.input, data, options.inputFormat)
+  let inspection = inspectSource(options.input, data, options.inputFormat,
+    options.ignoreWarnings)
   let resources = inspection.resources.leafResources
 
   if options.json:
@@ -111,6 +117,15 @@ proc inspect(options: CliOptions) =
       "candidates": candidateNodes,
       "resources": resourceNodes
     }
+    if inspection.warnings.len > 0:
+      var warningNodes = newJArray()
+      for warning in inspection.warnings:
+        warningNodes.add %*{
+          "path": warning.path,
+          "format": warning.format,
+          "message": warning.message
+        }
+      document["warnings"] = warningNodes
     echo document.pretty
   else:
     echo options.input
@@ -137,6 +152,10 @@ proc inspect(options: CliOptions) =
           of vmvkInteger: $entry.value.integerValue
           of vmvkString: entry.value.stringValue
         echo &"    {entry.key}: {value}"
+    if inspection.warnings.len > 0:
+      echo "Warnings:"
+      for warning in inspection.warnings:
+        echo &"  {warning.path} ({warning.format}): {warning.message}"
 
 proc bytesToString(data: openArray[byte]): string =
   result = newString(data.len)
@@ -145,7 +164,11 @@ proc bytesToString(data: openArray[byte]): string =
 
 proc exportResource(options: CliOptions) =
   let data = readBytes(options.input)
-  let inspection = inspectSource(options.input, data, options.inputFormat)
+  let inspection = inspectSource(options.input, data, options.inputFormat,
+    options.ignoreWarnings)
+  for warning in inspection.warnings:
+    stderr.writeLine(&"vexter: warning: {warning.path} " &
+      &"({warning.format}): {warning.message}")
   let exported = vexterlib.exportResource(inspection.resources,
     VextExportRequest(
       resourcePath: options.resource,

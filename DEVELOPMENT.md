@@ -12,7 +12,7 @@ Vexter currently consists of a reusable Nim library and a thin command-line
 client. It supports:
 
 - detection and inspection of generic IFF FORM containers, indexed Amiga ILBM
-  images and IFF ANIM animations, ZX Spectrum raw screen dumps, SNA snapshots,
+  images, IFF ANIM animations, AmigaDOS ADF filesystems, ZX Spectrum raw screen dumps, SNA snapshots,
   TAP containers, tokenised BASIC resources, standalone AMOS banks, AMOS bank
   sets, and AMOS programs;
 - a resource tree containing decoded indexed-raster or identified opaque
@@ -25,14 +25,17 @@ client. It supports:
 The implemented command-line surface is:
 
 ```text
-vexter inspect [--json] [--all-candidates] [--input-format FORMAT] INPUT
+vexter inspect [--json] [--all-candidates] [--ignore-warnings]
+               [--input-format FORMAT] INPUT
 
 vexter export [--format png|gif|apng|txt] [--resource PATH]
-              [--input-format FORMAT] [-o OUTPUT] [--force] INPUT
+              [--input-format FORMAT] [-o OUTPUT] [--force]
+              [--ignore-warnings] INPUT
 ```
 
-There is no GUI, recursive container traversal, `export-all`, path-pattern
-selection, or generalized handler registry yet. Those and the broader option
+There is no GUI, general-purpose recursive archive framework, `export-all`,
+path-pattern selection, or generalized handler registry yet. ADF files do
+perform bounded recursive inspection of recognized contained files. Those and the broader option
 surface shown in `PLAN.md` are future work.
 
 ## Architectural flow
@@ -91,6 +94,8 @@ Matching case-insensitive extensions add supporting evidence.
 
 `src/vexterlib/containers/` contains source/container rules:
 
+- `amiga_adf.nim` validates standard DD/HD AmigaDOS floppy images and walks
+  OFS/FFS directory, file-header, extension, and data-block structures;
 - `amiga_iff.nim` validates generic IFF `FORM` lengths, chunk boundaries, and
   even-byte padding;
 - `amiga_ilbm.nim` interprets `FORM ILBM` properties and extracts the image
@@ -144,8 +149,18 @@ frame through the same indexed/EHB/HAM ILBM path as still images. Methods 1–4,
 `src/vexterlib/resources/amos_listing.nim` reconstructs diagnostic AMOS source
 text from line records and complex tokens. `amos_listing_tokens.nim` contains
 the imported simple-symbol and recognized-extension mappings. Unknown tokens
-remain visible as bracketed hexadecimal. Encrypted procedures are an explicit
-TODO and diagnostic rather than silently misdecoded.
+remain visible as bracketed hexadecimal. Encrypted procedure bodies are
+decrypted in a preprocessing pass using the evolving AMOS procedure keys;
+restored lines then use the ordinary diagnostic token decoder.
+The `Fold.Acc` accessory on the locally supplied AMOS source disk confirmed
+this layout: it has an ordinary `AMOS Basic V1.00` program container and a
+656-byte encrypted procedure implementing its procedure-locking behavior.
+There is not yet structural evidence for a separate accessory container type;
+`.Acc` alone is not used as one.
+The decrypted accessory also confirmed the core token mappings `$011c`
+`Border$`, `$0cd8` `Default Palette`, `$220a` `Bset`, `$2296` `Areg`, and
+`$22a2` `Dreg`. With these mappings its listing decodes without diagnostic
+unknown-token forms.
 
 `src/vexterlib/resources/zx_spectrum_screen.nim` defines the reusable
 `zx-spectrum.screen` resource and its decoder. A standalone screen dump is a
@@ -179,6 +194,10 @@ reintroduce type-switching resource dispatch into the CLI.
 Stable type identifiers are:
 
 ```text
+amiga.adf
+amiga.adf-directory
+amiga.adf-file
+amiga.adf-link
 amiga.iff
 amiga.ilbm
 amiga.ilbm-image
@@ -205,6 +224,18 @@ with header and CAMG metadata. Unknown ILBM chunks remain structurally valid
 and are ignored by the current image decoder. HAM/HAM8 ILBMs expose a
 `VextTrueColourImage` at the same path. True-colour PNG export is supported;
 GIF export requires a future colour-quantization stage.
+
+ADF volumes expose `/disk`, with filesystem directories represented as nested
+groups. Unrecognized files are opaque leaves retaining their reconstructed
+bytes. Recognized contained formats become groups whose normal decoded
+resources are rebased below the file path, such as
+`/disk/display.scr/screen`. Traversal is bounded to eight nested containers.
+OFS, FFS, international, and directory-cache flag variants are recognized;
+hard and soft links are identified but not followed. A failure while decoding
+a recognized contained format reports the nested resource path before the
+underlying decoder diagnostic. With `--ignore-warnings`, a failed child remains
+available as an opaque file, successful siblings are retained, and structured
+path/format/message warnings are returned and displayed.
 
 Generic `AmBk` containers continue to expose unknown bank types as opaque bank
 data. A `Pac.Pic.` bank with its screen palette instead exposes an indexed
@@ -260,6 +291,8 @@ uses its natural first frame.
 
 The routine suites are:
 
+- `tests/test_amiga_adf.nim`: synthetic FFS directory traversal, OFS and FFS
+  file reconstruction, nested format decoding, and structural corruption;
 - `tests/test_amiga_iff_ilbm.nim`: FORM/chunk validation, ILBM planar and
   ByteRun1 decoding, legacy palette expansion, EHB, focused HAM6/HAM8 cases,
   and authentic Deluxe Paint HAM6/HAM8 controls;
@@ -324,9 +357,10 @@ names there when adding suites, or direct their output into `/tmp`.
   deliberate compatibility change is agreed.
 - Prefer generic resource/archetype operations over format-specific branches
   in frontends and exporters.
-- Resource nodes currently carry already-decoded raster values. Lazy decoding,
-  alternate representations, structured metadata, handler registration, and
-  recursive containers are not implemented yet.
+- Resource nodes currently carry already-decoded raster values; opaque ADF
+  file leaves additionally retain their reconstructed bytes. Lazy decoding,
+  alternate representations, structured metadata, and handler registration
+  are not implemented yet. Recursive decoding is currently specific to ADF.
 - Export currently expects one artifact at the CLI boundary. The artifact API
   already permits multiple files, but CLI directory handling for compound
   exports is future work.

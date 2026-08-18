@@ -25,6 +25,19 @@ proc emptyProgram(header: string): seq[byte] =
   result.add @[0'u8, 0]
 
 suite "AMOS programs":
+  test "encrypted procedure bodies are decrypted before token decoding":
+    var listing = @[
+      8'u8, 1, 0x03, 0x76, 0, 0, 0, 8, 0, 0, 0xa0, 0,
+      0, 0, 0, 0,
+      3, 1, 0x03, 0x90, 0, 0,
+      3, 1, 0x03, 0x90, 0, 0]
+    let plaintext = listing
+    decryptAmosProcedures(listing) # XOR is symmetric: produce ciphertext.
+    listing[10] = listing[10] or 0x20
+    check listing != plaintext
+    check decodeAmosListing(listing) ==
+      "Proc \nEnd Proc\nEnd Proc\n"
+
   test "Xerxes' Revenge exposes its listing and attached banks":
     let
       data = readBytes(FixturePath)
@@ -101,6 +114,11 @@ suite "AMOS programs":
     check not isAmosProgram(missingAppendix)
 
   test "complex and unknown tokens retain diagnostic text":
+    check decodeAmosLine(@[0x01'u8, 0x1c, 0, 0]) == "Border$"
+    check decodeAmosLine(@[0x0c'u8, 0xd8, 0, 0]) == "Default Palette "
+    check decodeAmosLine(@[0x22'u8, 0x0a, 0, 0]) == "Bset"
+    check decodeAmosLine(@[0x22'u8, 0x96, 0, 0]) == "Areg"
+    check decodeAmosLine(@[0x22'u8, 0xa2, 0, 0]) == "Dreg"
     check decodeAmosLine(@[
       0x00'u8, 0x1e, 0, 0, 0, 5,
       0x00, 0x36, 0, 0, 0, 0xff,
@@ -111,7 +129,7 @@ suite "AMOS programs":
       0x00'u8, 0x4e, 9, 0, 0x12, 0x34, 0, 0]) ==
       "[ext 9 1234]"
     check decodeAmosLine(@[
-      0x03'u8, 0x76, 0, 0, 0, 10, 0, 0, 0x10, 0, 0, 0]) ==
+      0x03'u8, 0x76, 0, 0, 0, 10, 0, 0, 0x20, 0, 0, 0]) ==
       "Proc [encrypted procedure]"
 
     expect ValueError:

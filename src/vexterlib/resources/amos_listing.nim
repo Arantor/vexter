@@ -44,6 +44,51 @@ proc hexLiteral(value: uint32): string =
     leading = true, trailing = false, chars = {'0'})
   if result.len == 0: result = "0"
 
+proc decryptAmosProcedures*(listing: var seq[byte]) =
+  ## Decrypts protected procedure line payloads in place. Line length,
+  ## indentation, and the first token remain cleartext in the stored form.
+  var offset = 0
+  while offset < listing.len:
+    listing.requireBytes(offset, 2)
+    let lineBytes = int(listing[offset]) * 2
+    if lineBytes < 2 or offset > listing.len - lineBytes:
+      raise newException(ValueError, "invalid AMOS listing line length")
+    var decryptedEnd = -1
+    if lineBytes >= 14 and listing.word(offset + 2) == 0x0376:
+      let flags = listing[offset + 10]
+      if (flags and 0x20) != 0 and (flags and 0x10) == 0:
+        let size = int(listing.dword(offset + 4))
+        let endLine = offset + size + 14
+        var line = offset + lineBytes
+        if size < 0 or line > endLine or endLine >= listing.len:
+          raise newException(ValueError,
+            "invalid encrypted AMOS procedure boundary")
+        var key = (uint32(size) shl 8) or uint32(listing[offset + 11])
+        var key2 = 1'u32
+        let key3 = uint32(listing.word(offset + 8))
+        while line < endLine:
+          listing.requireBytes(line, 2)
+          let next = line + int(listing[line]) * 2
+          if next <= line or next > listing.len or (next - line) mod 2 != 0:
+            raise newException(ValueError,
+              "invalid encrypted AMOS procedure line")
+          var position = line + 4
+          while position < next:
+            listing[position] = listing[position] xor byte(key shr 8)
+            listing[position + 1] = listing[position + 1] xor byte(key)
+            position += 2
+            key = (key and 0xffff0000'u32) or
+              ((key + key2) and 0xffff'u32)
+            key2 = (key2 + key3) and 0xffff'u32
+            key = (key shr 1) or (key shl 31)
+          line = next
+        listing[offset + 10] = listing[offset + 10] xor 0x20
+        decryptedEnd = line
+    if decryptedEnd >= 0:
+      offset = decryptedEnd
+    else:
+      offset += lineBytes
+
 proc decodeAmosLine*(line: openArray[byte]): string =
   var position = 0
   while position < line.len:
@@ -116,15 +161,15 @@ proc decodeAmosLine*(line: openArray[byte]): string =
       result.add "Exit If "
       position += 6
     of 0x0376:
-      line.requireBytes(position, 10)
+      line.requireBytes(position, 12)
       let bytesToEnd = int(line.dword(position + 2))
       let flags = line[position + 8]
       result.add "Proc "
-      if (flags and 0x10) != 0:
+      if (flags and 0x20) != 0:
         # TODO: encrypted procedure bodies require AMOS decryption semantics.
         result.add "[encrypted procedure]"
         return
-      position += 10
+      position += 12
       if bytesToEnd < 0: return
     of 0x0404:
       line.requireBytes(position, 4)
@@ -153,22 +198,25 @@ proc decodeAmosLine*(line: openArray[byte]): string =
       return
 
 proc decodeAmosListing*(data: openArray[byte]): string =
+  var listing = @data
+  decryptAmosProcedures(listing)
   var offset = 0
-  while offset < data.len:
-    data.requireBytes(offset, 2)
+  while offset < listing.len:
+    listing.requireBytes(offset, 2)
     let
-      lineWords = int(data[offset])
-      indent = int(data[offset + 1])
+      lineWords = int(listing[offset])
+      indent = int(listing[offset + 1])
     if lineWords < 1:
       raise newException(ValueError, "invalid AMOS listing line length")
     let lineDataLength = (lineWords - 1) * 2
-    data.requireBytes(offset + 2, lineDataLength)
-    if lineDataLength < 2 or data[offset + lineDataLength] != 0 or
-        data[offset + lineDataLength + 1] != 0:
-      raise newException(ValueError, "AMOS listing line is not null terminated")
+    listing.requireBytes(offset + 2, lineDataLength)
+    if lineDataLength < 2 or listing[offset + lineDataLength] != 0 or
+        listing[offset + lineDataLength + 1] != 0:
+      raise newException(ValueError, "AMOS listing line at byte " & $offset &
+        " is not null terminated")
     if indent > 1:
       result.add repeat(' ', indent - 1)
-    result.add decodeAmosLine(data.toOpenArray(
+    result.add decodeAmosLine(listing.toOpenArray(
       offset + 2, offset + 1 + lineDataLength))
     result.add '\n'
     offset += lineDataLength + 2

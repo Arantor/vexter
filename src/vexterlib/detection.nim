@@ -1,7 +1,7 @@
 ## Evidence-based input format detection.
 
 import std/[os, strutils]
-import ./containers/[amiga_anim, amiga_iff, amiga_ilbm, amos_bank, amos_bank_set, amos_program,
+import ./containers/[amiga_adf, amiga_anim, amiga_iff, amiga_ilbm, amos_bank, amos_bank_set, amos_program,
   amos_sprite_icon_bank,
   zx_spectrum_screen_dump, zx_spectrum_snapshot, zx_spectrum_tap]
 import ./resources/zx_spectrum_screen
@@ -30,6 +30,24 @@ proc detectFormats*(filename: string, data: openArray[byte]):
     seq[VextDetectionCandidate] =
   ## Returns every format candidate recognized from currently available
   ## evidence, ordered from strongest to weakest.
+  if isAmigaAdf(data):
+    let volume = parseAmigaAdf(data)
+    var evidence = @[VextDetectionEvidence(
+      description: "file has a valid DOS boot signature and checksummed " &
+        volume.filesystem & " root filesystem block")]
+    if data.len == AmigaAdfDdSize:
+      evidence.add VextDetectionEvidence(
+        description: "file size is exactly 901120 bytes (Amiga DD floppy)")
+    elif data.len == AmigaAdfHdSize:
+      evidence.add VextDetectionEvidence(
+        description: "file size is exactly 1802240 bytes (Amiga HD floppy)")
+    if hasAmigaAdfExtension(filename):
+      evidence.add VextDetectionEvidence(description: "file extension is .adf")
+    result.add VextDetectionCandidate(
+      typeId: AmigaAdfTypeId,
+      confidence: vdcCertain,
+      evidence: evidence)
+
   if isAmigaAnim(data):
     var evidence = @[VextDetectionEvidence(
       description: "file is a valid FORM ANIM containing ILBM frame forms")]
