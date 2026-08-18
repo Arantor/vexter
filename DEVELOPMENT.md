@@ -158,7 +158,8 @@ bitfields. It handles bottom-up and uncompressed top-down storage.
 `src/vexterlib/resources/png_image.nim` inflates and unfilters every PNG
 scanline, expands all standard colour types and legal bit depths, applies
 palette or `tRNS` alpha, and reconstructs Adam7 passes. APNG and unknown chunks
-do not affect the decoded default image.
+are distinguished: valid APNG frame streams are decomposed and composited into
+a true-colour animation, while unknown chunks remain metadata-only.
 
 `src/vexterlib/resources/amiga_ilbm_image.nim` decodes uncompressed or
 ByteRun1-compressed planar data: scanline-interleaved planes from ILBM `BODY`
@@ -310,9 +311,11 @@ channel. Legacy 32-bit BI_RGB data without an alpha mask remains opaque.
 PNG files expose `/image`. All five filters, Adam7 interlacing, standard
 grayscale/indexed/true-colour colour types, 1/2/4/8/16-bit legal depths,
 palettes, and transparency are decoded into indexed or true-colour rasters.
-Every chunk's type and size is retained in inspection metadata. APNG chunks
-and unknown standard/private chunks are reported there but ignored for static
-default-image decoding; their presence is not an import failure.
+Every chunk's type and size is retained in inspection metadata. APNG frame
+rectangles are decoded through the same PNG pipeline, composited with their
+source/over blend and none/background/previous disposal operations, and exposed
+as a full-frame true-colour animation. Unknown standard/private chunks remain
+reported metadata and do not cause import failure.
 
 Generic `AmBk` containers continue to expose unknown bank types as opaque bank
 data. A `Pac.Pic.` bank with its screen palette instead exposes an indexed
@@ -383,9 +386,10 @@ The routine suites are:
 - `tests/test_bmp.nim`: Windows and OS/2 DIBs, wrapped BMP offsets, indexed and
   true-colour rows, top-down orientation, bitfields, RLE4/RLE8, and failures;
 - `tests/test_png.nim`: RGBA and indexed transparency, grayscale and 16-bit
-  samples, filters, Adam7 reconstruction, APNG/private chunk tolerance,
-  metadata retention, CRCs, malformed required chunks, and every existing
-  independently encoded PNG control;
+  samples, filters, Adam7 reconstruction, APNG decomposition/composition and
+  export round trips, private chunk tolerance, metadata retention, CRCs,
+  malformed required chunks, and every existing independently encoded PNG
+  control;
 - `tests/test_amiga_iff_ilbm.nim`: FORM/chunk validation, ILBM planar and
   ByteRun1 decoding, legacy palette expansion, EHB, focused HAM6/HAM8 cases,
   and authentic Deluxe Paint HAM6/HAM8 controls;

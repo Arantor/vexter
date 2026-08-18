@@ -299,7 +299,7 @@ proc inspectSourceDepth(filename: string, data: openArray[byte],
       metadata.add stringMetadata("chunk." & $index & ".type", chunk.kind)
       metadata.add integerMetadata("chunk." & $index & ".length", chunk.data.len)
     result.resources.roots.add VextResourceNode(path: PngImageResourcePath,
-      typeId: PngImageTypeId, kind: vrnkRaster, raster: decodePng(source),
+      typeId: PngImageTypeId, kind: vrnkRaster, raster: decodePngOrApng(source),
       metadata: metadata)
   of BmpTypeId, DibTypeId:
     let source = if result.selectedFormat.typeId == BmpTypeId:

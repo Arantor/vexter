@@ -54,6 +54,15 @@ proc png(width, height, depth, colourType, interlace: int,
   result.add chunk("IDAT", storedZlib(scanlines))
   result.add chunk("IEND", [])
 
+proc frameControl(sequence, width, height, x, y, delayNumerator,
+    delayDenominator, dispose, blend: int): seq[byte] =
+  result.addDword(uint32(sequence)); result.addDword(uint32(width))
+  result.addDword(uint32(height)); result.addDword(uint32(x))
+  result.addDword(uint32(y))
+  result.add byte(delayNumerator shr 8); result.add byte(delayNumerator)
+  result.add byte(delayDenominator shr 8); result.add byte(delayDenominator)
+  result.add byte(dispose); result.add byte(blend)
+
 suite "PNG images":
   test "existing independent PNG controls complete the import pipeline":
     for path in [
@@ -122,25 +131,72 @@ suite "PNG images":
       for x in 0 ..< 3:
         check image.colourAt(x, y).r == uint8(y * 10 + x)
 
-  test "APNG and unknown chunks are ignored but reported as metadata":
-    var data = png(1, 1, 8, 2, 0, @[0'u8, 1, 2, 3], [
-      chunk("acTL", @[0'u8, 0, 0, 1, 0, 0, 0, 0]),
-      chunk("fcTL", newSeq[byte](26))])
-    data.setLen(data.len - 12) # replace IEND with later APNG/private chunks
-    data.add chunk("fcTL", newSeq[byte](26))
-    data.add chunk("fdAT", @[0'u8, 0, 0, 1, 9])
+  test "APNG decomposes through inspection and exports through the normal pipeline":
+    let original = VextTrueColourAnimation(width: 1, height: 1, frames: @[
+      VextTrueColourAnimationFrame(image: VextTrueColourImage(width: 1,
+        height: 1, pixels: @[VextRgb(r: 1, g: 2, b: 3)]), durationMs: 100),
+      VextTrueColourAnimationFrame(image: VextTrueColourImage(width: 1,
+        height: 1, pixels: @[VextRgb(r: 4, g: 5, b: 6)], alpha: @[128'u8]),
+        durationMs: 200)])
+    var data = exportApng(original).artifacts[0].data
+    data.setLen(data.len - 12)
     data.add chunk("vpAg", @[9'u8, 8, 7])
     data.add chunk("IEND", [])
     let inspection = inspectSource("animated.png", data)
     let metadata = inspection.resources.roots[0].metadata
-    check inspection.resources.rasterResources[0].raster.trueColourImage.
-      colourAt(0, 0) == VextRgb(r: 1, g: 2, b: 3)
+    let animation = inspection.resources.rasterResources[0].raster.
+      trueColourAnimation
+    check animation.frames.len == 2
+    check animation.frames[0].image.rgbaAt(0, 0) ==
+      VextRgba(r: 1, g: 2, b: 3, a: 255)
+    check animation.frames[1].image.rgbaAt(0, 0) ==
+      VextRgba(r: 4, g: 5, b: 6, a: 128)
+    check animation.frames[0].durationMs == 100
+    check animation.frames[1].durationMs == 200
+    let exported = exportResource(inspection.resources,
+      VextExportRequest(suggestedName: "again"))
+    check exported.outputFormat == "apng"
+    check decodePngOrApng(parsePng(exported.artifacts.artifacts[0].data)).
+      trueColourAnimation.frames.len == 2
     var chunkTypes: seq[string]
     for entry in metadata:
       if entry.key.endsWith(".type"):
         chunkTypes.add entry.value.stringValue
-    check chunkTypes == @["IHDR", "acTL", "fcTL", "IDAT", "fcTL", "fdAT",
-      "vpAg", "IEND"]
+    check "acTL" in chunkTypes
+    check "fcTL" in chunkTypes
+    check "fdAT" in chunkTypes
+    check "vpAg" in chunkTypes
+
+  test "APNG frame rectangles blend and dispose on a full canvas":
+    var data = @PngSignature
+    var header: seq[byte]
+    header.addDword(2); header.addDword(1)
+    header.add @[8'u8, 6, 0, 0, 0]
+    data.add chunk("IHDR", header)
+    var control: seq[byte]
+    control.addDword(3); control.addDword(0)
+    data.add chunk("acTL", control)
+    data.add chunk("fcTL", frameControl(0, 2, 1, 0, 0, 1, 10, 0, 0))
+    data.add chunk("IDAT", storedZlib(@[0'u8, 255, 0, 0, 255, 0, 0, 0, 0]))
+    data.add chunk("fcTL", frameControl(1, 1, 1, 1, 0, 2, 10, 2, 0))
+    var second = @[0'u8, 0, 0, 2]
+    second.add storedZlib(@[0'u8, 0, 0, 255, 255])
+    data.add chunk("fdAT", second)
+    data.add chunk("fcTL", frameControl(3, 1, 1, 0, 0, 3, 10, 0, 1))
+    var third = @[0'u8, 0, 0, 4]
+    third.add storedZlib(@[0'u8, 0, 255, 0, 128])
+    data.add chunk("fdAT", third)
+    data.add chunk("IEND", [])
+    let animation = decodePngOrApng(parsePng(data)).trueColourAnimation
+    check animation.frames.len == 3
+    check animation.frames[0].image.rgbaAt(0, 0) ==
+      VextRgba(r: 255, g: 0, b: 0, a: 255)
+    check animation.frames[1].image.rgbaAt(1, 0) ==
+      VextRgba(r: 0, g: 0, b: 255, a: 255)
+    check animation.frames[2].image.rgbaAt(1, 0).a == 0
+    check animation.frames[2].image.rgbaAt(0, 0) ==
+      VextRgba(r: 127, g: 128, b: 0, a: 255)
+    check animation.frames[2].durationMs == 300
 
   test "bad CRCs and malformed required chunks fail":
     var data = png(1, 1, 8, 0, 0, @[0'u8, 1])

@@ -108,8 +108,12 @@ proc inspect(options: CliOptions) =
         resource["archetype"] = %raster.archetypeName
         resource["width"] = %raster.width
         resource["height"] = %raster.height
-        if raster.kind == vrkIndexedAnimation:
+        case raster.kind
+        of vrkIndexedAnimation:
           resource["frames"] = %raster.animation.frames.len
+        of vrkTrueColourAnimation:
+          resource["frames"] = %raster.trueColourAnimation.frames.len
+        else: discard
       if item.metadata.len > 0:
         var metadata = newJObject()
         for entry in item.metadata:
@@ -147,8 +151,12 @@ proc inspect(options: CliOptions) =
         let raster = item.raster
         description.add &" -> {raster.archetypeName} " &
           &"{raster.width}x{raster.height}"
-        if raster.kind == vrkIndexedAnimation:
+        case raster.kind
+        of vrkIndexedAnimation:
           description.add &", {raster.animation.frames.len} frame(s)"
+        of vrkTrueColourAnimation:
+          description.add &", {raster.trueColourAnimation.frames.len} frame(s)"
+        else: discard
       elif item.kind == vrnkText:
         description.add " (text)"
       else:

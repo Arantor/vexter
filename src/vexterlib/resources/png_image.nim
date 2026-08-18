@@ -206,3 +206,176 @@ proc decodePng*(source: PngImageSource): VextRaster =
     trueColourImage: VextTrueColourImage(width: source.width,
       height: source.height, pixels: colours,
       alpha: (if anyAlpha: alpha else: @[])))
+
+type
+  ApngFrame = object
+    width, height, x, y: int
+    delayNumerator, delayDenominator: int
+    dispose, blend: int
+    imageData: seq[byte]
+
+proc beWord(data: openArray[byte], offset: int): int =
+  (int(data[offset]) shl 8) or int(data[offset + 1])
+
+proc beDword(data: openArray[byte], offset: int): uint32 =
+  (uint32(data[offset]) shl 24) or (uint32(data[offset + 1]) shl 16) or
+    (uint32(data[offset + 2]) shl 8) or uint32(data[offset + 3])
+
+proc apngFrames(source: PngImageSource): seq[ApngFrame] =
+  var declaredFrames = 0
+  var animationControls = 0
+  for chunk in source.chunks:
+    if chunk.kind == "acTL":
+      inc animationControls
+      if chunk.data.len != 8:
+        raise newException(ValueError, "APNG acTL must contain eight bytes")
+      declaredFrames = int(beDword(chunk.data, 0))
+      if declaredFrames <= 0:
+        raise newException(ValueError, "APNG must declare at least one frame")
+  if animationControls == 0:
+    return
+  if animationControls != 1:
+    raise newException(ValueError, "APNG must contain exactly one acTL chunk")
+
+  var expectedSequence = 0'u32
+  var current = -1
+  var seenIdat = false
+  var firstFrameUsesIdat = false
+  for chunk in source.chunks:
+    case chunk.kind
+    of "fcTL":
+      if chunk.data.len != 26:
+        raise newException(ValueError, "APNG fcTL must contain 26 bytes")
+      if beDword(chunk.data, 0) != expectedSequence:
+        raise newException(ValueError, "APNG frame sequence is not consecutive")
+      inc expectedSequence
+      if current >= 0 and result[current].imageData.len == 0:
+        raise newException(ValueError, "APNG frame contains no image data")
+      let frame = ApngFrame(
+        width: int(beDword(chunk.data, 4)),
+        height: int(beDword(chunk.data, 8)),
+        x: int(beDword(chunk.data, 12)),
+        y: int(beDword(chunk.data, 16)),
+        delayNumerator: beWord(chunk.data, 20),
+        delayDenominator: beWord(chunk.data, 22),
+        dispose: int(chunk.data[24]), blend: int(chunk.data[25]))
+      if frame.width <= 0 or frame.height <= 0 or frame.x < 0 or frame.y < 0 or
+          frame.width > source.width - frame.x or
+          frame.height > source.height - frame.y or frame.dispose notin 0 .. 2 or
+          frame.blend notin 0 .. 1:
+        raise newException(ValueError, "invalid APNG frame control")
+      result.add frame
+      current = result.high
+      if not seenIdat:
+        if current != 0:
+          raise newException(ValueError, "APNG has multiple controls before IDAT")
+        if frame.width != source.width or frame.height != source.height or
+            frame.x != 0 or frame.y != 0:
+          raise newException(ValueError,
+            "APNG default-image frame must cover the PNG canvas")
+        firstFrameUsesIdat = true
+    of "IDAT":
+      seenIdat = true
+      if firstFrameUsesIdat and current == 0:
+        result[0].imageData.add chunk.data
+    of "fdAT":
+      if chunk.data.len < 4 or current < 0:
+        raise newException(ValueError, "invalid APNG frame-data chunk")
+      if beDword(chunk.data, 0) != expectedSequence:
+        raise newException(ValueError, "APNG frame sequence is not consecutive")
+      inc expectedSequence
+      if chunk.data.len > 4:
+        result[current].imageData.add chunk.data.toOpenArray(4, chunk.data.high)
+    else: discard
+  if result.len != declaredFrames:
+    raise newException(ValueError, "APNG frame count does not match acTL")
+  for frame in result:
+    if frame.imageData.len == 0:
+      raise newException(ValueError, "APNG frame contains no image data")
+
+proc rgbaPixels(raster: VextRaster): tuple[colours: seq[VextRgb], alpha: seq[uint8]] =
+  case raster.kind
+  of vrkIndexedImage:
+    let image = raster.image
+    result.colours = newSeq[VextRgb](image.pixels.len)
+    result.alpha = newSeq[uint8](image.pixels.len)
+    for index, paletteIndex in image.pixels:
+      result.colours[index] = image.palette[int(paletteIndex)]
+      result.alpha[index] = if image.alpha.len == 0: 255 else: image.alpha[index]
+  of vrkTrueColourImage:
+    result.colours = raster.trueColourImage.pixels
+    result.alpha = newSeq[uint8](result.colours.len)
+    for index in 0 ..< result.alpha.len:
+      result.alpha[index] = if raster.trueColourImage.alpha.len == 0: 255
+        else: raster.trueColourImage.alpha[index]
+  else:
+    raise newException(ValueError, "APNG frame did not decode to a static image")
+
+proc decodePngOrApng*(source: PngImageSource): VextRaster =
+  let frames = apngFrames(source)
+  if frames.len == 0:
+    return decodePng(source)
+  var canvasColours = newSeq[VextRgb](source.width * source.height)
+  var canvasAlpha = newSeq[uint8](source.width * source.height)
+  var animation = VextTrueColourAnimation(width: source.width,
+    height: source.height)
+  for frame in frames:
+    var frameSource = source
+    frameSource.width = frame.width
+    frameSource.height = frame.height
+    frameSource.imageData = frame.imageData
+    let decoded = rgbaPixels(decodePng(frameSource))
+    var previousColours: seq[VextRgb]
+    var previousAlpha: seq[uint8]
+    if frame.dispose == 2:
+      previousColours.add canvasColours
+      previousAlpha.add canvasAlpha
+    for localY in 0 ..< frame.height:
+      for localX in 0 ..< frame.width:
+        let sourceIndex = localY * frame.width + localX
+        let canvasIndex = (frame.y + localY) * source.width + frame.x + localX
+        let sourceAlpha = int(decoded.alpha[sourceIndex])
+        if frame.blend == 0:
+          canvasColours[canvasIndex] = decoded.colours[sourceIndex]
+          canvasAlpha[canvasIndex] = uint8(sourceAlpha)
+        elif sourceAlpha != 0:
+          let destinationAlpha = int(canvasAlpha[canvasIndex])
+          let outputAlpha = sourceAlpha +
+            (destinationAlpha * (255 - sourceAlpha) + 127) div 255
+          if outputAlpha > 0:
+            let sourceColour = decoded.colours[sourceIndex]
+            let destination = canvasColours[canvasIndex]
+            template blended(component: untyped): uint8 =
+              uint8((int(sourceColour.component) * sourceAlpha * 255 +
+                int(destination.component) * destinationAlpha *
+                  (255 - sourceAlpha) + outputAlpha * 127) div
+                (outputAlpha * 255))
+            canvasColours[canvasIndex] = VextRgb(r: blended(r),
+              g: blended(g), b: blended(b))
+            canvasAlpha[canvasIndex] = uint8(outputAlpha)
+    var outputColours: seq[VextRgb]
+    var outputAlpha: seq[uint8]
+    outputColours.add canvasColours
+    outputAlpha.add canvasAlpha
+    var opaque = true
+    for value in outputAlpha:
+      if value != 255: opaque = false; break
+    let denominator = if frame.delayDenominator == 0: 100
+      else: frame.delayDenominator
+    animation.frames.add VextTrueColourAnimationFrame(
+      image: VextTrueColourImage(width: source.width, height: source.height,
+        pixels: outputColours,
+        alpha: (if opaque: @[] else: outputAlpha)),
+      durationMs: (frame.delayNumerator * 1000 + denominator div 2) div denominator)
+    case frame.dispose
+    of 1:
+      for localY in 0 ..< frame.height:
+        for localX in 0 ..< frame.width:
+          let index = (frame.y + localY) * source.width + frame.x + localX
+          canvasColours[index] = VextRgb()
+          canvasAlpha[index] = 0
+    of 2:
+      canvasColours = previousColours
+      canvasAlpha = previousAlpha
+    else: discard
+  VextRaster(kind: vrkTrueColourAnimation, trueColourAnimation: animation)

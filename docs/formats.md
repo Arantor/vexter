@@ -573,7 +573,7 @@ PNG import validates the eight-byte signature, chunk framing and ordering,
 CRC-32 values, IHDR methods and legal colour-type/bit-depth combinations,
 palette and transparency constraints, consecutive IDAT data, and the terminal
 IEND. A valid structure is detected as **certain**, with `.png` adding
-supporting evidence. The decoded default image is exposed at `/image`.
+supporting evidence. The decoded image or animation is exposed at `/image`.
 
 The complete IDAT stream is inflated and every scanline is reconstructed using
 the None, Sub, Up, Average, or Paeth filter. Non-interlaced and all seven Adam7
@@ -587,15 +587,21 @@ generic per-pixel alpha channel.
 All chunks are retained and reported through numbered `chunk.N.type` and
 `chunk.N.length` metadata alongside bit depth, colour type, interlace method,
 and total chunk count. APNG `acTL`, `fcTL`, and `fdAT` chunks are therefore
-visible but are currently ignored; import returns the ordinary PNG default
-image rather than an animation. Unknown standard, private, or non-standard
-chunks are handled the same way and do not make an otherwise valid PNG fail.
+visible and drive animation decomposition. Each frame rectangle is inflated
+through the normal PNG scanline pipeline and composited onto a transparent
+full-size canvas using source/over blending and none, background, or previous
+disposal. The resulting full-canvas frames and rational delays form a
+`VextTrueColourAnimation`; no indexed/GIF reduction is attempted. Export
+therefore naturally defaults back to APNG. Unknown standard, private, or
+non-standard chunks remain metadata-only and do not make an otherwise valid
+PNG fail.
 
 The independently encoded PNG controls already stored for Spectrum, AMOS, and
 Amiga image tests all complete the new import pipeline. Synthetic tests cover
-RGBA round trips, packed indexed pixels and `tRNS`,
-16-bit grayscale and Sub filtering, Adam7 coordinate reconstruction, APNG and
-private chunk tolerance/metadata, CRC rejection, and required chunks.
+RGBA round trips, packed indexed pixels and `tRNS`, 16-bit grayscale and all
+filters, Adam7 coordinate reconstruction, APNG import/export round trips,
+partial-frame blending/disposal, private chunk tolerance/metadata, CRC
+rejection, and required chunks.
 
 ## Historical implementation coverage
 
