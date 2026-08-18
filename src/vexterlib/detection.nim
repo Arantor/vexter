@@ -1,7 +1,7 @@
 ## Evidence-based input format detection.
 
 import std/[os, strutils]
-import ./containers/[amiga_acbm, amiga_adf, amiga_anim, amiga_iff, amiga_ilbm, amos_bank, amos_bank_set, amos_program,
+import ./containers/[amiga_acbm, amiga_adf, amiga_anim, amiga_iff, amiga_ilbm, amiga_workbench_icon, amos_bank, amos_bank_set, amos_program,
   amos_sprite_icon_bank, bmp, gif_container, pcx, png_container,
   zip_archive, zx_spectrum_screen_dump, zx_spectrum_snapshot, zx_spectrum_tap]
 import ./resources/zx_spectrum_screen
@@ -30,6 +30,14 @@ proc detectFormats*(filename: string, data: openArray[byte]):
     seq[VextDetectionCandidate] =
   ## Returns every format candidate recognized from currently available
   ## evidence, ordered from strongest to weakest.
+  if isWorkbenchIcon(data):
+    var evidence = @[VextDetectionEvidence(
+      description: "file has a valid Workbench DiskObject header and serialized resources")]
+    if hasWorkbenchIconExtension(filename):
+      evidence.add VextDetectionEvidence(description: "file extension is .info")
+    result.add VextDetectionCandidate(typeId: AmigaWorkbenchIconTypeId,
+      confidence: vdcCertain, evidence: evidence)
+
   if isGif(data):
     let image = parseGif(data)
     var evidence = @[VextDetectionEvidence(

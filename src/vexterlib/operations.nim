@@ -5,11 +5,11 @@ import ./archetypes/raster
 import ./detection
 import ./exporters/[gif, png]
 import ./resource_tree
-import ./containers/[amiga_acbm, amiga_adf, amiga_anim, amiga_iff, amiga_ilbm, amos_bank, amos_bank_set, amos_packed_picture, amos_program,
+import ./containers/[amiga_acbm, amiga_adf, amiga_anim, amiga_iff, amiga_ilbm, amiga_workbench_icon, amos_bank, amos_bank_set, amos_packed_picture, amos_program,
   amos_sprite_icon_bank, bmp, gif_container, pcx, png_container,
   zip_archive, zx_spectrum_screen_dump, zx_spectrum_snapshot, zx_spectrum_tap]
 import ./metadata
-import ./resources/[amiga_anim_image, amiga_ilbm_image, amos_listing, amos_packed_picture_image, amos_planar_image, bmp_image, gif_image, png_image, zx_spectrum_basic,
+import ./resources/[amiga_anim_image, amiga_ilbm_image, amiga_workbench_icon_image, amos_listing, amos_packed_picture_image, amos_planar_image, bmp_image, gif_image, png_image, zx_spectrum_basic,
   pcx_image, zx_spectrum_screen]
 
 type
@@ -37,6 +37,8 @@ type
 proc forcedCandidate(typeId: string, data: openArray[byte]):
     VextDetectionCandidate =
   case typeId
+  of AmigaWorkbenchIconTypeId:
+    discard parseWorkbenchIcon(data)
   of AmigaAcbmTypeId:
     discard parseAmigaAcbm(data)
   of AmigaAdfTypeId:
@@ -290,6 +292,62 @@ proc inspectSourceDepth(filename: string, data: openArray[byte],
     result.selectedFormat = result.candidates[0]
 
   case result.selectedFormat.typeId
+  of AmigaWorkbenchIconTypeId:
+    let icon = parseWorkbenchIcon(data)
+    var metadata = @[
+      integerMetadata("workbench.version", icon.version),
+      integerMetadata("workbench.type", icon.iconType),
+      integerMetadata("position.x", icon.currentX),
+      integerMetadata("position.y", icon.currentY),
+      integerMetadata("stack-size", icon.stackSize),
+      stringMetadata("default-tool", icon.defaultTool),
+      stringMetadata("tool-window", icon.toolWindow),
+      integerMetadata("tool-types", icon.toolTypes.len),
+      integerMetadata("newicon.im1-records", icon.newIconToolTypes(1).len),
+      integerMetadata("newicon.im2-records", icon.newIconToolTypes(2).len)]
+    for index, value in icon.toolTypes:
+      metadata.add stringMetadata("tool-type." & $index, value)
+    let group = VextResourceNode(path: "/icon",
+      typeId: AmigaWorkbenchIconTypeId, kind: vrnkGroup, metadata: metadata)
+    if icon.hasNormalImage:
+      group.children.add VextResourceNode(path: "/icon/unselected",
+        typeId: AmigaWorkbenchClassicImageTypeId, kind: vrnkRaster,
+        raster: VextRaster(kind: vrkIndexedImage,
+          image: decodeWorkbenchIconImage(icon.normalImage)),
+        defaultExportPriority: 10)
+    if icon.hasSelectedImage:
+      group.children.add VextResourceNode(path: "/icon/selected",
+        typeId: AmigaWorkbenchClassicImageTypeId, kind: vrnkRaster,
+        raster: VextRaster(kind: vrkIndexedImage,
+          image: decodeWorkbenchIconImage(icon.selectedImage)))
+    let newIconGroup = VextResourceNode(path: "/newicon",
+      typeId: AmigaWorkbenchIconTypeId, kind: vrnkGroup)
+    for state in 1 .. 2:
+      if icon.newIconToolTypes(state).len > 0:
+        let image = parseNewIcon(icon, state)
+        newIconGroup.children.add VextResourceNode(
+          path: if state == 1: "/newicon/unselected" else: "/newicon/selected",
+          typeId: AmigaWorkbenchNewIconImageTypeId, kind: vrnkRaster,
+          raster: VextRaster(kind: vrkIndexedImage,
+            image: decodeWorkbenchEnhancedImage(image)),
+          defaultExportPriority: if state == 1: 20 else: 0)
+    if newIconGroup.children.len > 0: result.resources.roots.add newIconGroup
+    let glow = parseGlowIcon(data)
+    if glow.images.len > 0:
+      let glowGroup = VextResourceNode(path: "/glowicon",
+        typeId: AmigaWorkbenchIconTypeId, kind: vrnkGroup, metadata: @[
+          integerMetadata("frameless", int(glow.frameless)),
+          integerMetadata("aspect.x", glow.aspectX),
+          integerMetadata("aspect.y", glow.aspectY)])
+      for index, image in glow.images:
+        glowGroup.children.add VextResourceNode(
+          path: if index == 0: "/glowicon/unselected" else: "/glowicon/selected",
+          typeId: AmigaWorkbenchGlowIconImageTypeId, kind: vrnkRaster,
+          raster: VextRaster(kind: vrkIndexedImage,
+            image: decodeWorkbenchEnhancedImage(image)),
+          defaultExportPriority: if index == 0: 30 else: 0)
+      result.resources.roots.add glowGroup
+    result.resources.roots.add group
   of GifTypeId:
     let source = parseGif(data)
     var metadata = @[
@@ -513,9 +571,20 @@ proc exportResource*(tree: VextResourceTree,
     if available.len == 0:
       raise newException(ValueError, "container exposes no raster resources")
     if available.len > 1:
-      raise newException(ValueError,
-        "more than one raster resource is available; select one")
-    resource = available[0]
+      var bestPriority = low(int)
+      var bestCount = 0
+      for item in available:
+        if item.defaultExportPriority > bestPriority:
+          bestPriority = item.defaultExportPriority
+          resource = item
+          bestCount = 1
+        elif item.defaultExportPriority == bestPriority:
+          bestCount += 1
+      if bestCount > 1:
+        raise newException(ValueError,
+          "more than one raster resource is available; select one")
+    else:
+      resource = available[0]
 
   result.resourcePath = resource.path
   result.outputFormat = request.outputFormat

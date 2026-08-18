@@ -19,6 +19,7 @@ type
     data*: seq[byte]
     metadata*: seq[VextMetadataEntry]
     children*: seq[VextResourceNode]
+    defaultExportPriority*: int
 
   VextResourceTree* = object
     roots*: seq[VextResourceNode]

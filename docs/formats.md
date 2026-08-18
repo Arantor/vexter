@@ -636,6 +636,30 @@ filters, Adam7 coordinate reconstruction, APNG import/export round trips,
 partial-frame blending/disposal, private chunk tolerance/metadata, CRC
 rejection, and required chunks.
 
+## Amiga Workbench icons
+
+Classic Workbench `.info` DiskObjects are detected and inspected. Their
+unselected and selected planar imagery is exposed at `/icon/unselected` and
+`/icon/selected`; the unselected image is the implicit classic export. Header
+fields, default tool, and tool types are metadata. NewIcons `IM1=` and `IM2=`
+records are decoded at `/newicon/unselected` and `/newicon/selected` using
+their embedded palettes and colour-zero transparency. Appended OS 3.5
+`FORM ICON` images are decoded at `/glowicon/unselected` and
+`/glowicon/selected`, including palette reuse, explicit transparency, and
+uncompressed or bit-oriented ByteRun image/palette data.
+
+Implicit export prefers GlowIcons, then NewIcons, then the unselected classic
+image. Every available representation and state remains explicitly
+addressable at its canonical path.
+
+Implementation research used the Amiga SDK includes temporarily supplied in
+`sys-include/` and the official NewIcons 4.6 developer package supplied in
+`NewIcons46/`, sourced from Aminet. Package `.info` files were used as
+non-authoritative compatibility references and were not copied into fixtures.
+The locally supplied `Amiga Icon Formats - www.evillabs.net.html` wiki capture
+provided documentary details for the NewIcons and OS 3.5 codecs. The capture
+itself is research material and is not part of the repository fixtures.
+
 ## Historical implementation coverage
 
 The previous implementation covered formats including:

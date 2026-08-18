@@ -11,6 +11,8 @@ format coverage in greater detail.
 Vexter currently consists of a reusable Nim library and a thin command-line
 client. It supports:
 
+- classic Amiga Workbench `.info` DiskObjects, including metadata and both
+  planar icon states;
 - detection and inspection of generic IFF FORM containers, indexed Amiga ILBM
   and ACBM images, IFF ANIM animations, PCX, BMP/DIB, PNG, and GIF87a/GIF89a images, AmigaDOS ADF filesystems, ZIP archives, ZX Spectrum raw screen dumps, SNA snapshots,
   TAP containers, tokenised BASIC resources, standalone AMOS banks, AMOS bank
@@ -94,6 +96,10 @@ Matching case-insensitive extensions add supporting evidence.
 
 `src/vexterlib/containers/` contains source/container rules:
 
+- `amiga_workbench_icon.nim` validates classic big-endian Workbench
+  DiskObjects, their serialized planar images, counted strings, and tool
+  types; it also decodes NewIcons `IM1`/`IM2` tool-type imagery and appended
+  OS 3.5 GlowIcons `FORM ICON` chunks;
 - `amiga_adf.nim` validates standard DD/HD AmigaDOS floppy images and walks
   OFS/FFS directory, file-header, extension, and data-block structures;
 - `zip_archive.nim` validates single-volume ZIP central/local records, expands
@@ -136,6 +142,11 @@ Matching case-insensitive extensions add supporting evidence.
 
 Container modules deal in source structure and extracted resource bytes. They
 must not own raster rendering or exporter behavior.
+
+`src/vexterlib/resources/amiga_workbench_icon_image.nim` renders the normal
+and selected classic planar images using the initial Workbench 1.3
+blue/white/black/orange interpretation and converts decoded NewIcons and
+GlowIcons chunky images into indexed rasters with transparency.
 
 `src/vexterlib/resources/amos_planar_image.nim` defines reusable AMOS sprite
 and icon image data and converts plane-major data into indexed rasters. The
