@@ -12,7 +12,7 @@ Vexter currently consists of a reusable Nim library and a thin command-line
 client. It supports:
 
 - detection and inspection of generic IFF FORM containers, indexed Amiga ILBM
-  images, IFF ANIM animations, AmigaDOS ADF filesystems, ZX Spectrum raw screen dumps, SNA snapshots,
+  and ACBM images, IFF ANIM animations, AmigaDOS ADF filesystems, ZX Spectrum raw screen dumps, SNA snapshots,
   TAP containers, tokenised BASIC resources, standalone AMOS banks, AMOS bank
   sets, and AMOS programs;
 - a resource tree containing decoded indexed-raster or identified opaque
@@ -98,6 +98,8 @@ Matching case-insensitive extensions add supporting evidence.
   OFS/FFS directory, file-header, extension, and data-block structures;
 - `amiga_iff.nim` validates generic IFF `FORM` lengths, chunk boundaries, and
   even-byte padding;
+- `amiga_acbm.nim` interprets `FORM ACBM` properties and extracts its
+  plane-contiguous `ABIT` image source;
 - `amiga_ilbm.nim` interprets `FORM ILBM` properties and extracts the image
   source while leaving raster decoding separate;
 - `amiga_anim.nim` parses nested ILBM frame forms and their ANHD/DLTA records;
@@ -135,10 +137,12 @@ without a screen header remain structurally parseable but cannot be rendered
 without an external palette; six-plane Pac.Pic. modes also remain deferred.
 
 `src/vexterlib/resources/amiga_ilbm_image.nim` decodes uncompressed or
-ByteRun1-compressed, row-interleaved ILBM planes. It produces indexed images
-for one through five ordinary planes and six-plane EHB, and true-colour images
-for HAM/HAM8. Legacy CMAPs whose component low nibbles are uniformly zero are
-expanded by nibble replication. Masks still await an alpha archetype.
+ByteRun1-compressed planar data: scanline-interleaved planes from ILBM `BODY`
+chunks and whole sequential planes from ACBM `ABIT` chunks. It produces
+indexed images for one through five ordinary planes and six-plane EHB, and
+true-colour images for HAM/HAM8. Legacy CMAPs whose component low nibbles are
+uniformly zero are expanded by nibble replication. Masks still await an alpha
+archetype.
 
 `src/vexterlib/resources/amiga_anim_image.nim` reconstructs retained planar
 buffers with ANIM delta methods 5, 7, and 8, including interleave references
@@ -199,6 +203,7 @@ amiga.adf-directory
 amiga.adf-file
 amiga.adf-link
 amiga.iff
+amiga.acbm
 amiga.ilbm
 amiga.ilbm-image
 amiga.anim
@@ -219,9 +224,10 @@ zx-spectrum.basic
 ```
 
 Generic IFF forms expose an inspectable `/chunks` group with opaque numbered
-chunk resources. Supported ILBMs instead expose one indexed raster at `/image`
-with header and CAMG metadata. Unknown ILBM chunks remain structurally valid
-and are ignored by the current image decoder. HAM/HAM8 ILBMs expose a
+chunk resources. Supported ILBMs and ACBMs instead expose one raster at
+`/image` with header and CAMG metadata. Unknown bitmap chunks remain
+structurally valid and are ignored by the current image decoder. HAM/HAM8
+bitmaps expose a
 `VextTrueColourImage` at the same path. True-colour PNG export is supported;
 GIF export requires a future colour-quantization stage.
 
@@ -296,6 +302,8 @@ The routine suites are:
 - `tests/test_amiga_iff_ilbm.nim`: FORM/chunk validation, ILBM planar and
   ByteRun1 decoding, legacy palette expansion, EHB, focused HAM6/HAM8 cases,
   and authentic Deluxe Paint HAM6/HAM8 controls;
+- `tests/test_amiga_acbm.nim`: ACBM detection, plane-contiguous raw and
+  ByteRun1 ABIT decoding, and structural failure modes;
 - `tests/test_amiga_anim.nim`: nested ANIM structure, methods 5/7/8, animation
   brush XOR behavior, timing, GIF routing, APNG output, the authentic TheTour
   method-5 control, and failure modes;

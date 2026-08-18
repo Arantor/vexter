@@ -32,45 +32,60 @@ proc parseHeader(data: openArray[byte]): AmigaIlbmHeader =
     xAspect: int(data[14]), yAspect: int(data[15]),
     pageWidth: signedWord(data, 16), pageHeight: signedWord(data, 18))
 
-proc parseAmigaIlbmForm*(form: AmigaIffForm): AmigaIlbm =
-  if form.formType != AmigaIlbmFormType:
-    raise newException(ValueError, "IFF FORM type is not ILBM")
+proc parseAmigaBitmapForm*(form: AmigaIffForm, expectedFormType,
+    bitmapChunk: string, planarLayout: AmigaPlanarLayout): AmigaIlbm =
+  if form.formType != expectedFormType:
+    raise newException(ValueError,
+      "IFF FORM type is not " & expectedFormType)
   var haveHeader, haveBody: bool
   for chunk in form.chunks:
     case chunk.id
     of "BMHD":
       if haveBody:
-        raise newException(ValueError, "ILBM BMHD must precede BODY")
+        raise newException(ValueError,
+          expectedFormType & " BMHD must precede " & bitmapChunk)
       result.image.header = parseHeader(chunk.data)
       haveHeader = true
     of "CMAP":
       if haveBody:
-        raise newException(ValueError, "ILBM CMAP must precede BODY")
+        raise newException(ValueError,
+          expectedFormType & " CMAP must precede " & bitmapChunk)
       if chunk.data.len mod 3 != 0:
         raise newException(ValueError,
-          "ILBM CMAP length must be divisible by three")
+          expectedFormType & " CMAP length must be divisible by three")
       result.image.colourMap = chunk.data
     of "CAMG":
       if haveBody:
-        raise newException(ValueError, "ILBM CAMG must precede BODY")
+        raise newException(ValueError,
+          expectedFormType & " CAMG must precede " & bitmapChunk)
       if chunk.data.len != 4:
-        raise newException(ValueError, "ILBM CAMG chunk must contain four bytes")
+        raise newException(ValueError,
+          expectedFormType & " CAMG chunk must contain four bytes")
       result.image.camg = beLong(chunk.data)
-    of "BODY":
+    else:
+      if chunk.id != bitmapChunk:
+        continue
       if not haveHeader:
-        raise newException(ValueError, "ILBM BODY must follow BMHD")
+        raise newException(ValueError,
+          expectedFormType & " " & bitmapChunk & " must follow BMHD")
       if haveBody:
-        raise newException(ValueError, "ILBM may contain only one BODY chunk")
+        raise newException(ValueError,
+          expectedFormType & " may contain only one " & bitmapChunk & " chunk")
       result.image.body = chunk.data
       haveBody = true
-    else:
-      discard
   if not haveHeader or not haveBody:
-    raise newException(ValueError, "ILBM requires BMHD and BODY chunks")
+    raise newException(ValueError,
+      expectedFormType & " requires BMHD and " & bitmapChunk & " chunks")
   if result.image.header.planes < 1:
-    raise newException(ValueError, "ILBM must contain at least one bitplane")
+    raise newException(ValueError,
+      expectedFormType & " must contain at least one bitplane")
   if result.image.header.compression notin [0, 1]:
-    raise newException(ValueError, "unsupported ILBM compression")
+    raise newException(ValueError,
+      "unsupported " & expectedFormType & " compression")
+  result.image.planarLayout = planarLayout
+
+proc parseAmigaIlbmForm*(form: AmigaIffForm): AmigaIlbm =
+  parseAmigaBitmapForm(form, AmigaIlbmFormType, "BODY", aplRowInterleaved)
 
 proc parseAmigaIlbm*(data: openArray[byte]): AmigaIlbm =
   parseAmigaIlbmForm(parseAmigaIff(data))

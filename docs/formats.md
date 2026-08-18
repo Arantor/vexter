@@ -56,11 +56,13 @@ images. They cover FFS subdirectories, OFS header removal, exact file bytes,
 nested Spectrum decoding, signature and checksum validation, and cycle
 rejection. No third-party ADF fixture is currently stored in the repository.
 
-## Amiga IFF and ILBM
+## Amiga IFF, ILBM, and ACBM
 
 Container type identifier: `amiga.iff`
 
 Image/container type identifier: `amiga.ilbm`
+
+Contiguous bitmap type identifier: `amiga.acbm`
 
 Raster type identifier: `amiga.ilbm-image`
 
@@ -81,6 +83,13 @@ rows occur in order from plane zero (the least-significant palette-index bit)
 upward, with the most-significant pixel bit first within each byte. Compression
 zero is read directly. Compression one uses ByteRun1 independently for every
 plane-row; runs may not cross row boundaries.
+
+An Amiga Contiguous Bitmap is `FORM ACBM` and uses an `ABIT` chunk in place of
+ILBM's `BODY`. It otherwise shares `BMHD`, `CMAP`, `CAMG`, palette, indexed,
+EHB, and HAM interpretation with ILBM. `ABIT` stores all rows of plane zero,
+then all rows of plane one, continuing upward through the declared bitplanes.
+Uncompressed and row-bounded ByteRun1 data are supported. ACBM images expose
+the same raster resource at `/image` and use the normal PNG/GIF export paths.
 
 Ordinary indexed images with one through five planes are supported. A `CAMG`
 EHB flag selects six-plane Extra Half-Brite: palette indices 32 through 63 are

@@ -1,7 +1,7 @@
 ## Evidence-based input format detection.
 
 import std/[os, strutils]
-import ./containers/[amiga_adf, amiga_anim, amiga_iff, amiga_ilbm, amos_bank, amos_bank_set, amos_program,
+import ./containers/[amiga_acbm, amiga_adf, amiga_anim, amiga_iff, amiga_ilbm, amos_bank, amos_bank_set, amos_program,
   amos_sprite_icon_bank,
   zx_spectrum_screen_dump, zx_spectrum_snapshot, zx_spectrum_tap]
 import ./resources/zx_spectrum_screen
@@ -56,6 +56,16 @@ proc detectFormats*(filename: string, data: openArray[byte]):
         description: "file extension is associated with ANIM")
     result.add VextDetectionCandidate(
       typeId: AmigaAnimTypeId,
+      confidence: vdcCertain,
+      evidence: evidence)
+  elif isAmigaAcbm(data):
+    var evidence = @[VextDetectionEvidence(
+      description: "file is a valid FORM ACBM with BMHD and ABIT chunks")]
+    if hasAmigaAcbmExtension(filename):
+      evidence.add VextDetectionEvidence(
+        description: "file extension is associated with ACBM")
+    result.add VextDetectionCandidate(
+      typeId: AmigaAcbmTypeId,
       confidence: vdcCertain,
       evidence: evidence)
   elif isAmigaIlbm(data):

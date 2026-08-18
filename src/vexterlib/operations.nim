@@ -5,7 +5,7 @@ import ./archetypes/raster
 import ./detection
 import ./exporters/[gif, png]
 import ./resource_tree
-import ./containers/[amiga_adf, amiga_anim, amiga_iff, amiga_ilbm, amos_bank, amos_bank_set, amos_packed_picture, amos_program,
+import ./containers/[amiga_acbm, amiga_adf, amiga_anim, amiga_iff, amiga_ilbm, amos_bank, amos_bank_set, amos_packed_picture, amos_program,
   amos_sprite_icon_bank,
   zx_spectrum_screen_dump, zx_spectrum_snapshot, zx_spectrum_tap]
 import ./metadata
@@ -37,6 +37,8 @@ type
 proc forcedCandidate(typeId: string, data: openArray[byte]):
     VextDetectionCandidate =
   case typeId
+  of AmigaAcbmTypeId:
+    discard parseAmigaAcbm(data)
   of AmigaAdfTypeId:
     discard parseAmigaAdf(data)
   of AmigaAnimTypeId:
@@ -265,20 +267,23 @@ proc inspectSourceDepth(filename: string, data: openArray[byte],
         integerMetadata("planes", anim.initial.image.header.planes),
         integerMetadata("camg", int(anim.initial.image.camg))
       ])
-  of AmigaIlbmTypeId:
-    let ilbm = parseAmigaIlbm(data)
+  of AmigaAcbmTypeId, AmigaIlbmTypeId:
+    let image = if result.selectedFormat.typeId == AmigaAcbmTypeId:
+      parseAmigaAcbm(data).image
+    else:
+      parseAmigaIlbm(data).image
     result.resources.roots.add VextResourceNode(
       path: AmigaIlbmImageResourcePath,
       typeId: AmigaIlbmImageTypeId,
       kind: vrnkRaster,
-      raster: decodeAmigaIlbmRaster(ilbm.image),
+      raster: decodeAmigaIlbmRaster(image),
       metadata: @[
-        integerMetadata("planes", ilbm.image.header.planes),
-        integerMetadata("position.x", ilbm.image.header.x),
-        integerMetadata("position.y", ilbm.image.header.y),
-        integerMetadata("aspect.x", ilbm.image.header.xAspect),
-        integerMetadata("aspect.y", ilbm.image.header.yAspect),
-        integerMetadata("camg", int(ilbm.image.camg))
+        integerMetadata("planes", image.header.planes),
+        integerMetadata("position.x", image.header.x),
+        integerMetadata("position.y", image.header.y),
+        integerMetadata("aspect.x", image.header.xAspect),
+        integerMetadata("aspect.y", image.header.yAspect),
+        integerMetadata("camg", int(image.camg))
       ])
   of AmigaIffTypeId:
     let form = parseAmigaIff(data)

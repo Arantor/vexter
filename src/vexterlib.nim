@@ -4,6 +4,7 @@ import vexterlib/archetypes/raster
 import vexterlib/artifacts
 import vexterlib/containers/amos_bank
 import vexterlib/containers/amiga_adf
+import vexterlib/containers/amiga_acbm
 import vexterlib/containers/amos_packed_picture
 import vexterlib/containers/amiga_iff
 import vexterlib/containers/amiga_ilbm
@@ -31,6 +32,7 @@ export raster
 export artifacts
 export amos_bank
 export amiga_adf
+export amiga_acbm
 export amos_packed_picture
 export amiga_iff
 export amiga_ilbm

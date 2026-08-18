@@ -9,6 +9,10 @@ const
   AmigaIlbmCamgEhb* = 0x0080'u32
 
 type
+  AmigaPlanarLayout* = enum
+    aplRowInterleaved
+    aplPlaneContiguous
+
   AmigaIlbmHeader* = object
     width*, height*: int
     x*, y*: int
@@ -24,6 +28,7 @@ type
     colourMap*: seq[byte]
     body*: seq[byte]
     camg*: uint32
+    planarLayout*: AmigaPlanarLayout
 
 proc decodeRow(body: openArray[byte], offset: var int, rowBytes,
     compression: int): seq[byte] =
@@ -88,12 +93,20 @@ proc decodeAmigaIlbmPlanes*(source: AmigaIlbmImageSource): seq[byte] =
   let planeSize = rowBytes * header.height
   result = newSeq[byte](planeSize * header.planes)
   var bodyOffset = 0
-  for y in 0 ..< header.height:
-    for plane in 0 ..< header.planes:
+  template decodePlaneRow(plane, y: int) =
       let row = decodeRow(source.body, bodyOffset, rowBytes,
         header.compression)
       for column, value in row:
         result[plane * planeSize + y * rowBytes + column] = value
+  case source.planarLayout
+  of aplRowInterleaved:
+    for y in 0 ..< header.height:
+      for plane in 0 ..< header.planes:
+        decodePlaneRow(plane, y)
+  of aplPlaneContiguous:
+    for plane in 0 ..< header.planes:
+      for y in 0 ..< header.height:
+        decodePlaneRow(plane, y)
   if bodyOffset != source.body.len:
     raise newException(ValueError, "ILBM BODY has trailing image data")
 
