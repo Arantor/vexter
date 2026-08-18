@@ -6,10 +6,10 @@ import ./detection
 import ./exporters/[gif, png]
 import ./resource_tree
 import ./containers/[amiga_acbm, amiga_adf, amiga_anim, amiga_iff, amiga_ilbm, amos_bank, amos_bank_set, amos_packed_picture, amos_program,
-  amos_sprite_icon_bank, bmp, pcx,
+  amos_sprite_icon_bank, bmp, pcx, png_container,
   zip_archive, zx_spectrum_screen_dump, zx_spectrum_snapshot, zx_spectrum_tap]
 import ./metadata
-import ./resources/[amiga_anim_image, amiga_ilbm_image, amos_listing, amos_packed_picture_image, amos_planar_image, bmp_image, zx_spectrum_basic,
+import ./resources/[amiga_anim_image, amiga_ilbm_image, amos_listing, amos_packed_picture_image, amos_planar_image, bmp_image, png_image, zx_spectrum_basic,
   pcx_image, zx_spectrum_screen]
 
 type
@@ -51,6 +51,8 @@ proc forcedCandidate(typeId: string, data: openArray[byte]):
     discard parseBmp(data)
   of DibTypeId:
     discard parseDib(data)
+  of PngTypeId:
+    discard parsePng(data)
   of PcxTypeId:
     discard parsePcx(data)
   of ZipArchiveTypeId:
@@ -286,6 +288,19 @@ proc inspectSourceDepth(filename: string, data: openArray[byte],
     result.selectedFormat = result.candidates[0]
 
   case result.selectedFormat.typeId
+  of PngTypeId:
+    let source = parsePng(data)
+    var metadata = @[
+      integerMetadata("bit-depth", source.bitDepth),
+      integerMetadata("colour-type", source.colourType),
+      integerMetadata("interlace-method", source.interlaceMethod),
+      integerMetadata("chunks", source.chunks.len)]
+    for index, chunk in source.chunks:
+      metadata.add stringMetadata("chunk." & $index & ".type", chunk.kind)
+      metadata.add integerMetadata("chunk." & $index & ".length", chunk.data.len)
+    result.resources.roots.add VextResourceNode(path: PngImageResourcePath,
+      typeId: PngImageTypeId, kind: vrnkRaster, raster: decodePng(source),
+      metadata: metadata)
   of BmpTypeId, DibTypeId:
     let source = if result.selectedFormat.typeId == BmpTypeId:
       parseBmp(data) else: parseDib(data)

@@ -559,6 +559,40 @@ palette conversion, row orientation and padding, 24-bit colour, 16-bit
 bitfields, RLE4/RLE8, invalid offsets, incompatible compression, and
 truncation. Authentic compatibility fixtures remain desirable.
 
+## PNG images
+
+Container type identifier: `png`
+
+Raster type identifier: `png.image`
+
+PNG import validates the eight-byte signature, chunk framing and ordering,
+CRC-32 values, IHDR methods and legal colour-type/bit-depth combinations,
+palette and transparency constraints, consecutive IDAT data, and the terminal
+IEND. A valid structure is detected as **certain**, with `.png` adding
+supporting evidence. The decoded default image is exposed at `/image`.
+
+The complete IDAT stream is inflated and every scanline is reconstructed using
+the None, Sub, Up, Average, or Paeth filter. Non-interlaced and all seven Adam7
+passes are supported. Grayscale, indexed, grayscale-alpha, true-colour, and
+true-colour-alpha images decode at every bit depth permitted for their colour
+type. Sixteen-bit components are normalized over their full range to Vext's
+current eight-bit channels. Indexed images retain their palette indices;
+`tRNS`, explicit grayscale/true-colour alpha, and RGBA data populate the
+generic per-pixel alpha channel.
+
+All chunks are retained and reported through numbered `chunk.N.type` and
+`chunk.N.length` metadata alongside bit depth, colour type, interlace method,
+and total chunk count. APNG `acTL`, `fcTL`, and `fdAT` chunks are therefore
+visible but are currently ignored; import returns the ordinary PNG default
+image rather than an animation. Unknown standard, private, or non-standard
+chunks are handled the same way and do not make an otherwise valid PNG fail.
+
+The independently encoded PNG controls already stored for Spectrum, AMOS, and
+Amiga image tests all complete the new import pipeline. Synthetic tests cover
+RGBA round trips, packed indexed pixels and `tRNS`,
+16-bit grayscale and Sub filtering, Adam7 coordinate reconstruction, APNG and
+private chunk tolerance/metadata, CRC rejection, and required chunks.
+
 ## Historical implementation coverage
 
 The previous implementation covered formats including:

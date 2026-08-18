@@ -2,7 +2,7 @@
 
 import std/[os, strutils]
 import ./containers/[amiga_acbm, amiga_adf, amiga_anim, amiga_iff, amiga_ilbm, amos_bank, amos_bank_set, amos_program,
-  amos_sprite_icon_bank, bmp, pcx,
+  amos_sprite_icon_bank, bmp, pcx, png_container,
   zip_archive, zx_spectrum_screen_dump, zx_spectrum_snapshot, zx_spectrum_tap]
 import ./resources/zx_spectrum_screen
 
@@ -30,6 +30,16 @@ proc detectFormats*(filename: string, data: openArray[byte]):
     seq[VextDetectionCandidate] =
   ## Returns every format candidate recognized from currently available
   ## evidence, ordered from strongest to weakest.
+  if isPng(data):
+    let image = parsePng(data)
+    var evidence = @[VextDetectionEvidence(
+      description: "file has a valid PNG signature and CRC-checked " &
+        $image.width & "x" & $image.height & " chunk stream")]
+    if hasPngExtension(filename):
+      evidence.add VextDetectionEvidence(description: "file extension is .png")
+    result.add VextDetectionCandidate(typeId: PngTypeId,
+      confidence: vdcCertain, evidence: evidence)
+
   if isBmp(data):
     let image = parseBmp(data)
     var evidence = @[VextDetectionEvidence(

@@ -12,7 +12,7 @@ Vexter currently consists of a reusable Nim library and a thin command-line
 client. It supports:
 
 - detection and inspection of generic IFF FORM containers, indexed Amiga ILBM
-  and ACBM images, IFF ANIM animations, PCX and BMP/DIB images, AmigaDOS ADF filesystems, ZIP archives, ZX Spectrum raw screen dumps, SNA snapshots,
+  and ACBM images, IFF ANIM animations, PCX, BMP/DIB, and PNG images, AmigaDOS ADF filesystems, ZIP archives, ZX Spectrum raw screen dumps, SNA snapshots,
   TAP containers, tokenised BASIC resources, standalone AMOS banks, AMOS bank
   sets, and AMOS programs;
 - a resource tree containing decoded indexed-raster or identified opaque
@@ -103,6 +103,9 @@ Matching case-insensitive extensions add supporting evidence.
   storage before retaining the encoded image source;
 - `bmp.nim` validates wrapped BMP files and standalone Windows or OS/2 DIBs,
   including palette, bitfield, compression, and pixel-data boundaries;
+- `png_container.nim` validates PNG signatures, chunk framing/order, CRC-32,
+  image properties, palettes, transparency, and concatenated IDAT data while
+  retaining every known or unknown chunk for metadata;
 - `amiga_iff.nim` validates generic IFF `FORM` lengths, chunk boundaries, and
   even-byte padding;
 - `amiga_acbm.nim` interprets `FORM ACBM` properties and extracts its
@@ -151,6 +154,11 @@ selectable as RGB or BGR at the operations boundary.
 `src/vexterlib/resources/bmp_image.nim` renders packed indexed BMP/DIB rows,
 RLE4/RLE8 streams, BGR true-colour rows, and normalized 16/32-bit colour
 bitfields. It handles bottom-up and uncompressed top-down storage.
+
+`src/vexterlib/resources/png_image.nim` inflates and unfilters every PNG
+scanline, expands all standard colour types and legal bit depths, applies
+palette or `tRNS` alpha, and reconstructs Adam7 passes. APNG and unknown chunks
+do not affect the decoded default image.
 
 `src/vexterlib/resources/amiga_ilbm_image.nim` decodes uncompressed or
 ByteRun1-compressed planar data: scanline-interleaved planes from ILBM `BODY`
@@ -229,6 +237,8 @@ pcx.image
 windows.bmp
 windows.dib
 windows.bitmap
+png
+png.image
 amiga.iff
 amiga.acbm
 amiga.ilbm
@@ -297,6 +307,13 @@ inverted, and top-down rows retain their order. Declared contiguous alpha
 masks, including `BI_ALPHABITFIELDS`, populate the raster's per-pixel alpha
 channel. Legacy 32-bit BI_RGB data without an alpha mask remains opaque.
 
+PNG files expose `/image`. All five filters, Adam7 interlacing, standard
+grayscale/indexed/true-colour colour types, 1/2/4/8/16-bit legal depths,
+palettes, and transparency are decoded into indexed or true-colour rasters.
+Every chunk's type and size is retained in inspection metadata. APNG chunks
+and unknown standard/private chunks are reported there but ignored for static
+default-image decoding; their presence is not an import failure.
+
 Generic `AmBk` containers continue to expose unknown bank types as opaque bank
 data. A `Pac.Pic.` bank with its screen palette instead exposes an indexed
 `amos.packed-picture` raster at `/picture`; the same bank nested in an `AmBs`
@@ -360,6 +377,10 @@ The routine suites are:
   true-colour RGB/BGR order, row padding, RLE, and malformed input;
 - `tests/test_bmp.nim`: Windows and OS/2 DIBs, wrapped BMP offsets, indexed and
   true-colour rows, top-down orientation, bitfields, RLE4/RLE8, and failures;
+- `tests/test_png.nim`: RGBA and indexed transparency, grayscale and 16-bit
+  samples, filters, Adam7 reconstruction, APNG/private chunk tolerance,
+  metadata retention, CRCs, malformed required chunks, and every existing
+  independently encoded PNG control;
 - `tests/test_amiga_iff_ilbm.nim`: FORM/chunk validation, ILBM planar and
   ByteRun1 decoding, legacy palette expansion, EHB, focused HAM6/HAM8 cases,
   and authentic Deluxe Paint HAM6/HAM8 controls;
