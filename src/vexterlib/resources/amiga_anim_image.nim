@@ -230,10 +230,6 @@ proc decodeAmigaAnim*(anim: AmigaAnim): VextRaster =
   for index, planes in planarFrames:
     source.colourMap = palettes[index]
     let image = renderAmigaIlbmImage(source, planes)
-    if animation.frames.len > 0 and
-        image.palette != animation.frames[0].image.palette:
-      raise newException(ValueError,
-        "indexed ANIM palette changes are not supported for GIF export")
     animation.frames.add VextIndexedAnimationFrame(
       image: image, durationMs: durations[index])
   VextRaster(kind: vrkIndexedAnimation, animation: animation)

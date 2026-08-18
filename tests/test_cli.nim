@@ -168,6 +168,19 @@ suite "vexter CLI":
     check missing.exitCode == 1
     check "resource was not found: /missing" in missing.output
 
+  test "FLASH animation can be explicitly exported as APNG":
+    let destination = getTempDir() / "vexter-cli-colours-apng.png"
+    if fileExists(destination): removeFile(destination)
+    defer:
+      if fileExists(destination): removeFile(destination)
+    let exported = run("export", "--resource", "/screen", "--format",
+      "apng", "-o", destination, FixturePath)
+    check exported.exitCode == 0
+    let contents = readFile(destination)
+    check contents.startsWith("\x89PNG\r\n\x1a\n")
+    check "acTL" in contents
+    check "fcTL" in contents
+
   test "snapshot inspection and screen export use the same pathway":
     let inspected = run("inspect", SnapshotFixturePath)
     check inspected.exitCode == 0

@@ -506,7 +506,15 @@ proc exportResource*(tree: VextResourceTree,
       of vrnkText: "txt"
       of vrnkRaster:
         case resource.raster.kind
-        of vrkIndexedAnimation: "gif"
+        of vrkIndexedAnimation:
+          var gifCompatible = resource.raster.animation.frames.len > 0
+          if gifCompatible:
+            let palette = resource.raster.animation.frames[0].image.palette
+            for frame in resource.raster.animation.frames:
+              if frame.image.palette != palette or frame.image.hasAlpha:
+                gifCompatible = false
+                break
+          if gifCompatible: "gif" else: "apng"
         of vrkTrueColourAnimation: "apng"
         else: "png"
       else: ""
@@ -543,11 +551,16 @@ proc exportResource*(tree: VextResourceTree,
         exportGif(resource.raster.asIndexedAnimation,
           request.suggestedName & ".gif")
       of "apng":
-        if resource.raster.kind != vrkTrueColourAnimation:
+        case resource.raster.kind
+        of vrkIndexedImage, vrkIndexedAnimation:
+          exportApng(resource.raster.asIndexedAnimation,
+            request.suggestedName & ".png")
+        of vrkTrueColourAnimation:
+          exportApng(resource.raster.trueColourAnimation,
+            request.suggestedName & ".png")
+        of vrkTrueColourImage:
           raise newException(ValueError,
-            "APNG export requires a true-colour animation")
-        exportApng(resource.raster.trueColourAnimation,
-          request.suggestedName & ".png")
+            "APNG export requires an indexed raster or true-colour animation")
       else:
         raise newException(ValueError,
           "unsupported output format: " & result.outputFormat)

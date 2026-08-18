@@ -219,3 +219,27 @@ proc exportApng*(animation: VextTrueColourAnimation,
     suggestedFilename: suggestedFilename,
     mediaType: "image/apng",
     data: encoded)
+
+proc toTrueColour(image: VextIndexedImage): VextTrueColourImage =
+  if image.width <= 0 or image.height <= 0 or
+      image.pixels.len != image.width * image.height:
+    raise newException(ValueError, "indexed APNG frame has invalid dimensions or pixels")
+  discard image.hasAlpha # validates a present alpha buffer
+  result = VextTrueColourImage(width: image.width, height: image.height,
+    pixels: newSeq[VextRgb](image.pixels.len), alpha: image.alpha)
+  for index, paletteIndex in image.pixels:
+    if int(paletteIndex) >= image.palette.len:
+      raise newException(ValueError, "APNG pixel references a missing colour")
+    result.pixels[index] = image.palette[int(paletteIndex)]
+
+proc exportApng*(animation: VextIndexedAnimation,
+    suggestedFilename = "animation.png"): VextArtifactSet =
+  ## APNG has no global-palette restriction, so each indexed frame may use a
+  ## different palette. Expanding through the generic true-colour pathway also
+  ## preserves per-pixel alpha.
+  var converted = VextTrueColourAnimation(width: animation.width,
+    height: animation.height)
+  for frame in animation.frames:
+    converted.frames.add VextTrueColourAnimationFrame(
+      image: toTrueColour(frame.image), durationMs: frame.durationMs)
+  exportApng(converted, suggestedFilename)

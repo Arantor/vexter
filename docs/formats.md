@@ -181,12 +181,16 @@ and reserved method 74 remain structurally identifiable but explicitly
 unsupported; their behavior is not inferred beyond the supplied specification.
 Delta-compressed first frames are likewise deferred.
 
-Indexed ANIMs require a consistent palette and produce
-`VextIndexedAnimation`, defaulting to GIF. HAM frames pass through the ILBM HAM
-renderer and produce `VextTrueColourAnimation`, defaulting to APNG. The APNG
-encoder writes full-size RGB frames, an infinite loop count, and per-frame
-millisecond delays using standard `acTL`, `fcTL`, `IDAT`, and `fdAT` chunks.
-GIF export of true-colour animation remains unavailable without quantization.
+Indexed ANIMs produce `VextIndexedAnimation`. Those with one opaque shared
+palette default to GIF. HAM frames pass through the ILBM HAM renderer and
+produce `VextTrueColourAnimation`, defaulting to APNG. The APNG encoder writes
+full-size RGB or RGBA frames, an infinite loop count, and per-frame millisecond
+delays using standard `acTL`, `fcTL`, `IDAT`, and `fdAT` chunks. Indexed images
+and animations can also request APNG explicitly; each frame is expanded
+through its own palette, preserving palette changes and per-pixel alpha. An
+indexed animation that GIF cannot represent naturally defaults to APNG, while
+GIF remains preferred whenever both formats are viable. GIF export of
+true-colour animation remains unavailable without quantization.
 
 Synthetic tests cover methods 5, 7, and 8, brush-style XOR, interleave
 behavior, and APNG structure. The authentic `TheTour.anim` method-5 fixture

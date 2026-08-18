@@ -20,7 +20,7 @@ client. It supports:
 - indexed still-image, indexed-animation, and true-colour image raster
   archetypes;
 - PNG export for a still image or an animation's natural first frame; and
-- animated GIF export.
+- animated GIF and APNG export.
 
 The implemented command-line surface is:
 
@@ -319,11 +319,14 @@ data. A `Pac.Pic.` bank with its screen palette instead exposes an indexed
 `amos.packed-picture` raster at `/picture`; the same bank nested in an `AmBs`
 or AMOS program uses its numbered `/banks/N` resource path.
 
-ANIM containers expose `/animation`. Indexed animations with a stable palette
-default to GIF. HAM animations produce `VextTrueColourAnimation` and default
-to APNG. Palette changes in indexed animations are currently rejected because
-the GIF exporter uses one global colour table. Delta-compressed first frames
-are also deferred pending authentic samples.
+ANIM containers expose `/animation`. Indexed animations that share an opaque
+palette default to GIF, while HAM animations produce
+`VextTrueColourAnimation` and default to APNG. Indexed images and animations
+can also be explicitly exported as APNG; frames are expanded through their own
+palettes, so palette changes and per-pixel alpha are preserved. When an
+indexed animation cannot be represented by GIF because of palette changes or
+alpha, APNG becomes its natural default. Delta-compressed first frames remain
+deferred pending authentic samples.
 
 Raw screen dumps expose one raster at `/screen`. A 48K SNA additionally exposes
 decoded BASIC at `/listing` when `PROG` points to a valid listing; 128K BASIC
@@ -360,9 +363,11 @@ label arbitrary data. Unsupported identifiers and invalid data raise
 
 Single-resource export selects the requested exact raster path. When the path
 is omitted, it succeeds only if exactly one raster is available. It fails for
-zero or multiple raster resources. The natural default is GIF for an indexed
-animation and PNG for an indexed image. Explicit PNG export of an animation
-uses its natural first frame.
+zero or multiple raster resources. The natural default is GIF for a
+GIF-compatible indexed animation, APNG for an indexed animation with changing
+palettes or alpha, and PNG for an indexed image. Explicit PNG export of an
+animation uses its natural first frame; explicit APNG is available for every
+indexed raster that can be sent to GIF.
 
 ## Tests and fixtures
 

@@ -36,6 +36,48 @@ suite "vexterlib operations":
       discard exportResource(inspection.resources,
         VextExportRequest(resourcePath: "/missing"))
 
+  test "GIF-capable indexed rasters also export as APNG without changing defaults":
+    var screen = newSeq[byte](ZxSpectrumScreenSize)
+    screen[6144] = 0x80 # FLASH makes the natural raster an indexed animation.
+    let inspection = inspectSource("flash.scr", screen)
+    let defaultExport = exportResource(inspection.resources,
+      VextExportRequest(suggestedName: "flash"))
+    let apngExport = exportResource(inspection.resources,
+      VextExportRequest(outputFormat: "apng", suggestedName: "flash"))
+    check defaultExport.outputFormat == "gif"
+    check defaultExport.artifacts.artifacts[0].mediaType == "image/gif"
+    check apngExport.outputFormat == "apng"
+    check apngExport.artifacts.artifacts[0].mediaType == "image/apng"
+    let parsed = parsePng(apngExport.artifacts.artifacts[0].data)
+    var animationControl = false
+    for chunk in parsed.chunks:
+      if chunk.kind == "acTL": animationControl = true
+    check animationControl
+    let decoded = decodePng(parsed).trueColourImage
+    let natural = inspection.resources.rasterResources[0].raster.animation.
+      frames[0].image
+    check decoded.width == natural.width
+    check decoded.height == natural.height
+    check decoded.colourAt(0, 0) == natural.colourAt(0, 0)
+
+  test "indexed APNG permits frame palettes to differ and preserves alpha":
+    let animation = VextIndexedAnimation(width: 1, height: 1, frames: @[
+      VextIndexedAnimationFrame(image: VextIndexedImage(width: 1, height: 1,
+        palette: @[VextRgb(r: 255, g: 0, b: 0)], pixels: @[0'u8],
+        alpha: @[128'u8]), durationMs: 10),
+      VextIndexedAnimationFrame(image: VextIndexedImage(width: 1, height: 1,
+        palette: @[VextRgb(r: 0, g: 0, b: 255)], pixels: @[0'u8]),
+        durationMs: 20)])
+    let artifact = exportApng(animation).artifacts[0]
+    let first = decodePng(parsePng(artifact.data)).trueColourImage
+    check first.rgbaAt(0, 0) == VextRgba(r: 255, g: 0, b: 0, a: 128)
+    let tree = VextResourceTree(roots: @[VextResourceNode(path: "/animation",
+      typeId: "test.animation", kind: vrnkRaster,
+      raster: VextRaster(kind: vrkIndexedAnimation, animation: animation))])
+    let natural = exportResource(tree, VextExportRequest(suggestedName: "test"))
+    check natural.outputFormat == "apng"
+    check natural.artifacts.artifacts[0].mediaType == "image/apng"
+
   test "resource traversal preserves tree order and exact lookup":
     let raster = decodeZxSpectrumScreen(newSeq[byte](ZxSpectrumScreenSize))
     let tree = VextResourceTree(roots: @[VextResourceNode(
