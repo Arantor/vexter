@@ -6,6 +6,7 @@
 /tests/test_amiga_adf
 /tests/test_zip_archive
 /tests/test_pcx
+/tests/test_bmp
 /tests/test_amos_bank
 /tests/test_amos_packed_picture
 /tests/test_amos_bank_set

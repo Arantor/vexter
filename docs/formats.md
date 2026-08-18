@@ -514,6 +514,41 @@ scanline padding, RLE expansion and row bounds, RGB/BGR interpretation, and
 missing or malformed image data. An independently produced authentic fixture
 is still desirable for compatibility coverage.
 
+## BMP and DIB images
+
+Container type identifiers: `windows.bmp` and `windows.dib`
+
+Raster type identifier: `windows.bitmap`
+
+BMP files use the `BM` file wrapper around a DIB; standalone DIB input begins
+directly with its bitmap header. Vexter recognizes the 12-byte OS/2 core
+header and Windows 40-, 52-, 56-, 108-, and 124-byte headers. Wrapped BMP
+detection is **certain** after its signature, declared size, reserved fields,
+DIB structure, palette, and pixel offset validate. A structurally valid
+standalone DIB is **probable**, with `.dib` providing supporting evidence.
+Both expose a raster at `/image`.
+
+Uncompressed one-, four-, and eight-bit indexed images use their BGR palette
+and packed most-significant-first indices. Sixteen-, 24-, and 32-bit images
+produce true-colour rasters; ordinary 16-bit pixels use 5:5:5 interpretation,
+while declared 16/32-bit colour masks are normalized across their full range.
+Non-overlapping, contiguous red, green, and blue masks are required.
+
+Rows are padded to four-byte boundaries. Conventional bottom-up images are
+inverted into natural top-to-bottom raster order, while negative-height
+Windows DIBs remain top-down. RLE4 and RLE8 encoded, absolute, end-of-line,
+delta, and end-of-bitmap commands are supported with image-bound checks;
+top-down RLE is rejected.
+
+JPEG/PNG-embedded BMP payloads and CMYK compression modes are explicitly
+unsupported. Alpha masks are structurally retained but not applied because
+the current Vext raster archetypes do not yet carry alpha.
+
+Synthetic tests cover Windows and OS/2 headers, wrapped and standalone input,
+palette conversion, row orientation and padding, 24-bit colour, 16-bit
+bitfields, RLE4/RLE8, invalid offsets, incompatible compression, and
+truncation. Authentic compatibility fixtures remain desirable.
+
 ## Historical implementation coverage
 
 The previous implementation covered formats including:

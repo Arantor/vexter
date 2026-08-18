@@ -12,7 +12,7 @@ Vexter currently consists of a reusable Nim library and a thin command-line
 client. It supports:
 
 - detection and inspection of generic IFF FORM containers, indexed Amiga ILBM
-  and ACBM images, IFF ANIM animations, PCX images, AmigaDOS ADF filesystems, ZIP archives, ZX Spectrum raw screen dumps, SNA snapshots,
+  and ACBM images, IFF ANIM animations, PCX and BMP/DIB images, AmigaDOS ADF filesystems, ZIP archives, ZX Spectrum raw screen dumps, SNA snapshots,
   TAP containers, tokenised BASIC resources, standalone AMOS banks, AMOS bank
   sets, and AMOS programs;
 - a resource tree containing decoded indexed-raster or identified opaque
@@ -101,6 +101,8 @@ Matching case-insensitive extensions add supporting evidence.
   archive hierarchy;
 - `pcx.nim` validates ZSoft PCX headers, dimensions, plane layouts, and row
   storage before retaining the encoded image source;
+- `bmp.nim` validates wrapped BMP files and standalone Windows or OS/2 DIBs,
+  including palette, bitfield, compression, and pixel-data boundaries;
 - `amiga_iff.nim` validates generic IFF `FORM` lengths, chunk boundaries, and
   even-byte padding;
 - `amiga_acbm.nim` interprets `FORM ACBM` properties and extracts its
@@ -145,6 +147,10 @@ without an external palette; six-plane Pac.Pic. modes also remain deferred.
 renders one-through-four-bit indexed planar images, eight-bit indexed images,
 and eight-bit three-plane true-colour images. The true-colour plane order is
 selectable as RGB or BGR at the operations boundary.
+
+`src/vexterlib/resources/bmp_image.nim` renders packed indexed BMP/DIB rows,
+RLE4/RLE8 streams, BGR true-colour rows, and normalized 16/32-bit colour
+bitfields. It handles bottom-up and uncompressed top-down storage.
 
 `src/vexterlib/resources/amiga_ilbm_image.nim` decodes uncompressed or
 ByteRun1-compressed planar data: scanline-interleaved planes from ILBM `BODY`
@@ -217,6 +223,9 @@ archive.zip-directory
 archive.zip-file
 pcx
 pcx.image
+windows.bmp
+windows.dib
+windows.bitmap
 amiga.iff
 amiga.acbm
 amiga.ilbm
@@ -276,6 +285,13 @@ mandatory trailing 256-colour palette. Eight-bit three-plane images produce a
 true-colour raster. Scanline padding is excluded from output pixels and RLE
 runs are bounded to individual scanlines. RGB plane order is the default;
 `--pcx-channel-order bgr` selects files written in the alternate order.
+
+BMP files and standalone DIBs expose `/image`. OS/2 core and Windows INFO,
+V2/V3, V4, and V5 headers are recognized. Uncompressed 1/4/8-bit indexed,
+16/24/32-bit true-colour, RLE4/RLE8, and 16/32-bit bitfield images are
+supported. Palette and scanline padding are removed, bottom-up rows are
+inverted, and top-down rows retain their order. Alpha masks cannot yet be
+represented by the current raster archetypes and are not applied.
 
 Generic `AmBk` containers continue to expose unknown bank types as opaque bank
 data. A `Pac.Pic.` bank with its screen palette instead exposes an indexed
@@ -338,6 +354,8 @@ The routine suites are:
   normalization;
 - `tests/test_pcx.nim`: planar/header palettes, 256-colour trailing palettes,
   true-colour RGB/BGR order, row padding, RLE, and malformed input;
+- `tests/test_bmp.nim`: Windows and OS/2 DIBs, wrapped BMP offsets, indexed and
+  true-colour rows, top-down orientation, bitfields, RLE4/RLE8, and failures;
 - `tests/test_amiga_iff_ilbm.nim`: FORM/chunk validation, ILBM planar and
   ByteRun1 decoding, legacy palette expansion, EHB, focused HAM6/HAM8 cases,
   and authentic Deluxe Paint HAM6/HAM8 controls;

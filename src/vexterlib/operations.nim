@@ -6,10 +6,10 @@ import ./detection
 import ./exporters/[gif, png]
 import ./resource_tree
 import ./containers/[amiga_acbm, amiga_adf, amiga_anim, amiga_iff, amiga_ilbm, amos_bank, amos_bank_set, amos_packed_picture, amos_program,
-  amos_sprite_icon_bank, pcx,
+  amos_sprite_icon_bank, bmp, pcx,
   zip_archive, zx_spectrum_screen_dump, zx_spectrum_snapshot, zx_spectrum_tap]
 import ./metadata
-import ./resources/[amiga_anim_image, amiga_ilbm_image, amos_listing, amos_packed_picture_image, amos_planar_image, zx_spectrum_basic,
+import ./resources/[amiga_anim_image, amiga_ilbm_image, amos_listing, amos_packed_picture_image, amos_planar_image, bmp_image, zx_spectrum_basic,
   pcx_image, zx_spectrum_screen]
 
 type
@@ -47,6 +47,10 @@ proc forcedCandidate(typeId: string, data: openArray[byte]):
     discard parseAmigaIlbm(data)
   of AmigaIffTypeId:
     discard parseAmigaIff(data)
+  of BmpTypeId:
+    discard parseBmp(data)
+  of DibTypeId:
+    discard parseDib(data)
   of PcxTypeId:
     discard parsePcx(data)
   of ZipArchiveTypeId:
@@ -282,6 +286,17 @@ proc inspectSourceDepth(filename: string, data: openArray[byte],
     result.selectedFormat = result.candidates[0]
 
   case result.selectedFormat.typeId
+  of BmpTypeId, DibTypeId:
+    let source = if result.selectedFormat.typeId == BmpTypeId:
+      parseBmp(data) else: parseDib(data)
+    result.resources.roots.add VextResourceNode(
+      path: BmpImageResourcePath, typeId: BmpImageTypeId, kind: vrnkRaster,
+      raster: decodeBmp(source), metadata: @[
+        integerMetadata("bits-per-pixel", source.bitsPerPixel),
+        integerMetadata("compression", source.compression),
+        integerMetadata("colours-used", source.coloursUsed),
+        integerMetadata("pixels-per-metre.x", source.xPixelsPerMetre),
+        integerMetadata("pixels-per-metre.y", source.yPixelsPerMetre)])
   of PcxTypeId:
     let source = parsePcx(data)
     result.resources.roots.add VextResourceNode(

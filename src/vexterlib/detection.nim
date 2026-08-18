@@ -2,7 +2,7 @@
 
 import std/[os, strutils]
 import ./containers/[amiga_acbm, amiga_adf, amiga_anim, amiga_iff, amiga_ilbm, amos_bank, amos_bank_set, amos_program,
-  amos_sprite_icon_bank, pcx,
+  amos_sprite_icon_bank, bmp, pcx,
   zip_archive, zx_spectrum_screen_dump, zx_spectrum_snapshot, zx_spectrum_tap]
 import ./resources/zx_spectrum_screen
 
@@ -30,6 +30,25 @@ proc detectFormats*(filename: string, data: openArray[byte]):
     seq[VextDetectionCandidate] =
   ## Returns every format candidate recognized from currently available
   ## evidence, ordered from strongest to weakest.
+  if isBmp(data):
+    let image = parseBmp(data)
+    var evidence = @[VextDetectionEvidence(
+      description: "file has a BM signature and valid " & $image.width & "x" &
+        $image.height & " DIB structure")]
+    if hasBmpExtension(filename):
+      evidence.add VextDetectionEvidence(description: "file extension is .bmp")
+    result.add VextDetectionCandidate(typeId: BmpTypeId,
+      confidence: vdcCertain, evidence: evidence)
+  elif isDib(data):
+    let image = parseDib(data)
+    var evidence = @[VextDetectionEvidence(
+      description: "file begins with a supported DIB header describing " &
+        $image.width & "x" & $image.height & " bitmap data")]
+    if hasDibExtension(filename):
+      evidence.add VextDetectionEvidence(description: "file extension is .dib")
+    result.add VextDetectionCandidate(typeId: DibTypeId,
+      confidence: vdcProbable, evidence: evidence)
+
   if isPcx(data):
     let image = parsePcx(data)
     var evidence = @[VextDetectionEvidence(
