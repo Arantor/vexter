@@ -7,7 +7,7 @@ import ./exporters/[gif, png]
 import ./resource_tree
 import ./containers/[amiga_acbm, amiga_adf, amiga_anim, amiga_iff, amiga_ilbm, amos_bank, amos_bank_set, amos_packed_picture, amos_program,
   amos_sprite_icon_bank,
-  zx_spectrum_screen_dump, zx_spectrum_snapshot, zx_spectrum_tap]
+  zip_archive, zx_spectrum_screen_dump, zx_spectrum_snapshot, zx_spectrum_tap]
 import ./metadata
 import ./resources/[amiga_anim_image, amiga_ilbm_image, amos_listing, amos_packed_picture_image, amos_planar_image, zx_spectrum_basic,
   zx_spectrum_screen]
@@ -47,6 +47,8 @@ proc forcedCandidate(typeId: string, data: openArray[byte]):
     discard parseAmigaIlbm(data)
   of AmigaIffTypeId:
     discard parseAmigaIff(data)
+  of ZipArchiveTypeId:
+    discard parseZipArchive(data)
   of AmosProgramTypeId:
     discard parseAmosProgram(data)
   of AmosBankSetTypeId:
@@ -170,6 +172,40 @@ proc rebaseNode(node: VextResourceNode, prefix: string) =
   for child in node.children:
     rebaseNode(child, prefix)
 
+proc containedFileNode(path, filename, fallbackType: string,
+    data: openArray[byte], metadata: seq[VextMetadataEntry], depth: int,
+    ignoreWarnings: bool,
+    warnings: var seq[VextInspectionWarning]): VextResourceNode =
+  var retainedMetadata = metadata
+  if depth >= 8:
+    return VextResourceNode(path: path, typeId: fallbackType,
+      kind: vrnkOpaque, data: @data, metadata: retainedMetadata)
+  let candidates = detectFormats(filename, data)
+  if candidates.len == 0:
+    return VextResourceNode(path: path, typeId: fallbackType,
+      kind: vrnkOpaque, data: @data, metadata: retainedMetadata)
+  var nested: VextInspection
+  try:
+    nested = inspectSourceDepth(filename, data, "", depth + 1, ignoreWarnings)
+  except ValueError as error:
+    if ignoreWarnings:
+      warnings.add VextInspectionWarning(
+        path: path, format: candidates[0].typeId, message: error.msg)
+      retainedMetadata.add stringMetadata("decode.format", candidates[0].typeId)
+      retainedMetadata.add stringMetadata("decode.warning", error.msg)
+      return VextResourceNode(path: path, typeId: fallbackType,
+        kind: vrnkOpaque, data: @data, metadata: retainedMetadata)
+    raise newException(ValueError,
+      "while inspecting nested resource " & path & ": " & error.msg)
+  for warning in nested.warnings:
+    warnings.add VextInspectionWarning(path: path & warning.path,
+      format: warning.format, message: warning.message)
+  result = VextResourceNode(path: path, typeId: nested.selectedFormat.typeId,
+    kind: vrnkGroup, data: @data, metadata: retainedMetadata)
+  for root in nested.resources.roots:
+    rebaseNode(root, path)
+    result.children.add root
+
 proc adfEntryNode(entry: AmigaAdfEntry, parentPath: string,
     depth: int, ignoreWarnings: bool,
     warnings: var seq[VextInspectionWarning]): VextResourceNode =
@@ -194,41 +230,40 @@ proc adfEntryNode(entry: AmigaAdfEntry, parentPath: string,
   of aaekFile:
     var metadata = commonMetadata
     metadata.add integerMetadata("data.length", entry.size)
-    if depth >= 8:
-      return VextResourceNode(
-        path: path, typeId: AmigaAdfFileTypeId, kind: vrnkOpaque,
-        data: entry.data, metadata: metadata)
-    let candidates = detectFormats(entry.name, entry.data)
-    if candidates.len == 0:
-      return VextResourceNode(
-        path: path, typeId: AmigaAdfFileTypeId, kind: vrnkOpaque,
-        data: entry.data, metadata: metadata)
-    var nested: VextInspection
-    try:
-      nested = inspectSourceDepth(entry.name, entry.data, "", depth + 1,
-        ignoreWarnings)
-    except ValueError as error:
-      if ignoreWarnings:
-        warnings.add VextInspectionWarning(
-          path: path, format: candidates[0].typeId, message: error.msg)
-        metadata.add stringMetadata("decode.format", candidates[0].typeId)
-        metadata.add stringMetadata("decode.warning", error.msg)
-        return VextResourceNode(
-          path: path, typeId: AmigaAdfFileTypeId, kind: vrnkOpaque,
-          data: entry.data, metadata: metadata)
-      raise newException(ValueError,
-        "while inspecting nested resource " & path & ": " & error.msg)
-    for warning in nested.warnings:
-      warnings.add VextInspectionWarning(
-        path: path & warning.path,
-        format: warning.format,
-        message: warning.message)
-    result = VextResourceNode(
-      path: path, typeId: nested.selectedFormat.typeId, kind: vrnkGroup,
-      data: entry.data, metadata: metadata)
-    for root in nested.resources.roots:
-      rebaseNode(root, path)
-      result.children.add root
+    result = containedFileNode(path, entry.name, AmigaAdfFileTypeId,
+      entry.data, metadata, depth, ignoreWarnings, warnings)
+
+proc childNamed(parent: VextResourceNode, path: string): VextResourceNode =
+  for child in parent.children:
+    if child.path == path:
+      return child
+
+proc addZipEntry(root: VextResourceNode, entry: ZipEntry, depth: int,
+    ignoreWarnings: bool, warnings: var seq[VextInspectionWarning]) =
+  var parent = root
+  var path = root.path
+  for index, segment in entry.segments:
+    path.add "/" & segment
+    let last = index == entry.segments.high
+    var existing = childNamed(parent, path)
+    if last and not entry.isDirectory:
+      if not existing.isNil:
+        raise newException(ValueError, "conflicting ZIP entry path: " & entry.name)
+      let metadata = @[
+        stringMetadata("zip.name", entry.name),
+        integerMetadata("compression.method", entry.compressionMethod),
+        integerMetadata("compressed.length", entry.compressedSize),
+        integerMetadata("data.length", entry.uncompressedSize)]
+      parent.children.add containedFileNode(path, segment, ZipFileTypeId,
+        entry.data, metadata, depth, ignoreWarnings, warnings)
+    else:
+      if existing.isNil:
+        existing = VextResourceNode(path: path, typeId: ZipDirectoryTypeId,
+          kind: vrnkGroup)
+        parent.children.add existing
+      elif existing.kind != vrnkGroup or existing.typeId != ZipDirectoryTypeId:
+        raise newException(ValueError, "conflicting ZIP entry path: " & entry.name)
+      parent = existing
 
 proc inspectSourceDepth(filename: string, data: openArray[byte],
     inputFormat: string, depth: int, ignoreWarnings: bool): VextInspection =
@@ -241,6 +276,15 @@ proc inspectSourceDepth(filename: string, data: openArray[byte],
     result.selectedFormat = result.candidates[0]
 
   case result.selectedFormat.typeId
+  of ZipArchiveTypeId:
+    let archive = parseZipArchive(data)
+    let root = VextResourceNode(path: "/archive", typeId: ZipArchiveTypeId,
+      kind: vrnkGroup, metadata: @[
+        integerMetadata("entries", archive.entries.len),
+        stringMetadata("comment", archive.comment)])
+    for entry in archive.entries:
+      addZipEntry(root, entry, depth, ignoreWarnings, result.warnings)
+    result.resources.roots.add root
   of AmigaAdfTypeId:
     let volume = parseAmigaAdf(data)
     let disk = VextResourceNode(

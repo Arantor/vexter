@@ -9,6 +9,7 @@ import vexterlib/containers/amos_packed_picture
 import vexterlib/containers/amiga_iff
 import vexterlib/containers/amiga_ilbm
 import vexterlib/containers/amiga_anim
+import vexterlib/containers/zip_archive
 import vexterlib/containers/amos_bank_set
 import vexterlib/containers/amos_program
 import vexterlib/containers/amos_sprite_icon_bank
@@ -38,6 +39,7 @@ export amiga_iff
 export amiga_ilbm
 export amiga_ilbm_image
 export amiga_anim
+export zip_archive
 export amiga_anim_image
 export amos_bank_set
 export amos_program

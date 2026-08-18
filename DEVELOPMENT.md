@@ -12,7 +12,7 @@ Vexter currently consists of a reusable Nim library and a thin command-line
 client. It supports:
 
 - detection and inspection of generic IFF FORM containers, indexed Amiga ILBM
-  and ACBM images, IFF ANIM animations, AmigaDOS ADF filesystems, ZX Spectrum raw screen dumps, SNA snapshots,
+  and ACBM images, IFF ANIM animations, AmigaDOS ADF filesystems, ZIP archives, ZX Spectrum raw screen dumps, SNA snapshots,
   TAP containers, tokenised BASIC resources, standalone AMOS banks, AMOS bank
   sets, and AMOS programs;
 - a resource tree containing decoded indexed-raster or identified opaque
@@ -33,7 +33,7 @@ vexter export [--format png|gif|apng|txt] [--resource PATH]
               [--ignore-warnings] INPUT
 ```
 
-There is no GUI, general-purpose recursive archive framework, `export-all`,
+There is no GUI, fully generalized handler registry, `export-all`,
 path-pattern selection, or generalized handler registry yet. ADF files do
 perform bounded recursive inspection of recognized contained files. Those and the broader option
 surface shown in `PLAN.md` are future work.
@@ -96,6 +96,9 @@ Matching case-insensitive extensions add supporting evidence.
 
 - `amiga_adf.nim` validates standard DD/HD AmigaDOS floppy images and walks
   OFS/FFS directory, file-header, extension, and data-block structures;
+- `zip_archive.nim` validates single-volume ZIP central/local records, expands
+  stored and DEFLATE entries, checks CRC-32, and exposes a host-independent
+  archive hierarchy;
 - `amiga_iff.nim` validates generic IFF `FORM` lengths, chunk boundaries, and
   even-byte padding;
 - `amiga_acbm.nim` interprets `FORM ACBM` properties and extracts its
@@ -202,6 +205,9 @@ amiga.adf
 amiga.adf-directory
 amiga.adf-file
 amiga.adf-link
+archive.zip
+archive.zip-directory
+archive.zip-file
 amiga.iff
 amiga.acbm
 amiga.ilbm
@@ -242,6 +248,18 @@ a recognized contained format reports the nested resource path before the
 underlying decoder diagnostic. With `--ignore-warnings`, a failed child remains
 available as an opaque file, successful siblings are retained, and structured
 path/format/message warnings are returned and displayed.
+
+ZIP archives expose `/archive`. Entry paths are interpreted as logical archive
+paths rather than host paths: slash and backslash separators are canonicalized,
+absolute, empty, dot, parent, duplicate, and file/directory-conflicting paths
+are rejected, and complete entry names are capped at 255 Unicode characters.
+Legacy names use ZIP's CP437 mapping and names marked UTF-8 are validated.
+Stored and DEFLATE entries are supported with size and CRC-32 checks. Encrypted,
+ZIP64, unsupported-compression, and classic multi-volume archives are rejected.
+Recognized files open recursively using the same eight-layer bound and warning
+behavior as ADF files. The library also supplies conservative cross-platform
+filename normalization for eventual bulk export; collision suffixing remains
+part of the future `export-all` work.
 
 Generic `AmBk` containers continue to expose unknown bank types as opaque bank
 data. A `Pac.Pic.` bank with its screen palette instead exposes an indexed
@@ -299,6 +317,9 @@ The routine suites are:
 
 - `tests/test_amiga_adf.nim`: synthetic FFS directory traversal, OFS and FFS
   file reconstruction, nested format decoding, and structural corruption;
+- `tests/test_zip_archive.nim`: stored/DEFLATE expansion, hierarchy and nested
+  decoding, unsafe/duplicate/overlong path rejection, and portable export-name
+  normalization;
 - `tests/test_amiga_iff_ilbm.nim`: FORM/chunk validation, ILBM planar and
   ByteRun1 decoding, legacy palette expansion, EHB, focused HAM6/HAM8 cases,
   and authentic Deluxe Paint HAM6/HAM8 controls;
@@ -365,12 +386,13 @@ names there when adding suites, or direct their output into `/tmp`.
   deliberate compatibility change is agreed.
 - Prefer generic resource/archetype operations over format-specific branches
   in frontends and exporters.
-- Resource nodes currently carry already-decoded raster values; opaque ADF
-  file leaves additionally retain their reconstructed bytes. Lazy decoding,
+- Resource nodes currently carry already-decoded raster values; opaque ADF and
+  ZIP file leaves additionally retain their reconstructed bytes. Lazy decoding,
   alternate representations, structured metadata, and handler registration
   are not implemented yet. Recursive decoding is currently specific to ADF.
 - Export currently expects one artifact at the CLI boundary. The artifact API
   already permits multiple files, but CLI directory handling for compound
   exports is future work.
-- Detection currently parses some inputs again during inspection. There is no
+- Recursive decoding is shared by ADF and ZIP, with a fixed eight-layer bound;
+  it is not yet a handler registry. Detection currently parses some inputs again during inspection. There is no
   parsed-container cache or registry abstraction yet.

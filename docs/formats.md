@@ -56,6 +56,34 @@ images. They cover FFS subdirectories, OFS header removal, exact file bytes,
 nested Spectrum decoding, signature and checksum validation, and cycle
 rejection. No third-party ADF fixture is currently stored in the repository.
 
+## ZIP archives
+
+Container type identifier: `archive.zip`
+
+Vexter supports ordinary single-volume ZIP archives containing stored or raw
+DEFLATE-compressed members. It validates the end record, central directory,
+local header and data bounds, declared expanded sizes, and each file's CRC-32.
+ZIP64, encryption, unsupported compression methods, and classic multi-volume
+archives are reported as unsupported rather than partially interpreted.
+
+The archive appears as `/archive`; directories become
+`archive.zip-directory` groups and unrecognized files become
+`archive.zip-file` opaque nodes retaining their expanded bytes. Recognized
+members open recursively like ADF files. Recursion remains bounded to eight
+container layers.
+
+Archive names are logical names, independent of the machine opening them.
+Names marked as UTF-8 are validated and legacy names are decoded as CP437.
+Both slash forms are treated as separators. Absolute paths, empty components,
+`.` and `..`, duplicates, file/directory conflicts, and names longer than 255
+Unicode characters are rejected. This prevents recursive/ambiguous path loops
+without attempting to materialize archive names on the host filesystem.
+
+`normalizedZipExportName` replaces host-sensitive control and punctuation
+characters, trims trailing dots/spaces, and protects Windows device names for
+future bulk-export use. `export-all` and deterministic suffixing of normalized
+name collisions are not implemented yet.
+
 ## Amiga IFF, ILBM, and ACBM
 
 Container type identifier: `amiga.iff`

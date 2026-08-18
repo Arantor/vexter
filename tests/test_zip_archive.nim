@@ -1,0 +1,107 @@
+import std/[strutils, unittest]
+import vexterlib
+
+proc addWord(data: var seq[byte], value: int) =
+  data.add byte(value)
+  data.add byte(value shr 8)
+
+proc addDword(data: var seq[byte], value: uint32) =
+  data.add byte(value)
+  data.add byte(value shr 8)
+  data.add byte(value shr 16)
+  data.add byte(value shr 24)
+
+proc crc32(data: openArray[byte]): uint32 =
+  result = 0xffffffff'u32
+  for value in data:
+    result = result xor uint32(value)
+    for bit in 0 ..< 8:
+      result = (result shr 1) xor
+        (if (result and 1) != 0: 0xedb88320'u32 else: 0'u32)
+  result = result xor 0xffffffff'u32
+
+type FixtureEntry = object
+  name: string
+  data: seq[byte]
+  compression: int
+  compressed: seq[byte]
+
+proc zipFixture(entries: openArray[FixtureEntry]): seq[byte] =
+  var central: seq[byte]
+  for entry in entries:
+    let localOffset = result.len
+    let packed = if entry.compression == 0: entry.data else: entry.compressed
+    result.addDword(0x04034b50'u32)
+    result.addWord(20)
+    result.addWord(0x800)
+    result.addWord(entry.compression)
+    result.addWord(0); result.addWord(0)
+    result.addDword(crc32(entry.data))
+    result.addDword(uint32(packed.len))
+    result.addDword(uint32(entry.data.len))
+    result.addWord(entry.name.len); result.addWord(0)
+    for value in entry.name: result.add byte(value)
+    result.add packed
+
+    central.addDword(0x02014b50'u32)
+    central.addWord(20); central.addWord(20)
+    central.addWord(0x800); central.addWord(entry.compression)
+    central.addWord(0); central.addWord(0)
+    central.addDword(crc32(entry.data))
+    central.addDword(uint32(packed.len))
+    central.addDword(uint32(entry.data.len))
+    central.addWord(entry.name.len); central.addWord(0); central.addWord(0)
+    central.addWord(0); central.addWord(0); central.addDword(0)
+    central.addDword(uint32(localOffset))
+    for value in entry.name: central.add byte(value)
+  let centralOffset = result.len
+  result.add central
+  result.addDword(0x06054b50'u32)
+  result.addWord(0); result.addWord(0)
+  result.addWord(entries.len); result.addWord(entries.len)
+  result.addDword(uint32(central.len)); result.addDword(uint32(centralOffset))
+  result.addWord(0)
+
+suite "ZIP archives":
+  test "stored entries form a hierarchy and recognized files open recursively":
+    let archive = zipFixture([
+      FixtureEntry(name: "docs/readme.txt", data: @[byte('h'), byte('i')]),
+      FixtureEntry(name: "images/display.scr",
+        data: newSeq[byte](ZxSpectrumScreenSize))])
+    let parsed = parseZipArchive(archive)
+    let candidates = detectFormats("collection.ZIP", archive)
+    let inspection = inspectSource("collection.ZIP", archive)
+    let leaves = inspection.resources.leafResources
+    check parsed.entries.len == 2
+    check candidates[0].typeId == ZipArchiveTypeId
+    check candidates[0].confidence == vdcCertain
+    check leaves.len == 2
+    check leaves[0].path == "/archive/docs/readme.txt"
+    check leaves[0].data == @[byte('h'), byte('i')]
+    check leaves[1].path == "/archive/images/display.scr/screen"
+    check leaves[1].kind == vrnkRaster
+
+  test "DEFLATE entries are expanded and checked":
+    # Raw DEFLATE for "hello" (generated locally with zlib).
+    let archive = zipFixture([FixtureEntry(name: "hello.txt",
+      data: @[byte('h'), byte('e'), byte('l'), byte('l'), byte('o')],
+      compression: 8, compressed: @[0xcb'u8, 0x48, 0xcd, 0xc9, 0xc9, 0x07, 0x00])])
+    check parseZipArchive(archive).entries[0].data ==
+      @[byte('h'), byte('e'), byte('l'), byte('l'), byte('o')]
+
+  test "unsafe, duplicate, and overlong paths are rejected":
+    expect ValueError:
+      discard parseZipArchive(zipFixture([
+        FixtureEntry(name: "../escape", data: @[1'u8])]))
+    expect ValueError:
+      discard parseZipArchive(zipFixture([
+        FixtureEntry(name: "same", data: @[1'u8]),
+        FixtureEntry(name: "same", data: @[2'u8])]))
+    expect ValueError:
+      discard parseZipArchive(zipFixture([
+        FixtureEntry(name: repeat('x', 256), data: @[1'u8])]))
+
+  test "export names are host-independent":
+    check normalizedZipExportName("report:2026?.txt") == "report_2026_.txt"
+    check normalizedZipExportName("CON") == "_CON"
+    check normalizedZipExportName("trailing. ") == "trailing"

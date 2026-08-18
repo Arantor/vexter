@@ -3,7 +3,7 @@
 import std/[os, strutils]
 import ./containers/[amiga_acbm, amiga_adf, amiga_anim, amiga_iff, amiga_ilbm, amos_bank, amos_bank_set, amos_program,
   amos_sprite_icon_bank,
-  zx_spectrum_screen_dump, zx_spectrum_snapshot, zx_spectrum_tap]
+  zip_archive, zx_spectrum_screen_dump, zx_spectrum_snapshot, zx_spectrum_tap]
 import ./resources/zx_spectrum_screen
 
 type
@@ -30,6 +30,18 @@ proc detectFormats*(filename: string, data: openArray[byte]):
     seq[VextDetectionCandidate] =
   ## Returns every format candidate recognized from currently available
   ## evidence, ordered from strongest to weakest.
+  if isZipArchive(data):
+    let archive = parseZipArchive(data)
+    var evidence = @[VextDetectionEvidence(
+      description: "file has a valid single-volume ZIP central directory and " &
+        $archive.entries.len & " valid entry or entries")]
+    if hasZipExtension(filename):
+      evidence.add VextDetectionEvidence(description: "file extension is .zip")
+    result.add VextDetectionCandidate(
+      typeId: ZipArchiveTypeId,
+      confidence: vdcCertain,
+      evidence: evidence)
+
   if isAmigaAdf(data):
     let volume = parseAmigaAdf(data)
     var evidence = @[VextDetectionEvidence(
