@@ -2,7 +2,7 @@
 
 import std/[os, strutils]
 import ./containers/[amiga_acbm, amiga_adf, amiga_anim, amiga_iff, amiga_ilbm, amos_bank, amos_bank_set, amos_program,
-  amos_sprite_icon_bank,
+  amos_sprite_icon_bank, pcx,
   zip_archive, zx_spectrum_screen_dump, zx_spectrum_snapshot, zx_spectrum_tap]
 import ./resources/zx_spectrum_screen
 
@@ -30,6 +30,16 @@ proc detectFormats*(filename: string, data: openArray[byte]):
     seq[VextDetectionCandidate] =
   ## Returns every format candidate recognized from currently available
   ## evidence, ordered from strongest to weakest.
+  if isPcx(data):
+    let image = parsePcx(data)
+    var evidence = @[VextDetectionEvidence(
+      description: "file has a valid PCX header describing " & $image.width &
+        "x" & $image.height & " image data")]
+    if hasPcxExtension(filename):
+      evidence.add VextDetectionEvidence(description: "file extension is .pcx")
+    result.add VextDetectionCandidate(typeId: PcxTypeId,
+      confidence: vdcProbable, evidence: evidence)
+
   if isZipArchive(data):
     let archive = parseZipArchive(data)
     var evidence = @[VextDetectionEvidence(

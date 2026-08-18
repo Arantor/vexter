@@ -6,11 +6,11 @@ import ./detection
 import ./exporters/[gif, png]
 import ./resource_tree
 import ./containers/[amiga_acbm, amiga_adf, amiga_anim, amiga_iff, amiga_ilbm, amos_bank, amos_bank_set, amos_packed_picture, amos_program,
-  amos_sprite_icon_bank,
+  amos_sprite_icon_bank, pcx,
   zip_archive, zx_spectrum_screen_dump, zx_spectrum_snapshot, zx_spectrum_tap]
 import ./metadata
 import ./resources/[amiga_anim_image, amiga_ilbm_image, amos_listing, amos_packed_picture_image, amos_planar_image, zx_spectrum_basic,
-  zx_spectrum_screen]
+  pcx_image, zx_spectrum_screen]
 
 type
   VextInspectionWarning* = object
@@ -47,6 +47,8 @@ proc forcedCandidate(typeId: string, data: openArray[byte]):
     discard parseAmigaIlbm(data)
   of AmigaIffTypeId:
     discard parseAmigaIff(data)
+  of PcxTypeId:
+    discard parsePcx(data)
   of ZipArchiveTypeId:
     discard parseZipArchive(data)
   of AmosProgramTypeId:
@@ -165,7 +167,8 @@ proc amosBankSetGroup(bankSet: AmosBankSet): VextResourceNode =
         bankPath & "/" & resourceName, entry.spriteIconBank)
 
 proc inspectSourceDepth(filename: string, data: openArray[byte],
-    inputFormat: string, depth: int, ignoreWarnings: bool): VextInspection
+    inputFormat: string, depth: int, ignoreWarnings: bool,
+    pcxChannelOrder: PcxChannelOrder): VextInspection
 
 proc rebaseNode(node: VextResourceNode, prefix: string) =
   node.path = prefix & node.path
@@ -174,7 +177,7 @@ proc rebaseNode(node: VextResourceNode, prefix: string) =
 
 proc containedFileNode(path, filename, fallbackType: string,
     data: openArray[byte], metadata: seq[VextMetadataEntry], depth: int,
-    ignoreWarnings: bool,
+    ignoreWarnings: bool, pcxChannelOrder: PcxChannelOrder,
     warnings: var seq[VextInspectionWarning]): VextResourceNode =
   var retainedMetadata = metadata
   if depth >= 8:
@@ -186,7 +189,8 @@ proc containedFileNode(path, filename, fallbackType: string,
       kind: vrnkOpaque, data: @data, metadata: retainedMetadata)
   var nested: VextInspection
   try:
-    nested = inspectSourceDepth(filename, data, "", depth + 1, ignoreWarnings)
+    nested = inspectSourceDepth(filename, data, "", depth + 1, ignoreWarnings,
+      pcxChannelOrder)
   except ValueError as error:
     if ignoreWarnings:
       warnings.add VextInspectionWarning(
@@ -207,7 +211,7 @@ proc containedFileNode(path, filename, fallbackType: string,
     result.children.add root
 
 proc adfEntryNode(entry: AmigaAdfEntry, parentPath: string,
-    depth: int, ignoreWarnings: bool,
+    depth: int, ignoreWarnings: bool, pcxChannelOrder: PcxChannelOrder,
     warnings: var seq[VextInspectionWarning]): VextResourceNode =
   let path = parentPath & "/" & entry.name
   let commonMetadata = @[
@@ -222,7 +226,7 @@ proc adfEntryNode(entry: AmigaAdfEntry, parentPath: string,
       metadata: commonMetadata)
     for child in entry.children:
       result.children.add adfEntryNode(child, path, depth, ignoreWarnings,
-        warnings)
+        pcxChannelOrder, warnings)
   of aaekLink:
     result = VextResourceNode(
       path: path, typeId: AmigaAdfLinkTypeId, kind: vrnkOpaque,
@@ -231,7 +235,7 @@ proc adfEntryNode(entry: AmigaAdfEntry, parentPath: string,
     var metadata = commonMetadata
     metadata.add integerMetadata("data.length", entry.size)
     result = containedFileNode(path, entry.name, AmigaAdfFileTypeId,
-      entry.data, metadata, depth, ignoreWarnings, warnings)
+      entry.data, metadata, depth, ignoreWarnings, pcxChannelOrder, warnings)
 
 proc childNamed(parent: VextResourceNode, path: string): VextResourceNode =
   for child in parent.children:
@@ -239,7 +243,8 @@ proc childNamed(parent: VextResourceNode, path: string): VextResourceNode =
       return child
 
 proc addZipEntry(root: VextResourceNode, entry: ZipEntry, depth: int,
-    ignoreWarnings: bool, warnings: var seq[VextInspectionWarning]) =
+    ignoreWarnings: bool, pcxChannelOrder: PcxChannelOrder,
+    warnings: var seq[VextInspectionWarning]) =
   var parent = root
   var path = root.path
   for index, segment in entry.segments:
@@ -255,7 +260,7 @@ proc addZipEntry(root: VextResourceNode, entry: ZipEntry, depth: int,
         integerMetadata("compressed.length", entry.compressedSize),
         integerMetadata("data.length", entry.uncompressedSize)]
       parent.children.add containedFileNode(path, segment, ZipFileTypeId,
-        entry.data, metadata, depth, ignoreWarnings, warnings)
+        entry.data, metadata, depth, ignoreWarnings, pcxChannelOrder, warnings)
     else:
       if existing.isNil:
         existing = VextResourceNode(path: path, typeId: ZipDirectoryTypeId,
@@ -266,7 +271,8 @@ proc addZipEntry(root: VextResourceNode, entry: ZipEntry, depth: int,
       parent = existing
 
 proc inspectSourceDepth(filename: string, data: openArray[byte],
-    inputFormat: string, depth: int, ignoreWarnings: bool): VextInspection =
+    inputFormat: string, depth: int, ignoreWarnings: bool,
+    pcxChannelOrder: PcxChannelOrder): VextInspection =
   result.candidates = detectFormats(filename, data)
   if inputFormat.len > 0:
     result.selectedFormat = forcedCandidate(inputFormat, data)
@@ -276,6 +282,17 @@ proc inspectSourceDepth(filename: string, data: openArray[byte],
     result.selectedFormat = result.candidates[0]
 
   case result.selectedFormat.typeId
+  of PcxTypeId:
+    let source = parsePcx(data)
+    result.resources.roots.add VextResourceNode(
+      path: PcxImageResourcePath, typeId: PcxImageTypeId, kind: vrnkRaster,
+      raster: decodePcx(source, pcxChannelOrder), metadata: @[
+        integerMetadata("bits-per-pixel", source.bitsPerPixel),
+        integerMetadata("planes", source.planes),
+        integerMetadata("position.x", source.xMin),
+        integerMetadata("position.y", source.yMin),
+        integerMetadata("dpi.x", source.horizontalDpi),
+        integerMetadata("dpi.y", source.verticalDpi)])
   of ZipArchiveTypeId:
     let archive = parseZipArchive(data)
     let root = VextResourceNode(path: "/archive", typeId: ZipArchiveTypeId,
@@ -283,7 +300,8 @@ proc inspectSourceDepth(filename: string, data: openArray[byte],
         integerMetadata("entries", archive.entries.len),
         stringMetadata("comment", archive.comment)])
     for entry in archive.entries:
-      addZipEntry(root, entry, depth, ignoreWarnings, result.warnings)
+      addZipEntry(root, entry, depth, ignoreWarnings, pcxChannelOrder,
+        result.warnings)
     result.resources.roots.add root
   of AmigaAdfTypeId:
     let volume = parseAmigaAdf(data)
@@ -297,7 +315,7 @@ proc inspectSourceDepth(filename: string, data: openArray[byte],
       ])
     for entry in volume.entries:
       disk.children.add adfEntryNode(entry, "/disk", depth, ignoreWarnings,
-        result.warnings)
+        pcxChannelOrder, result.warnings)
     result.resources.roots.add disk
   of AmigaAnimTypeId:
     let anim = parseAmigaAnim(data)
@@ -419,8 +437,10 @@ proc inspectSourceDepth(filename: string, data: openArray[byte],
     discard
 
 proc inspectSource*(filename: string, data: openArray[byte],
-    inputFormat = "", ignoreWarnings = false): VextInspection =
-  inspectSourceDepth(filename, data, inputFormat, 0, ignoreWarnings)
+    inputFormat = "", ignoreWarnings = false,
+    pcxChannelOrder = pcoRgb): VextInspection =
+  inspectSourceDepth(filename, data, inputFormat, 0, ignoreWarnings,
+    pcxChannelOrder)
 
 proc exportResource*(tree: VextResourceTree,
     request: VextExportRequest): VextExportResult =

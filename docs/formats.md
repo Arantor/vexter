@@ -11,11 +11,11 @@ The currently implemented formats use this subset of the intended CLI:
 
 ```text
 vexter inspect [--json] [--all-candidates] [--ignore-warnings]
-               [--input-format FORMAT] INPUT
+               [--input-format FORMAT] [--pcx-channel-order rgb|bgr] INPUT
 
 vexter export [--format png|gif|apng|txt] [--resource PATH]
               [--input-format FORMAT] [-o OUTPUT] [--force]
-              [--ignore-warnings] INPUT
+              [--ignore-warnings] [--pcx-channel-order rgb|bgr] INPUT
 ```
 
 ## Amiga ADF filesystems
@@ -480,6 +480,39 @@ handling remains deferred.
 
 Structurally valid block framing and checksums identify the format as
 **probable**, strengthened by a case-insensitive `.tap` extension.
+
+## PCX images
+
+Container type identifier: `pcx`
+
+Raster type identifier: `pcx.image`
+
+PCX detection validates the 128-byte ZSoft header, supported version and
+encoding values, inclusive image bounds, plane count, and padded bytes per
+scanline. These structural markers identify the format as **probable**; a
+case-insensitive `.pcx` extension adds supporting evidence. The image is
+exposed at `/image`.
+
+Raw and PCX run-length-encoded scanlines are supported. Runs are bounded to a
+single complete scanline across its planes, and each padded row must decode to
+exactly the declared size. Padding bytes are not exposed as pixels.
+
+One-, two-, and four-bit samples with a combined depth no greater than four
+bits produce indexed images using the header's 16-colour palette. Plane zero
+provides the least-significant component of the palette index. Eight-bit
+single-plane images require the palette marker and complete 768-byte palette
+immediately after the image data and produce a 256-colour indexed image.
+
+Eight-bit three-plane images produce a `VextTrueColourImage`. RGB is the
+default plane order. `--pcx-channel-order bgr` selects the alternate ordering
+for affected files; the option is passed through recursive ZIP and ADF
+inspection as well as direct PCX inspection. PNG export uses the existing
+true-colour pathway.
+
+Synthetic tests cover planar pixel assembly, header and trailing palettes,
+scanline padding, RLE expansion and row bounds, RGB/BGR interpretation, and
+missing or malformed image data. An independently produced authentic fixture
+is still desirable for compatibility coverage.
 
 ## Historical implementation coverage
 

@@ -14,16 +14,17 @@ type
     inputFormat: string
     outputFormat: string
     resource: string
+    pcxChannelOrder: PcxChannelOrder
     output: string
     input: string
 
 proc usage(): string =
   """Usage:
   vexter inspect [--json] [--all-candidates] [--ignore-warnings]
-                 [--input-format FORMAT] INPUT
+                 [--input-format FORMAT] [--pcx-channel-order rgb|bgr] INPUT
   vexter export [--format png|gif|apng|txt] [--resource PATH]
                 [--input-format FORMAT] [-o OUTPUT] [--force]
-                [--ignore-warnings] INPUT"""
+                [--ignore-warnings] [--pcx-channel-order rgb|bgr] INPUT"""
 
 proc readBytes(path: string): seq[byte] =
   let contents = readFile(path)
@@ -44,7 +45,7 @@ proc parseOptions(arguments: seq[string]): CliOptions =
       result.force = true
     of "--ignore-warnings":
       result.ignoreWarnings = true
-    of "--input-format", "--format", "--resource", "-o":
+    of "--input-format", "--format", "--resource", "--pcx-channel-order", "-o":
       inc index
       if index >= arguments.len:
         raise newException(CliError, "missing value for " & argument)
@@ -52,6 +53,12 @@ proc parseOptions(arguments: seq[string]): CliOptions =
       of "--input-format": result.inputFormat = arguments[index]
       of "--format": result.outputFormat = arguments[index].toLowerAscii
       of "--resource": result.resource = arguments[index]
+      of "--pcx-channel-order":
+        case arguments[index].toLowerAscii
+        of "rgb": result.pcxChannelOrder = pcoRgb
+        of "bgr": result.pcxChannelOrder = pcoBgr
+        else: raise newException(CliError,
+          "invalid PCX channel order: " & arguments[index])
       of "-o": result.output = arguments[index]
       else: discard
     else:
@@ -68,7 +75,7 @@ proc parseOptions(arguments: seq[string]): CliOptions =
 proc inspect(options: CliOptions) =
   let data = readBytes(options.input)
   let inspection = inspectSource(options.input, data, options.inputFormat,
-    options.ignoreWarnings)
+    options.ignoreWarnings, options.pcxChannelOrder)
   let resources = inspection.resources.leafResources
 
   if options.json:
@@ -165,7 +172,7 @@ proc bytesToString(data: openArray[byte]): string =
 proc exportResource(options: CliOptions) =
   let data = readBytes(options.input)
   let inspection = inspectSource(options.input, data, options.inputFormat,
-    options.ignoreWarnings)
+    options.ignoreWarnings, options.pcxChannelOrder)
   for warning in inspection.warnings:
     stderr.writeLine(&"vexter: warning: {warning.path} " &
       &"({warning.format}): {warning.message}")

@@ -12,7 +12,7 @@ Vexter currently consists of a reusable Nim library and a thin command-line
 client. It supports:
 
 - detection and inspection of generic IFF FORM containers, indexed Amiga ILBM
-  and ACBM images, IFF ANIM animations, AmigaDOS ADF filesystems, ZIP archives, ZX Spectrum raw screen dumps, SNA snapshots,
+  and ACBM images, IFF ANIM animations, PCX images, AmigaDOS ADF filesystems, ZIP archives, ZX Spectrum raw screen dumps, SNA snapshots,
   TAP containers, tokenised BASIC resources, standalone AMOS banks, AMOS bank
   sets, and AMOS programs;
 - a resource tree containing decoded indexed-raster or identified opaque
@@ -26,11 +26,11 @@ The implemented command-line surface is:
 
 ```text
 vexter inspect [--json] [--all-candidates] [--ignore-warnings]
-               [--input-format FORMAT] INPUT
+               [--input-format FORMAT] [--pcx-channel-order rgb|bgr] INPUT
 
 vexter export [--format png|gif|apng|txt] [--resource PATH]
               [--input-format FORMAT] [-o OUTPUT] [--force]
-              [--ignore-warnings] INPUT
+              [--ignore-warnings] [--pcx-channel-order rgb|bgr] INPUT
 ```
 
 There is no GUI, fully generalized handler registry, `export-all`,
@@ -99,6 +99,8 @@ Matching case-insensitive extensions add supporting evidence.
 - `zip_archive.nim` validates single-volume ZIP central/local records, expands
   stored and DEFLATE entries, checks CRC-32, and exposes a host-independent
   archive hierarchy;
+- `pcx.nim` validates ZSoft PCX headers, dimensions, plane layouts, and row
+  storage before retaining the encoded image source;
 - `amiga_iff.nim` validates generic IFF `FORM` lengths, chunk boundaries, and
   even-byte padding;
 - `amiga_acbm.nim` interprets `FORM ACBM` properties and extracts its
@@ -138,6 +140,11 @@ Pac.Pic. planes and the screen header's `$0RGB` palette into an indexed raster.
 Whole-screen one-through-five-plane pictures are supported. Partial pictures
 without a screen header remain structurally parseable but cannot be rendered
 without an external palette; six-plane Pac.Pic. modes also remain deferred.
+
+`src/vexterlib/resources/pcx_image.nim` expands raw or PCX RLE scanlines and
+renders one-through-four-bit indexed planar images, eight-bit indexed images,
+and eight-bit three-plane true-colour images. The true-colour plane order is
+selectable as RGB or BGR at the operations boundary.
 
 `src/vexterlib/resources/amiga_ilbm_image.nim` decodes uncompressed or
 ByteRun1-compressed planar data: scanline-interleaved planes from ILBM `BODY`
@@ -208,6 +215,8 @@ amiga.adf-link
 archive.zip
 archive.zip-directory
 archive.zip-file
+pcx
+pcx.image
 amiga.iff
 amiga.acbm
 amiga.ilbm
@@ -260,6 +269,13 @@ Recognized files open recursively using the same eight-layer bound and warning
 behavior as ADF files. The library also supplies conservative cross-platform
 filename normalization for eventual bulk export; collision suffixing remains
 part of the future `export-all` work.
+
+PCX images expose `/image`. One-, two-, and four-bit samples across up to four
+planes use the 16-colour header palette; eight-bit single-plane images use the
+mandatory trailing 256-colour palette. Eight-bit three-plane images produce a
+true-colour raster. Scanline padding is excluded from output pixels and RLE
+runs are bounded to individual scanlines. RGB plane order is the default;
+`--pcx-channel-order bgr` selects files written in the alternate order.
 
 Generic `AmBk` containers continue to expose unknown bank types as opaque bank
 data. A `Pac.Pic.` bank with its screen palette instead exposes an indexed
@@ -320,6 +336,8 @@ The routine suites are:
 - `tests/test_zip_archive.nim`: stored/DEFLATE expansion, hierarchy and nested
   decoding, unsafe/duplicate/overlong path rejection, and portable export-name
   normalization;
+- `tests/test_pcx.nim`: planar/header palettes, 256-colour trailing palettes,
+  true-colour RGB/BGR order, row padding, RLE, and malformed input;
 - `tests/test_amiga_iff_ilbm.nim`: FORM/chunk validation, ILBM planar and
   ByteRun1 decoding, legacy palette expansion, EHB, focused HAM6/HAM8 cases,
   and authentic Deluxe Paint HAM6/HAM8 controls;

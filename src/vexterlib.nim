@@ -10,6 +10,7 @@ import vexterlib/containers/amiga_iff
 import vexterlib/containers/amiga_ilbm
 import vexterlib/containers/amiga_anim
 import vexterlib/containers/zip_archive
+import vexterlib/containers/pcx
 import vexterlib/containers/amos_bank_set
 import vexterlib/containers/amos_program
 import vexterlib/containers/amos_sprite_icon_bank
@@ -23,6 +24,7 @@ import vexterlib/resources/amiga_anim_image
 import vexterlib/resources/amos_listing
 import vexterlib/resources/zx_spectrum_screen
 import vexterlib/resources/zx_spectrum_basic
+import vexterlib/resources/pcx_image
 import vexterlib/detection
 import vexterlib/metadata
 import vexterlib/operations
@@ -40,6 +42,7 @@ export amiga_ilbm
 export amiga_ilbm_image
 export amiga_anim
 export zip_archive
+export pcx
 export amiga_anim_image
 export amos_bank_set
 export amos_program
@@ -50,6 +53,7 @@ export amos_listing
 export zx_spectrum_screen_dump
 export zx_spectrum_screen
 export zx_spectrum_basic
+export pcx_image
 export zx_spectrum_snapshot
 export zx_spectrum_tap
 export detection
