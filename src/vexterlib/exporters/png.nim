@@ -1,4 +1,4 @@
-## Minimal dependency-free indexed PNG exporter.
+## Minimal dependency-free indexed, RGB, and RGBA PNG/APNG exporter.
 
 import ../archetypes/raster
 import ../artifacts
@@ -67,24 +67,26 @@ proc exportPng*(image: VextIndexedImage,
     raise newException(ValueError, "PNG palette must contain 1 to 256 colours")
   if image.pixels.len != image.width * image.height:
     raise newException(ValueError, "PNG pixel buffer has the wrong length")
+  let alpha = image.hasAlpha
 
   var encoded = @PngSignature
   var header: seq[byte]
   header.appendU32(uint32(image.width))
   header.appendU32(uint32(image.height))
   header.add 8 # bit depth
-  header.add 3 # indexed colour
+  header.add(if alpha: 6 else: 3) # RGBA when per-pixel alpha is required
   header.add 0 # compression
   header.add 0 # filter
   header.add 0 # no interlace
   encoded.addChunk("IHDR", header)
 
-  var palette = newSeqOfCap[byte](image.palette.len * 3)
-  for colour in image.palette:
-    palette.add colour.r
-    palette.add colour.g
-    palette.add colour.b
-  encoded.addChunk("PLTE", palette)
+  if not alpha:
+    var palette = newSeqOfCap[byte](image.palette.len * 3)
+    for colour in image.palette:
+      palette.add colour.r
+      palette.add colour.g
+      palette.add colour.b
+    encoded.addChunk("PLTE", palette)
 
   var scanlines = newSeqOfCap[byte]((image.width + 1) * image.height)
   for y in 0 ..< image.height:
@@ -93,7 +95,14 @@ proc exportPng*(image: VextIndexedImage,
       let paletteIndex = image.pixels[y * image.width + x]
       if int(paletteIndex) >= image.palette.len:
         raise newException(ValueError, "PNG pixel references a missing colour")
-      scanlines.add paletteIndex
+      if alpha:
+        let colour = image.palette[int(paletteIndex)]
+        scanlines.add colour.r
+        scanlines.add colour.g
+        scanlines.add colour.b
+        scanlines.add image.alpha[y * image.width + x]
+      else:
+        scanlines.add paletteIndex
   encoded.addChunk("IDAT", storedZlib(scanlines))
   encoded.addChunk("IEND", [])
 
@@ -108,13 +117,14 @@ proc exportPng*(image: VextTrueColourImage,
     raise newException(ValueError, "PNG image dimensions must be positive")
   if image.pixels.len != image.width * image.height:
     raise newException(ValueError, "PNG pixel buffer has the wrong length")
+  let alpha = image.hasAlpha
 
   var encoded = @PngSignature
   var header: seq[byte]
   header.appendU32(uint32(image.width))
   header.appendU32(uint32(image.height))
   header.add 8 # bit depth
-  header.add 2 # true-colour RGB
+  header.add(if alpha: 6 else: 2) # true-colour RGB or RGBA
   header.add 0 # compression
   header.add 0 # filter
   header.add 0 # no interlace
@@ -128,6 +138,7 @@ proc exportPng*(image: VextTrueColourImage,
       scanlines.add colour.r
       scanlines.add colour.g
       scanlines.add colour.b
+      if alpha: scanlines.add image.alpha[y * image.width + x]
   encoded.addChunk("IDAT", storedZlib(scanlines))
   encoded.addChunk("IEND", [])
 
@@ -136,7 +147,7 @@ proc exportPng*(image: VextTrueColourImage,
     mediaType: "image/png",
     data: encoded)
 
-proc trueColourScanlines(image: VextTrueColourImage): seq[byte] =
+proc trueColourScanlines(image: VextTrueColourImage, alpha: bool): seq[byte] =
   if image.width <= 0 or image.height <= 0 or
       image.pixels.len != image.width * image.height:
     raise newException(ValueError, "APNG frame has invalid dimensions or pixels")
@@ -148,6 +159,7 @@ proc trueColourScanlines(image: VextTrueColourImage): seq[byte] =
       result.add colour.r
       result.add colour.g
       result.add colour.b
+      if alpha: result.add image.alphaAt(x, y)
 
 proc exportApng*(animation: VextTrueColourAnimation,
     suggestedFilename = "animation.png"): VextArtifactSet =
@@ -155,11 +167,14 @@ proc exportApng*(animation: VextTrueColourAnimation,
       animation.frames.len == 0:
     raise newException(ValueError, "APNG animation must contain frames")
   var encoded = @PngSignature
+  var alpha = false
+  for frame in animation.frames:
+    if frame.image.hasAlpha: alpha = true
   var header: seq[byte]
   header.appendU32(uint32(animation.width))
   header.appendU32(uint32(animation.height))
   header.add 8
-  header.add 2 # RGB
+  header.add(if alpha: 6 else: 2) # RGB or RGBA
   header.add 0
   header.add 0
   header.add 0
@@ -190,7 +205,7 @@ proc exportApng*(animation: VextTrueColourAnimation,
     frameControl.add 0 # dispose none
     frameControl.add 0 # source blend
     encoded.addChunk("fcTL", frameControl)
-    let compressed = storedZlib(trueColourScanlines(frame.image))
+    let compressed = storedZlib(trueColourScanlines(frame.image, alpha))
     if index == 0:
       encoded.addChunk("IDAT", compressed)
     else:

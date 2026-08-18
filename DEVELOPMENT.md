@@ -157,8 +157,8 @@ ByteRun1-compressed planar data: scanline-interleaved planes from ILBM `BODY`
 chunks and whole sequential planes from ACBM `ABIT` chunks. It produces
 indexed images for one through five ordinary planes and six-plane EHB, and
 true-colour images for HAM/HAM8. Legacy CMAPs whose component low nibbles are
-uniformly zero are expanded by nibble replication. Masks still await an alpha
-archetype.
+uniformly zero are expanded by nibble replication. The raster archetypes now
+support alpha, but ILBM mask and transparent-colour decoding remains pending.
 
 `src/vexterlib/resources/amiga_anim_image.nim` reconstructs retained planar
 buffers with ANIM delta methods 5, 7, and 8, including interleave references
@@ -198,6 +198,9 @@ by explanatory `REM VEXTER:` lines only when required. Unknown bytes use
 
 `src/vexterlib/archetypes/raster.nim` contains the generic indexed image,
 indexed animation, true-colour image, and true-colour animation contracts.
+Indexed and true-colour images may carry an orthogonal per-pixel eight-bit
+alpha channel; an omitted channel means fully opaque. `alphaAt`, `rgbaAt`, and
+`hasAlpha` provide representation-independent access and validation.
 `src/vexterlib/exporters/` consumes those contracts and
 has no ZX Spectrum-specific knowledge. `src/vexterlib/artifacts.nim` defines
 the in-memory output contract; callers, not exporters, write files.
@@ -290,8 +293,9 @@ BMP files and standalone DIBs expose `/image`. OS/2 core and Windows INFO,
 V2/V3, V4, and V5 headers are recognized. Uncompressed 1/4/8-bit indexed,
 16/24/32-bit true-colour, RLE4/RLE8, and 16/32-bit bitfield images are
 supported. Palette and scanline padding are removed, bottom-up rows are
-inverted, and top-down rows retain their order. Alpha masks cannot yet be
-represented by the current raster archetypes and are not applied.
+inverted, and top-down rows retain their order. Declared contiguous alpha
+masks, including `BI_ALPHABITFIELDS`, populate the raster's per-pixel alpha
+channel. Legacy 32-bit BI_RGB data without an alpha mask remains opaque.
 
 Generic `AmBk` containers continue to expose unknown bank types as opaque bank
 data. A `Pac.Pic.` bank with its screen palette instead exposes an indexed

@@ -4,14 +4,19 @@ type
   VextRgb* = object
     r*, g*, b*: uint8
 
+  VextRgba* = object
+    r*, g*, b*, a*: uint8
+
   VextIndexedImage* = object
     width*, height*: int
     palette*: seq[VextRgb]
     pixels*: seq[uint8]
+    alpha*: seq[uint8]
 
   VextTrueColourImage* = object
     width*, height*: int
     pixels*: seq[VextRgb]
+    alpha*: seq[uint8]
 
   VextTrueColourAnimationFrame* = object
     image*: VextTrueColourImage
@@ -60,6 +65,44 @@ proc colourAt*(image: VextTrueColourImage, x, y: int): VextRgb =
   if x < 0 or x >= image.width or y < 0 or y >= image.height:
     raise newException(IndexDefect, "true-colour image coordinate is out of bounds")
   image.pixels[y * image.width + x]
+
+proc alphaAt*(image: VextIndexedImage, x, y: int): uint8 =
+  if x < 0 or x >= image.width or y < 0 or y >= image.height:
+    raise newException(IndexDefect, "indexed image coordinate is out of bounds")
+  if image.alpha.len == 0: 255'u8
+  elif image.alpha.len != image.width * image.height:
+    raise newException(ValueError, "indexed alpha buffer has the wrong length")
+  else: image.alpha[y * image.width + x]
+
+proc alphaAt*(image: VextTrueColourImage, x, y: int): uint8 =
+  if x < 0 or x >= image.width or y < 0 or y >= image.height:
+    raise newException(IndexDefect, "true-colour image coordinate is out of bounds")
+  if image.alpha.len == 0: 255'u8
+  elif image.alpha.len != image.width * image.height:
+    raise newException(ValueError, "true-colour alpha buffer has the wrong length")
+  else: image.alpha[y * image.width + x]
+
+proc rgbaAt*(image: VextIndexedImage, x, y: int): VextRgba =
+  let colour = image.colourAt(x, y)
+  VextRgba(r: colour.r, g: colour.g, b: colour.b, a: image.alphaAt(x, y))
+
+proc rgbaAt*(image: VextTrueColourImage, x, y: int): VextRgba =
+  let colour = image.colourAt(x, y)
+  VextRgba(r: colour.r, g: colour.g, b: colour.b, a: image.alphaAt(x, y))
+
+proc hasAlpha*(image: VextIndexedImage): bool =
+  if image.alpha.len == 0: return false
+  if image.alpha.len != image.width * image.height:
+    raise newException(ValueError, "indexed alpha buffer has the wrong length")
+  for value in image.alpha:
+    if value != 255: return true
+
+proc hasAlpha*(image: VextTrueColourImage): bool =
+  if image.alpha.len == 0: return false
+  if image.alpha.len != image.width * image.height:
+    raise newException(ValueError, "true-colour alpha buffer has the wrong length")
+  for value in image.alpha:
+    if value != 255: return true
 
 proc width*(raster: VextRaster): int =
   case raster.kind

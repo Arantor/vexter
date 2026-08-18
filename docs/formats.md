@@ -135,8 +135,9 @@ seven-plane variants with a single mode bit follow the same decoder.
 
 True-colour images export to RGB PNG. GIF remains limited to indexed rasters;
 Vexter reports that quantization is not implemented instead of silently
-reducing colours. Mask planes and transparent-colour images still require an
-alpha-capable archetype and are rejected rather than losing transparency.
+reducing colours. Mask planes and transparent-colour images still require
+decoder work and are rejected rather than losing transparency; the shared
+raster archetypes themselves now carry alpha.
 
 The authentic Deluxe Paint 4.5 AGA samples `TutGallery.Ham` and
 `EAWorld.Ham8` both decode byte-for-byte to the RGB pixels in their supplied
@@ -541,8 +542,17 @@ delta, and end-of-bitmap commands are supported with image-bound checks;
 top-down RLE is rejected.
 
 JPEG/PNG-embedded BMP payloads and CMYK compression modes are explicitly
-unsupported. Alpha masks are structurally retained but not applied because
-the current Vext raster archetypes do not yet carry alpha.
+unsupported. Contiguous, non-overlapping alpha masks are normalized into the
+generic per-pixel eight-bit alpha channel. This includes
+`BI_ALPHABITFIELDS` and alpha masks embedded in extended Windows headers. A
+32-bit BI_RGB image without an explicit alpha mask treats its unused high byte
+as opaque, preserving the usual legacy interpretation.
+
+Both indexed and true-colour raster archetypes can carry per-pixel alpha.
+Omitting the alpha buffer means fully opaque; `alphaAt`, `rgbaAt`, and
+`hasAlpha` expose it uniformly. PNG and APNG export select RGBA output whenever
+any non-opaque alpha is present. GIF export currently rejects alpha-bearing
+images rather than silently discarding transparency.
 
 Synthetic tests cover Windows and OS/2 headers, wrapped and standalone input,
 palette conversion, row orientation and padding, 24-bit colour, 16-bit

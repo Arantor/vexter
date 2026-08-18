@@ -27,7 +27,7 @@ proc maskComponent(value, mask: uint32): uint8 =
   uint8((component * 255'u32 + shifted div 2) div shifted)
 
 proc defaultMasks(source: BmpImageSource): tuple[r, g, b: uint32] =
-  if source.compression == 3:
+  if source.compression in [3, 6]:
     (source.redMask, source.greenMask, source.blueMask)
   elif source.bitsPerPixel == 16:
     (0x7c00'u32, 0x03e0'u32, 0x001f'u32)
@@ -116,6 +116,12 @@ proc decodeBmp*(source: BmpImageSource): VextRaster =
     raise newException(ValueError, "invalid BMP/DIB colour masks")
   var image = VextTrueColourImage(width: source.width, height: source.height,
     pixels: newSeq[VextRgb](source.width * source.height))
+  if source.alphaMask != 0:
+    if (source.alphaMask and masks.r) != 0 or
+        (source.alphaMask and masks.g) != 0 or
+        (source.alphaMask and masks.b) != 0:
+      raise newException(ValueError, "BMP/DIB alpha mask overlaps a colour mask")
+    image.alpha = newSeq[uint8](source.width * source.height)
   for outputY in 0 ..< source.height:
     let storedY = if source.topDown: outputY else: source.height - 1 - outputY
     let row = storedY * rowBytes
@@ -130,4 +136,7 @@ proc decodeBmp*(source: BmpImageSource): VextRaster =
       image.pixels[outputY * source.width + x] = VextRgb(
         r: maskComponent(value, masks.r), g: maskComponent(value, masks.g),
         b: maskComponent(value, masks.b))
+      if source.alphaMask != 0:
+        image.alpha[outputY * source.width + x] =
+          maskComponent(value, source.alphaMask)
   VextRaster(kind: vrkTrueColourImage, trueColourImage: image)

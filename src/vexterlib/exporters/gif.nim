@@ -100,6 +100,9 @@ proc exportGif*(animation: VextIndexedAnimation,
 
   for frame in animation.frames:
     let image = frame.image
+    if image.hasAlpha:
+      raise newException(ValueError,
+        "GIF export of alpha images is not implemented")
     if image.width != animation.width or image.height != animation.height:
       raise newException(ValueError, "GIF frame dimensions do not match animation")
     if image.palette != first.palette:

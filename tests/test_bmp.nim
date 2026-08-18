@@ -67,6 +67,43 @@ suite "BMP and DIB images":
     let image = decodeBmp(parseDib(data)).trueColourImage
     check image.colourAt(0, 0) == VextRgb(r: 0, g: 255, b: 0)
 
+  test "declared BMP alpha masks populate the generic alpha channel":
+    var data = newSeq[byte](56)
+    data.putDword(0, 56)
+    data.putDword(4, 2); data.putDword(8, 1)
+    data.putWord(12, 1); data.putWord(14, 32)
+    data.putDword(16, 3)
+    data.putDword(40, 0x00ff0000'u32); data.putDword(44, 0x0000ff00'u32)
+    data.putDword(48, 0x000000ff'u32); data.putDword(52, 0xff000000'u32)
+    data.add @[3'u8, 2, 1, 0x80, 6, 5, 4, 0]
+    let image = decodeBmp(parseDib(data)).trueColourImage
+    check image.rgbaAt(0, 0) == VextRgba(r: 1, g: 2, b: 3, a: 128)
+    check image.alphaAt(1, 0) == 0
+    check image.hasAlpha
+    let png = exportPng(image).artifacts[0].data
+    check png[25] == 6 # PNG true-colour with alpha
+
+    var alphaBitfields = infoDib(1, 1, 32, compression = 6)
+    alphaBitfields.add newSeq[byte](16)
+    alphaBitfields.putDword(40, 0x00ff0000'u32)
+    alphaBitfields.putDword(44, 0x0000ff00'u32)
+    alphaBitfields.putDword(48, 0x000000ff'u32)
+    alphaBitfields.putDword(52, 0xff000000'u32)
+    alphaBitfields.add @[9'u8, 8, 7, 6]
+    check decodeBmp(parseDib(alphaBitfields)).trueColourImage.rgbaAt(0, 0) ==
+      VextRgba(r: 7, g: 8, b: 9, a: 6)
+
+  test "indexed and true-colour archetypes default to opaque alpha":
+    let indexed = VextIndexedImage(width: 1, height: 1,
+      palette: @[VextRgb(r: 1, g: 2, b: 3)], pixels: @[0'u8],
+      alpha: @[64'u8])
+    check indexed.rgbaAt(0, 0) == VextRgba(r: 1, g: 2, b: 3, a: 64)
+    check exportPng(indexed).artifacts[0].data[25] == 6
+    let opaque = VextTrueColourImage(width: 1, height: 1,
+      pixels: @[VextRgb(r: 1, g: 2, b: 3)])
+    check opaque.alphaAt(0, 0) == 255
+    check not opaque.hasAlpha
+
   test "RLE8 absolute and encoded runs are decoded":
     var data = infoDib(6, 1, 8, compression = 1, colours = 4)
     data.add newSeq[byte](16)

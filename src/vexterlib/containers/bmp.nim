@@ -78,20 +78,25 @@ proc parseBitmap(data: openArray[byte], wrapped: bool): BmpImageSource =
     result.coloursUsed = int(leDword(data, dibOffset + 32))
     result.paletteEntrySize = 4
     paletteOffset = dibOffset + result.headerSize
-    if result.compression == 3:
+    if result.headerSize >= 52:
+      result.redMask = leDword(data, dibOffset + 40)
+      result.greenMask = leDword(data, dibOffset + 44)
+      result.blueMask = leDword(data, dibOffset + 48)
+      if result.headerSize >= 56:
+        result.alphaMask = leDword(data, dibOffset + 52)
+    if result.compression in [3, 6]:
       if result.headerSize >= 52:
-        result.redMask = leDword(data, dibOffset + 40)
-        result.greenMask = leDword(data, dibOffset + 44)
-        result.blueMask = leDword(data, dibOffset + 48)
-        if result.headerSize >= 56:
-          result.alphaMask = leDword(data, dibOffset + 52)
+        discard
       else:
-        if paletteOffset + 12 > data.len:
+        let maskBytes = if result.compression == 6: 16 else: 12
+        if paletteOffset + maskBytes > data.len:
           raise newException(ValueError, "truncated BMP bitfield masks")
         result.redMask = leDword(data, paletteOffset)
         result.greenMask = leDword(data, paletteOffset + 4)
         result.blueMask = leDword(data, paletteOffset + 8)
-        paletteOffset += 12
+        if result.compression == 6:
+          result.alphaMask = leDword(data, paletteOffset + 12)
+        paletteOffset += maskBytes
   else:
     raise newException(ValueError, "unsupported BMP/DIB header size")
 
@@ -99,12 +104,14 @@ proc parseBitmap(data: openArray[byte], wrapped: bool): BmpImageSource =
     raise newException(ValueError, "BMP/DIB dimensions must be positive")
   if result.bitsPerPixel notin [1, 4, 8, 16, 24, 32]:
     raise newException(ValueError, "unsupported BMP/DIB bits per pixel")
-  if result.compression notin [0, 1, 2, 3]:
+  if result.compression notin [0, 1, 2, 3, 6]:
     raise newException(ValueError, "unsupported BMP/DIB compression")
   if (result.compression == 1 and result.bitsPerPixel != 8) or
       (result.compression == 2 and result.bitsPerPixel != 4) or
-      (result.compression == 3 and result.bitsPerPixel notin [16, 32]):
+      (result.compression in [3, 6] and result.bitsPerPixel notin [16, 32]):
     raise newException(ValueError, "BMP/DIB compression does not match its depth")
+  if result.compression == 6 and result.alphaMask == 0:
+    raise newException(ValueError, "BMP/DIB alpha-bitfields compression requires an alpha mask")
   if result.topDown and result.compression in [1, 2]:
     raise newException(ValueError, "top-down BMP/DIB cannot use RLE compression")
 
