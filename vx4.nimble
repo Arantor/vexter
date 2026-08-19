@@ -8,6 +8,9 @@ bin           = @["vexter"]
 task test, "Run the test suite":
   exec "nim c --path:src -o:build/vexter src/vexter.nim"
   exec "nim c -r --path:src tests/test_amiga_iff_ilbm.nim"
+  exec "nim c -r --path:src tests/test_amiga_8svx.nim"
+  exec "nim c -r --path:src tests/test_amiga_16sv.nim"
+  exec "nim c -r --path:src tests/test_wav.nim"
   exec "nim c -r --path:src tests/test_amiga_acbm.nim"
   exec "nim c -r --path:src tests/test_amiga_anim.nim"
   exec "nim c -r --path:src tests/test_amiga_adf.nim"

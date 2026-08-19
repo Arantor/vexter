@@ -1,5 +1,24 @@
 # Third-party material
 
+## IFF 16SV reference package
+
+`16sv_datatype/` is Roland Mainz's 16sv.datatype V1.2 package. It includes
+documentation, source, Amiga binaries, and the `Bluebird.16sv` compatibility
+fixture. The supplied documentation describes it as the official
+datatypes.library V45 reference implementation and permits noncommercial
+redistribution only when the package remains complete; commercial
+redistribution requires the author's permission. Vexter uses the documentation
+and source as format evidence and `Bluebird.16sv` to validate 16-bit sample
+counting, byte order, playback rate, and WAV output.
+
+Relevant SHA-256 hashes:
+
+```text
+826ba6f483b3894eae7cfa24db8128a99645b13e5b628d504706c83d64df4e11  16sv.datatype.doc
+c7c4a85061e6453542129f8ca44040eda962e0c3da41127d9fe9f89cdc3b72a9  dispatch.c
+ccb4f0f1ae28e2f3b304c6b6e88eab38e91a75f0eceadd7a9b0bac74cfe91522  Bluebird.16sv
+```
+
 ## AMOS sprite-bank fixture
 
 `tests/fixtures/amos.sprite-bank/DRAGON.Abk` is part of the “Sprites 600” demo

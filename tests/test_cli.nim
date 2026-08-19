@@ -82,7 +82,7 @@ suite "vexter CLI":
 
     let exported = run("export", source)
     check exported.exitCode == 1
-    check "container exposes no raster resources" in exported.output
+    check "container exposes no exportable resources" in exported.output
 
   test "AMOS banks expose selectable sprites and hotspot metadata":
     let inspected = run("inspect", "--json", AmosFixturePath)
@@ -104,7 +104,7 @@ suite "vexter CLI":
         removeFile(destination)
     let ambiguous = run("export", "-o", destination, AmosFixturePath)
     check ambiguous.exitCode == 1
-    check "more than one raster resource is available" in ambiguous.output
+    check "more than one exportable resource is available" in ambiguous.output
     let exported = run("export", "--resource", "/sprite/0", "-o",
       destination, AmosFixturePath)
     check exported.exitCode == 0

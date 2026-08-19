@@ -2,10 +2,11 @@
 
 import ./artifacts
 import ./archetypes/raster
+import ./archetypes/audio
 import ./detection
-import ./exporters/[gif, png]
+import ./exporters/[gif, png, wav]
 import ./resource_tree
-import ./containers/[amiga_acbm, amiga_adf, amiga_anim, amiga_iff, amiga_ilbm, amiga_workbench_icon, amos_bank, amos_bank_set, amos_packed_picture, amos_program,
+import ./containers/[amiga_8svx, amiga_16sv, amiga_acbm, amiga_adf, amiga_anim, amiga_iff, amiga_ilbm, amiga_workbench_icon, amos_bank, amos_bank_set, amos_packed_picture, amos_program,
   amos_sprite_icon_bank, bmp, gif_container, pcx, png_container,
   zip_archive, zx_spectrum_screen_dump, zx_spectrum_snapshot, zx_spectrum_tap]
 import ./metadata
@@ -41,6 +42,10 @@ proc forcedCandidate(typeId: string, data: openArray[byte]):
     discard parseWorkbenchIcon(data)
   of AmigaAcbmTypeId:
     discard parseAmigaAcbm(data)
+  of Amiga8svxTypeId:
+    discard parseAmiga8svx(data)
+  of Amiga16svTypeId:
+    discard parseAmiga16sv(data)
   of AmigaAdfTypeId:
     discard parseAmigaAdf(data)
   of AmigaAnimTypeId:
@@ -435,6 +440,55 @@ proc inspectSourceDepth(filename: string, data: openArray[byte],
         integerMetadata("planes", anim.initial.image.header.planes),
         integerMetadata("camg", int(anim.initial.image.camg))
       ])
+  of Amiga8svxTypeId:
+    let source = parseAmiga8svx(data)
+    let instrument = decodeAmiga8svx(source)
+    result.resources.roots.add VextResourceNode(
+      path: Amiga8svxResourcePath,
+      typeId: Amiga8svxResourceTypeId,
+      kind: vrnkAudio,
+      instrument: instrument,
+      metadata: @[
+        integerMetadata("channels", instrument.sound.buffer.channels.len),
+        integerMetadata("bits-per-sample", instrument.sound.buffer.bitsPerSample),
+        integerMetadata("samples", instrument.sound.buffer.sampleCount),
+        integerMetadata("sample-rate", instrument.sound.sampleRate),
+        integerMetadata("one-shot-samples", instrument.oneShotSamples),
+        integerMetadata("repeat-samples", instrument.repeatSamples),
+        integerMetadata("samples-per-high-cycle", instrument.samplesPerHighCycle),
+        integerMetadata("octaves", source.octaves),
+        integerMetadata("compression", ord(source.compression)),
+        integerMetadata("volume", int(source.volumeRaw)),
+        integerMetadata("channel-mask", source.channelMask),
+        stringMetadata("name", source.name),
+        stringMetadata("annotation", source.annotation)
+      ])
+  of Amiga16svTypeId:
+    let source = parseAmiga16sv(data)
+    let instrument = decodeAmiga16sv(source)
+    result.resources.roots.add VextResourceNode(
+      path: Amiga16svResourcePath,
+      typeId: Amiga16svResourceTypeId,
+      kind: vrnkAudio,
+      instrument: instrument,
+      metadata: @[
+        integerMetadata("channels", instrument.sound.buffer.channels.len),
+        integerMetadata("bits-per-sample", instrument.sound.buffer.bitsPerSample),
+        integerMetadata("samples", instrument.sound.buffer.sampleCount),
+        integerMetadata("sample-rate", instrument.sound.sampleRate),
+        integerMetadata("one-shot-samples", instrument.oneShotSamples),
+        integerMetadata("repeat-samples", instrument.repeatSamples),
+        integerMetadata("samples-per-high-cycle", instrument.samplesPerHighCycle),
+        integerMetadata("octaves", source.octaves),
+        integerMetadata("compression", source.compression),
+        integerMetadata("volume", int(source.volumeRaw)),
+        integerMetadata("channel-mask", source.channelMask),
+        stringMetadata("name", source.name),
+        stringMetadata("annotation", source.annotation),
+        stringMetadata("author", source.author),
+        stringMetadata("copyright", source.copyright),
+        stringMetadata("version", source.version)
+      ])
   of AmigaAcbmTypeId, AmigaIlbmTypeId:
     let image = if result.selectedFormat.typeId == AmigaAcbmTypeId:
       parseAmigaAcbm(data).image
@@ -552,7 +606,7 @@ proc exportResource*(tree: VextResourceTree,
     request: VextExportRequest): VextExportResult =
   var available: seq[VextResourceNode]
   for item in tree.leafResources:
-    if item.kind in {vrnkRaster, vrnkText}:
+    if item.kind in {vrnkRaster, vrnkText, vrnkAudio}:
       available.add item
   var resource: VextResourceNode
   if request.resourcePath.len > 0:
@@ -569,7 +623,7 @@ proc exportResource*(tree: VextResourceTree,
         request.resourcePath)
   else:
     if available.len == 0:
-      raise newException(ValueError, "container exposes no raster resources")
+      raise newException(ValueError, "container exposes no exportable resources")
     if available.len > 1:
       var bestPriority = low(int)
       var bestCount = 0
@@ -582,7 +636,7 @@ proc exportResource*(tree: VextResourceTree,
           bestCount += 1
       if bestCount > 1:
         raise newException(ValueError,
-          "more than one raster resource is available; select one")
+          "more than one exportable resource is available; select one")
     else:
       resource = available[0]
 
@@ -591,6 +645,7 @@ proc exportResource*(tree: VextResourceTree,
   if result.outputFormat.len == 0:
     result.outputFormat = case resource.kind
       of vrnkText: "txt"
+      of vrnkAudio: "wav"
       of vrnkRaster:
         case resource.raster.kind
         of vrkIndexedAnimation:
@@ -644,6 +699,12 @@ proc exportResource*(tree: VextResourceTree,
       else:
         raise newException(ValueError,
           "unsupported output format: " & result.outputFormat)
+  of vrnkAudio:
+    if result.outputFormat != "wav":
+      raise newException(ValueError,
+        "unsupported output format: " & result.outputFormat)
+    result.artifacts = exportWav(resource.instrument.sound,
+      request.suggestedName & ".wav")
   else:
     raise newException(ValueError, "resource is not exportable: " &
       resource.path)

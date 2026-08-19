@@ -1,10 +1,13 @@
 ## Public entry point for the Vexter core library.
 
 import vexterlib/archetypes/raster
+import vexterlib/archetypes/audio
 import vexterlib/artifacts
 import vexterlib/containers/amos_bank
 import vexterlib/containers/amiga_adf
 import vexterlib/containers/amiga_acbm
+import vexterlib/containers/amiga_8svx
+import vexterlib/containers/amiga_16sv
 import vexterlib/containers/amos_packed_picture
 import vexterlib/containers/amiga_iff
 import vexterlib/containers/amiga_ilbm
@@ -37,13 +40,16 @@ import vexterlib/detection
 import vexterlib/metadata
 import vexterlib/operations
 import vexterlib/resource_tree
-import vexterlib/exporters/[gif, png]
+import vexterlib/exporters/[gif, png, wav]
 
 export raster
+export audio
 export artifacts
 export amos_bank
 export amiga_adf
 export amiga_acbm
+export amiga_8svx
+export amiga_16sv
 export amos_packed_picture
 export amiga_iff
 export amiga_ilbm
@@ -78,3 +84,4 @@ export operations
 export resource_tree
 export gif
 export png
+export wav

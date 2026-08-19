@@ -14,11 +14,12 @@ client. It supports:
 - classic Amiga Workbench `.info` DiskObjects, including metadata and both
   planar icon states;
 - detection and inspection of generic IFF FORM containers, indexed Amiga ILBM
-  and ACBM images, IFF ANIM animations, PCX, BMP/DIB, PNG, and GIF87a/GIF89a images, AmigaDOS ADF filesystems, ZIP archives, ZX Spectrum raw screen dumps, SNA snapshots,
+  and ACBM images, IFF ANIM animations, IFF 8SVX and 16SV sampled audio, PCX, BMP/DIB,
+  PNG, and GIF87a/GIF89a images, AmigaDOS ADF filesystems, ZIP archives, ZX Spectrum raw screen dumps, SNA snapshots,
   TAP containers, tokenised BASIC resources, standalone AMOS banks, AMOS bank
   sets, and AMOS programs;
-- a resource tree containing decoded indexed-raster or identified opaque
-  resources, decoded text resources, and metadata;
+- a resource tree containing decoded raster, audio, and text resources,
+  identified opaque resources, and metadata;
 - indexed still-image, indexed-animation, and true-colour image raster
   archetypes;
 - PNG export for a still image or an animation's natural first frame; and
@@ -30,7 +31,7 @@ The implemented command-line surface is:
 vexter inspect [--json] [--all-candidates] [--ignore-warnings]
                [--input-format FORMAT] [--pcx-channel-order rgb|bgr] INPUT
 
-vexter export [--format png|gif|apng|txt] [--resource PATH]
+vexter export [--format png|gif|apng|txt|wav] [--resource PATH]
               [--input-format FORMAT] [-o OUTPUT] [--force]
               [--ignore-warnings] [--pcx-channel-order rgb|bgr] INPUT
 ```
@@ -50,7 +51,7 @@ file bytes
   -> format-specific container parsing and resource extraction
   -> VextResourceTree
   -> raster, text, or identified opaque resources
-  -> PNG/GIF raster export or plain-text export
+  -> PNG/GIF raster, WAV audio, or plain-text export
   -> in-memory VextArtifactSet
   -> CLI-owned filesystem write
 ```
@@ -82,7 +83,7 @@ export-format defaults do not belong here.
 
 `src/vexterlib/resource_tree.nim` defines `VextResourceTree` and
 `VextResourceNode`. Nodes are reference objects and currently have the
-`vrnkGroup`, `vrnkRaster`, `vrnkText`, or `vrnkOpaque` kind. `leafResources`
+`vrnkGroup`, `vrnkRaster`, `vrnkText`, `vrnkAudio`, or `vrnkOpaque` kind. `leafResources`
 returns every
 addressable non-group node, while `rasterResources` returns only raster nodes
 in depth-first tree order. `findRasterResource` performs exact path lookup
@@ -116,6 +117,10 @@ Matching case-insensitive extensions add supporting evidence.
   colour tables, extensions, image descriptors, and LZW data sub-blocks;
 - `amiga_iff.nim` validates generic IFF `FORM` lengths, chunk boundaries, and
   even-byte padding;
+- `amiga_8svx.nim` interprets `FORM 8SVX` voice headers, channels, loop and
+  playback metadata, and raw or Fibonacci-delta sample bodies;
+- `amiga_16sv.nim` interprets the compatible `FORM 16SV` structure and its
+  uncompressed signed 16-bit big-endian sample bodies;
 - `amiga_acbm.nim` interprets `FORM ACBM` properties and extracts its
   plane-contiguous `ABIT` image source;
 - `amiga_ilbm.nim` interprets `FORM ILBM` properties and extracts the image
@@ -233,6 +238,12 @@ the in-memory output contract; callers, not exporters, write files.
 `src/vexterlib/metadata.nim` defines typed key/value metadata currently used
 for signed AMOS hotspot coordinates.
 
+`src/vexterlib/archetypes/audio.nim` defines signed PCM samples,
+bit-depth-aware channel-major buffers, playback-rate-bearing sounds, and
+sampled instruments with one-shot/repeat regions, pitch-cycle, volume, and
+panning information. `src/vexterlib/exporters/wav.nim` serializes sounds as
+uncompressed 8-, 16-, 24-, or 32-bit integer PCM with interleaved channels.
+
 The former `containers/zx_spectrum_screen.nim` and top-level
 `vexterlib/resources.nim` screen-dispatch module have been replaced by the
 container/resource split, generic resource tree, and operations layer. Do not
@@ -287,6 +298,24 @@ structurally valid and are ignored by the current image decoder. HAM/HAM8
 bitmaps expose a
 `VextTrueColourImage` at the same path. True-colour PNG export is supported;
 GIF export requires a future colour-quantization stage.
+
+IFF 8SVX forms expose a sampled instrument at `/instrument`. Its BODY is
+decoded to signed eight-bit PCM, split from the format's channel-major stereo
+layout, and paired with the VHDR playback rate, one-shot/repeat regions,
+samples-per-high-cycle, and 16.16 volume. CHAN left-only and right-only forms
+also retain their implied pan. Raw and Fibonacci-delta compression are
+supported; multi-octave bodies are rejected explicitly until their octave
+layout is implemented. WAV is its natural export format; WAV carries the PCM
+and playback rate but not the instrument's loop, volume, or pan metadata.
+
+IFF 16SV forms expose the same sampled-instrument path and metadata shape,
+with a 16-bit buffer decoded from big-endian signed PCM words. The supplied
+reference documentation defines 16SV as the same structure as 8SVX except for
+the BODY sample width. Uncompressed mono and structurally valid CHAN
+left/right/stereo layouts are supported. Compression and multi-octave data are
+rejected because the supplied reference implementation does not implement
+them. WAV is the natural export and writes the decoded samples as little-endian
+16-bit PCM.
 
 ADF volumes expose `/disk`, with filesystem directories represented as nested
 groups. Unrecognized files are opaque leaves retaining their reconstructed
@@ -423,6 +452,13 @@ The routine suites are:
 - `tests/test_amiga_iff_ilbm.nim`: FORM/chunk validation, ILBM planar and
   ByteRun1 decoding, legacy palette expansion, EHB, focused HAM6/HAM8 cases,
   and authentic Deluxe Paint HAM6/HAM8 controls;
+- `tests/test_amiga_8svx.nim`: raw mono/stereo samples, sampled-instrument
+  metadata, Fibonacci-delta expansion, detection, WAV routing, and malformed
+  input;
+- `tests/test_amiga_16sv.nim`: authentic reference-fixture decoding and WAV
+  output, big-endian signed samples, stereo layout, and unsupported variants;
+- `tests/test_wav.nim`: RIFF framing, channel interleaving, signed-to-unsigned
+  eight-bit conversion, little-endian PCM, and validation;
 - `tests/test_amiga_acbm.nim`: ACBM detection, plane-contiguous raw and
   ByteRun1 ABIT decoding, and structural failure modes;
 - `tests/test_amiga_anim.nim`: nested ANIM structure, methods 5/7/8, animation

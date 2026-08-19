@@ -1,6 +1,7 @@
 ## Reusable hierarchical resource descriptions returned by container inspection.
 
 import ./archetypes/raster
+import ./archetypes/audio
 import ./metadata
 
 type
@@ -8,6 +9,7 @@ type
     vrnkGroup
     vrnkRaster
     vrnkText
+    vrnkAudio
     vrnkOpaque
 
   VextResourceNode* = ref object
@@ -16,6 +18,7 @@ type
     kind*: VextResourceNodeKind
     raster*: VextRaster
     text*: string
+    instrument*: VextSampledInstrument
     data*: seq[byte]
     metadata*: seq[VextMetadataEntry]
     children*: seq[VextResourceNode]

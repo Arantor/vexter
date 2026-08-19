@@ -22,7 +22,7 @@ proc usage(): string =
   """Usage:
   vexter inspect [--json] [--all-candidates] [--ignore-warnings]
                  [--input-format FORMAT] [--pcx-channel-order rgb|bgr] INPUT
-  vexter export [--format png|gif|apng|txt] [--resource PATH]
+  vexter export [--format png|gif|apng|txt|wav] [--resource PATH]
                 [--input-format FORMAT] [-o OUTPUT] [--force]
                 [--ignore-warnings] [--pcx-channel-order rgb|bgr] INPUT"""
 
@@ -101,6 +101,7 @@ proc inspect(options: CliOptions) =
         "kind": (case item.kind
           of vrnkRaster: "raster"
           of vrnkText: "text"
+          of vrnkAudio: "audio"
           else: "opaque")
       }
       if item.kind == vrnkRaster:
@@ -114,6 +115,12 @@ proc inspect(options: CliOptions) =
         of vrkTrueColourAnimation:
           resource["frames"] = %raster.trueColourAnimation.frames.len
         else: discard
+      elif item.kind == vrnkAudio:
+        resource["archetype"] = %"sampled-instrument"
+        resource["channels"] = %item.instrument.sound.buffer.channels.len
+        resource["bitsPerSample"] = %item.instrument.sound.buffer.bitsPerSample
+        resource["sampleRate"] = %item.instrument.sound.sampleRate
+        resource["samples"] = %item.instrument.sound.buffer.sampleCount
       if item.metadata.len > 0:
         var metadata = newJObject()
         for entry in item.metadata:
@@ -159,6 +166,11 @@ proc inspect(options: CliOptions) =
         else: discard
       elif item.kind == vrnkText:
         description.add " (text)"
+      elif item.kind == vrnkAudio:
+        description.add &" -> sampled-instrument " &
+          &"{item.instrument.sound.buffer.channels.len} channel(s), " &
+          &"{item.instrument.sound.buffer.bitsPerSample}-bit, " &
+          &"{item.instrument.sound.sampleRate} Hz"
       else:
         description.add " (opaque)"
       echo description

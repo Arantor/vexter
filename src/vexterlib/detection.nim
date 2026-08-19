@@ -1,7 +1,7 @@
 ## Evidence-based input format detection.
 
 import std/[os, strutils]
-import ./containers/[amiga_acbm, amiga_adf, amiga_anim, amiga_iff, amiga_ilbm, amiga_workbench_icon, amos_bank, amos_bank_set, amos_program,
+import ./containers/[amiga_8svx, amiga_16sv, amiga_acbm, amiga_adf, amiga_anim, amiga_iff, amiga_ilbm, amiga_workbench_icon, amos_bank, amos_bank_set, amos_program,
   amos_sprite_icon_bank, bmp, gif_container, pcx, png_container,
   zip_archive, zx_spectrum_screen_dump, zx_spectrum_snapshot, zx_spectrum_tap]
 import ./resources/zx_spectrum_screen
@@ -117,7 +117,23 @@ proc detectFormats*(filename: string, data: openArray[byte]):
       confidence: vdcCertain,
       evidence: evidence)
 
-  if isAmigaAnim(data):
+  if isAmiga16sv(data):
+    var evidence = @[VextDetectionEvidence(
+      description: "file is a valid FORM 16SV sampled instrument")]
+    if hasAmiga16svExtension(filename):
+      evidence.add VextDetectionEvidence(
+        description: "file extension is associated with 16SV")
+    result.add VextDetectionCandidate(
+      typeId: Amiga16svTypeId, confidence: vdcCertain, evidence: evidence)
+  elif isAmiga8svx(data):
+    var evidence = @[VextDetectionEvidence(
+      description: "file is a valid FORM 8SVX sampled instrument")]
+    if hasAmiga8svxExtension(filename):
+      evidence.add VextDetectionEvidence(
+        description: "file extension is associated with 8SVX")
+    result.add VextDetectionCandidate(
+      typeId: Amiga8svxTypeId, confidence: vdcCertain, evidence: evidence)
+  elif isAmigaAnim(data):
     var evidence = @[VextDetectionEvidence(
       description: "file is a valid FORM ANIM containing ILBM frame forms")]
     if hasAmigaAnimExtension(filename):

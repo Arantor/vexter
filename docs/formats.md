@@ -13,7 +13,7 @@ The currently implemented formats use this subset of the intended CLI:
 vexter inspect [--json] [--all-candidates] [--ignore-warnings]
                [--input-format FORMAT] [--pcx-channel-order rgb|bgr] INPUT
 
-vexter export [--format png|gif|apng|txt] [--resource PATH]
+vexter export [--format png|gif|apng|txt|wav] [--resource PATH]
               [--input-format FORMAT] [-o OUTPUT] [--force]
               [--ignore-warnings] [--pcx-channel-order rgb|bgr] INPUT
 ```
@@ -83,6 +83,75 @@ without attempting to materialize archive names on the host filesystem.
 characters, trims trailing dots/spaces, and protects Windows device names for
 future bulk-export use. `export-all` and deterministic suffixing of normalized
 name collisions are not implemented yet.
+
+## Amiga IFF 8SVX audio
+
+Container type identifier: `amiga.8svx`
+
+Sampled-instrument type identifier: `amiga.8svx-instrument`
+
+An 8SVX is an IFF `FORM 8SVX` containing a 20-byte `VHDR` voice header and a
+`BODY`. Vexter exposes it as a generic sampled instrument at `/instrument`.
+The archetype separates signed PCM samples, bit-depth and channel-aware audio
+buffers, playback-rate-bearing sounds, and instrument metadata. This keeps the
+8SVX loop and playback properties available without baking them into the PCM
+buffer or requiring tracker-specific structures.
+
+Uncompressed signed eight-bit PCM and Fibonacci-delta compression are
+decoded. Mono, left-only, right-only, and channel-major stereo BODY layouts
+are supported through `CHAN`; left/right-only data carries an implied -1/+1
+pan. VHDR supplies the playback rate, one-shot and repeat lengths,
+samples-per-high-cycle, and 16.16 volume. Optional `NAME` and `ANNO` text is
+retained as metadata. Sample regions may omit a trailing portion of BODY but
+may not exceed the decoded samples.
+
+Valid 8SVX structure is detected as **certain**, with `.8svx` or `.8sv`
+providing supporting evidence. Multi-octave BODY layout is explicitly
+unsupported. WAV is the natural export and writes channel-interleaved,
+uncompressed eight-bit PCM at the VHDR playback rate. WAV does not currently
+embed the instrument loop, volume, or pan metadata. Synthetic tests cover raw
+mono and stereo, delta decoding, metadata projection, WAV routing, and
+malformed or unsupported structures; no authentic fixture is currently
+stored.
+
+## Amiga IFF 16SV audio
+
+Container type identifier: `amiga.16sv`
+
+Sampled-instrument type identifier: `amiga.16sv-instrument`
+
+The supplied Roland Mainz 16sv.datatype V1.2 documentation defines `FORM
+16SV` as the same structure as `FORM 8SVX`, except that BODY contains 16-bit
+samples. Its included DataTypes V45 reference source reads native Amiga
+16-bit words and its writer emits words directly, establishing big-endian
+signed PCM. The included `Bluebird.16sv` fixture independently confirms the
+relationship: VHDR declares 23,982 one-shot samples and BODY contains exactly
+47,964 bytes.
+
+Vexter decodes uncompressed samples without reducing them to the reference
+datatype's eight-bit playback interface. The resulting generic buffer has a
+16-bit depth and retains the VHDR playback rate, loop regions, pitch-cycle,
+and volume. Because 16SV otherwise retains 8SVX structure, absent, left-only,
+right-only, and stereo CHAN layouts use the same channel-major interpretation.
+Compression and multiple octaves are explicitly rejected: the supplied
+reference implementation lists both compression and stereo as unfinished,
+and provides no 16-bit compressed-stream definition. The natural WAV export
+contains interleaved little-endian 16-bit PCM.
+
+The supplied documentation, source, and fixture provenance and hashes are
+recorded in [`THIRD_PARTY.md`](../THIRD_PARTY.md). The authentic fixture test
+checks detection, sample count, sample rate, initial signed values, and WAV
+byte order; synthetic tests cover stereo and malformed or unsupported input.
+
+## WAV audio export
+
+WAV export accepts generic `VextSound` values rather than 8SVX structures. It
+writes a canonical RIFF/WAVE file with a 16-byte PCM format chunk and one data
+chunk. Channels are interleaved frame by frame. Eight-bit signed internal
+samples are biased into WAV's unsigned representation; 16-, 24-, and 32-bit
+samples use little-endian two's-complement PCM. Sample range, channel shape,
+sample rate, RIFF size, and byte rate are validated before an artifact with
+the `audio/wav` media type is returned.
 
 ## Amiga IFF, ILBM, and ACBM
 
