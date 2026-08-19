@@ -6,7 +6,7 @@ import ./archetypes/audio
 import ./detection
 import ./exporters/[gif, png, wav]
 import ./resource_tree
-import ./containers/[amiga_8svx, amiga_16sv, amiga_acbm, amiga_adf, amiga_anim, amiga_iff, amiga_ilbm, amiga_workbench_icon, amos_bank, amos_bank_set, amos_packed_picture, amos_program,
+import ./containers/[amiga_8svx, amiga_16sv, amiga_acbm, amiga_adf, amiga_anim, amiga_dms, amiga_iff, amiga_ilbm, amiga_workbench_icon, amos_bank, amos_bank_set, amos_packed_picture, amos_program,
   amos_sprite_icon_bank, bmp, gif_container, pcx, png_container,
   zip_archive, zx_spectrum_screen_dump, zx_spectrum_snapshot, zx_spectrum_tap]
 import ./metadata
@@ -48,6 +48,8 @@ proc forcedCandidate(typeId: string, data: openArray[byte]):
     discard parseAmiga16sv(data)
   of AmigaAdfTypeId:
     discard parseAmigaAdf(data)
+  of AmigaDmsTypeId:
+    discard parseAmigaDms(data)
   of AmigaAnimTypeId:
     discard parseAmigaAnim(data)
   of AmigaIlbmTypeId:
@@ -423,6 +425,59 @@ proc inspectSourceDepth(filename: string, data: openArray[byte],
         stringMetadata("filesystem", volume.filesystem),
         integerMetadata("filesystem.flags", volume.flags),
         integerMetadata("root.block", volume.rootBlock)
+      ])
+    for entry in volume.entries:
+      disk.children.add adfEntryNode(entry, "/disk", depth, ignoreWarnings,
+        pcxChannelOrder, result.warnings)
+    result.resources.roots.add disk
+  of AmigaDmsTypeId:
+    let archive = parseAmigaDms(data)
+    if not archive.canUnpackAmigaDms:
+      let tracks = VextResourceNode(
+        path: "/tracks", typeId: AmigaDmsTypeId, kind: vrnkGroup,
+        metadata: @[
+          integerMetadata("dms.info-flags", int(archive.infoFlags)),
+          integerMetadata("dms.low-track", archive.lowTrack),
+          integerMetadata("dms.high-track", archive.highTrack),
+          integerMetadata("dms.tracks", archive.tracks.len),
+          integerMetadata("dms.packed-length", int(archive.packedSize)),
+          integerMetadata("dms.unpacked-length", int(archive.unpackedSize)),
+          integerMetadata("dms.compression", ord(archive.compression))
+        ])
+      for track in archive.tracks:
+        tracks.children.add VextResourceNode(
+          path: "/tracks/" & $track.number,
+          typeId: AmigaDmsTrackTypeId,
+          kind: vrnkOpaque,
+          data: track.data,
+          metadata: @[
+            integerMetadata("track.number", track.number),
+            integerMetadata("compression", ord(track.compression)),
+            integerMetadata("flags", track.flags),
+            integerMetadata("packed.length", track.packedLength),
+            integerMetadata("runtime-packed.length", track.runtimePackedLength),
+            integerMetadata("unpacked.length", track.unpackedLength),
+            integerMetadata("unpacked.crc", int(track.unpackedCrc)),
+            integerMetadata("packed.crc", int(track.packedCrc)),
+            integerMetadata("header.crc", int(track.headerCrc))
+          ])
+      result.resources.roots.add tracks
+      return
+    let diskData = unpackAmigaDms(archive)
+    let volume = parseAmigaAdf(diskData)
+    let disk = VextResourceNode(
+      path: "/disk", typeId: AmigaDmsTypeId, kind: vrnkGroup,
+      data: diskData,
+      metadata: @[
+        stringMetadata("volume.name", volume.name),
+        stringMetadata("filesystem", volume.filesystem),
+        integerMetadata("filesystem.flags", volume.flags),
+        integerMetadata("root.block", volume.rootBlock),
+        integerMetadata("dms.info-flags", int(archive.infoFlags)),
+        integerMetadata("dms.low-track", archive.lowTrack),
+        integerMetadata("dms.high-track", archive.highTrack),
+        integerMetadata("dms.tracks", archive.tracks.len),
+        integerMetadata("dms.compression", ord(archive.compression))
       ])
     for entry in volume.entries:
       disk.children.add adfEntryNode(entry, "/disk", depth, ignoreWarnings,

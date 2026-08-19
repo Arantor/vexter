@@ -5,6 +5,7 @@ import vexterlib/archetypes/audio
 import vexterlib/artifacts
 import vexterlib/containers/amos_bank
 import vexterlib/containers/amiga_adf
+import vexterlib/containers/amiga_dms
 import vexterlib/containers/amiga_acbm
 import vexterlib/containers/amiga_8svx
 import vexterlib/containers/amiga_16sv
@@ -47,6 +48,7 @@ export audio
 export artifacts
 export amos_bank
 export amiga_adf
+export amiga_dms
 export amiga_acbm
 export amiga_8svx
 export amiga_16sv

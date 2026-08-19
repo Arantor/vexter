@@ -137,12 +137,20 @@ proc parseDirectory(data: openArray[byte], directoryOffset, blockCount: int,
           data: readFileData(data, offset, blockCount, fastFileSystem))
       of 2:
         if visitedDirectories[sector]:
-          raise newException(ValueError, "cyclic ADF directory tree")
-        visitedDirectories[sector] = true
-        result.add AmigaAdfEntry(
-          name: name, sector: sector, kind: aaekDirectory, comment: comment,
-          children: parseDirectory(data, offset, blockCount, fastFileSystem,
-            visitedDirectories))
+          if offset != directoryOffset:
+            raise newException(ValueError, "cyclic ADF directory tree at block " &
+              $sector & " (" & name & ")")
+          # Some authentic OFS game disks include their own directory header
+          # in the first hash slot. It is a self-entry, not a child to recurse
+          # into. Its next-hash field belongs to this directory's entry in its
+          # parent, so it must not be followed from the child hash table.
+          break
+        else:
+          visitedDirectories[sector] = true
+          result.add AmigaAdfEntry(
+            name: name, sector: sector, kind: aaekDirectory, comment: comment,
+            children: parseDirectory(data, offset, blockCount, fastFileSystem,
+              visitedDirectories))
       of -4, 3, 4:
         result.add AmigaAdfEntry(
           name: name, sector: sector, kind: aaekLink, comment: comment)

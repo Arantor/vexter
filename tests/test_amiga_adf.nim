@@ -141,6 +141,20 @@ suite "Amiga ADF filesystems":
     check volume.filesystem == "OFS"
     check volume.entries[0].data == payload
 
+  test "a directory self-entry is skipped without losing other hash buckets":
+    var data = newSeq[byte](AmigaAdfDdSize)
+    data.directoryBlock(20, "SD", 20)
+    data.fileHeader(21, "note", @[byte('o'), byte('k')], [22], ofs = true)
+    data.putDword(20 * AmigaAdfBlockSize + 28, 21)
+    data.checksumBlock(20)
+    data.rootBlock(0, 20)
+    let volume = parseAmigaAdf(data)
+    check volume.entries.len == 1
+    check volume.entries[0].name == "SD"
+    check volume.entries[0].children.len == 1
+    check volume.entries[0].children[0].name == "note"
+    check volume.entries[0].children[0].data == @[byte('o'), byte('k')]
+
   test "signatures, root checksums, and directory cycles are rejected":
     var badSignature = ffsFixture()
     badSignature[0] = byte('X')

@@ -15,7 +15,8 @@ client. It supports:
   planar icon states;
 - detection and inspection of generic IFF FORM containers, indexed Amiga ILBM
   and ACBM images, IFF ANIM animations, IFF 8SVX and 16SV sampled audio, PCX, BMP/DIB,
-  PNG, and GIF87a/GIF89a images, AmigaDOS ADF filesystems, ZIP archives, ZX Spectrum raw screen dumps, SNA snapshots,
+  PNG, and GIF87a/GIF89a images, AmigaDOS ADF filesystems, DMS
+  disk archives, ZIP archives, ZX Spectrum raw screen dumps, SNA snapshots,
   TAP containers, tokenised BASIC resources, standalone AMOS banks, AMOS bank
   sets, and AMOS programs;
 - a resource tree containing decoded raster, audio, and text resources,
@@ -103,6 +104,8 @@ Matching case-insensitive extensions add supporting evidence.
   OS 3.5 GlowIcons `FORM ICON` chunks;
 - `amiga_adf.nim` validates standard DD/HD AmigaDOS floppy images and walks
   OFS/FFS directory, file-header, extension, and data-block structures;
+- `amiga_dms.nim` validates DMS information/track CRCs and reconstructs
+  NOCOMP, SIMPLE, HEAVY1, and HEAVY2 track streams for the ADF handler;
 - `zip_archive.nim` validates single-volume ZIP central/local records, expands
   stored and DEFLATE entries, checks CRC-32, and exposes a host-independent
   archive hierarchy;
@@ -328,6 +331,22 @@ a recognized contained format reports the nested resource path before the
 underlying decoder diagnostic. With `--ignore-warnings`, a failed child remains
 available as an opaque file, successful siblings are retained, and structured
 path/format/message warnings are returned and displayed.
+
+DMS archives expose their reconstructed AmigaDOS volume at `/disk` and use the
+ADF traversal above. Information headers, track headers, and packed data are
+CRC-checked; unpacked tracks are checksum-checked. NOCOMP, SIMPLE/RLE, HEAVY1,
+and HEAVY2 are implemented, including persistent dictionaries, Huffman trees,
+distances, and optional post-decompression RLE across track boundaries. QUICK,
+MEDIUM, DEEP, encryption, and compression identifiers 7 through 9 remain
+inspectable as packed `/tracks` resources but are not reconstructed. The
+public-domain xDMS checkout is the attributed reference for CRC, RLE, HEAVY,
+and track-state behavior; its provenance and upstream acknowledgements are in
+`THIRD_PARTY.md`.
+
+Some authentic OFS game disks place their own directory header block in the
+first hash slot. ADF traversal recognizes and skips this self-entry without
+following its parent-level collision link, while references to other visited
+directory blocks remain cycle errors.
 
 ZIP archives expose `/archive`. Entry paths are interpreted as logical archive
 paths rather than host paths: slash and backslash separators are canonicalized,

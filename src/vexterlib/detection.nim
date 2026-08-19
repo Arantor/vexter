@@ -1,7 +1,7 @@
 ## Evidence-based input format detection.
 
 import std/[os, strutils]
-import ./containers/[amiga_8svx, amiga_16sv, amiga_acbm, amiga_adf, amiga_anim, amiga_iff, amiga_ilbm, amiga_workbench_icon, amos_bank, amos_bank_set, amos_program,
+import ./containers/[amiga_8svx, amiga_16sv, amiga_acbm, amiga_adf, amiga_anim, amiga_dms, amiga_iff, amiga_ilbm, amiga_workbench_icon, amos_bank, amos_bank_set, amos_program,
   amos_sprite_icon_bank, bmp, gif_container, pcx, png_container,
   zip_archive, zx_spectrum_screen_dump, zx_spectrum_snapshot, zx_spectrum_tap]
 import ./resources/zx_spectrum_screen
@@ -114,6 +114,19 @@ proc detectFormats*(filename: string, data: openArray[byte]):
       evidence.add VextDetectionEvidence(description: "file extension is .adf")
     result.add VextDetectionCandidate(
       typeId: AmigaAdfTypeId,
+      confidence: vdcCertain,
+      evidence: evidence)
+
+  if isAmigaDms(data):
+    let archive = parseAmigaDms(data)
+    var evidence = @[VextDetectionEvidence(
+      description: "file has a DMS! identifier and a complete framed stream of " &
+        $archive.tracks.len & " track(s)")]
+    if hasAmigaDmsExtension(filename):
+      evidence.add VextDetectionEvidence(
+        description: "file extension is .dms or .fms")
+    result.add VextDetectionCandidate(
+      typeId: AmigaDmsTypeId,
       confidence: vdcCertain,
       evidence: evidence)
 

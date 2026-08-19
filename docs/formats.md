@@ -56,6 +56,45 @@ images. They cover FFS subdirectories, OFS header removal, exact file bytes,
 nested Spectrum decoding, signature and checksum validation, and cycle
 rejection. No third-party ADF fixture is currently stored in the repository.
 
+## Amiga DMS disk archives
+
+Container type identifier: `amiga.dms`
+
+Vexter parses the `DMS!` information header and every framed `TR` track record.
+It validates the information-header, track-header, and packed-data CRC-16/ARC
+values and detects a complete valid stream as certain. Matching `.dms` and
+`.fms` suffixes add evidence. Complete ordered disk tracks are concatenated and
+opened through the ADF handler, exposing the same `/disk` hierarchy and
+recursive contained-file inspection as a direct ADF image.
+
+NOCOMP, SIMPLE/RLE, HEAVY1, and HEAVY2 are decoded. HEAVY decoding retains its
+LZ dictionary, static Huffman trees, and repeated-distance state between tracks
+when requested by the control flags, and applies the optional second-stage DMS
+RLE stream. Every reconstructed track is checked against its declared 16-bit
+byte sum. QUICK, MEDIUM, DEEP, encryption, and compression identifiers 7
+through 9 remain inspectable as opaque `/tracks` resources but cannot yet be
+reconstructed.
+
+The authentic `Frustration.dms`, `HolyGrail.dms`, and `GoldenFleece.dms`
+fixtures establish that the four bytes after `DMS!` may be zero rather than the
+document's listed text values. All three contain 80 HEAVY2 tracks representing
+a 901,120-byte DD OFS disk. Vexter's reconstructed images are byte-identical to
+xDMS output and then pass the ADF parser. Their output hashes are recorded in
+`THIRD_PARTY.md`.
+
+The supplied public-domain xDMS source tree is the reference for CRC/checksum,
+RLE, HEAVY, and stateful-track behavior, and for future compression support. The
+exact upstream repository and supplied revision, including xDMS's own LHA,
+LZHUF, and `testdms` acknowledgements, are recorded in
+[`THIRD_PARTY.md`](../THIRD_PARTY.md). No xDMS code is compiled or linked into
+Vexter.
+
+The authentic disks also establish a filesystem compatibility detail: a user
+directory may place its own header block in its first hash slot. Vexter skips
+that self-entry and does not mistake the directory header's parent-level
+collision pointer for a child-chain pointer. Other repeated directory blocks
+continue to be rejected as cycles.
+
 ## ZIP archives
 
 Container type identifier: `archive.zip`
