@@ -15,6 +15,31 @@ import ./resources/[amiga_anim_image, amiga_ilbm_image, amiga_workbench_icon_ima
   pcx_image, zx_spectrum_screen]
 
 type
+  VextOperationCancelledError* = object of CatchableError
+
+  VextProgressPhase* = enum
+    vppDetecting
+    vppInspecting
+    vppDecoding
+    vppTraversing
+    vppComplete
+
+  VextProgressEvent* = object
+    phase*: VextProgressPhase
+    path*: string
+    completed*: int
+    total*: int
+    message*: string
+
+  VextProgressCallback* = proc(event: VextProgressEvent): bool {.closure.}
+
+  VextExportFormat* = object
+    id*: string
+    displayName*: string
+    extensions*: seq[string]
+    mediaTypes*: seq[string]
+    isDefault*: bool
+
   VextInspectionWarning* = object
     path*: string
     format*: string
@@ -42,6 +67,63 @@ type
 
   VextExportAllResult* = object
     exports*: seq[VextExportResult]
+
+proc reportProgress(callback: VextProgressCallback,
+    phase: VextProgressPhase, path, message: string,
+    completed = 0, total = 0) =
+  if callback != nil and not callback(VextProgressEvent(phase: phase,
+      path: path, completed: completed, total: total, message: message)):
+    raise newException(VextOperationCancelledError, "operation cancelled")
+
+proc exportFormatsFor*(resource: VextResourceNode): seq[VextExportFormat] =
+  ## Describes every format accepted by `exportResource` for one resource.
+  ## The order is suitable for presentation by frontends.
+  if resource.isNil:
+    return
+  case resource.kind
+  of vrnkRaster:
+    case resource.raster.kind
+    of vrkIndexedImage:
+      result = @[
+        VextExportFormat(id: "png", displayName: "PNG image",
+          extensions: @["png"], mediaTypes: @["image/png"], isDefault: true),
+        VextExportFormat(id: "gif", displayName: "GIF image",
+          extensions: @["gif"], mediaTypes: @["image/gif"])]
+    of vrkIndexedAnimation:
+      let gifDefault = resource.raster.animation.gifCompatible
+      result = @[
+        VextExportFormat(id: "png", displayName: "PNG first frame",
+          extensions: @["png"], mediaTypes: @["image/png"]),
+        VextExportFormat(id: "gif", displayName: "Animated GIF",
+          extensions: @["gif"], mediaTypes: @["image/gif"],
+          isDefault: gifDefault),
+        VextExportFormat(id: "apng", displayName: "Animated PNG",
+          extensions: @["png"], mediaTypes: @["image/apng"],
+          isDefault: not gifDefault)]
+    of vrkTrueColourImage:
+      result = @[VextExportFormat(id: "png", displayName: "PNG image",
+        extensions: @["png"], mediaTypes: @["image/png"], isDefault: true)]
+    of vrkTrueColourAnimation:
+      result = @[VextExportFormat(id: "apng", displayName: "Animated PNG",
+        extensions: @["png"], mediaTypes: @["image/apng"], isDefault: true)]
+  of vrnkAudio:
+    result = @[VextExportFormat(id: "wav", displayName: "WAVE audio",
+      extensions: @["wav"], mediaTypes: @["audio/wav"], isDefault: true)]
+  of vrnkText:
+    result = @[VextExportFormat(id: "txt", displayName: "Plain text",
+      extensions: @["txt"], mediaTypes: @["text/plain"], isDefault: true)]
+  of vrnkOpaque:
+    if resource.rawDataAvailable:
+      result = @[VextExportFormat(id: "bin", displayName: "Raw binary",
+        extensions: @["bin"], mediaTypes: @["application/octet-stream"],
+        isDefault: true)]
+  of vrnkGroup:
+    discard
+
+proc defaultExportFormat*(resource: VextResourceNode): string =
+  for format in resource.exportFormatsFor:
+    if format.isDefault:
+      return format.id
 
 const WindowsDeviceNames = [
   "con", "prn", "aux", "nul", "com1", "com2", "com3", "com4", "com5",
@@ -736,9 +818,17 @@ proc inspectSourceDepth(filename: string, data: openArray[byte],
 
 proc inspectSource*(filename: string, data: openArray[byte],
     inputFormat = "", ignoreWarnings = false,
-    pcxChannelOrder = pcoRgb): VextInspection =
-  inspectSourceDepth(filename, data, inputFormat, 0, ignoreWarnings,
+    pcxChannelOrder = pcoRgb,
+    progress: VextProgressCallback = nil): VextInspection =
+  reportProgress(progress, vppDetecting, filename, "Detecting input format")
+  reportProgress(progress, vppInspecting, filename, "Inspecting container")
+  reportProgress(progress, vppDecoding, filename, "Decoding resources")
+  result = inspectSourceDepth(filename, data, inputFormat, 0, ignoreWarnings,
     pcxChannelOrder)
+  reportProgress(progress, vppTraversing, filename,
+    "Resource tree complete", result.resources.leafResources.len,
+    result.resources.leafResources.len)
+  reportProgress(progress, vppComplete, filename, "Inspection complete", 1, 1)
 
 proc exportResource*(tree: VextResourceTree,
     request: VextExportRequest): VextExportResult =
@@ -782,17 +872,15 @@ proc exportResource*(tree: VextResourceTree,
   result.resourcePath = resource.path
   result.outputFormat = request.outputFormat
   if result.outputFormat.len == 0:
-    result.outputFormat = case resource.kind
-      of vrnkText: "txt"
-      of vrnkAudio: "wav"
-      of vrnkOpaque: "bin"
-      of vrnkRaster:
-        case resource.raster.kind
-        of vrkIndexedAnimation:
-          if resource.raster.animation.gifCompatible: "gif" else: "apng"
-        of vrkTrueColourAnimation: "apng"
-        else: "png"
-      else: ""
+    result.outputFormat = resource.defaultExportFormat
+  var supported = false
+  for format in resource.exportFormatsFor:
+    if format.id == result.outputFormat:
+      supported = true
+      break
+  if not supported:
+    raise newException(ValueError,
+      "unsupported output format: " & result.outputFormat)
   case resource.kind
   of vrnkOpaque:
     if not resource.rawDataAvailable:

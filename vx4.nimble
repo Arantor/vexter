@@ -5,6 +5,9 @@ license       = "TBD"
 srcDir        = "src"
 bin           = @["vexter"]
 
+task gui, "Cross-compile the native Windows GUI":
+  exec "nim c --os:windows --cpu:amd64 --gcc.exe:x86_64-w64-mingw32-gcc --gcc.linkerexe:x86_64-w64-mingw32-gcc --app:gui --threads:on --mm:arc --path:src -o:build/vexter-gui.exe src/vexter_gui.nim"
+
 task test, "Run the test suite":
   exec "nim c --path:src -o:build/vexter src/vexter.nim"
   exec "nim c -r --path:src tests/test_amiga_iff_ilbm.nim"

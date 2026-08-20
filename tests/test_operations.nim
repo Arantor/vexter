@@ -36,6 +36,44 @@ suite "vexterlib operations":
       discard exportResource(inspection.resources,
         VextExportRequest(resourcePath: "/missing"))
 
+  test "export formats are discoverable from resource archetypes":
+    let inspection = inspectSource("display.scr",
+      newSeq[byte](ZxSpectrumScreenSize))
+    let resource = inspection.resources.rasterResources[0]
+    let formats = resource.exportFormatsFor
+    check formats.len == 2
+    check formats[0].id == "png"
+    check formats[0].isDefault
+    check formats[1].id == "gif"
+    check resource.defaultExportFormat == "png"
+
+    let opaque = VextResourceNode(path: "/raw", kind: vrnkOpaque,
+      rawDataAvailable: true)
+    check opaque.exportFormatsFor.len == 1
+    check opaque.defaultExportFormat == "bin"
+    check VextResourceNode(path: "/group", kind: vrnkGroup).
+      exportFormatsFor.len == 0
+
+  test "inspection reports structured progress and supports cancellation":
+    var events: seq[VextProgressEvent]
+    let inspection = inspectSource("display.scr",
+      newSeq[byte](ZxSpectrumScreenSize), progress =
+        proc(event: VextProgressEvent): bool =
+          events.add event
+          true)
+    check inspection.resources.roots.len == 1
+    check events.len == 5
+    check events[0].phase == vppDetecting
+    check events[2].phase == vppDecoding
+    check events[^1].phase == vppComplete
+    check events[^2].completed == 1
+    check events[^2].total == 1
+
+    expect VextOperationCancelledError:
+      discard inspectSource("display.scr", newSeq[byte](ZxSpectrumScreenSize),
+        progress = proc(event: VextProgressEvent): bool =
+          event.phase != vppInspecting)
+
   test "GIF-capable indexed rasters also export as APNG without changing defaults":
     var screen = newSeq[byte](ZxSpectrumScreenSize)
     screen[6144] = 0x80 # FLASH makes the natural raster an indexed animation.

@@ -8,8 +8,8 @@ format coverage in greater detail.
 
 ## Current product surface
 
-Vexter currently consists of a reusable Nim library and a thin command-line
-client. It supports:
+Vexter currently consists of a reusable Nim library, a thin command-line
+client, and a dependency-free native Windows GUI. It supports:
 
 - classic Amiga Workbench `.info` DiskObjects, including metadata and both
   planar icon states;
@@ -45,9 +45,19 @@ vexter export-all [--format png|gif|apng|txt|wav|bin]
                   [--pcx-channel-order rgb|bgr] INPUT
 ```
 
-There is no GUI or fully generalized handler registry yet. ADF and ZIP files
-perform bounded recursive inspection of recognized contained files. The
-broader option surface shown in `PLAN.md` remains future work.
+The Windows GUI is a Unicode Win32/common-controls client of `vexterlib`. It
+loads files on a worker thread, exposes the complete resource hierarchy and
+metadata leaves, previews raster animations and sampled audio, and exports
+through the library's discoverable per-resource format list. It targets the
+Windows 7 API baseline and cross-compiles from Linux with MinGW-w64:
+
+```sh
+nice -n 15 nimble gui
+```
+
+There is no fully generalized handler registry yet. ADF and ZIP files perform
+bounded recursive inspection of recognized contained files. The broader option
+surface shown in `PLAN.md` remains future work.
 
 ## Architectural flow
 
@@ -61,15 +71,14 @@ file bytes
   -> raster, text, or identified opaque resources
   -> PNG/GIF raster, WAV audio, plain-text, or raw BIN export
   -> in-memory VextArtifactSet
-  -> CLI-owned filesystem write
+  -> frontend-owned filesystem write
 ```
 
 The library owns detection, forced-format validation, container inspection,
 resource construction and selection, default output-format choice, and
-exporter invocation. The CLI owns argument parsing, reading source files,
-formatting inspection output, destination selection, collision policy, and
-writing artifacts. Keep these responsibilities separated so a future GUI can
-call `vexterlib` without reproducing CLI behavior.
+exporter invocation. Frontends own input reading, presentation, destination
+selection, collision policy, and artifact writing. The GUI calls `vexterlib`
+directly and does not reproduce CLI behavior.
 
 ## Source layout and responsibilities
 
@@ -80,12 +89,24 @@ public library modules.
 API. In particular, format validation, resource selection, decoding, and
 export-format defaults do not belong here.
 
+`src/vexter_gui.nim` is the native Windows GUI. It uses direct Win32, common
+controls, GDI, common dialogs, and `waveOut`; it has no third-party GUI or media
+dependencies. Presentation is selected only from generic resource and raster
+archetype kinds, never from source format identifiers. The GUI is built with
+Nim's ARC memory manager because decoded acyclic resource trees cross from its
+inspection worker to the UI thread; ORC's thread-local cycle tracking must not
+be used for that transfer.
+
 `src/vexterlib/operations.nim` brokers high-level library work:
 
 - `inspectSource` detects or validates a format and builds a decoded resource
   tree;
 - `VextInspection` carries the selected candidate, all detected candidates,
   and the resource tree; and
+- inspection optionally reports structured progress and supports cooperative
+  cancellation through a callback;
+- `exportFormatsFor` describes the formats and natural default supported by a
+  resource archetype, so frontends need not duplicate exporter rules;
 - `exportResource` selects one exportable resource, chooses its natural raster,
   text, audio, or raw format when none was requested, and returns an in-memory
   artifact set; and
