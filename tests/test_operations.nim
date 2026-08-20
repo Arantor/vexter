@@ -78,6 +78,27 @@ suite "vexterlib operations":
     check natural.outputFormat == "apng"
     check natural.artifacts.artifacts[0].mediaType == "image/apng"
 
+  test "opaque resources with retained bytes export exactly as BIN":
+    let tree = VextResourceTree(roots: @[
+      VextResourceNode(path: "/raw", typeId: "test.raw", kind: vrnkOpaque,
+        data: @[0'u8, 1, 0xff], rawDataAvailable: true),
+      VextResourceNode(path: "/empty", typeId: "test.empty", kind: vrnkOpaque,
+        rawDataAvailable: true),
+      VextResourceNode(path: "/identified", typeId: "test.identified",
+        kind: vrnkOpaque)])
+    let exported = exportResource(tree, VextExportRequest(
+      resourcePath: "/raw", suggestedName: "payload"))
+    check exported.outputFormat == "bin"
+    check exported.artifacts.artifacts.len == 1
+    check exported.artifacts.artifacts[0].suggestedFilename == "payload.bin"
+    check exported.artifacts.artifacts[0].mediaType == "application/octet-stream"
+    check exported.artifacts.artifacts[0].data == @[0'u8, 1, 0xff]
+    check exportResource(tree, VextExportRequest(resourcePath: "/empty",
+      suggestedName: "empty")).artifacts.artifacts[0].data.len == 0
+    expect ValueError:
+      discard exportResource(tree, VextExportRequest(
+        resourcePath: "/identified", suggestedName: "identified"))
+
   test "resource traversal preserves tree order and exact lookup":
     let raster = decodeZxSpectrumScreen(newSeq[byte](ZxSpectrumScreenSize))
     let tree = VextResourceTree(roots: @[VextResourceNode(

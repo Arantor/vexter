@@ -47,8 +47,11 @@ suite "generic AMOS banks":
     check resources[0].metadata[2].value.stringValue == "Music"
     check resources[0].metadata[3].value.integerValue == 3
     check inspection.resources.rasterResources.len == 0
-    expect ValueError:
-      discard exportResource(inspection.resources, VextExportRequest())
+    let exported = exportResource(inspection.resources,
+      VextExportRequest(suggestedName: "song"))
+    check exported.outputFormat == "bin"
+    check exported.artifacts.artifacts[0].suggestedFilename == "song.bin"
+    check exported.artifacts.artifacts[0].data == @[1'u8, 2, 3]
 
   test "all currently known type labels remain identifiable":
     for bankType in ["Music", "Tracker", "Amal", "Data", "Datas", "Work",
@@ -70,4 +73,3 @@ suite "generic AMOS banks":
     var nonAsciiType = genericBank()
     nonAsciiType[12] = 0x80
     check not isAmosBank(nonAsciiType)
-

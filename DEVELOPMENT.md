@@ -24,7 +24,8 @@ client. It supports:
 - indexed still-image, indexed-animation, and true-colour image raster
   archetypes;
 - PNG export for a still image or an animation's natural first frame; and
-- animated GIF and APNG export.
+- animated GIF and APNG export; and
+- byte-identical BIN export for opaque resources that retain raw data.
 
 The implemented command-line surface is:
 
@@ -32,7 +33,7 @@ The implemented command-line surface is:
 vexter inspect [--json] [--all-candidates] [--ignore-warnings]
                [--input-format FORMAT] [--pcx-channel-order rgb|bgr] INPUT
 
-vexter export [--format png|gif|apng|txt|wav] [--resource PATH]
+vexter export [--format png|gif|apng|txt|wav|bin] [--resource PATH]
               [--input-format FORMAT] [-o OUTPUT] [--force]
               [--ignore-warnings] [--pcx-channel-order rgb|bgr] INPUT
 ```
@@ -52,7 +53,7 @@ file bytes
   -> format-specific container parsing and resource extraction
   -> VextResourceTree
   -> raster, text, or identified opaque resources
-  -> PNG/GIF raster, WAV audio, or plain-text export
+  -> PNG/GIF raster, WAV audio, plain-text, or raw BIN export
   -> in-memory VextArtifactSet
   -> CLI-owned filesystem write
 ```
@@ -79,8 +80,9 @@ export-format defaults do not belong here.
   tree;
 - `VextInspection` carries the selected candidate, all detected candidates,
   and the resource tree; and
-- `exportResource` selects one raster resource, chooses PNG or GIF when no
-  format was requested, and returns an in-memory artifact set.
+- `exportResource` selects one exportable resource, chooses its natural raster,
+  text, audio, or raw format when none was requested, and returns an in-memory
+  artifact set.
 
 `src/vexterlib/resource_tree.nim` defines `VextResourceTree` and
 `VextResourceNode`. Nodes are reference objects and currently have the
@@ -88,8 +90,8 @@ export-format defaults do not belong here.
 returns every
 addressable non-group node, while `rasterResources` returns only raster nodes
 in depth-first tree order. `findRasterResource` performs exact path lookup
-over raster nodes. Groups are structural and opaque resources are inspectable
-but neither is exportable through the current raster export operation.
+over raster nodes. Groups are structural. Opaque resources with explicitly
+retained bytes are BIN-exportable; identification-only opaque nodes are not.
 
 `src/vexterlib/detection.nim` contains evidence-based detection. Candidates
 are ordered strongest-first. Structurally valid AMOS banks with exact magic
@@ -240,6 +242,10 @@ alpha channel; an omitted channel means fully opaque. `alphaAt`, `rgbaAt`, and
 `src/vexterlib/exporters/` consumes those contracts and
 has no ZX Spectrum-specific knowledge. `src/vexterlib/artifacts.nim` defines
 the in-memory output contract; callers, not exporters, write files.
+Opaque resource nodes explicitly distinguish retained raw bytes from
+identification-only leaves. Retained bytes export unchanged as
+`application/octet-stream` BIN artifacts; the explicit availability flag also
+allows genuine empty files without making metadata-only nodes exportable.
 `src/vexterlib/metadata.nim` defines typed key/value metadata currently used
 for signed AMOS hotspot coordinates.
 

@@ -4,7 +4,7 @@ import ./artifacts
 import ./archetypes/raster
 import ./archetypes/audio
 import ./detection
-import ./exporters/[gif, png, wav]
+import ./exporters/[gif, png, raw, wav]
 import ./resource_tree
 import ./containers/[amiga_8svx, amiga_16sv, amiga_acbm, amiga_adf, amiga_anim, amiga_dms, amiga_iff, amiga_ilbm, amiga_workbench_icon, amos_bank, amos_bank_set, amos_packed_picture, amos_program,
   amos_sprite_icon_bank, bmp, gif_container, pcx, png_container,
@@ -123,6 +123,8 @@ proc amosGenericNode(path: string, bank: AmosBank): VextResourceNode =
     path: path,
     typeId: AmosBankResourceTypeId,
     kind: vrnkOpaque,
+    data: bank.data,
+    rawDataAvailable: true,
     metadata: @[
       integerMetadata("bank.number", bank.number),
       integerMetadata("bank.flags", bank.flags),
@@ -147,6 +149,8 @@ proc amosBankNode(path: string, bank: AmosBank): VextResourceNode =
       path: path,
       typeId: AmosPackedPictureResourceTypeId,
       kind: vrnkOpaque,
+      data: bank.data,
+      rawDataAvailable: true,
       metadata: pictureMetadata)
   VextResourceNode(
     path: path,
@@ -199,11 +203,13 @@ proc containedFileNode(path, filename, fallbackType: string,
   var retainedMetadata = metadata
   if depth >= 8:
     return VextResourceNode(path: path, typeId: fallbackType,
-      kind: vrnkOpaque, data: @data, metadata: retainedMetadata)
+      kind: vrnkOpaque, data: @data, rawDataAvailable: true,
+      metadata: retainedMetadata)
   let candidates = detectFormats(filename, data)
   if candidates.len == 0:
     return VextResourceNode(path: path, typeId: fallbackType,
-      kind: vrnkOpaque, data: @data, metadata: retainedMetadata)
+      kind: vrnkOpaque, data: @data, rawDataAvailable: true,
+      metadata: retainedMetadata)
   var nested: VextInspection
   try:
     nested = inspectSourceDepth(filename, data, "", depth + 1, ignoreWarnings,
@@ -215,7 +221,8 @@ proc containedFileNode(path, filename, fallbackType: string,
       retainedMetadata.add stringMetadata("decode.format", candidates[0].typeId)
       retainedMetadata.add stringMetadata("decode.warning", error.msg)
       return VextResourceNode(path: path, typeId: fallbackType,
-        kind: vrnkOpaque, data: @data, metadata: retainedMetadata)
+        kind: vrnkOpaque, data: @data, rawDataAvailable: true,
+        metadata: retainedMetadata)
     raise newException(ValueError,
       "while inspecting nested resource " & path & ": " & error.msg)
   for warning in nested.warnings:
@@ -450,6 +457,7 @@ proc inspectSourceDepth(filename: string, data: openArray[byte],
           typeId: AmigaDmsTrackTypeId,
           kind: vrnkOpaque,
           data: track.data,
+          rawDataAvailable: true,
           metadata: @[
             integerMetadata("track.number", track.number),
             integerMetadata("compression", ord(track.compression)),
@@ -574,6 +582,8 @@ proc inspectSourceDepth(filename: string, data: openArray[byte],
         path: "/chunks/" & $index,
         typeId: "amiga.iff-chunk",
         kind: vrnkOpaque,
+        data: chunk.data,
+        rawDataAvailable: true,
         metadata: @[
           stringMetadata("chunk.id", chunk.id),
           integerMetadata("data.length", chunk.data.len)
@@ -663,7 +673,8 @@ proc exportResource*(tree: VextResourceTree,
     request: VextExportRequest): VextExportResult =
   var available: seq[VextResourceNode]
   for item in tree.leafResources:
-    if item.kind in {vrnkRaster, vrnkText, vrnkAudio}:
+    if item.kind in {vrnkRaster, vrnkText, vrnkAudio} or
+        (item.kind == vrnkOpaque and item.rawDataAvailable):
       available.add item
   var resource: VextResourceNode
   if request.resourcePath.len > 0:
@@ -703,6 +714,7 @@ proc exportResource*(tree: VextResourceTree,
     result.outputFormat = case resource.kind
       of vrnkText: "txt"
       of vrnkAudio: "wav"
+      of vrnkOpaque: "bin"
       of vrnkRaster:
         case resource.raster.kind
         of vrkIndexedAnimation:
@@ -711,6 +723,15 @@ proc exportResource*(tree: VextResourceTree,
         else: "png"
       else: ""
   case resource.kind
+  of vrnkOpaque:
+    if not resource.rawDataAvailable:
+      raise newException(ValueError, "resource is not exportable: " &
+        resource.path)
+    if result.outputFormat != "bin":
+      raise newException(ValueError,
+        "unsupported output format: " & result.outputFormat)
+    result.artifacts = exportRaw(resource.data,
+      request.suggestedName & ".bin")
   of vrnkText:
     if result.outputFormat != "txt":
       raise newException(ValueError,

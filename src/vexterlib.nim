@@ -41,7 +41,7 @@ import vexterlib/detection
 import vexterlib/metadata
 import vexterlib/operations
 import vexterlib/resource_tree
-import vexterlib/exporters/[gif, png, wav]
+import vexterlib/exporters/[gif, png, raw, wav]
 
 export raster
 export audio
@@ -86,4 +86,5 @@ export operations
 export resource_tree
 export gif
 export png
+export raw
 export wav

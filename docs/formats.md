@@ -13,10 +13,19 @@ The currently implemented formats use this subset of the intended CLI:
 vexter inspect [--json] [--all-candidates] [--ignore-warnings]
                [--input-format FORMAT] [--pcx-channel-order rgb|bgr] INPUT
 
-vexter export [--format png|gif|apng|txt|wav] [--resource PATH]
+vexter export [--format png|gif|apng|txt|wav|bin] [--resource PATH]
               [--input-format FORMAT] [-o OUTPUT] [--force]
               [--ignore-warnings] [--pcx-channel-order rgb|bgr] INPUT
 ```
+
+## Raw binary export
+
+Opaque resources that retain source bytes can be exported with `--format bin`;
+BIN is also their natural format when `--format` is omitted. The artifact uses
+the `application/octet-stream` media type and a `.bin` suggested extension, and
+its data is byte-identical to the resource bytes. Availability is explicit, so
+zero-length files remain exportable while identification-only resources such
+as unresolved filesystem links do not produce misleading empty artifacts.
 
 ## Amiga ADF filesystems
 
@@ -50,6 +59,9 @@ error includes that file's `/disk/...` path and preserves the original decoder
 message. `--ignore-warnings` instead retains the child as an opaque file and
 continues inspecting its siblings. Human inspection prints collected warnings;
 JSON inspection returns their `path`, `format`, and `message` fields.
+Opaque files with retained contents can be selected with `export --resource`;
+they default to byte-identical `application/octet-stream` output with a `.bin`
+extension. Links remain identification-only and are not exportable.
 
 Tests build compact logical filesystems within standard-size synthetic DD
 images. They cover FFS subdirectories, OFS header removal, exact file bytes,
@@ -400,8 +412,8 @@ dispatch mechanism.
 
 A structurally valid generic bank is detected as **certain** and exposes one
 opaque `amos.bank-data` resource at `/bank`. Inspection reports `bank.number`,
-`bank.flags`, `bank.type`, and `data.length` metadata. The payload is not yet
-decoded or exportable.
+`bank.flags`, `bank.type`, and `data.length` metadata. The undecoded bank
+payload is retained and defaults to raw `.bin` export.
 
 ## AMOS bank sets
 

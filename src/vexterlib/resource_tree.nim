@@ -20,6 +20,7 @@ type
     text*: string
     instrument*: VextSampledInstrument
     data*: seq[byte]
+    rawDataAvailable*: bool
     metadata*: seq[VextMetadataEntry]
     children*: seq[VextResourceNode]
     defaultExportPriority*: int

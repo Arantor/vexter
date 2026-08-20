@@ -22,7 +22,7 @@ proc usage(): string =
   """Usage:
   vexter inspect [--json] [--all-candidates] [--ignore-warnings]
                  [--input-format FORMAT] [--pcx-channel-order rgb|bgr] INPUT
-  vexter export [--format png|gif|apng|txt|wav] [--resource PATH]
+  vexter export [--format png|gif|apng|txt|wav|bin] [--resource PATH]
                 [--input-format FORMAT] [-o OUTPUT] [--force]
                 [--ignore-warnings] [--pcx-channel-order rgb|bgr] INPUT"""
 

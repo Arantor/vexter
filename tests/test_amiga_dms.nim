@@ -195,3 +195,13 @@ suite "Amiga DMS disk archives":
         let wallpaper = inspection.resources.findRasterResource("/disk/WP/image")
         check not wallpaper.isNil
         check wallpaper.raster.image.hasAlpha
+        var rawFile: VextResourceNode
+        for resource in inspection.resources.leafResources:
+          if resource.path == "/disk/.info": rawFile = resource
+        check not rawFile.isNil
+        let rawExport = exportResource(inspection.resources, VextExportRequest(
+          resourcePath: "/disk/.info", suggestedName: "disk-info"))
+        check rawExport.outputFormat == "bin"
+        check rawExport.artifacts.artifacts[0].suggestedFilename ==
+          "disk-info.bin"
+        check rawExport.artifacts.artifacts[0].data == rawFile.data

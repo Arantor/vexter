@@ -62,11 +62,15 @@ suite "vexter CLI":
 
   test "generic AMOS banks inspect as opaque resources":
     let source = getTempDir() / "vexter-cli-music.Abk"
+    let destination = getTempDir() / "vexter-cli-music.bin"
     writeFile(source, "AmBk\x00\x07\x12\x34\xd0\x00\x00\x0b" &
       "Music   \x01\x02\x03")
+    if fileExists(destination): removeFile(destination)
     defer:
       if fileExists(source):
         removeFile(source)
+      if fileExists(destination):
+        removeFile(destination)
 
     let inspected = run("inspect", "--json", source)
     check inspected.exitCode == 0
@@ -81,8 +85,9 @@ suite "vexter CLI":
     check document["resources"][0]["metadata"]["data.length"].getInt == 3
 
     let exported = run("export", source)
-    check exported.exitCode == 1
-    check "container exposes no exportable resources" in exported.output
+    check exported.exitCode == 0
+    check exported.output.strip == destination
+    check readFile(destination) == "\x01\x02\x03"
 
   test "AMOS banks expose selectable sprites and hotspot metadata":
     let inspected = run("inspect", "--json", AmosFixturePath)
