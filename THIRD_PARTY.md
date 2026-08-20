@@ -16,8 +16,8 @@ is unknown, so the temporary document is not part of the implementation.
 
 `Frustration.dms`, `HolyGrail.dms`, and `GoldenFleece.dms` were subsequently
 supplied from a public-domain archive. The precise archive name and acquisition
-URL have not been supplied. They are retained as authentic HEAVY2 compatibility
-fixtures and establish zero-valued post-identifier header bytes, 80-track
+URL have not been supplied. They are retained as authentic HEAVY2 reference
+files and establish zero-valued post-identifier header bytes, 80-track
 framing, detection, HEAVY2 reconstruction, and OFS traversal. Vexter output was
 compared byte-for-byte with xDMS 1.3.5 output; the resulting ADF hashes are:
 

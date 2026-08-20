@@ -23,9 +23,11 @@ client. It supports:
   identified opaque resources, and metadata;
 - indexed still-image, indexed-animation, and true-colour image raster
   archetypes;
-- PNG export for a still image or an animation's natural first frame; and
-- animated GIF and APNG export; and
-- byte-identical BIN export for opaque resources that retain raw data.
+- PNG export for a still image or an animation's natural first frame;
+- animated GIF and APNG export;
+- byte-identical BIN export for opaque resources that retain raw data; and
+- bulk export of all exportable leaves or a union of segment-wildcard resource
+  patterns, preserving a safe resource-path hierarchy.
 
 The implemented command-line surface is:
 
@@ -36,12 +38,16 @@ vexter inspect [--json] [--all-candidates] [--ignore-warnings]
 vexter export [--format png|gif|apng|txt|wav|bin] [--resource PATH]
               [--input-format FORMAT] [-o OUTPUT] [--force]
               [--ignore-warnings] [--pcx-channel-order rgb|bgr] INPUT
+
+vexter export-all [--format png|gif|apng|txt|wav|bin]
+                  [--resource PATH-PATTERN]... [--input-format FORMAT]
+                  -o DIRECTORY [--force] [--ignore-warnings]
+                  [--pcx-channel-order rgb|bgr] INPUT
 ```
 
-There is no GUI, fully generalized handler registry, `export-all`,
-path-pattern selection, or generalized handler registry yet. ADF files do
-perform bounded recursive inspection of recognized contained files. Those and the broader option
-surface shown in `PLAN.md` are future work.
+There is no GUI or fully generalized handler registry yet. ADF and ZIP files
+perform bounded recursive inspection of recognized contained files. The
+broader option surface shown in `PLAN.md` remains future work.
 
 ## Architectural flow
 
@@ -82,7 +88,10 @@ export-format defaults do not belong here.
   and the resource tree; and
 - `exportResource` selects one exportable resource, chooses its natural raster,
   text, audio, or raw format when none was requested, and returns an in-memory
-  artifact set.
+  artifact set; and
+- `exportAllResources` selects every exportable leaf or the deduplicated union
+  of resource patterns, assigns safe hierarchical names, resolves normalized
+  filename collisions deterministically, and returns all artifacts in memory.
 
 `src/vexterlib/resource_tree.nim` defines `VextResourceTree` and
 `VextResourceNode`. Nodes are reference objects and currently have the
@@ -364,9 +373,9 @@ Legacy names use ZIP's CP437 mapping and names marked UTF-8 are validated.
 Stored and DEFLATE entries are supported with size and CRC-32 checks. Encrypted,
 ZIP64, unsupported-compression, and classic multi-volume archives are rejected.
 Recognized files open recursively using the same eight-layer bound and warning
-behavior as ADF files. The library also supplies conservative cross-platform
-filename normalization for eventual bulk export; collision suffixing remains
-part of the future `export-all` work.
+behavior as ADF files. Bulk export applies conservative cross-platform
+normalization to every resource-path segment and gives normalized collisions
+deterministic `-2`, `-3`, and subsequent suffixes.
 
 PCX images expose `/image`. One-, two-, and four-bit samples across up to four
 planes use the 16-colour header palette; eight-bit single-plane images use the
@@ -553,9 +562,9 @@ names there when adding suites, or direct their output into `/tmp`.
   ZIP file leaves additionally retain their reconstructed bytes. Lazy decoding,
   alternate representations, structured metadata, and handler registration
   are not implemented yet. Recursive decoding is currently specific to ADF.
-- Export currently expects one artifact at the CLI boundary. The artifact API
-  already permits multiple files, but CLI directory handling for compound
-  exports is future work.
+- Single-resource export currently expects one artifact at the CLI boundary.
+  The artifact API and `export-all` directory handling permit multiple files;
+  compound exporters themselves remain future work.
 - Recursive decoding is shared by ADF and ZIP, with a fixed eight-layer bound;
   it is not yet a handler registry. Detection currently parses some inputs again during inspection. There is no
   parsed-container cache or registry abstraction yet.

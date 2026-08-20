@@ -130,10 +130,10 @@ Both slash forms are treated as separators. Absolute paths, empty components,
 Unicode characters are rejected. This prevents recursive/ambiguous path loops
 without attempting to materialize archive names on the host filesystem.
 
-`normalizedZipExportName` replaces host-sensitive control and punctuation
-characters, trims trailing dots/spaces, and protects Windows device names for
-future bulk-export use. `export-all` and deterministic suffixing of normalized
-name collisions are not implemented yet.
+`normalizedZipExportName` and bulk-export naming replace host-sensitive control
+and punctuation characters, trim trailing dots/spaces, and protect Windows
+device names. `export-all` preserves the normalized resource hierarchy and
+adds deterministic suffixes when distinct logical names normalize identically.
 
 ## Amiga IFF 8SVX audio
 

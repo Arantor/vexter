@@ -1,5 +1,6 @@
 ## High-level inspection and export operations shared by every frontend.
 
+import std/strutils
 import ./artifacts
 import ./archetypes/raster
 import ./archetypes/audio
@@ -34,6 +35,76 @@ type
     resourcePath*: string
     outputFormat*: string
     artifacts*: VextArtifactSet
+
+  VextExportAllRequest* = object
+    resourcePatterns*: seq[string]
+    outputFormat*: string
+
+  VextExportAllResult* = object
+    exports*: seq[VextExportResult]
+
+const WindowsDeviceNames = [
+  "con", "prn", "aux", "nul", "com1", "com2", "com3", "com4", "com5",
+  "com6", "com7", "com8", "com9", "lpt1", "lpt2", "lpt3", "lpt4",
+  "lpt5", "lpt6", "lpt7", "lpt8", "lpt9"]
+
+proc normalizedExportSegment(segment: string): string =
+  for value in segment:
+    if ord(value) < 32 or value in {'<', '>', ':', '"', '/', '\\', '|', '?', '*'}:
+      result.add '_'
+    else:
+      result.add value
+  result = result.strip(chars = {' ', '.'}, trailing = true)
+  if result.len == 0:
+    result = "_"
+  let stem = result.split('.', maxsplit = 1)[0].toLowerAscii
+  if stem in WindowsDeviceNames:
+    result = "_" & result
+
+proc exportNameForPath(path: string): string =
+  for segment in path.split('/'):
+    if segment.len > 0:
+      if result.len > 0:
+        result.add '/'
+      result.add normalizedExportSegment(segment)
+
+proc validateResourcePattern(pattern: string): seq[string] =
+  if pattern.len < 2 or pattern[0] != '/':
+    raise newException(ValueError,
+      "resource pattern must be an absolute resource path: " & pattern)
+  result = pattern[1 .. ^1].split('/')
+  for segment in result:
+    if segment.len == 0 or segment in [".", ".."] or
+        ('*' in segment and segment != "*"):
+      raise newException(ValueError, "unsupported resource pattern: " & pattern)
+
+proc resourcePatternMatches(path: string, pattern: seq[string]): bool =
+  let segments = path[1 .. ^1].split('/')
+  if segments.len != pattern.len:
+    return false
+  for index, segment in pattern:
+    if segment != "*" and segment != segments[index]:
+      return false
+  true
+
+proc uniqueArtifactName(name: string, used: var seq[string]): string =
+  result = name
+  var suffix = 2
+  var collision = true
+  while collision:
+    collision = false
+    for existing in used:
+      if existing.toLowerAscii == result.toLowerAscii:
+        collision = true
+        break
+    if not collision:
+      break
+    let slash = name.rfind('/')
+    let dot = name.rfind('.')
+    let extensionAt = if dot > slash: dot else: name.len
+    result = name[0 ..< extensionAt] & "-" & $suffix & name[extensionAt .. ^1]
+    inc suffix
+  used.add result
 
 proc forcedCandidate(typeId: string, data: openArray[byte]):
     VextDetectionCandidate =
@@ -786,3 +857,38 @@ proc exportResource*(tree: VextResourceTree,
   else:
     raise newException(ValueError, "resource is not exportable: " &
       resource.path)
+
+proc exportAllResources*(tree: VextResourceTree,
+    request: VextExportAllRequest): VextExportAllResult =
+  var patterns: seq[seq[string]]
+  for pattern in request.resourcePatterns:
+    patterns.add validateResourcePattern(pattern)
+
+  var selected: seq[VextResourceNode]
+  for resource in tree.leafResources:
+    if not (resource.kind in {vrnkRaster, vrnkText, vrnkAudio} or
+        (resource.kind == vrnkOpaque and resource.rawDataAvailable)):
+      continue
+    if patterns.len == 0:
+      selected.add resource
+    else:
+      for pattern in patterns:
+        if resourcePatternMatches(resource.path, pattern):
+          selected.add resource
+          break
+
+  if selected.len == 0:
+    if patterns.len == 0:
+      raise newException(ValueError, "container exposes no exportable resources")
+    raise newException(ValueError, "no exportable resources matched")
+
+  var usedNames: seq[string]
+  for resource in selected:
+    var exported = exportResource(tree, VextExportRequest(
+      resourcePath: resource.path,
+      outputFormat: request.outputFormat,
+      suggestedName: exportNameForPath(resource.path)))
+    for artifact in exported.artifacts.artifacts.mitems:
+      artifact.suggestedFilename = uniqueArtifactName(
+        artifact.suggestedFilename, usedNames)
+    result.exports.add exported

@@ -89,6 +89,38 @@ suite "vexter CLI":
     check exported.output.strip == destination
     check readFile(destination) == "\x01\x02\x03"
 
+  test "export-all writes a resource hierarchy and preflights collisions":
+    let
+      source = getTempDir() / "vexter-cli-export-all.Abk"
+      destination = getTempDir() / "vexter-cli-export-all-output"
+      artifact = destination / "bank.bin"
+    writeFile(source, "AmBk\x00\x07\x12\x34\xd0\x00\x00\x0b" &
+      "Music   \x01\x02\x03")
+    if fileExists(artifact): removeFile(artifact)
+    if dirExists(destination): removeDir(destination)
+    defer:
+      if fileExists(source): removeFile(source)
+      if fileExists(artifact): removeFile(artifact)
+      if dirExists(destination): removeDir(destination)
+
+    let missingOutput = run("export-all", source)
+    check missingOutput.exitCode == 1
+    check "export-all requires -o DIRECTORY" in missingOutput.output
+
+    let exported = run("export-all", "-o", destination, source)
+    check exported.exitCode == 0
+    check readFile(artifact) == "\x01\x02\x03"
+
+    writeFile(artifact, "keep")
+    let refused = run("export-all", "-o", destination, source)
+    check refused.exitCode == 1
+    check "output already exists" in refused.output
+    check readFile(artifact) == "keep"
+
+    let forced = run("export-all", "--force", "-o", destination, source)
+    check forced.exitCode == 0
+    check readFile(artifact) == "\x01\x02\x03"
+
   test "AMOS banks expose selectable sprites and hotspot metadata":
     let inspected = run("inspect", "--json", AmosFixturePath)
     check inspected.exitCode == 0

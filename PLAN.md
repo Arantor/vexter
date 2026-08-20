@@ -239,6 +239,6 @@ of that fixture's contract.
 
 Likely next steps are to formalize common request, container, resource-tree, and
 diagnostic types before adding enough formats to make premature abstractions
-visible. `export-all`, segment-based wildcard matching, metadata sidecars,
-transformations, recursive containers, and richer exporter selection can then
-be added against concrete format requirements.
+visible. Metadata sidecars, transformations, and richer exporter selection can
+then be added against concrete format requirements. Bulk export, segment-based
+wildcard matching, and bounded recursive containers are now implemented.

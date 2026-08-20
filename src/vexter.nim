@@ -13,7 +13,7 @@ type
     ignoreWarnings: bool
     inputFormat: string
     outputFormat: string
-    resource: string
+    resources: seq[string]
     pcxChannelOrder: PcxChannelOrder
     output: string
     input: string
@@ -24,7 +24,11 @@ proc usage(): string =
                  [--input-format FORMAT] [--pcx-channel-order rgb|bgr] INPUT
   vexter export [--format png|gif|apng|txt|wav|bin] [--resource PATH]
                 [--input-format FORMAT] [-o OUTPUT] [--force]
-                [--ignore-warnings] [--pcx-channel-order rgb|bgr] INPUT"""
+                [--ignore-warnings] [--pcx-channel-order rgb|bgr] INPUT
+  vexter export-all [--format png|gif|apng|txt|wav|bin]
+                    [--resource PATH-PATTERN]... [--input-format FORMAT]
+                    -o DIRECTORY [--force] [--ignore-warnings]
+                    [--pcx-channel-order rgb|bgr] INPUT"""
 
 proc readBytes(path: string): seq[byte] =
   let contents = readFile(path)
@@ -52,7 +56,7 @@ proc parseOptions(arguments: seq[string]): CliOptions =
       case argument
       of "--input-format": result.inputFormat = arguments[index]
       of "--format": result.outputFormat = arguments[index].toLowerAscii
-      of "--resource": result.resource = arguments[index]
+      of "--resource": result.resources.add arguments[index]
       of "--pcx-channel-order":
         case arguments[index].toLowerAscii
         of "rgb": result.pcxChannelOrder = pcoRgb
@@ -190,6 +194,9 @@ proc bytesToString(data: openArray[byte]): string =
     result[index] = char(value)
 
 proc exportResource(options: CliOptions) =
+  if options.resources.len > 1:
+    raise newException(CliError,
+      "--resource may be repeated only with export-all")
   let data = readBytes(options.input)
   let inspection = inspectSource(options.input, data, options.inputFormat,
     options.ignoreWarnings, options.pcxChannelOrder)
@@ -198,7 +205,8 @@ proc exportResource(options: CliOptions) =
       &"({warning.format}): {warning.message}")
   let exported = vexterlib.exportResource(inspection.resources,
     VextExportRequest(
-      resourcePath: options.resource,
+      resourcePath: (if options.resources.len == 1: options.resources[0]
+                     else: ""),
       outputFormat: options.outputFormat,
       suggestedName: options.input.splitFile.name))
   let artifacts = exported.artifacts
@@ -215,6 +223,65 @@ proc exportResource(options: CliOptions) =
   writeFile(destination, bytesToString(artifact.data))
   echo destination
 
+proc exportAllResources(options: CliOptions) =
+  if options.output.len == 0:
+    raise newException(CliError, "export-all requires -o DIRECTORY")
+  if fileExists(options.output):
+    raise newException(CliError,
+      "export-all output is not a directory: " & options.output)
+
+  let data = readBytes(options.input)
+  let inspection = inspectSource(options.input, data, options.inputFormat,
+    options.ignoreWarnings, options.pcxChannelOrder)
+  for warning in inspection.warnings:
+    stderr.writeLine(&"vexter: warning: {warning.path} " &
+      &"({warning.format}): {warning.message}")
+  let exported = vexterlib.exportAllResources(inspection.resources,
+    VextExportAllRequest(
+      resourcePatterns: options.resources,
+      outputFormat: options.outputFormat))
+
+  var destinations: seq[string]
+  var relativeNames: seq[string]
+  var artifacts: seq[VextArtifact]
+  for item in exported.exports:
+    for artifact in item.artifacts.artifacts:
+      let destination = options.output / artifact.suggestedFilename
+      if dirExists(destination):
+        raise newException(CliError,
+          "output path is a directory: " & destination)
+      if fileExists(destination) and not options.force:
+        raise newException(CliError,
+          "output already exists (use --force): " & destination)
+      destinations.add destination
+      relativeNames.add artifact.suggestedFilename
+      artifacts.add artifact
+
+  for index, name in relativeNames:
+    for otherIndex, other in relativeNames:
+      if index != otherIndex and name.toLowerAscii.startsWith(
+          other.toLowerAscii & "/"):
+        raise newException(CliError,
+          "output paths conflict: " & other & " and " & name)
+    var parent = destinations[index].parentDir
+    while parent.len > 0 and parent != options.output:
+      if fileExists(parent):
+        raise newException(CliError,
+          "output parent is a file: " & parent)
+      let next = parent.parentDir
+      if next == parent:
+        break
+      parent = next
+
+  createDir(options.output)
+  for index, artifact in artifacts:
+    let destination = destinations[index]
+    let parent = destination.parentDir
+    if parent.len > 0:
+      createDir(parent)
+    writeFile(destination, bytesToString(artifact.data))
+    echo destination
+
 proc main() =
   let arguments = commandLineParams()
   if arguments.len == 0 or arguments[0] in ["-h", "--help"]:
@@ -224,6 +291,7 @@ proc main() =
   case arguments[0]
   of "inspect": inspect(options)
   of "export": exportResource(options)
+  of "export-all": exportAllResources(options)
   else: raise newException(CliError, "unknown command: " & arguments[0])
 
 when isMainModule:

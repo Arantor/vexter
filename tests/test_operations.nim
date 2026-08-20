@@ -116,3 +116,45 @@ suite "vexterlib operations":
     check tree.rasterResources[1].path == "/screens/2"
     check tree.findRasterResource("/screens/2").path == "/screens/2"
     check tree.findRasterResource("/screens").isNil
+
+  test "bulk export matches path segments, deduplicates, and names safely":
+    let tree = VextResourceTree(roots: @[
+      VextResourceNode(path: "/group", kind: vrnkGroup, children: @[
+        VextResourceNode(path: "/group/x:y", typeId: "test.raw",
+          kind: vrnkOpaque, data: @[1'u8], rawDataAvailable: true),
+        VextResourceNode(path: "/group/x?y", typeId: "test.raw",
+          kind: vrnkOpaque, data: @[2'u8], rawDataAvailable: true),
+        VextResourceNode(path: "/group/deeper", kind: vrnkGroup, children: @[
+          VextResourceNode(path: "/group/deeper/item", typeId: "test.raw",
+            kind: vrnkOpaque, data: @[3'u8], rawDataAvailable: true)])]),
+      VextResourceNode(path: "/other", typeId: "test.raw",
+        kind: vrnkOpaque, data: @[4'u8], rawDataAvailable: true),
+      VextResourceNode(path: "/identified", typeId: "test.identified",
+        kind: vrnkOpaque)])
+
+    let matched = exportAllResources(tree, VextExportAllRequest(
+      resourcePatterns: @["/group/*", "/group/x:y"]))
+    check matched.exports.len == 2
+    check matched.exports[0].resourcePath == "/group/x:y"
+    check matched.exports[1].resourcePath == "/group/x?y"
+    check matched.exports[0].artifacts.artifacts[0].suggestedFilename ==
+      "group/x_y.bin"
+    check matched.exports[1].artifacts.artifacts[0].suggestedFilename ==
+      "group/x_y-2.bin"
+
+    let all = exportAllResources(tree, VextExportAllRequest())
+    check all.exports.len == 4
+    check all.exports[2].resourcePath == "/group/deeper/item"
+    check all.exports[2].artifacts.artifacts[0].suggestedFilename ==
+      "group/deeper/item.bin"
+    check all.exports[3].resourcePath == "/other"
+
+    expect ValueError:
+      discard exportAllResources(tree, VextExportAllRequest(
+        resourcePatterns: @["/group/**"]))
+    expect ValueError:
+      discard exportAllResources(tree, VextExportAllRequest(
+        resourcePatterns: @["/group/x*"]))
+    expect ValueError:
+      discard exportAllResources(tree, VextExportAllRequest(
+        resourcePatterns: @["/missing/*"]))
