@@ -482,8 +482,8 @@ The routine suites are:
 - `tests/test_amiga_8svx.nim`: raw mono/stereo samples, sampled-instrument
   metadata, Fibonacci-delta expansion, detection, WAV routing, and malformed
   input;
-- `tests/test_amiga_16sv.nim`: authentic reference-fixture decoding and WAV
-  output, big-endian signed samples, stereo layout, and unsupported variants;
+- `tests/test_amiga_16sv.nim`: synthetic big-endian signed samples, stereo
+  layout, and unsupported variants;
 - `tests/test_wav.nim`: RIFF framing, channel interleaving, signed-to-unsigned
   eight-bit conversion, little-endian PCM, and validation;
 - `tests/test_amiga_acbm.nim`: ACBM detection, plane-contiguous raw and

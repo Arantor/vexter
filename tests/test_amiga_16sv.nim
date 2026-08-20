@@ -1,8 +1,6 @@
 import std/unittest
 import vexterlib
 
-const FixturePath = "16sv_datatype/Bluebird.16sv"
-
 proc be16(value: int): seq[byte] =
   @[byte(value shr 8), byte(value)]
 
@@ -33,31 +31,6 @@ proc synthetic16sv(body: openArray[byte], samples, compression: int,
   result.add payload
 
 suite "Amiga IFF 16SV":
-  test "supplied reference fixture decodes as signed big-endian PCM":
-    let
-      data = cast[seq[byte]](readFile(FixturePath))
-      candidates = detectFormats("Bluebird.16sv", data)
-      inspection = inspectSource("Bluebird.16sv", data)
-      node = inspection.resources.leafResources[0]
-    check data.len == 48070
-    check candidates[0].typeId == Amiga16svTypeId
-    check candidates[0].confidence == vdcCertain
-    check node.kind == vrnkAudio
-    check node.typeId == Amiga16svResourceTypeId
-    check node.instrument.sound.sampleRate == 16384
-    check node.instrument.sound.buffer.bitsPerSample == 16
-    check node.instrument.sound.buffer.sampleCount == 23982
-    check node.instrument.sound.buffer.channels[0][0 .. 3] ==
-      @[-256'i32, 0, -256, -256]
-    check node.instrument.oneShotSamples == 23982
-    check node.instrument.volume == 1.0
-
-    let exported = exportResource(inspection.resources,
-      VextExportRequest(suggestedName: "Bluebird"))
-    check exported.outputFormat == "wav"
-    check exported.artifacts.artifacts[0].data[44 .. 51] ==
-      @[0'u8, 255, 0, 0, 0, 255, 0, 255]
-
   test "channel-major stereo is retained as two channels":
     let instrument = decodeAmiga16sv(parseAmiga16sv(synthetic16sv(
       @[0x80'u8, 0, 0x7f, 0xff, 0, 1, 0xff, 0xff], 2, 0, channels = 6)))

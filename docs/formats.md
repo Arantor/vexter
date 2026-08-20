@@ -88,11 +88,11 @@ through 9 remain inspectable as opaque `/tracks` resources but cannot yet be
 reconstructed.
 
 The authentic `Frustration.dms`, `HolyGrail.dms`, and `GoldenFleece.dms`
-fixtures establish that the four bytes after `DMS!` may be zero rather than the
-document's listed text values. All three contain 80 HEAVY2 tracks representing
-a 901,120-byte DD OFS disk. Vexter's reconstructed images are byte-identical to
-xDMS output and then pass the ADF parser. Their output hashes are recorded in
-`THIRD_PARTY.md`.
+reference files establish that the four bytes after `DMS!` may be zero rather
+than the document's listed text values. All three contain 80 HEAVY2 tracks
+representing a 901,120-byte DD OFS disk. Vexter's reconstructed images are
+byte-identical to xDMS output and then pass the ADF parser. Their output hashes
+are recorded in `THIRD_PARTY.md`.
 
 The supplied public-domain xDMS source tree is the reference for CRC/checksum,
 RLE, HEAVY, and stateful-track behavior, and for future compression support. The
@@ -189,10 +189,10 @@ reference implementation lists both compression and stereo as unfinished,
 and provides no 16-bit compressed-stream definition. The natural WAV export
 contains interleaved little-endian 16-bit PCM.
 
-The supplied documentation, source, and fixture provenance and hashes are
-recorded in [`THIRD_PARTY.md`](../THIRD_PARTY.md). The authentic fixture test
-checks detection, sample count, sample rate, initial signed values, and WAV
-byte order; synthetic tests cover stereo and malformed or unsupported input.
+The supplied documentation, source, and reference-sample provenance and hashes
+are recorded in [`THIRD_PARTY.md`](../THIRD_PARTY.md). Automated tests use
+synthetic data for stereo layout and malformed or unsupported input and do not
+depend on the separately supplied reference package.
 
 ## WAV audio export
 
