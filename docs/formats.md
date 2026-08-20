@@ -243,9 +243,21 @@ seven-plane variants with a single mode bit follow the same decoder.
 
 True-colour images export to RGB PNG. GIF remains limited to indexed rasters;
 Vexter reports that quantization is not implemented instead of silently
-reducing colours. Mask planes and transparent-colour images still require
-decoder work and are rejected rather than losing transparency; the shared
-raster archetypes themselves now carry alpha.
+reducing colours. All four BMHD masking values are supported. Mode zero is
+opaque. Mode one reads an additional one-bit mask plane after the colour planes
+of each scanline (or after the contiguous colour planes in ACBM), with set bits
+opaque. Mode two makes pixels matching `transparentColour` transparent. Mode
+three performs lasso masking: matching pixels connected to the bitmap boundary
+are transparent, while enclosed matching islands remain opaque. Mask rows use
+the same independent raw or ByteRun1 framing as colour-plane rows. The result
+is stored as per-pixel alpha on indexed or HAM true-colour rasters and is
+preserved by PNG/APNG export.
+
+The `WP` ILBM inside `Frustration.dms` is the authentic transparent-colour
+control. It declares masking mode two and palette index zero; it now inspects
+without warnings and exports as a 32×768 RGBA PNG. Synthetic fixtures cover
+explicit raw and ByteRun1 mask planes, transparent colour, lasso connectivity,
+and rejection of undefined masking values.
 
 The authentic Deluxe Paint 4.5 AGA samples `TutGallery.Ham` and
 `EAWorld.Ham8` both decode byte-for-byte to the RGB pixels in their supplied

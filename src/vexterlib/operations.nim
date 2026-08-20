@@ -556,6 +556,8 @@ proc inspectSourceDepth(filename: string, data: openArray[byte],
       raster: decodeAmigaIlbmRaster(image),
       metadata: @[
         integerMetadata("planes", image.header.planes),
+        integerMetadata("masking", image.header.masking),
+        integerMetadata("transparent-colour", image.header.transparentColour),
         integerMetadata("position.x", image.header.x),
         integerMetadata("position.y", image.header.y),
         integerMetadata("aspect.x", image.header.xAspect),

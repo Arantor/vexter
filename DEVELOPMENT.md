@@ -191,8 +191,10 @@ ByteRun1-compressed planar data: scanline-interleaved planes from ILBM `BODY`
 chunks and whole sequential planes from ACBM `ABIT` chunks. It produces
 indexed images for one through five ordinary planes and six-plane EHB, and
 true-colour images for HAM/HAM8. Legacy CMAPs whose component low nibbles are
-uniformly zero are expanded by nibble replication. The raster archetypes now
-support alpha, but ILBM mask and transparent-colour decoding remains pending.
+uniformly zero are expanded by nibble replication. All defined BMHD masking
+modes populate the raster alpha channel: explicit mask planes, transparent
+palette indices, and boundary-connected lasso transparency. ByteRun1 mask rows
+are decoded independently from their associated colour-plane rows.
 
 `src/vexterlib/resources/amiga_anim_image.nim` reconstructs retained planar
 buffers with ANIM delta methods 5, 7, and 8, including interleave references

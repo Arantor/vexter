@@ -79,6 +79,10 @@ proc parseAmigaBitmapForm*(form: AmigaIffForm, expectedFormType,
   if result.image.header.planes < 1:
     raise newException(ValueError,
       expectedFormType & " must contain at least one bitplane")
+  if result.image.header.masking notin
+      AmigaIlbmMaskNone .. AmigaIlbmMaskLasso:
+    raise newException(ValueError, "unsupported " & expectedFormType &
+      " masking mode")
   if result.image.header.compression notin [0, 1]:
     raise newException(ValueError,
       "unsupported " & expectedFormType & " compression")

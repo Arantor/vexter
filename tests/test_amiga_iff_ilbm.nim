@@ -35,10 +35,11 @@ proc form(formType: string, chunks: openArray[seq[byte]]): seq[byte] =
   result.add payload
 
 proc bmhd(width, height, planes: int, masking = 0,
-    compression = 0): seq[byte] =
+    compression = 0, transparentColour = 0): seq[byte] =
   result = @[byte(width shr 8), byte(width), byte(height shr 8), byte(height),
     0, 0, 0, 0, byte(planes), byte(masking), byte(compression), 0,
-    0, 0, 10, 11, byte(width shr 8), byte(width), byte(height shr 8),
+    byte(transparentColour shr 8), byte(transparentColour), 10, 11,
+    byte(width shr 8), byte(width), byte(height shr 8),
     byte(height)]
 
 proc planarBody(codes: openArray[byte], planes: int, width = 16): seq[byte] =
@@ -216,13 +217,53 @@ suite "Amiga IFF ILBM":
     check inspection.resources.leafResources[0].metadata[0].value.stringValue ==
       "ODD!"
 
-  test "masks, malformed FORM lengths, and bad ByteRun1 are rejected":
+  test "an explicit mask plane produces per-pixel alpha":
     let masked = form("ILBM", [
       chunk("BMHD", bmhd(16, 1, 1, masking = 1)),
       chunk("CMAP", newSeq[byte](6)),
-      chunk("BODY", newSeq[byte](4))])
-    expect ValueError:
-      discard inspectSource("masked.iff", masked)
+      chunk("BODY", @[0x55'u8, 0, 0xf0, 0])])
+    let image = inspectSource("masked.iff", masked).resources.
+      rasterResources[0].raster.image
+    check image.pixels[0 .. 7] == @[0'u8, 1, 0, 1, 0, 1, 0, 1]
+    check image.alpha[0 .. 7] ==
+      @[255'u8, 255, 255, 255, 0, 0, 0, 0]
+
+  test "ByteRun1 applies independently to image and mask rows":
+    let masked = form("ILBM", [
+      chunk("BMHD", bmhd(16, 1, 1, masking = 1, compression = 1)),
+      chunk("CMAP", newSeq[byte](6)),
+      chunk("BODY", @[1'u8, 0x55, 0, 1, 0xf0, 0])])
+    let image = decodeAmigaIlbmRaster(parseAmigaIlbm(masked).image).image
+    check image.alpha[0 .. 7] ==
+      @[255'u8, 255, 255, 255, 0, 0, 0, 0]
+
+  test "transparent-colour masking makes only its palette index transparent":
+    let transparent = form("ILBM", [
+      chunk("BMHD", bmhd(16, 1, 1, masking = 2,
+        transparentColour = 0)),
+      chunk("CMAP", newSeq[byte](6)),
+      chunk("BODY", @[0x55'u8, 0])])
+    let image = decodeAmigaIlbmRaster(parseAmigaIlbm(transparent).image).image
+    check image.alpha[0 .. 7] == @[0'u8, 255, 0, 255, 0, 255, 0, 255]
+
+  test "lasso masking preserves enclosed transparent-colour islands":
+    let lasso = form("ILBM", [
+      chunk("BMHD", bmhd(5, 5, 1, masking = 3,
+        transparentColour = 0)),
+      chunk("CMAP", newSeq[byte](6)),
+      chunk("BODY", @[
+        0x00'u8, 0, 0x70, 0, 0x50, 0, 0x70, 0, 0x00, 0])])
+    let image = decodeAmigaIlbmRaster(parseAmigaIlbm(lasso).image).image
+    check image.alphaAt(0, 0) == 0
+    check image.alphaAt(1, 1) == 255
+    check image.alphaAt(2, 2) == 255
+
+  test "unknown masks, malformed FORM lengths, and bad ByteRun1 are rejected":
+    let unknownMask = form("ILBM", [
+      chunk("BMHD", bmhd(16, 1, 1, masking = 4)),
+      chunk("CMAP", newSeq[byte](6)),
+      chunk("BODY", newSeq[byte](2))])
+    check not isAmigaIlbm(unknownMask)
 
     var badLength = form("TEST", [])
     badLength[7] = badLength[7] + 1

@@ -173,7 +173,7 @@ suite "Amiga DMS disk archives":
         candidates = detectFormats(fixture[0], data)
         diskData = unpackAmigaDms(archive)
         volume = parseAmigaAdf(diskData)
-        inspection = inspectSource(fixture[0], data, ignoreWarnings = true)
+        inspection = inspectSource(fixture[0], data)
       check data.len == fixture[1]
       check archive.headerKind == ""
       check archive.lowTrack == 0
@@ -190,3 +190,8 @@ suite "Amiga DMS disk archives":
       check inspection.selectedFormat.typeId == AmigaDmsTypeId
       check inspection.resources.roots[0].path == "/disk"
       check inspection.resources.leafResources.len > 0
+      check inspection.warnings.len == 0
+      if fixture[0] == "Frustration.dms":
+        let wallpaper = inspection.resources.findRasterResource("/disk/WP/image")
+        check not wallpaper.isNil
+        check wallpaper.raster.image.hasAlpha

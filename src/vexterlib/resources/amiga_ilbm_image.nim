@@ -7,6 +7,10 @@ const
   AmigaIlbmImageResourcePath* = "/image"
   AmigaIlbmCamgHam* = 0x0800'u32
   AmigaIlbmCamgEhb* = 0x0080'u32
+  AmigaIlbmMaskNone* = 0
+  AmigaIlbmMaskPlane* = 1
+  AmigaIlbmMaskTransparentColour* = 2
+  AmigaIlbmMaskLasso* = 3
 
 type
   AmigaPlanarLayout* = enum
@@ -83,15 +87,16 @@ proc decodePalette(source: AmigaIlbmImageSource): seq[VextRgb] =
 proc validateDimensions(header: AmigaIlbmHeader) =
   if header.width <= 0 or header.height <= 0:
     raise newException(ValueError, "ILBM dimensions must be positive")
-  if header.masking != 0:
-    raise newException(ValueError,
-      "masked ILBM images require an alpha-capable raster archetype")
+  if header.masking notin AmigaIlbmMaskNone .. AmigaIlbmMaskLasso:
+    raise newException(ValueError, "unsupported ILBM masking mode")
 
 proc decodeAmigaIlbmPlanes*(source: AmigaIlbmImageSource): seq[byte] =
   let header = source.header
   let rowBytes = ((header.width + 15) div 16) * 2
   let planeSize = rowBytes * header.height
-  result = newSeq[byte](planeSize * header.planes)
+  let storedPlanes = header.planes +
+    (if header.masking == AmigaIlbmMaskPlane: 1 else: 0)
+  result = newSeq[byte](planeSize * storedPlanes)
   var bodyOffset = 0
   template decodePlaneRow(plane, y: int) =
       let row = decodeRow(source.body, bodyOffset, rowBytes,
@@ -101,10 +106,10 @@ proc decodeAmigaIlbmPlanes*(source: AmigaIlbmImageSource): seq[byte] =
   case source.planarLayout
   of aplRowInterleaved:
     for y in 0 ..< header.height:
-      for plane in 0 ..< header.planes:
+      for plane in 0 ..< storedPlanes:
         decodePlaneRow(plane, y)
   of aplPlaneContiguous:
-    for plane in 0 ..< header.planes:
+    for plane in 0 ..< storedPlanes:
       for y in 0 ..< header.height:
         decodePlaneRow(plane, y)
   if bodyOffset != source.body.len:
@@ -116,7 +121,9 @@ proc codesFromPlanes(source: AmigaIlbmImageSource,
     header = source.header
     rowBytes = ((header.width + 15) div 16) * 2
     planeSize = rowBytes * header.height
-  if planes.len != planeSize * header.planes:
+  let storedPlanes = header.planes +
+    (if header.masking == AmigaIlbmMaskPlane: 1 else: 0)
+  if planes.len != planeSize * storedPlanes:
     raise newException(ValueError, "ILBM planar buffer has the wrong length")
   result = newSeq[uint8](header.width * header.height)
   for y in 0 ..< header.height:
@@ -126,6 +133,64 @@ proc codesFromPlanes(source: AmigaIlbmImageSource,
         if (value and (0x80'u8 shr (x mod 8))) != 0:
           result[y * header.width + x] =
             result[y * header.width + x] or uint8(1 shl plane)
+
+proc alphaFromMasking(source: AmigaIlbmImageSource, planes: openArray[byte],
+    codes: openArray[uint8]): seq[uint8] =
+  let header = source.header
+  case header.masking
+  of AmigaIlbmMaskNone:
+    discard
+  of AmigaIlbmMaskPlane:
+    let
+      rowBytes = ((header.width + 15) div 16) * 2
+      planeSize = rowBytes * header.height
+      maskOffset = planeSize * header.planes
+    result = newSeq[uint8](header.width * header.height)
+    for y in 0 ..< header.height:
+      for x in 0 ..< header.width:
+        let value = planes[maskOffset + y * rowBytes + x div 8]
+        result[y * header.width + x] =
+          if (value and (0x80'u8 shr (x mod 8))) != 0: 255'u8 else: 0'u8
+  of AmigaIlbmMaskTransparentColour:
+    result = newSeq[uint8](header.width * header.height)
+    for index, code in codes:
+      result[index] =
+        if int(code) == header.transparentColour: 0'u8 else: 255'u8
+  of AmigaIlbmMaskLasso:
+    # Lasso transparency is the transparent-colour region connected to the
+    # bitmap boundary. Matching enclosed pixels remain opaque.
+    result = newSeq[uint8](header.width * header.height)
+    for index in 0 ..< result.len: result[index] = 255
+    var
+      queued = newSeq[bool](result.len)
+      queue: seq[int]
+      next = 0
+    template enqueue(x, y: int) =
+      block:
+        let position = y * header.width + x
+        if not queued[position] and
+            int(codes[position]) == header.transparentColour:
+          queued[position] = true
+          queue.add position
+    for x in 0 ..< header.width:
+      enqueue(x, 0)
+      if header.height > 1: enqueue(x, header.height - 1)
+    for y in 1 ..< header.height - 1:
+      enqueue(0, y)
+      if header.width > 1: enqueue(header.width - 1, y)
+    while next < queue.len:
+      let
+        position = queue[next]
+        x = position mod header.width
+        y = position div header.width
+      inc next
+      result[position] = 0
+      if x > 0: enqueue(x - 1, y)
+      if x + 1 < header.width: enqueue(x + 1, y)
+      if y > 0: enqueue(x, y - 1)
+      if y + 1 < header.height: enqueue(x, y + 1)
+  else:
+    raise newException(ValueError, "unsupported ILBM masking mode")
 
 proc renderAmigaIlbmImage*(source: AmigaIlbmImageSource,
     planes: openArray[byte]): VextIndexedImage =
@@ -139,11 +204,13 @@ proc renderAmigaIlbmImage*(source: AmigaIlbmImageSource,
     raise newException(ValueError,
       "indexed ILBM decoding supports one to five planes or six-plane EHB")
 
+  let codes = codesFromPlanes(source, planes)
   result = VextIndexedImage(
     width: header.width,
     height: header.height,
     palette: decodePalette(source),
-    pixels: codesFromPlanes(source, planes))
+    pixels: codes,
+    alpha: alphaFromMasking(source, planes, codes))
   let requiredColours = if ehb: 32 else: 1 shl header.planes
   while result.palette.len < requiredColours:
     result.palette.add VextRgb()
@@ -179,7 +246,8 @@ proc renderAmigaIlbmHam*(source: AmigaIlbmImageSource,
     palette.add VextRgb()
   result = VextTrueColourImage(
     width: header.width, height: header.height,
-    pixels: newSeq[VextRgb](header.width * header.height))
+    pixels: newSeq[VextRgb](header.width * header.height),
+    alpha: alphaFromMasking(source, planes, codes))
 
   for y in 0 ..< header.height:
     var held = VextRgb()
