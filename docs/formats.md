@@ -787,6 +787,35 @@ filters, Adam7 coordinate reconstruction, APNG import/export round trips,
 partial-frame blending/disposal, private chunk tolerance/metadata, CRC
 rejection, and required chunks.
 
+## QOI images
+
+Container type identifier: `qoi`
+
+Raster type identifier: `qoi.image`
+
+QOI import validates the `qoif` signature, positive big-endian dimensions,
+RGB/RGBA channel descriptor, defined colour-space descriptor, byte-aligned
+chunk framing, exact declared pixel coverage, and the required eight-byte end
+marker with no trailing data. A valid stream is detected as **certain**, with
+`.qoi` adding supporting evidence. The decoded true-colour image is exposed at
+`/image` and naturally exports as PNG.
+
+RGB, RGBA, INDEX, DIFF, LUMA, and RUN chunks are decoded with eight-bit tags
+taking precedence over two-bit tags. Decoding maintains the specified
+zero-initialized 64-entry colour hash, starts with opaque black, and applies
+channel differences modulo 256. The header's channel and colour-space fields
+are retained as metadata but, as specified, do not alter chunk decoding.
+Per-pixel alpha is retained when any decoded pixel is non-opaque.
+
+Implementation follows the developer-supplied “The Quite OK Image Format”
+Specification Version 1.0 dated 2022-01-05. All eight temporarily supplied QOI
+test images from the QOI specification website decoded pixel-for-pixel,
+including alpha, against their accompanying PNG controls. Those third-party
+files are compatibility evidence only and are not repository fixtures;
+automated tests instead construct synthetic streams covering every opcode and
+structural failure mode. Provenance and hashes are recorded in
+[`THIRD_PARTY.md`](../THIRD_PARTY.md).
+
 ## Amiga Workbench icons
 
 Classic Workbench `.info` DiskObjects are detected and inspected. Their

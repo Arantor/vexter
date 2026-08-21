@@ -1,5 +1,32 @@
 # Third-party material
 
+## QOI specification and temporary compatibility set
+
+The developer supplied `qoi-specification.pdf`, “The Quite OK Image Format”,
+Specification Version 1.0 dated 2022-01-05, from the QOI specification website.
+It is the format authority for QOI header, chunk, hash, wraparound, and end
+marker behavior. Its SHA-256 hash is:
+
+```text
+e9389266f56db4e1614810f2a0003e85e11a5dd3c5e46b7ccc09bcfee8b17a42  qoi-specification.pdf
+```
+
+The developer also temporarily supplied the QOI website test image set with
+reference PNG copies. Vexter decoded all eight QOI images pixel-for-pixel,
+including alpha, against those controls. The files are not retained as project
+fixtures. Their supplied QOI hashes are:
+
+```text
+b05a622813eff15ce64f33ab76eee3f9d144f5cf24386e13ddf17c27f6310a01  dice.qoi
+3cae50b533fbc796171a0763c29a576eaac475d04b6a95fe46b02d440f609e11  edgecase.qoi
+e330cc81299a2641386f32bdf4b7070b8d5f8f2f76d899ced389b5a1469e65b0  kodim10.qoi
+d225e987dc07262be2acee5dee164b5f48d3a49dd0e03f426b3111b52f265548  kodim23.qoi
+e6519746939c2b6bc6776a65ce87b1dbd769069c2d2c11295453e9f35160ba57  qoi_logo.qoi
+de309646439d2e49c51d9921eb1faff9af4cb33f0019a24ccb57dce1ef00dbab  testcard.qoi
+b284ed810a892bca34e89a956b7f8bf21afae4826197a8f3eaef90e470e2149e  testcard_rgba.qoi
+a289c12cd96cc3ff65fcafa1a6d55c5cace0095a45bc570ca1a4d8b79a20b4df  wikipedia_008.qoi
+```
+
 ## DMS header specification
 
 The developer supplied `DMS.txt`, titled “DMS HEADER STRUCTURE v1.01” and

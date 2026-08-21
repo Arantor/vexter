@@ -20,6 +20,7 @@ import vexterlib/containers/bmp
 import vexterlib/containers/png_container
 import vexterlib/containers/gif_container
 import vexterlib/containers/wav as wav_container
+import vexterlib/containers/qoi
 import vexterlib/containers/amos_bank_set
 import vexterlib/containers/amos_program
 import vexterlib/containers/amos_sprite_icon_bank
@@ -38,6 +39,7 @@ import vexterlib/resources/pcx_image
 import vexterlib/resources/bmp_image
 import vexterlib/resources/png_image
 import vexterlib/resources/gif_image
+import vexterlib/resources/qoi_image
 import vexterlib/detection
 import vexterlib/handler_registry
 import vexterlib/metadata
@@ -66,6 +68,7 @@ export bmp
 export png_container
 export gif_container
 export wav_container
+export qoi
 export amiga_anim_image
 export amiga_workbench_icon_image
 export amos_bank_set
@@ -81,6 +84,7 @@ export pcx_image
 export bmp_image
 export png_image
 export gif_image
+export qoi_image
 export zx_spectrum_snapshot
 export zx_spectrum_tap
 export detection

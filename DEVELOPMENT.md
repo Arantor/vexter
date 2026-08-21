@@ -16,7 +16,7 @@ client, and a dependency-free native Windows GUI. It supports:
 - detection and inspection of generic IFF FORM containers, indexed Amiga ILBM
   and ACBM images, IFF ANIM animations, IFF 8SVX and 16SV sampled audio,
   integer PCM WAV sounds, PCX, BMP/DIB,
-  PNG, and GIF87a/GIF89a images, AmigaDOS ADF filesystems, DMS
+  PNG, QOI, and GIF87a/GIF89a images, AmigaDOS ADF filesystems, DMS
   disk archives, ZIP archives, ZX Spectrum raw screen dumps, SNA snapshots,
   TAP containers, tokenised BASIC resources, standalone AMOS banks, AMOS bank
   sets, and AMOS programs;
@@ -167,6 +167,8 @@ Matching case-insensitive extensions add supporting evidence.
 - `png_container.nim` validates PNG signatures, chunk framing/order, CRC-32,
   image properties, palettes, transparency, and concatenated IDAT data while
   retaining every known or unknown chunk for metadata;
+- `qoi.nim` validates QOI headers, dimensions, channel and colour-space
+  descriptors, chunk framing and pixel coverage, and the exact end marker;
 - `gif_container.nim` validates GIF87a/GIF89a logical screens, global/local
   colour tables, extensions, image descriptors, and LZW data sub-blocks;
 - `amiga_iff.nim` validates generic IFF `FORM` lengths, chunk boundaries, and
@@ -234,6 +236,11 @@ scanline, expands all standard colour types and legal bit depths, applies
 palette or `tRNS` alpha, and reconstructs Adam7 passes. APNG and unknown chunks
 are distinguished: valid APNG frame streams are decomposed and composited into
 a true-colour animation, while unknown chunks remain metadata-only.
+
+`src/vexterlib/resources/qoi_image.nim` decodes every QOI RGB, RGBA, INDEX,
+DIFF, LUMA, and RUN operation into a true-colour image with optional alpha,
+including the specified modulo-256 channel arithmetic and 64-entry colour
+index.
 
 `src/vexterlib/resources/gif_image.nim` expands GIF LZW codes, restores
 interlaced rows, applies global/local palettes and binary transparency, and
@@ -333,6 +340,8 @@ windows.dib
 windows.bitmap
 png
 png.image
+qoi
+qoi.image
 gif
 gif.image
 wav
@@ -539,6 +548,9 @@ The routine suites are:
   export round trips, private chunk tolerance, metadata retention, CRCs,
   malformed required chunks, and every existing independently encoded PNG
   control;
+- `tests/test_qoi.nim`: every QOI opcode, colour-index hashing, runs,
+  modulo-256 channel differences, alpha, metadata, detection, PNG routing,
+  declared pixel coverage, exact termination, and malformed input;
 - `tests/test_gif.nim`: GIF87a/GIF89a, LZW, interlacing, global/local palettes,
   transparency, changing-palette export, static GIF routing, corruption, and
   all existing independently encoded GIF controls;

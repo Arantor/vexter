@@ -3,7 +3,7 @@
 import std/[os, strutils]
 import ./handler_registry
 import ./containers/[amiga_8svx, amiga_16sv, amiga_acbm, amiga_adf, amiga_anim, amiga_dms, amiga_iff, amiga_ilbm, amiga_workbench_icon, amos_bank, amos_bank_set, amos_program,
-  amos_sprite_icon_bank, bmp, gif_container, pcx, png_container,
+  amos_sprite_icon_bank, bmp, gif_container, pcx, png_container, qoi,
   wav, zip_archive, zx_spectrum_screen_dump, zx_spectrum_snapshot, zx_spectrum_tap]
 import ./resources/zx_spectrum_screen
 
@@ -61,6 +61,16 @@ proc detectFormats*(filename: string, data: openArray[byte]):
     if hasPngExtension(filename):
       evidence.add VextDetectionEvidence(description: "file extension is .png")
     result.add VextDetectionCandidate(typeId: PngTypeId,
+      confidence: vdcCertain, evidence: evidence)
+
+  if isQoi(data):
+    let image = parseQoi(data)
+    var evidence = @[VextDetectionEvidence(
+      description: "file has a valid qoif header and complete " &
+        $image.width & "x" & $image.height & " chunk stream")]
+    if hasQoiExtension(filename):
+      evidence.add VextDetectionEvidence(description: "file extension is .qoi")
+    result.add VextDetectionCandidate(typeId: QoiTypeId,
       confidence: vdcCertain, evidence: evidence)
 
   if isBmp(data):

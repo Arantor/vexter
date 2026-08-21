@@ -10,10 +10,10 @@ import ./exporters/[gif, png, raw, wav]
 import ./resource_tree
 import ./containers/[amiga_8svx, amiga_16sv, amiga_acbm, amiga_adf, amiga_anim, amiga_dms, amiga_iff, amiga_ilbm, amiga_workbench_icon, amos_bank, amos_bank_set, amos_packed_picture, amos_program,
   amos_sprite_icon_bank, bmp, gif_container, pcx, png_container,
-  wav, zip_archive, zx_spectrum_snapshot, zx_spectrum_tap]
+  qoi, wav, zip_archive, zx_spectrum_snapshot, zx_spectrum_tap]
 import ./metadata
 import ./resources/[amiga_anim_image, amiga_ilbm_image, amiga_workbench_icon_image, amos_listing, amos_packed_picture_image, amos_planar_image, bmp_image, gif_image, png_image, zx_spectrum_basic,
-  pcx_image, zx_spectrum_screen]
+  pcx_image, qoi_image, zx_spectrum_screen]
 
 type
   VextOperationCancelledError* = object of CatchableError
@@ -503,6 +503,13 @@ proc inspectSourceDepth(filename: string, data: openArray[byte],
     result.resources.roots.add VextResourceNode(path: PngImageResourcePath,
       typeId: PngImageTypeId, kind: vrnkRaster, raster: decodePngOrApng(source),
       metadata: metadata)
+  of vhkQoi:
+    let source = parsedValue[QoiImageSource](selectedParsed, vhkQoi)
+    result.resources.roots.add VextResourceNode(
+      path: QoiImageResourcePath, typeId: QoiImageTypeId, kind: vrnkRaster,
+      raster: decodeQoi(source), metadata: @[
+        integerMetadata("channels", source.channels),
+        integerMetadata("colour-space", source.colourSpace)])
   of vhkBmp, vhkDib:
     let source = parsedValue[BmpImageSource](selectedParsed,
       selectedHandler.kind)

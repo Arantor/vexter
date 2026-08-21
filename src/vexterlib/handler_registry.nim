@@ -7,7 +7,7 @@
 import ./containers/[amiga_8svx, amiga_16sv, amiga_acbm, amiga_adf, amiga_anim,
   amiga_dms, amiga_iff, amiga_ilbm, amiga_workbench_icon, amos_bank,
   amos_bank_set, amos_program, amos_sprite_icon_bank, bmp, gif_container, pcx,
-  png_container, wav, zip_archive, zx_spectrum_screen_dump,
+  png_container, qoi, wav, zip_archive, zx_spectrum_screen_dump,
   zx_spectrum_snapshot, zx_spectrum_tap]
 type
   VextHandlerKind* = enum
@@ -23,6 +23,7 @@ type
     vhkBmp
     vhkDib
     vhkPng
+    vhkQoi
     vhkGif
     vhkPcx
     vhkWav
@@ -68,6 +69,7 @@ const FormatHandlers* = [
   VextFormatHandler(typeId: BmpTypeId, kind: vhkBmp),
   VextFormatHandler(typeId: DibTypeId, kind: vhkDib),
   VextFormatHandler(typeId: PngTypeId, kind: vhkPng),
+  VextFormatHandler(typeId: QoiTypeId, kind: vhkQoi),
   VextFormatHandler(typeId: GifTypeId, kind: vhkGif),
   VextFormatHandler(typeId: PcxTypeId, kind: vhkPcx),
   VextFormatHandler(typeId: WavTypeId, kind: vhkWav),
@@ -121,6 +123,7 @@ proc parse*(handler: VextFormatHandler,
   of vhkBmp: result = parsed(parseBmp(data))
   of vhkDib: result = parsed(parseDib(data))
   of vhkPng: result = parsed(parsePng(data))
+  of vhkQoi: result = parsed(parseQoi(data))
   of vhkGif: result = parsed(parseGif(data))
   of vhkPcx: result = parsed(parsePcx(data))
   of vhkWav: result = parsed(parseWav(data))
