@@ -39,6 +39,7 @@ import vexterlib/resources/bmp_image
 import vexterlib/resources/png_image
 import vexterlib/resources/gif_image
 import vexterlib/detection
+import vexterlib/handler_registry
 import vexterlib/metadata
 import vexterlib/operations
 import vexterlib/resource_tree
@@ -83,6 +84,7 @@ export gif_image
 export zx_spectrum_snapshot
 export zx_spectrum_tap
 export detection
+export handler_registry
 export metadata
 export operations
 export resource_tree

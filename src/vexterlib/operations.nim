@@ -5,6 +5,7 @@ import ./artifacts
 import ./archetypes/raster
 import ./archetypes/audio
 import ./detection
+import ./handler_registry
 import ./exporters/[gif, png, raw, wav]
 import ./resource_tree
 import ./containers/[amiga_8svx, amiga_16sv, amiga_acbm, amiga_adf, amiga_anim, amiga_dms, amiga_iff, amiga_ilbm, amiga_workbench_icon, amos_bank, amos_bank_set, amos_packed_picture, amos_program,
@@ -190,63 +191,10 @@ proc uniqueArtifactName(name: string, used: var seq[string]): string =
 
 proc forcedCandidate(typeId: string, data: openArray[byte]):
     VextDetectionCandidate =
-  case typeId
-  of AmigaWorkbenchIconTypeId:
-    discard parseWorkbenchIcon(data)
-  of AmigaAcbmTypeId:
-    discard parseAmigaAcbm(data)
-  of Amiga8svxTypeId:
-    discard parseAmiga8svx(data)
-  of Amiga16svTypeId:
-    discard parseAmiga16sv(data)
-  of AmigaAdfTypeId:
-    discard parseAmigaAdf(data)
-  of AmigaDmsTypeId:
-    discard parseAmigaDms(data)
-  of AmigaAnimTypeId:
-    discard parseAmigaAnim(data)
-  of AmigaIlbmTypeId:
-    discard parseAmigaIlbm(data)
-  of AmigaIffTypeId:
-    discard parseAmigaIff(data)
-  of BmpTypeId:
-    discard parseBmp(data)
-  of DibTypeId:
-    discard parseDib(data)
-  of PngTypeId:
-    discard parsePng(data)
-  of GifTypeId:
-    discard parseGif(data)
-  of PcxTypeId:
-    discard parsePcx(data)
-  of WavTypeId:
-    discard parseWav(data)
-  of ZipArchiveTypeId:
-    discard parseZipArchive(data)
-  of AmosProgramTypeId:
-    discard parseAmosProgram(data)
-  of AmosBankSetTypeId:
-    discard parseAmosBankSet(data)
-  of AmosBankTypeId:
-    discard parseAmosBank(data)
-  of AmosSpriteBankTypeId, AmosIconBankTypeId:
-    let bank = parseAmosSpriteIconBank(data)
-    if bank.amosSpriteIconBankTypeId != typeId:
-      raise newException(ValueError,
-        "AMOS bank identifier does not match the selected format")
-  of ZxSpectrumScreenDumpTypeId:
-    if not isZxSpectrumScreenDump(data):
-      raise newException(ValueError,
-        "ZX Spectrum screen dump must contain exactly 6912 bytes")
-  of ZxSpectrumSnapshotTypeId:
-    if not isZxSpectrumSnapshotSize(data.len):
-      raise newException(ValueError,
-        "ZX Spectrum snapshot must contain exactly 49179, 131103, or 147487 bytes")
-  of ZxSpectrumTapTypeId:
-    if not isZxSpectrumTap(data):
-      raise newException(ValueError, "invalid ZX Spectrum TAP container")
-  else:
+  let handler = formatHandler(typeId)
+  if handler.isNil:
     raise newException(ValueError, "unsupported input format: " & typeId)
+  handler[].validate(data)
   VextDetectionCandidate(
     typeId: typeId,
     confidence: vdcProbable,
@@ -460,8 +408,12 @@ proc inspectSourceDepth(filename: string, data: openArray[byte],
       raise newException(ValueError, "input format was not recognized")
     result.selectedFormat = result.candidates[0]
 
-  case result.selectedFormat.typeId
-  of AmigaWorkbenchIconTypeId:
+  let selectedHandler = formatHandler(result.selectedFormat.typeId)
+  if selectedHandler.isNil:
+    raise newException(ValueError,
+      "unsupported input format: " & result.selectedFormat.typeId)
+  case selectedHandler.kind
+  of vhkWorkbenchIcon:
     let icon = parseWorkbenchIcon(data)
     var metadata = @[
       integerMetadata("workbench.version", icon.version),
@@ -517,7 +469,7 @@ proc inspectSourceDepth(filename: string, data: openArray[byte],
           defaultExportPriority: if index == 0: 30 else: 0)
       result.resources.roots.add glowGroup
     result.resources.roots.add group
-  of GifTypeId:
+  of vhkGif:
     let source = parseGif(data)
     var metadata = @[
       stringMetadata("gif.version", source.version),
@@ -533,7 +485,7 @@ proc inspectSourceDepth(filename: string, data: openArray[byte],
     result.resources.roots.add VextResourceNode(path: GifImageResourcePath,
       typeId: GifImageTypeId, kind: vrnkRaster, raster: decodeGif(source),
       metadata: metadata)
-  of PngTypeId:
+  of vhkPng:
     let source = parsePng(data)
     var metadata = @[
       integerMetadata("bit-depth", source.bitDepth),
@@ -546,8 +498,8 @@ proc inspectSourceDepth(filename: string, data: openArray[byte],
     result.resources.roots.add VextResourceNode(path: PngImageResourcePath,
       typeId: PngImageTypeId, kind: vrnkRaster, raster: decodePngOrApng(source),
       metadata: metadata)
-  of BmpTypeId, DibTypeId:
-    let source = if result.selectedFormat.typeId == BmpTypeId:
+  of vhkBmp, vhkDib:
+    let source = if selectedHandler.kind == vhkBmp:
       parseBmp(data) else: parseDib(data)
     result.resources.roots.add VextResourceNode(
       path: BmpImageResourcePath, typeId: BmpImageTypeId, kind: vrnkRaster,
@@ -557,7 +509,7 @@ proc inspectSourceDepth(filename: string, data: openArray[byte],
         integerMetadata("colours-used", source.coloursUsed),
         integerMetadata("pixels-per-metre.x", source.xPixelsPerMetre),
         integerMetadata("pixels-per-metre.y", source.yPixelsPerMetre)])
-  of PcxTypeId:
+  of vhkPcx:
     let source = parsePcx(data)
     result.resources.roots.add VextResourceNode(
       path: PcxImageResourcePath, typeId: PcxImageTypeId, kind: vrnkRaster,
@@ -568,7 +520,7 @@ proc inspectSourceDepth(filename: string, data: openArray[byte],
         integerMetadata("position.y", source.yMin),
         integerMetadata("dpi.x", source.horizontalDpi),
         integerMetadata("dpi.y", source.verticalDpi)])
-  of WavTypeId:
+  of vhkWav:
     let source = parseWav(data)
     var metadata = @[
       integerMetadata("channels", source.channelCount),
@@ -585,7 +537,7 @@ proc inspectSourceDepth(filename: string, data: openArray[byte],
       path: WavSoundResourcePath, typeId: WavSoundTypeId,
       kind: vrnkAudio, audioKind: varkSound, sound: decodeWav(source),
       metadata: metadata)
-  of ZipArchiveTypeId:
+  of vhkZip:
     let archive = parseZipArchive(data)
     let root = VextResourceNode(path: "/archive", typeId: ZipArchiveTypeId,
       kind: vrnkGroup, metadata: @[
@@ -595,7 +547,7 @@ proc inspectSourceDepth(filename: string, data: openArray[byte],
       addZipEntry(root, entry, depth, ignoreWarnings, pcxChannelOrder,
         result.warnings)
     result.resources.roots.add root
-  of AmigaAdfTypeId:
+  of vhkAmigaAdf:
     let volume = parseAmigaAdf(data)
     let disk = VextResourceNode(
       path: "/disk", typeId: AmigaAdfTypeId, kind: vrnkGroup,
@@ -609,7 +561,7 @@ proc inspectSourceDepth(filename: string, data: openArray[byte],
       disk.children.add adfEntryNode(entry, "/disk", depth, ignoreWarnings,
         pcxChannelOrder, result.warnings)
     result.resources.roots.add disk
-  of AmigaDmsTypeId:
+  of vhkAmigaDms:
     let archive = parseAmigaDms(data)
     if not archive.canUnpackAmigaDms:
       let tracks = VextResourceNode(
@@ -663,7 +615,7 @@ proc inspectSourceDepth(filename: string, data: openArray[byte],
       disk.children.add adfEntryNode(entry, "/disk", depth, ignoreWarnings,
         pcxChannelOrder, result.warnings)
     result.resources.roots.add disk
-  of AmigaAnimTypeId:
+  of vhkAmigaAnim:
     let anim = parseAmigaAnim(data)
     result.resources.roots.add VextResourceNode(
       path: AmigaAnimResourcePath,
@@ -675,7 +627,7 @@ proc inspectSourceDepth(filename: string, data: openArray[byte],
         integerMetadata("planes", anim.initial.image.header.planes),
         integerMetadata("camg", int(anim.initial.image.camg))
       ])
-  of Amiga8svxTypeId:
+  of vhkAmiga8svx:
     let source = parseAmiga8svx(data)
     let instrument = decodeAmiga8svx(source)
     result.resources.roots.add VextResourceNode(
@@ -699,7 +651,7 @@ proc inspectSourceDepth(filename: string, data: openArray[byte],
         stringMetadata("name", source.name),
         stringMetadata("annotation", source.annotation)
       ])
-  of Amiga16svTypeId:
+  of vhkAmiga16sv:
     let source = parseAmiga16sv(data)
     let instrument = decodeAmiga16sv(source)
     result.resources.roots.add VextResourceNode(
@@ -726,8 +678,8 @@ proc inspectSourceDepth(filename: string, data: openArray[byte],
         stringMetadata("copyright", source.copyright),
         stringMetadata("version", source.version)
       ])
-  of AmigaAcbmTypeId, AmigaIlbmTypeId:
-    let image = if result.selectedFormat.typeId == AmigaAcbmTypeId:
+  of vhkAmigaAcbm, vhkAmigaIlbm:
+    let image = if selectedHandler.kind == vhkAmigaAcbm:
       parseAmigaAcbm(data).image
     else:
       parseAmigaIlbm(data).image
@@ -746,7 +698,7 @@ proc inspectSourceDepth(filename: string, data: openArray[byte],
         integerMetadata("aspect.y", image.header.yAspect),
         integerMetadata("camg", int(image.camg))
       ])
-  of AmigaIffTypeId:
+  of vhkAmigaIff:
     let form = parseAmigaIff(data)
     let group = VextResourceNode(
       path: "/chunks", typeId: AmigaIffTypeId, kind: vrnkGroup,
@@ -763,7 +715,7 @@ proc inspectSourceDepth(filename: string, data: openArray[byte],
           integerMetadata("data.length", chunk.data.len)
         ])
     result.resources.roots.add group
-  of AmosProgramTypeId:
+  of vhkAmosProgram:
     let program = parseAmosProgram(data)
     result.resources.roots.add VextResourceNode(
       path: "/listing",
@@ -775,23 +727,23 @@ proc inspectSourceDepth(filename: string, data: openArray[byte],
         integerMetadata("data.length", program.listingLength)
       ])
     result.resources.roots.add amosBankSetGroup(program.bankSet)
-  of AmosBankSetTypeId:
+  of vhkAmosBankSet:
     let bankSet = parseAmosBankSet(data)
     result.resources.roots.add amosBankSetGroup(bankSet)
-  of AmosBankTypeId:
+  of vhkAmosBank:
     let bank = parseAmosBank(data)
     let path = if bank.bankType == AmosPackedPictureBankType:
       AmosPackedPictureResourcePath else: "/bank"
     result.resources.roots.add amosBankNode(path, bank)
-  of AmosSpriteBankTypeId, AmosIconBankTypeId:
+  of vhkAmosSpriteBank, vhkAmosIconBank:
     let bank = parseAmosSpriteIconBank(data)
     let resourceName = if bank.kind == asibkSprite: "sprite" else: "icon"
     result.resources.roots.add amosSpriteIconGroup(
       "/" & resourceName, "/" & resourceName, bank)
-  of ZxSpectrumScreenDumpTypeId:
+  of vhkZxSpectrumScreen:
     result.resources.roots.add rasterNode(ZxSpectrumScreenResourcePath,
       extractZxSpectrumScreenDump(data))
-  of ZxSpectrumSnapshotTypeId:
+  of vhkZxSpectrumSnapshot:
     result.resources.roots.add rasterNode(ZxSpectrumScreenResourcePath,
       extractZxSpectrumSnapshotScreen(data))
     if data.len == ZxSpectrumSnapshot48Size:
@@ -803,7 +755,7 @@ proc inspectSourceDepth(filename: string, data: openArray[byte],
           text: extractZxSpectrumSnapshotBasic(data))
       except ValueError:
         discard
-  of ZxSpectrumTapTypeId:
+  of vhkZxSpectrumTap:
     let screens = parseZxSpectrumTapScreens(data)
     if screens.len == 1:
       result.resources.roots.add rasterNode(ZxSpectrumScreenResourcePath,
@@ -834,9 +786,6 @@ proc inspectSourceDepth(filename: string, data: openArray[byte],
           kind: vrnkText,
           text: decodeZxSpectrumBasic(listing.data))
       result.resources.roots.add group
-  else:
-    discard
-
 proc inspectSource*(filename: string, data: openArray[byte],
     inputFormat = "", ignoreWarnings = false,
     pcxChannelOrder = pcoRgb,

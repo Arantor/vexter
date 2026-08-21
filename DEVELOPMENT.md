@@ -124,6 +124,13 @@ be used for that transfer.
   of resource patterns, assigns safe hierarchical names, resolves normalized
   filename collisions deterministically, and returns all artifacts in memory.
 
+`src/vexterlib/handler_registry.nim` is the authoritative registry of supported
+input type identifiers. Each entry binds a stable identifier to its validation
+and inspection handler kind. Detection results are required to resolve through
+the registry, forced-format validation dispatches through it, and inspection
+selects format-specific decoding by handler kind rather than repeating a
+parallel type-identifier list.
+
 `src/vexterlib/resource_tree.nim` defines `VextResourceTree` and
 `VextResourceNode`. Nodes are reference objects and currently have the
 `vrnkGroup`, `vrnkRaster`, `vrnkText`, `vrnkAudio`, or `vrnkOpaque` kind. `leafResources`
@@ -615,6 +622,7 @@ names there when adding suites, or direct their output into `/tmp`.
 - Single-resource export currently expects one artifact at the CLI boundary.
   The artifact API and `export-all` directory handling permit multiple files;
   compound exporters themselves remain future work.
-- Recursive decoding is shared by ADF and ZIP, with a fixed eight-layer bound;
-  it is not yet a handler registry. Detection currently parses some inputs again during inspection. There is no
-  parsed-container cache or registry abstraction yet.
+- Recursive decoding is shared by ADF and ZIP through the registered detection
+  and inspection path, with a fixed eight-layer bound. Detection currently
+  parses some inputs again during inspection; there is no parsed-container
+  cache yet.

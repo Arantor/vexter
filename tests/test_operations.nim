@@ -2,6 +2,19 @@ import std/unittest
 import vexterlib
 
 suite "vexterlib operations":
+  test "format handlers are unique and cover detected formats":
+    for index, handler in FormatHandlers:
+      check handler.typeId.len > 0
+      check not formatHandler(handler.typeId).isNil
+      check formatHandler(handler.typeId)[].kind == handler.kind
+      for otherIndex in index + 1 .. FormatHandlers.high:
+        check handler.typeId != FormatHandlers[otherIndex].typeId
+
+    let candidates = detectFormats("display.scr",
+      newSeq[byte](ZxSpectrumScreenSize))
+    check candidates.len == 1
+    check not formatHandler(candidates[0].typeId).isNil
+
   test "inspection returns a decoded resource tree":
     let inspection = inspectSource("display.scr",
       newSeq[byte](ZxSpectrumScreenSize))

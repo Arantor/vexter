@@ -1,6 +1,7 @@
 ## Evidence-based input format detection.
 
 import std/[os, strutils]
+import ./handler_registry
 import ./containers/[amiga_8svx, amiga_16sv, amiga_acbm, amiga_adf, amiga_anim, amiga_dms, amiga_iff, amiga_ilbm, amiga_workbench_icon, amos_bank, amos_bank_set, amos_program,
   amos_sprite_icon_bank, bmp, gif_container, pcx, png_container,
   wav, zip_archive, zx_spectrum_screen_dump, zx_spectrum_snapshot, zx_spectrum_tap]
@@ -285,3 +286,8 @@ proc detectFormats*(filename: string, data: openArray[byte]):
       confidence: vdcProbable,
       evidence: evidence
     )
+
+  for candidate in result:
+    if formatHandler(candidate.typeId).isNil:
+      raise newException(Defect,
+        "detector returned an unregistered input format: " & candidate.typeId)
