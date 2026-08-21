@@ -40,6 +40,21 @@ type
     typeId*: string
     kind*: VextHandlerKind
 
+  VextParsedContainer* = ref object of RootObj
+    ## Type-erased parsed input with a checked handler-kind tag.
+    kind*: VextHandlerKind
+
+  VextParsedValue*[T] = ref object of VextParsedContainer
+    value*: T
+
+  VextParsedWorkbenchIcon* = object
+    icon*: WorkbenchIcon
+    glow*: WorkbenchGlowIcon
+
+  VextParsedZxTap* = object
+    screens*: seq[ZxSpectrumTapScreen]
+    listings*: seq[ZxSpectrumTapBasic]
+
 const FormatHandlers* = [
   VextFormatHandler(typeId: AmigaWorkbenchIconTypeId, kind: vhkWorkbenchIcon),
   VextFormatHandler(typeId: AmigaAcbmTypeId, kind: vhkAmigaAcbm),
@@ -75,41 +90,70 @@ proc formatHandler*(typeId: string): ptr VextFormatHandler =
     if FormatHandlers[index].typeId == typeId:
       return unsafeAddr FormatHandlers[index]
 
-proc validate*(handler: VextFormatHandler, data: openArray[byte]) =
-  ## Structurally validates input selected explicitly by a caller.
+proc parsedValue*[T](parsed: VextParsedContainer,
+    expectedKind: VextHandlerKind): T =
+  ## Retrieves a parsed value while checking both its tag and concrete type.
+  if parsed.isNil or parsed.kind != expectedKind or
+      not (parsed of VextParsedValue[T]):
+    raise newException(Defect, "parsed container does not match its handler")
+  VextParsedValue[T](parsed).value
+
+proc parse*(handler: VextFormatHandler,
+    data: openArray[byte]): VextParsedContainer =
+  ## Structurally validates and retains one format-specific parsed value.
+  template parsed(parsedInput: untyped): VextParsedContainer =
+    block:
+      let typedValue = parsedInput
+      VextParsedValue[type(typedValue)](
+        kind: handler.kind, value: typedValue)
   case handler.kind
-  of vhkWorkbenchIcon: discard parseWorkbenchIcon(data)
-  of vhkAmigaAcbm: discard parseAmigaAcbm(data)
-  of vhkAmiga8svx: discard parseAmiga8svx(data)
-  of vhkAmiga16sv: discard parseAmiga16sv(data)
-  of vhkAmigaAdf: discard parseAmigaAdf(data)
-  of vhkAmigaDms: discard parseAmigaDms(data)
-  of vhkAmigaAnim: discard parseAmigaAnim(data)
-  of vhkAmigaIlbm: discard parseAmigaIlbm(data)
-  of vhkAmigaIff: discard parseAmigaIff(data)
-  of vhkBmp: discard parseBmp(data)
-  of vhkDib: discard parseDib(data)
-  of vhkPng: discard parsePng(data)
-  of vhkGif: discard parseGif(data)
-  of vhkPcx: discard parsePcx(data)
-  of vhkWav: discard parseWav(data)
-  of vhkZip: discard parseZipArchive(data)
-  of vhkAmosProgram: discard parseAmosProgram(data)
-  of vhkAmosBankSet: discard parseAmosBankSet(data)
-  of vhkAmosBank: discard parseAmosBank(data)
+  of vhkWorkbenchIcon:
+    result = parsed(VextParsedWorkbenchIcon(icon: parseWorkbenchIcon(data),
+      glow: parseGlowIcon(data)))
+  of vhkAmigaAcbm: result = parsed(parseAmigaAcbm(data))
+  of vhkAmiga8svx: result = parsed(parseAmiga8svx(data))
+  of vhkAmiga16sv: result = parsed(parseAmiga16sv(data))
+  of vhkAmigaAdf: result = parsed(parseAmigaAdf(data))
+  of vhkAmigaDms: result = parsed(parseAmigaDms(data))
+  of vhkAmigaAnim: result = parsed(parseAmigaAnim(data))
+  of vhkAmigaIlbm: result = parsed(parseAmigaIlbm(data))
+  of vhkAmigaIff: result = parsed(parseAmigaIff(data))
+  of vhkBmp: result = parsed(parseBmp(data))
+  of vhkDib: result = parsed(parseDib(data))
+  of vhkPng: result = parsed(parsePng(data))
+  of vhkGif: result = parsed(parseGif(data))
+  of vhkPcx: result = parsed(parsePcx(data))
+  of vhkWav: result = parsed(parseWav(data))
+  of vhkZip: result = parsed(parseZipArchive(data))
+  of vhkAmosProgram: result = parsed(parseAmosProgram(data))
+  of vhkAmosBankSet: result = parsed(parseAmosBankSet(data))
+  of vhkAmosBank: result = parsed(parseAmosBank(data))
   of vhkAmosSpriteBank, vhkAmosIconBank:
     let bank = parseAmosSpriteIconBank(data)
     if bank.amosSpriteIconBankTypeId != handler.typeId:
       raise newException(ValueError,
         "AMOS bank identifier does not match the selected format")
+    result = parsed(bank)
   of vhkZxSpectrumScreen:
     if not isZxSpectrumScreenDump(data):
       raise newException(ValueError,
         "ZX Spectrum screen dump must contain exactly 6912 bytes")
+    result = parsed(extractZxSpectrumScreenDump(data))
   of vhkZxSpectrumSnapshot:
     if not isZxSpectrumSnapshotSize(data.len):
       raise newException(ValueError,
         "ZX Spectrum snapshot must contain exactly 49179, 131103, or 147487 bytes")
+    result = parsed(@data)
   of vhkZxSpectrumTap:
     if not isZxSpectrumTap(data):
       raise newException(ValueError, "invalid ZX Spectrum TAP container")
+    result = parsed(VextParsedZxTap(screens: parseZxSpectrumTapScreens(data),
+      listings: parseZxSpectrumTapBasic(data)))
+
+proc tryParse*(handler: VextFormatHandler,
+    data: openArray[byte]): VextParsedContainer =
+  ## Returns nil when the bytes are not a valid instance of this format.
+  try:
+    result = handler.parse(data)
+  except ValueError:
+    discard

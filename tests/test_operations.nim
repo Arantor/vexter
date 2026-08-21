@@ -15,6 +15,21 @@ suite "vexterlib operations":
     check candidates.len == 1
     check not formatHandler(candidates[0].typeId).isNil
 
+  test "detected and forced handlers retain checked parsed containers":
+    let data = newSeq[byte](ZxSpectrumScreenSize)
+    let detected = detectParsedFormats("display.scr", data)
+    check detected.len == 1
+    check detected[0].candidate.typeId == ZxSpectrumScreenDumpTypeId
+    check parsedValue[seq[byte]](detected[0].parsed,
+      vhkZxSpectrumScreen) == data
+    expect Defect:
+      discard parsedValue[seq[byte]](detected[0].parsed,
+        vhkZxSpectrumSnapshot)
+
+    let handler = formatHandler(ZxSpectrumScreenDumpTypeId)
+    let forced = handler[].parse(data)
+    check parsedValue[seq[byte]](forced, vhkZxSpectrumScreen) == data
+
   test "inspection returns a decoded resource tree":
     let inspection = inspectSource("display.scr",
       newSeq[byte](ZxSpectrumScreenSize))

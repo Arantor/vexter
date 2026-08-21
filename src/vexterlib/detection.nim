@@ -21,6 +21,10 @@ type
     confidence*: VextDetectionConfidence
     evidence*: seq[VextDetectionEvidence]
 
+  VextDetectedFormat* = object
+    candidate*: VextDetectionCandidate
+    parsed*: VextParsedContainer
+
 proc `$`*(confidence: VextDetectionConfidence): string =
   case confidence
   of vdcPossible: "possible"
@@ -291,3 +295,11 @@ proc detectFormats*(filename: string, data: openArray[byte]):
     if formatHandler(candidate.typeId).isNil:
       raise newException(Defect,
         "detector returned an unregistered input format: " & candidate.typeId)
+
+proc detectParsedFormats*(filename: string, data: openArray[byte]):
+    seq[VextDetectedFormat] =
+  ## Detects formats and retains each parsed container for later inspection.
+  for candidate in detectFormats(filename, data):
+    let handler = formatHandler(candidate.typeId)
+    result.add VextDetectedFormat(candidate: candidate,
+      parsed: handler[].parse(data))
