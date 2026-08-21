@@ -9,10 +9,12 @@ import ./containers/[amiga_8svx, amiga_16sv, amiga_acbm, amiga_adf, amiga_anim,
   amos_bank_set, amos_program, amos_sprite_icon_bank, bmp, gif_container,
   netpbm, pcx, png_container, qoi, wav, zip_archive, zx_spectrum_screen_dump,
   zx_spectrum_snapshot, zx_spectrum_tap]
+import ./containers/amiga_pbm
 type
   VextHandlerKind* = enum
     vhkWorkbenchIcon
     vhkAmigaAcbm
+    vhkAmigaPbm
     vhkAmiga8svx
     vhkAmiga16sv
     vhkAmigaAdf
@@ -60,6 +62,7 @@ type
 const FormatHandlers* = [
   VextFormatHandler(typeId: AmigaWorkbenchIconTypeId, kind: vhkWorkbenchIcon),
   VextFormatHandler(typeId: AmigaAcbmTypeId, kind: vhkAmigaAcbm),
+  VextFormatHandler(typeId: AmigaPbmTypeId, kind: vhkAmigaPbm),
   VextFormatHandler(typeId: Amiga8svxTypeId, kind: vhkAmiga8svx),
   VextFormatHandler(typeId: Amiga16svTypeId, kind: vhkAmiga16sv),
   VextFormatHandler(typeId: AmigaAdfTypeId, kind: vhkAmigaAdf),
@@ -115,6 +118,7 @@ proc parse*(handler: VextFormatHandler,
     result = parsed(VextParsedWorkbenchIcon(icon: parseWorkbenchIcon(data),
       glow: parseGlowIcon(data)))
   of vhkAmigaAcbm: result = parsed(parseAmigaAcbm(data))
+  of vhkAmigaPbm: result = parsed(parseAmigaPbm(data))
   of vhkAmiga8svx: result = parsed(parseAmiga8svx(data))
   of vhkAmiga16sv: result = parsed(parseAmiga16sv(data))
   of vhkAmigaAdf: result = parsed(parseAmigaAdf(data))

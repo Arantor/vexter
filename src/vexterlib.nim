@@ -7,6 +7,7 @@ import vexterlib/containers/amos_bank
 import vexterlib/containers/amiga_adf
 import vexterlib/containers/amiga_dms
 import vexterlib/containers/amiga_acbm
+import vexterlib/containers/amiga_pbm
 import vexterlib/containers/amiga_8svx
 import vexterlib/containers/amiga_16sv
 import vexterlib/containers/amos_packed_picture
@@ -31,6 +32,7 @@ import vexterlib/containers/zx_spectrum_tap
 import vexterlib/resources/amos_planar_image
 import vexterlib/resources/amos_packed_picture_image
 import vexterlib/resources/amiga_ilbm_image
+import vexterlib/resources/amiga_pbm_image
 import vexterlib/resources/amiga_anim_image
 import vexterlib/resources/amiga_workbench_icon_image
 import vexterlib/resources/amos_listing
@@ -56,12 +58,14 @@ export amos_bank
 export amiga_adf
 export amiga_dms
 export amiga_acbm
+export amiga_pbm
 export amiga_8svx
 export amiga_16sv
 export amos_packed_picture
 export amiga_iff
 export amiga_ilbm
 export amiga_ilbm_image
+export amiga_pbm_image
 export amiga_anim
 export amiga_workbench_icon
 export zip_archive

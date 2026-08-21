@@ -223,7 +223,7 @@ samples use little-endian two's-complement PCM. Sample range, channel shape,
 sample rate, RIFF size, and byte rate are validated before an artifact with
 the `audio/wav` media type is returned.
 
-## Amiga IFF, ILBM, and ACBM
+## Amiga IFF, ILBM, ACBM, and PBM
 
 Container type identifier: `amiga.iff`
 
@@ -231,7 +231,11 @@ Image/container type identifier: `amiga.ilbm`
 
 Contiguous bitmap type identifier: `amiga.acbm`
 
+Packed bitmap type identifier: `amiga.pbm`
+
 Raster type identifier: `amiga.ilbm-image`
+
+Packed bitmap raster type identifier: `amiga.pbm-image`
 
 IFF files begin with `FORM`, a big-endian length covering the four-byte form
 type and all following chunks, and the form type itself. Each chunk has a
@@ -257,6 +261,21 @@ EHB, and HAM interpretation with ILBM. `ABIT` stores all rows of plane zero,
 then all rows of plane one, continuing upward through the declared bitplanes.
 Uncompressed and row-bounded ByteRun1 data are supported. ACBM images expose
 the same raster resource at `/image` and use the normal PNG/GIF export paths.
+
+Provisional IFF PBM support recognizes `FORM PBM ` as a packed eight-bit
+indexed image. Unlike ILBM, its pixels form one chunky byte stream rather than
+interleaved bitplanes. It uses the ordinary 20-byte BMHD, optional CMAP, and
+BODY chunks and exposes `/image` as `amiga.pbm-image`.
+
+The packed-pixel and single-plane facts were supplied directly by the
+developer. Pending authentic files or fuller documentation, the draft importer
+assumes BMHD declares eight bits, each stored row is padded to an even byte
+count, and compression values zero and one mean raw and independently bounded
+ByteRun1 rows. No-mask and transparent-colour masking are supported; mask-plane
+and lasso modes are rejected because a separate mask layout has not been
+established. CMAP components are currently retained as full eight-bit values.
+These assumptions have synthetic coverage but remain explicitly subject to
+fixture confirmation.
 
 Ordinary indexed images with one through five planes are supported. A `CAMG`
 EHB flag selects six-plane Extra Half-Brite: palette indices 32 through 63 are

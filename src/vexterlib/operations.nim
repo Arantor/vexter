@@ -8,11 +8,11 @@ import ./detection
 import ./handler_registry
 import ./exporters/[gif, png, raw, wav]
 import ./resource_tree
-import ./containers/[amiga_8svx, amiga_16sv, amiga_acbm, amiga_adf, amiga_anim, amiga_dms, amiga_iff, amiga_ilbm, amiga_workbench_icon, amos_bank, amos_bank_set, amos_packed_picture, amos_program,
+import ./containers/[amiga_8svx, amiga_16sv, amiga_acbm, amiga_adf, amiga_anim, amiga_dms, amiga_iff, amiga_ilbm, amiga_pbm, amiga_workbench_icon, amos_bank, amos_bank_set, amos_packed_picture, amos_program,
   amos_sprite_icon_bank, bmp, gif_container, netpbm, pcx, png_container,
   qoi, wav, zip_archive, zx_spectrum_snapshot, zx_spectrum_tap]
 import ./metadata
-import ./resources/[amiga_anim_image, amiga_ilbm_image, amiga_workbench_icon_image, amos_listing, amos_packed_picture_image, amos_planar_image, bmp_image, gif_image, netpbm_image, png_image, zx_spectrum_basic,
+import ./resources/[amiga_anim_image, amiga_ilbm_image, amiga_pbm_image, amiga_workbench_icon_image, amos_listing, amos_packed_picture_image, amos_planar_image, bmp_image, gif_image, netpbm_image, png_image, zx_spectrum_basic,
   pcx_image, qoi_image, zx_spectrum_screen]
 
 type
@@ -729,6 +729,19 @@ proc inspectSourceDepth(filename: string, data: openArray[byte],
         integerMetadata("aspect.y", image.header.yAspect),
         integerMetadata("camg", int(image.camg))
       ])
+  of vhkAmigaPbm:
+    let image = parsedValue[AmigaPbm](selectedParsed, vhkAmigaPbm).image
+    result.resources.roots.add VextResourceNode(
+      path: AmigaPbmImageResourcePath, typeId: AmigaPbmImageTypeId,
+      kind: vrnkRaster, raster: decodeAmigaPbm(image), metadata: @[
+        integerMetadata("planes", image.header.planes),
+        integerMetadata("masking", image.header.masking),
+        integerMetadata("compression", image.header.compression),
+        integerMetadata("transparent-colour", image.header.transparentColour),
+        integerMetadata("position.x", image.header.x),
+        integerMetadata("position.y", image.header.y),
+        integerMetadata("aspect.x", image.header.xAspect),
+        integerMetadata("aspect.y", image.header.yAspect)])
   of vhkAmigaIff:
     let form = parsedValue[AmigaIffForm](selectedParsed, vhkAmigaIff)
     let group = VextResourceNode(

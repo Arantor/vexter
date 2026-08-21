@@ -1,5 +1,14 @@
 # Third-party material
 
+## IFF PBM developer-supplied format details
+
+The developer directly established that IFF PBM uses the `FORM PBM ` form
+type, contains one non-interleaved plane, and stores pixels in eight-bit chunky
+form. This is the authority for the initial importer. Word-aligned rows,
+eight-bit BMHD depth, raw/ByteRun1 row framing, and applicable masking modes are
+provisional implementation assumptions pending authentic test files or fuller
+documentation; they are identified as such in format documentation and tests.
+
 ## Netpbm format specifications
 
 The developer supplied HTML copies of the Netpbm project's PBM, PGM, PPM, and

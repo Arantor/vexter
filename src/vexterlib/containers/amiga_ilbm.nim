@@ -21,7 +21,7 @@ proc beLong(data: openArray[byte]): uint32 {.inline.} =
   (uint32(data[0]) shl 24) or (uint32(data[1]) shl 16) or
     (uint32(data[2]) shl 8) or uint32(data[3])
 
-proc parseHeader(data: openArray[byte]): AmigaIlbmHeader =
+proc parseAmigaBitmapHeader*(data: openArray[byte]): AmigaIlbmHeader =
   if data.len != 20:
     raise newException(ValueError, "ILBM BMHD chunk must contain 20 bytes")
   AmigaIlbmHeader(
@@ -44,7 +44,7 @@ proc parseAmigaBitmapForm*(form: AmigaIffForm, expectedFormType,
       if haveBody:
         raise newException(ValueError,
           expectedFormType & " BMHD must precede " & bitmapChunk)
-      result.image.header = parseHeader(chunk.data)
+      result.image.header = parseAmigaBitmapHeader(chunk.data)
       haveHeader = true
     of "CMAP":
       if haveBody:

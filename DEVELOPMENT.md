@@ -14,7 +14,8 @@ client, and a dependency-free native Windows GUI. It supports:
 - classic Amiga Workbench `.info` DiskObjects, including metadata and both
   planar icon states;
 - detection and inspection of generic IFF FORM containers, indexed Amiga ILBM
-  and ACBM images, IFF ANIM animations, IFF 8SVX and 16SV sampled audio,
+  and ACBM images, provisional packed-pixel IFF PBM images, IFF ANIM
+  animations, IFF 8SVX and 16SV sampled audio,
   integer PCM WAV sounds, PCX, BMP/DIB,
   PNG, QOI, Netpbm P1–P7, and GIF87a/GIF89a images, AmigaDOS ADF filesystems, DMS
   disk archives, ZIP archives, ZX Spectrum raw screen dumps, SNA snapshots,
@@ -186,6 +187,8 @@ Matching case-insensitive extensions add supporting evidence.
   plane-contiguous `ABIT` image source;
 - `amiga_ilbm.nim` interprets `FORM ILBM` properties and extracts the image
   source while leaving raster decoding separate;
+- `amiga_pbm.nim` provisionally interprets `FORM PBM ` as an eight-bit chunky
+  indexed image using BMHD, CMAP, and BODY chunks;
 - `amiga_anim.nim` parses nested ILBM frame forms and their ANHD/DLTA records;
 - `amos_bank.nim` validates generic `AmBk` headers and lengths and identifies
   otherwise unsupported bank payloads, retaining those bytes so nested
@@ -263,6 +266,11 @@ uniformly zero are expanded by nibble replication. All defined BMHD masking
 modes populate the raster alpha channel: explicit mask planes, transparent
 palette indices, and boundary-connected lasso transparency. ByteRun1 mask rows
 are decoded independently from their associated colour-plane rows.
+
+`src/vexterlib/resources/amiga_pbm_image.nim` decodes provisional IFF PBM
+chunky rows, with word-aligned raw or row-bounded ByteRun1 storage, into an
+indexed raster. Transparent-colour masking is supported; authentic fixtures
+remain required to confirm the provisional row and BMHD assumptions.
 
 `src/vexterlib/resources/amiga_anim_image.nim` reconstructs retained planar
 buffers with ANIM delta methods 5, 7, and 8, including interleave references
@@ -358,6 +366,8 @@ wav
 wav.sound
 amiga.iff
 amiga.acbm
+amiga.pbm
+amiga.pbm-image
 amiga.ilbm
 amiga.ilbm-image
 amiga.anim
@@ -581,6 +591,9 @@ The routine suites are:
   remain pending user-supplied samples;
 - `tests/test_amiga_acbm.nim`: ACBM detection, plane-contiguous raw and
   ByteRun1 ABIT decoding, and structural failure modes;
+- `tests/test_amiga_pbm.nim`: provisional packed eight-bit rows, word
+  alignment, raw and ByteRun1 storage, palettes, transparent indices, and
+  explicit header/masking failures;
 - `tests/test_amiga_anim.nim`: nested ANIM structure, methods 5/7/8, animation
   brush XOR behavior, timing, GIF routing, APNG output, the authentic TheTour
   method-5 control, and failure modes;
