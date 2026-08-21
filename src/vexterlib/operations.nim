@@ -9,7 +9,7 @@ import ./exporters/[gif, png, raw, wav]
 import ./resource_tree
 import ./containers/[amiga_8svx, amiga_16sv, amiga_acbm, amiga_adf, amiga_anim, amiga_dms, amiga_iff, amiga_ilbm, amiga_workbench_icon, amos_bank, amos_bank_set, amos_packed_picture, amos_program,
   amos_sprite_icon_bank, bmp, gif_container, pcx, png_container,
-  zip_archive, zx_spectrum_screen_dump, zx_spectrum_snapshot, zx_spectrum_tap]
+  wav, zip_archive, zx_spectrum_screen_dump, zx_spectrum_snapshot, zx_spectrum_tap]
 import ./metadata
 import ./resources/[amiga_anim_image, amiga_ilbm_image, amiga_workbench_icon_image, amos_listing, amos_packed_picture_image, amos_planar_image, bmp_image, gif_image, png_image, zx_spectrum_basic,
   pcx_image, zx_spectrum_screen]
@@ -219,6 +219,8 @@ proc forcedCandidate(typeId: string, data: openArray[byte]):
     discard parseGif(data)
   of PcxTypeId:
     discard parsePcx(data)
+  of WavTypeId:
+    discard parseWav(data)
   of ZipArchiveTypeId:
     discard parseZipArchive(data)
   of AmosProgramTypeId:
@@ -566,6 +568,23 @@ proc inspectSourceDepth(filename: string, data: openArray[byte],
         integerMetadata("position.y", source.yMin),
         integerMetadata("dpi.x", source.horizontalDpi),
         integerMetadata("dpi.y", source.verticalDpi)])
+  of WavTypeId:
+    let source = parseWav(data)
+    var metadata = @[
+      integerMetadata("channels", source.channelCount),
+      integerMetadata("sample-rate", source.sampleRate),
+      integerMetadata("bits-per-sample", source.bitsPerSample),
+      integerMetadata("samples", source.sampleData.len div source.blockAlign),
+      integerMetadata("duration-ms", (source.sampleData.len div
+        source.blockAlign) * 1000 div source.sampleRate)
+    ]
+    for index, chunk in source.chunks:
+      metadata.add stringMetadata("chunk." & $index & ".type", chunk.kind)
+      metadata.add integerMetadata("chunk." & $index & ".size", chunk.data.len)
+    result.resources.roots.add VextResourceNode(
+      path: WavSoundResourcePath, typeId: WavSoundTypeId,
+      kind: vrnkAudio, audioKind: varkSound, sound: decodeWav(source),
+      metadata: metadata)
   of ZipArchiveTypeId:
     let archive = parseZipArchive(data)
     let root = VextResourceNode(path: "/archive", typeId: ZipArchiveTypeId,
@@ -663,6 +682,7 @@ proc inspectSourceDepth(filename: string, data: openArray[byte],
       path: Amiga8svxResourcePath,
       typeId: Amiga8svxResourceTypeId,
       kind: vrnkAudio,
+      audioKind: varkSampledInstrument,
       instrument: instrument,
       metadata: @[
         integerMetadata("channels", instrument.sound.buffer.channels.len),
@@ -686,6 +706,7 @@ proc inspectSourceDepth(filename: string, data: openArray[byte],
       path: Amiga16svResourcePath,
       typeId: Amiga16svResourceTypeId,
       kind: vrnkAudio,
+      audioKind: varkSampledInstrument,
       instrument: instrument,
       metadata: @[
         integerMetadata("channels", instrument.sound.buffer.channels.len),
@@ -940,7 +961,7 @@ proc exportResource*(tree: VextResourceTree,
     if result.outputFormat != "wav":
       raise newException(ValueError,
         "unsupported output format: " & result.outputFormat)
-    result.artifacts = exportWav(resource.instrument.sound,
+    result.artifacts = exportWav(resource.audioSound,
       request.suggestedName & ".wav")
   else:
     raise newException(ValueError, "resource is not exportable: " &

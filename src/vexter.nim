@@ -120,11 +120,13 @@ proc inspect(options: CliOptions) =
           resource["frames"] = %raster.trueColourAnimation.frames.len
         else: discard
       elif item.kind == vrnkAudio:
-        resource["archetype"] = %"sampled-instrument"
-        resource["channels"] = %item.instrument.sound.buffer.channels.len
-        resource["bitsPerSample"] = %item.instrument.sound.buffer.bitsPerSample
-        resource["sampleRate"] = %item.instrument.sound.sampleRate
-        resource["samples"] = %item.instrument.sound.buffer.sampleCount
+        let sound = item.audioSound
+        resource["archetype"] = %(if item.audioKind == varkSound: "sound"
+          else: "sampled-instrument")
+        resource["channels"] = %sound.buffer.channels.len
+        resource["bitsPerSample"] = %sound.buffer.bitsPerSample
+        resource["sampleRate"] = %sound.sampleRate
+        resource["samples"] = %sound.buffer.sampleCount
       if item.metadata.len > 0:
         var metadata = newJObject()
         for entry in item.metadata:
@@ -171,10 +173,13 @@ proc inspect(options: CliOptions) =
       elif item.kind == vrnkText:
         description.add " (text)"
       elif item.kind == vrnkAudio:
-        description.add &" -> sampled-instrument " &
-          &"{item.instrument.sound.buffer.channels.len} channel(s), " &
-          &"{item.instrument.sound.buffer.bitsPerSample}-bit, " &
-          &"{item.instrument.sound.sampleRate} Hz"
+        let sound = item.audioSound
+        let archetype = if item.audioKind == varkSound: "sound"
+          else: "sampled-instrument"
+        description.add &" -> {archetype} " &
+          &"{sound.buffer.channels.len} channel(s), " &
+          &"{sound.buffer.bitsPerSample}-bit, " &
+          &"{sound.sampleRate} Hz"
       else:
         description.add " (opaque)"
       echo description

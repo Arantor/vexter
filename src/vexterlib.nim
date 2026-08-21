@@ -19,6 +19,7 @@ import vexterlib/containers/pcx
 import vexterlib/containers/bmp
 import vexterlib/containers/png_container
 import vexterlib/containers/gif_container
+import vexterlib/containers/wav as wav_container
 import vexterlib/containers/amos_bank_set
 import vexterlib/containers/amos_program
 import vexterlib/containers/amos_sprite_icon_bank
@@ -63,6 +64,7 @@ export pcx
 export bmp
 export png_container
 export gif_container
+export wav_container
 export amiga_anim_image
 export amiga_workbench_icon_image
 export amos_bank_set

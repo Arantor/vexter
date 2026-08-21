@@ -194,7 +194,26 @@ are recorded in [`THIRD_PARTY.md`](../THIRD_PARTY.md). Automated tests use
 synthetic data for stereo layout and malformed or unsupported input and do not
 depend on the separately supplied reference package.
 
-## WAV audio export
+## WAV audio
+
+Container type identifier: `wav`
+
+Sound type identifier: `wav.sound`
+
+WAV import validates an exact RIFF/WAVE stream, including declared RIFF size,
+chunk boundaries, odd-byte padding, one `fmt ` chunk, one `data` chunk, and
+consistent sample-frame alignment and byte rate. The chunks may occur in
+either order. Unknown chunks remain visible as numbered type/size metadata.
+Valid integer PCM is detected as **certain**, with `.wav` or `.wave` adding
+supporting evidence.
+
+Eight-bit unsigned PCM and little-endian signed 16-, 24-, and 32-bit PCM are
+decoded into a plain `VextSound` at `/audio`, with interleaved input separated
+into channel-major signed sample buffers. IEEE float, compressed codecs, RF64,
+and WAVE_FORMAT_EXTENSIBLE are explicitly deferred. Synthetic tests cover the
+implemented widths, multiple channels, unusual chunk order, odd padding,
+unknown chunks, and malformed structures. Authentic compatibility fixtures
+remain pending user-supplied WAV files.
 
 WAV export accepts generic `VextSound` values rather than 8SVX structures. It
 writes a canonical RIFF/WAVE file with a 16-byte PCM format chunk and one data

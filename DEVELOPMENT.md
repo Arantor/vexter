@@ -14,7 +14,8 @@ client, and a dependency-free native Windows GUI. It supports:
 - classic Amiga Workbench `.info` DiskObjects, including metadata and both
   planar icon states;
 - detection and inspection of generic IFF FORM containers, indexed Amiga ILBM
-  and ACBM images, IFF ANIM animations, IFF 8SVX and 16SV sampled audio, PCX, BMP/DIB,
+  and ACBM images, IFF ANIM animations, IFF 8SVX and 16SV sampled audio,
+  integer PCM WAV sounds, PCX, BMP/DIB,
   PNG, and GIF87a/GIF89a images, AmigaDOS ADF filesystems, DMS
   disk archives, ZIP archives, ZX Spectrum raw screen dumps, SNA snapshots,
   TAP containers, tokenised BASIC resources, standalone AMOS banks, AMOS bank
@@ -165,6 +166,8 @@ Matching case-insensitive extensions add supporting evidence.
   playback metadata, and raw or Fibonacci-delta sample bodies;
 - `amiga_16sv.nim` interprets the compatible `FORM 16SV` structure and its
   uncompressed signed 16-bit big-endian sample bodies;
+- `wav.nim` validates RIFF/WAVE chunk framing and decodes 8-, 16-, 24-, and
+  32-bit integer PCM into a generic sound;
 - `amiga_acbm.nim` interprets `FORM ACBM` properties and extracts its
   plane-contiguous `ABIT` image source;
 - `amiga_ilbm.nim` interprets `FORM ILBM` properties and extracts the image
@@ -293,6 +296,9 @@ bit-depth-aware channel-major buffers, playback-rate-bearing sounds, and
 sampled instruments with one-shot/repeat regions, pitch-cycle, volume, and
 panning information. `src/vexterlib/exporters/wav.nim` serializes sounds as
 uncompressed 8-, 16-, 24-, or 32-bit integer PCM with interleaved channels.
+Audio resource nodes distinguish a plain `VextSound` from a
+`VextSampledInstrument`; `audioSound` supplies the playable sound uniformly
+without manufacturing instrument properties for ordinary audio files.
 
 The former `containers/zx_spectrum_screen.nim` and top-level
 `vexterlib/resources.nim` screen-dispatch module have been replaced by the
@@ -320,6 +326,8 @@ png
 png.image
 gif
 gif.image
+wav
+wav.sound
 amiga.iff
 amiga.acbm
 amiga.ilbm
@@ -366,6 +374,16 @@ left/right/stereo layouts are supported. Compression and multi-octave data are
 rejected because the supplied reference implementation does not implement
 them. WAV is the natural export and writes the decoded samples as little-endian
 16-bit PCM.
+
+WAV files expose a plain `VextSound` at `/audio`. Import validates exact RIFF
+lengths, chunk framing and odd-byte padding, a single `fmt ` and `data` chunk,
+PCM format consistency, complete sample frames, and integer PCM widths of 8,
+16, 24, or 32 bits. Chunks may appear in either order; unknown chunks are
+retained and projected as numbered type/size metadata. Channels are converted
+from interleaved WAV storage into Vext's channel-major signed samples, including
+the unsigned-to-signed conversion required for eight-bit PCM. Floating point,
+compressed codecs, RF64, and WAVE_FORMAT_EXTENSIBLE remain unsupported. WAV
+re-export uses the ordinary generic sound exporter.
 
 ADF volumes expose `/disk`, with filesystem directories represented as nested
 groups. Unrecognized files are opaque leaves retaining their reconstructed
@@ -523,8 +541,10 @@ The routine suites are:
   input;
 - `tests/test_amiga_16sv.nim`: synthetic big-endian signed samples, stereo
   layout, and unsupported variants;
-- `tests/test_wav.nim`: RIFF framing, channel interleaving, signed-to-unsigned
-  eight-bit conversion, little-endian PCM, and validation;
+- `tests/test_wav.nim`: synthetic RIFF/WAVE import across all supported integer
+  widths, channel interleaving, chunk ordering/padding/metadata, plain-sound
+  routing, export, and structural validation. Authentic compatibility fixtures
+  remain pending user-supplied samples;
 - `tests/test_amiga_acbm.nim`: ACBM detection, plane-contiguous raw and
   ByteRun1 ABIT decoding, and structural failure modes;
 - `tests/test_amiga_anim.nim`: nested ANIM structure, methods 5/7/8, animation

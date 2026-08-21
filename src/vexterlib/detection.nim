@@ -3,7 +3,7 @@
 import std/[os, strutils]
 import ./containers/[amiga_8svx, amiga_16sv, amiga_acbm, amiga_adf, amiga_anim, amiga_dms, amiga_iff, amiga_ilbm, amiga_workbench_icon, amos_bank, amos_bank_set, amos_program,
   amos_sprite_icon_bank, bmp, gif_container, pcx, png_container,
-  zip_archive, zx_spectrum_screen_dump, zx_spectrum_snapshot, zx_spectrum_tap]
+  wav, zip_archive, zx_spectrum_screen_dump, zx_spectrum_snapshot, zx_spectrum_tap]
 import ./resources/zx_spectrum_screen
 
 type
@@ -86,6 +86,17 @@ proc detectFormats*(filename: string, data: openArray[byte]):
       evidence.add VextDetectionEvidence(description: "file extension is .pcx")
     result.add VextDetectionCandidate(typeId: PcxTypeId,
       confidence: vdcProbable, evidence: evidence)
+
+  if isWav(data):
+    let sound = parseWav(data)
+    var evidence = @[VextDetectionEvidence(
+      description: "file has a valid RIFF/WAVE integer PCM stream with " &
+        $sound.channelCount & " channel(s) at " & $sound.sampleRate & " Hz")]
+    if hasWavExtension(filename):
+      evidence.add VextDetectionEvidence(
+        description: "file extension is .wav or .wave")
+    result.add VextDetectionCandidate(typeId: WavTypeId,
+      confidence: vdcCertain, evidence: evidence)
 
   if isZipArchive(data):
     let archive = parseZipArchive(data)

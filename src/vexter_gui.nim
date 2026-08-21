@@ -127,6 +127,7 @@ const
   WS_OVERLAPPEDWINDOW = 0x00CF0000'u32
   WS_CHILD = 0x40000000'u32
   WS_VISIBLE = 0x10000000'u32
+  WS_CLIPCHILDREN = 0x02000000'u32
   WS_BORDER = 0x00800000'u32
   WS_VSCROLL = 0x00200000'u32
   ES_MULTILINE = 0x0004'u32
@@ -175,6 +176,8 @@ const
   DIB_RGB_COLORS = 0'u32
   SRCCOPY = 0x00CC0020'u32
   COLORONCOLOR = 3
+  CS_VREDRAW = 0x0001'u32
+  CS_HREDRAW = 0x0002'u32
   WAVE_FORMAT_PCM = 1'u16
   WAVE_MAPPER = cast[uint](-1)
 
@@ -325,7 +328,8 @@ proc paintPreview(hwnd: HWND) =
         int32(image.width), int32(image.height), addr pixels[0], addr info,
         DIB_RGB_COLORS, SRCCOPY)
   elif currentView == vkAudio and not selected.isNil:
-    let channels = selected.node.instrument.sound.buffer.channels
+    let sound = selected.node.audioSound
+    let channels = sound.buffer.channels
     if channels.len > 0 and channels[0].len > 0:
       let width = max(1, int(area.right-area.left))
       let height = int(area.bottom-area.top)
@@ -338,7 +342,7 @@ proc paintPreview(hwnd: HWND) =
         for i in first..<min(last, channels[0].len):
           lo = min(lo, channels[0][i])
           hi = max(hi, channels[0][i])
-        let denom = max(1.0, pow(2.0, selected.node.instrument.sound.buffer.bitsPerSample.float-1))
+        let denom = max(1.0, pow(2.0, sound.buffer.bitsPerSample.float-1))
         let y1 = height div 2 - int(hi.float / denom * (height.float * 0.45))
         let y2 = height div 2 - int(lo.float / denom * (height.float * 0.45))
         discard MoveToEx(dc, int32(x), int32(y1), nil)
@@ -391,7 +395,7 @@ proc isPlayable(binding: TreeBinding): bool =
     return false
   case binding.node.kind
   of vrnkAudio:
-    true
+    binding.node.audioSound.buffer.sampleCount > 0
   of vrnkRaster:
     binding.node.raster.kind in {vrkIndexedAnimation,
       vrkTrueColourAnimation}
@@ -440,7 +444,8 @@ proc selectBinding(binding: TreeBinding) =
     discard EnableWindow(exportButton, if formats.len > 0: 1 else: 0)
   else:
     discard EnableWindow(exportButton, 0)
-  discard InvalidateRect(preview, nil, 1)
+  if preview != nil:
+    discard InvalidateRect(preview, nil, 1)
 
 proc selectedFrameDuration(): int =
   if selected.isNil or selected.node.kind != vrnkRaster: return 0
@@ -473,15 +478,22 @@ proc togglePlayback() =
       audioPaused = not audioPaused
       discard SetWindowTextW(playButton, w(if audioPaused: "Play" else: "Pause"))
       return
-    let sound = selected.node.instrument.sound
+    let sound = selected.node.audioSound
     let channels = sound.buffer.channels.len
-    if channels == 0: return
+    if channels == 0 or sound.buffer.sampleCount == 0: return
     waveData = newSeq[int16](sound.buffer.sampleCount * channels)
-    let shift = max(0, sound.buffer.bitsPerSample - 16)
     for i in 0..<sound.buffer.sampleCount:
       for channel in 0..<channels:
-        waveData[i*channels+channel] = int16(clamp(
-          sound.buffer.channels[channel][i] shr shift, -32768'i32, 32767'i32))
+        let source = sound.buffer.channels[channel][i]
+        let normalized =
+          if sound.buffer.bitsPerSample < 16:
+            source shl (16 - sound.buffer.bitsPerSample)
+          elif sound.buffer.bitsPerSample > 16:
+            source shr (sound.buffer.bitsPerSample - 16)
+          else:
+            source
+        waveData[i*channels+channel] = int16(clamp(normalized,
+          -32768'i32, 32767'i32))
     var format = WAVEFORMATEX(wFormatTag: WAVE_FORMAT_PCM,
       nChannels: WORD(channels), nSamplesPerSec: DWORD(sound.sampleRate),
       nAvgBytesPerSec: DWORD(sound.sampleRate*channels*2),
@@ -586,6 +598,7 @@ proc layout(hwnd: HWND) =
   discard MoveWindow(exportButton, int32(width-94), 5, 88, 24, 1)
   discard MoveWindow(preview, int32(treeWidth+3), int32(toolbar), int32(width-treeWidth-9), int32(height-toolbar-6), 1)
   discard MoveWindow(textView, int32(treeWidth+3), int32(toolbar), int32(width-treeWidth-9), int32(height-toolbar-6), 1)
+  discard InvalidateRect(preview, nil, 1)
 
 proc mainProc(hwnd: HWND, msg: UINT, wp: WPARAM, lp: LPARAM): LRESULT {.stdcall.} =
   case msg
@@ -669,6 +682,7 @@ proc run() =
   instance = GetModuleHandleW(nil)
   let previewClassName = w("VexterPreview")
   var previewClass = WNDCLASSEXW(cbSize: UINT(sizeof(WNDCLASSEXW)),
+    style: CS_HREDRAW or CS_VREDRAW,
     lpfnWndProc: cast[pointer](previewProc), hInstance: instance,
     hCursor: LoadCursorW(nil, IDC_ARROW), hbrBackground: GetSysColorBrush(COLOR_WINDOW),
     lpszClassName: previewClassName)
@@ -686,7 +700,8 @@ proc run() =
     raise newException(OSError, "could not register the Vexter main class " &
       "(Win32 error " & $GetLastError() & ")")
   let window = CreateWindowExW(0, w("VexterMain"), w("Vexter"),
-    WS_OVERLAPPEDWINDOW, CW_USEDEFAULT, CW_USEDEFAULT, 1000, 700,
+    WS_OVERLAPPEDWINDOW or WS_CLIPCHILDREN,
+    CW_USEDEFAULT, CW_USEDEFAULT, 1000, 700,
     nil, nil, instance, nil)
   if window == nil:
     raise newException(OSError, "could not create the Vexter main window (Win32 error " &

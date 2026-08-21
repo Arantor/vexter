@@ -12,12 +12,18 @@ type
     vrnkAudio
     vrnkOpaque
 
+  VextAudioResourceKind* = enum
+    varkSound
+    varkSampledInstrument
+
   VextResourceNode* = ref object
     path*: string
     typeId*: string
     kind*: VextResourceNodeKind
     raster*: VextRaster
     text*: string
+    audioKind*: VextAudioResourceKind
+    sound*: VextSound
     instrument*: VextSampledInstrument
     data*: seq[byte]
     rawDataAvailable*: bool
@@ -27,6 +33,14 @@ type
 
   VextResourceTree* = object
     roots*: seq[VextResourceNode]
+
+proc audioSound*(node: VextResourceNode): VextSound =
+  ## Returns the playable sound carried by either audio resource archetype.
+  if node.isNil or node.kind != vrnkAudio:
+    raise newException(ValueError, "resource is not audio")
+  case node.audioKind
+  of varkSound: node.sound
+  of varkSampledInstrument: node.instrument.sound
 
 proc addRasterResources(node: VextResourceNode,
     resources: var seq[VextResourceNode]) =

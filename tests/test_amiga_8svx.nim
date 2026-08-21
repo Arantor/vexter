@@ -41,8 +41,10 @@ suite "Amiga IFF 8SVX":
     check candidates[0].typeId == Amiga8svxTypeId
     check candidates[0].confidence == vdcCertain
     check node.kind == vrnkAudio
+    check node.audioKind == varkSampledInstrument
     check node.path == Amiga8svxResourcePath
     check node.instrument.sound.sampleRate == 11025
+    check node.audioSound == node.instrument.sound
     check node.instrument.sound.buffer.bitsPerSample == 8
     check node.instrument.sound.buffer.channels == @[@[-128'i32, 0, 127, -1]]
     check node.instrument.oneShotSamples == 2
