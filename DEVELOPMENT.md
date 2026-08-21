@@ -16,7 +16,7 @@ client, and a dependency-free native Windows GUI. It supports:
 - detection and inspection of generic IFF FORM containers, indexed Amiga ILBM
   and ACBM images, IFF ANIM animations, IFF 8SVX and 16SV sampled audio,
   integer PCM WAV sounds, PCX, BMP/DIB,
-  PNG, QOI, and GIF87a/GIF89a images, AmigaDOS ADF filesystems, DMS
+  PNG, QOI, Netpbm P1–P7, and GIF87a/GIF89a images, AmigaDOS ADF filesystems, DMS
   disk archives, ZIP archives, ZX Spectrum raw screen dumps, SNA snapshots,
   TAP containers, tokenised BASIC resources, standalone AMOS banks, AMOS bank
   sets, and AMOS programs;
@@ -169,6 +169,9 @@ Matching case-insensitive extensions add supporting evidence.
   retaining every known or unknown chunk for metadata;
 - `qoi.nim` validates QOI headers, dimensions, channel and colour-space
   descriptors, chunk framing and pixel coverage, and the exact end marker;
+- `netpbm.nim` validates and extracts plain/raw PBM, PGM, and PPM plus PAM,
+  including comments, multi-image raw streams, 16-bit big-endian samples,
+  PAM headers, sample bounds, and exact raster sizes;
 - `gif_container.nim` validates GIF87a/GIF89a logical screens, global/local
   colour tables, extensions, image descriptors, and LZW data sub-blocks;
 - `amiga_iff.nim` validates generic IFF `FORM` lengths, chunk boundaries, and
@@ -241,6 +244,11 @@ a true-colour animation, while unknown chunks remain metadata-only.
 DIFF, LUMA, and RUN operation into a true-colour image with optional alpha,
 including the specified modulo-256 channel arithmetic and 64-entry colour
 index.
+
+`src/vexterlib/resources/netpbm_image.nim` maps PBM and defined visual PAM
+tuple types to monochrome, grayscale, RGB, or alpha-bearing rasters. Samples
+with arbitrary legal maxvals are normalized to eight-bit Vext components;
+extra PAM planes are retained structurally and ignored for defined tuple types.
 
 `src/vexterlib/resources/gif_image.nim` expands GIF LZW codes, restores
 interlaced rows, applies global/local palettes and binary transparency, and
@@ -342,6 +350,8 @@ png
 png.image
 qoi
 qoi.image
+netpbm
+netpbm.image
 gif
 gif.image
 wav
@@ -551,6 +561,9 @@ The routine suites are:
 - `tests/test_qoi.nim`: every QOI opcode, colour-index hashing, runs,
   modulo-256 channel differences, alpha, metadata, detection, PNG routing,
   declared pixel coverage, exact termination, and malformed input;
+- `tests/test_netpbm.nim`: P1–P7 parsing, comments, packed PBM rows, plain
+  samples, 16-bit raw samples, exact binary delimiters, concatenated images,
+  PAM visual tuple types and alpha, extra planes, and malformed input;
 - `tests/test_gif.nim`: GIF87a/GIF89a, LZW, interlacing, global/local palettes,
   transparency, changing-palette export, static GIF routing, corruption, and
   all existing independently encoded GIF controls;

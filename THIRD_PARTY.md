@@ -1,5 +1,23 @@
 # Third-party material
 
+## Netpbm format specifications
+
+The developer supplied HTML copies of the Netpbm project's PBM, PGM, PPM, and
+PAM format documentation, sourced from
+[the Netpbm documentation site](https://netpbm.sourceforge.net/doc/). The PBM,
+PGM, and PPM copies are dated 2025-11-07; the PAM copy is dated 2013-11-27.
+Together they define Netpbm variants P1 through P7 and are the authority for
+Vexter's magic, comment, whitespace, sample, sequence, PAM-header, and visual
+tuple-type behavior. They do not describe the unrelated Amiga IFF `FORM PBM `
+format.
+
+```text
+b56089e0c386e2cc43e44a8124569185b7b1db863daed19da27c3045ca64e9d9  The PBM Format.html
+b9c11d3613c1953e5e77e93ef4c0f4a010cd55138e1c4710a14e913f0f38f3de  PGM Format Specification.html
+d029cd9c665322af35f94f77097aa0c6f02829ce8a9e5ffb1bcd3abbdd3a3805  PPM Format Specification.html
+a5616fea88fdfc2a635f7188043574bcf50d7f360f08d9332084b57837dda8bb  PAM format specification.html
+```
+
 ## QOI specification and temporary compatibility set
 
 The developer supplied `qoi-specification.pdf`, “The Quite OK Image Format”,

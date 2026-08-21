@@ -816,6 +816,40 @@ automated tests instead construct synthetic streams covering every opcode and
 structural failure mode. Provenance and hashes are recorded in
 [`THIRD_PARTY.md`](../THIRD_PARTY.md).
 
+## Netpbm images
+
+Container type identifier: `netpbm`
+
+Raster type identifier: `netpbm.image`
+
+Netpbm import supports all seven documented variants: plain PBM/PGM/PPM
+(`P1`–`P3`), raw PBM/PGM/PPM (`P4`–`P6`), and PAM (`P7`). It validates magic
+numbers, positive dimensions, maxvals from 1 through 65535, ASCII comments and
+whitespace, exact raster sizes, sample bounds, packed PBM row padding, and
+one- or two-byte big-endian raw samples. Structurally valid input is detected
+as **certain**, with `.pbm`, `.pgm`, `.ppm`, `.pam`, or `.pnm` adding evidence.
+
+Plain variants contain exactly one image. Raw P4–P6 and PAM streams may contain
+multiple images with no delimiter or padding between them. A single image is
+exposed at `/image`; a stream becomes an `/image` group with numbered children
+such as `/image/1`. PBM retains its specified zero-white, one-black indexed
+interpretation. PGM and PPM samples are normalized from their declared maxval
+to true-colour eight-bit components and naturally export as PNG.
+
+PAM parsing accepts arbitrary tuple-type text structurally. Raster decoding is
+available for the specification's visual `BLACKANDWHITE`, `GRAYSCALE`, `RGB`,
+`BLACKANDWHITE_ALPHA`, `GRAYSCALE_ALPHA`, and `RGB_ALPHA` tuple types. Opacity
+samples become Vext alpha. A depth greater than required for the defined tuple
+type is accepted and higher planes are ignored, following the specification's
+reader guidance. Unknown/nonvisual tuple types remain explicit unsupported-decoding
+errors rather than being assigned invented semantics.
+
+Implementation follows the four developer-supplied Netpbm project format
+documents recorded in [`THIRD_PARTY.md`](../THIRD_PARTY.md). Automated tests
+use synthetic inputs for every variant. These documents describe Portable
+Bitmap PBM, not the unrelated Amiga packed-pixel `FORM PBM ` container; IFF PBM
+support remains pending suitable documentation and samples.
+
 ## Amiga Workbench icons
 
 Classic Workbench `.info` DiskObjects are detected and inspected. Their

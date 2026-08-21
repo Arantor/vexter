@@ -33,6 +33,7 @@ task test, "Run the test suite":
   exec "nim c -r --path:src tests/test_png.nim"
   exec "nim c -r --path:src tests/test_gif.nim"
   exec "nim c -r --path:src tests/test_qoi.nim"
+  exec "nim c -r --path:src tests/test_netpbm.nim"
   exec "nim c -r --path:src tests/test_zx_spectrum_screen.nim"
   exec "nim c -r --path:src tests/test_zx_spectrum_snapshot.nim"
   exec "nim c -r --path:src tests/test_zx_spectrum_basic.nim"

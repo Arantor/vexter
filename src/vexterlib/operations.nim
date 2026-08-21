@@ -9,10 +9,10 @@ import ./handler_registry
 import ./exporters/[gif, png, raw, wav]
 import ./resource_tree
 import ./containers/[amiga_8svx, amiga_16sv, amiga_acbm, amiga_adf, amiga_anim, amiga_dms, amiga_iff, amiga_ilbm, amiga_workbench_icon, amos_bank, amos_bank_set, amos_packed_picture, amos_program,
-  amos_sprite_icon_bank, bmp, gif_container, pcx, png_container,
+  amos_sprite_icon_bank, bmp, gif_container, netpbm, pcx, png_container,
   qoi, wav, zip_archive, zx_spectrum_snapshot, zx_spectrum_tap]
 import ./metadata
-import ./resources/[amiga_anim_image, amiga_ilbm_image, amiga_workbench_icon_image, amos_listing, amos_packed_picture_image, amos_planar_image, bmp_image, gif_image, png_image, zx_spectrum_basic,
+import ./resources/[amiga_anim_image, amiga_ilbm_image, amiga_workbench_icon_image, amos_listing, amos_packed_picture_image, amos_planar_image, bmp_image, gif_image, netpbm_image, png_image, zx_spectrum_basic,
   pcx_image, qoi_image, zx_spectrum_screen]
 
 type
@@ -510,6 +510,25 @@ proc inspectSourceDepth(filename: string, data: openArray[byte],
       raster: decodeQoi(source), metadata: @[
         integerMetadata("channels", source.channels),
         integerMetadata("colour-space", source.colourSpace)])
+  of vhkNetpbm:
+    let source = parsedValue[NetpbmSource](selectedParsed, vhkNetpbm)
+    let group = VextResourceNode(path: NetpbmImageResourcePath,
+      typeId: NetpbmTypeId, kind: vrnkGroup,
+      metadata: @[integerMetadata("images", source.images.len)])
+    for index, imageSource in source.images:
+      let path = if source.images.len == 1: NetpbmImageResourcePath
+        else: NetpbmImageResourcePath & "/" & $(index + 1)
+      let image = VextResourceNode(path: path, typeId: NetpbmImageTypeId,
+        kind: vrnkRaster, raster: decodeNetpbm(imageSource), metadata: @[
+          integerMetadata("variant", ord(imageSource.variant)),
+          integerMetadata("depth", imageSource.depth),
+          integerMetadata("maxval", imageSource.maxValue),
+          stringMetadata("tuple-type", imageSource.tupleType)])
+      if source.images.len == 1:
+        result.resources.roots.add image
+      else:
+        group.children.add image
+    if source.images.len > 1: result.resources.roots.add group
   of vhkBmp, vhkDib:
     let source = parsedValue[BmpImageSource](selectedParsed,
       selectedHandler.kind)
