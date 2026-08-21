@@ -269,8 +269,10 @@ are decoded independently from their associated colour-plane rows.
 
 `src/vexterlib/resources/amiga_pbm_image.nim` decodes provisional IFF PBM
 chunky rows, with word-aligned raw or row-bounded ByteRun1 storage, into an
-indexed raster. Transparent-colour masking is supported; authentic fixtures
-remain required to confirm the provisional row and BMHD assumptions.
+indexed raster. Transparent-colour masking is supported. A temporary external
+compatibility corpus confirms eight-bit BMHD depth and ByteRun1 decoding for
+even-width, unmasked images, but committed fixtures remain pending and the raw,
+odd-width, and transparency assumptions are still synthetic-only.
 
 `src/vexterlib/resources/amiga_anim_image.nim` reconstructs retained planar
 buffers with ANIM delta methods 5, 7, and 8, including interleave references

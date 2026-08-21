@@ -268,14 +268,15 @@ interleaved bitplanes. It uses the ordinary 20-byte BMHD, optional CMAP, and
 BODY chunks and exposes `/image` as `amiga.pbm-image`.
 
 The packed-pixel and single-plane facts were supplied directly by the
-developer. Pending authentic files or fuller documentation, the draft importer
-assumes BMHD declares eight bits, each stored row is padded to an even byte
-count, and compression values zero and one mean raw and independently bounded
-ByteRun1 rows. No-mask and transparent-colour masking are supported; mask-plane
-and lasso modes are rejected because a separate mask layout has not been
-established. CMAP components are currently retained as full eight-bit values.
-These assumptions have synthetic coverage but remain explicitly subject to
-fixture confirmation.
+developer. A temporary external compatibility corpus confirms BMHD depth eight
+and independently bounded ByteRun1 decoding across 42 even-width, unmasked
+images. The draft importer additionally assumes each stored row is padded to an
+even byte count and compression zero is raw storage. No-mask and
+transparent-colour masking are supported; mask-plane and lasso modes are
+rejected because a separate mask layout has not been established. CMAP
+components are currently retained as full eight-bit values. Raw, odd-width,
+and transparent images currently have synthetic coverage only and remain
+subject to fixture confirmation.
 
 Ordinary indexed images with one through five planes are supported. A `CAMG`
 EHB flag selects six-plane Extra Half-Brite: palette indices 32 through 63 are
