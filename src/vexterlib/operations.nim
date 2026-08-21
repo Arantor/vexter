@@ -10,10 +10,10 @@ import ./exporters/[gif, png, raw, wav]
 import ./resource_tree
 import ./containers/[amiga_8svx, amiga_16sv, amiga_acbm, amiga_adf, amiga_anim, amiga_dms, amiga_iff, amiga_ilbm, amiga_pbm, amiga_workbench_icon, amos_bank, amos_bank_set, amos_packed_picture, amos_program,
   amos_sprite_icon_bank, bmp, gif_container, netpbm, pcx, png_container,
-  qoi, wav, zip_archive, zx_spectrum_snapshot, zx_spectrum_tap]
+  qoi, tga, wav, zip_archive, zx_spectrum_snapshot, zx_spectrum_tap]
 import ./metadata
 import ./resources/[amiga_anim_image, amiga_ilbm_image, amiga_pbm_image, amiga_workbench_icon_image, amos_listing, amos_packed_picture_image, amos_planar_image, bmp_image, gif_image, netpbm_image, png_image, zx_spectrum_basic,
-  pcx_image, qoi_image, zx_spectrum_screen]
+  pcx_image, qoi_image, tga_image, zx_spectrum_screen]
 
 type
   VextOperationCancelledError* = object of CatchableError
@@ -759,6 +759,20 @@ proc inspectSourceDepth(filename: string, data: openArray[byte],
           integerMetadata("data.length", chunk.data.len)
         ])
     result.resources.roots.add group
+  of vhkTga:
+    let image = parsedValue[TgaImageSource](selectedParsed, vhkTga)
+    result.resources.roots.add VextResourceNode(
+      path: TgaImageResourcePath, typeId: TgaImageTypeId,
+      kind: vrnkRaster, raster: decodeTga(image), metadata: @[
+        integerMetadata("image-type", image.imageType),
+        integerMetadata("bits-per-pixel", image.pixelBits),
+        integerMetadata("attribute-bits", image.attributeBits),
+        integerMetadata("position.x", image.xOrigin),
+        integerMetadata("position.y", image.yOrigin),
+        integerMetadata("colour-map.origin", image.colourMapOrigin),
+        integerMetadata("colour-map.length", image.colourMapLength),
+        integerMetadata("colour-map.entry-bits", image.colourMapEntryBits),
+        stringMetadata("origin", if image.topOrigin: "top-left" else: "bottom-left")])
   of vhkAmosProgram:
     let program = parsedValue[AmosProgram](selectedParsed, vhkAmosProgram)
     result.resources.roots.add VextResourceNode(

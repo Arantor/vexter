@@ -23,6 +23,7 @@ import vexterlib/containers/gif_container
 import vexterlib/containers/wav as wav_container
 import vexterlib/containers/qoi
 import vexterlib/containers/netpbm
+import vexterlib/containers/tga
 import vexterlib/containers/amos_bank_set
 import vexterlib/containers/amos_program
 import vexterlib/containers/amos_sprite_icon_bank
@@ -44,6 +45,7 @@ import vexterlib/resources/png_image
 import vexterlib/resources/gif_image
 import vexterlib/resources/qoi_image
 import vexterlib/resources/netpbm_image
+import vexterlib/resources/tga_image
 import vexterlib/detection
 import vexterlib/handler_registry
 import vexterlib/metadata
@@ -76,6 +78,7 @@ export gif_container
 export wav_container
 export qoi
 export netpbm
+export tga
 export amiga_anim_image
 export amiga_workbench_icon_image
 export amos_bank_set
@@ -93,6 +96,7 @@ export png_image
 export gif_image
 export qoi_image
 export netpbm_image
+export tga_image
 export zx_spectrum_snapshot
 export zx_spectrum_tap
 export detection

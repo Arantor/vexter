@@ -1,5 +1,17 @@
 # Third-party material
 
+## TGA format specification
+
+The developer supplied `TGA format specification.html`, sourced from
+[Paul Bourke's TGA format page](http://www.paulbourke.net/dataformats/tga/) on
+2026-08-21. It is the format authority for Vexter's TGA header, colour-map,
+pixel, origin, attribute, and RLE packet handling. The page links to a C example
+whose licence is unspecified; that example was neither supplied nor used.
+
+```text
+96938c23b053f89c74fd73251d103024891a1aba1947b25a8097e5ad80962908  TGA format specification.html
+```
+
 ## IFF PBM developer-supplied format details
 
 The developer directly established that IFF PBM uses the `FORM PBM ` form

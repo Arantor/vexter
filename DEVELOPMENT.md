@@ -16,7 +16,7 @@ client, and a dependency-free native Windows GUI. It supports:
 - detection and inspection of generic IFF FORM containers, indexed Amiga ILBM
   and ACBM images, provisional packed-pixel IFF PBM images, IFF ANIM
   animations, IFF 8SVX and 16SV sampled audio,
-  integer PCM WAV sounds, PCX, BMP/DIB,
+  integer PCM WAV sounds, PCX, TGA, BMP/DIB,
   PNG, QOI, Netpbm P1–P7, and GIF87a/GIF89a images, AmigaDOS ADF filesystems, DMS
   disk archives, ZIP archives, ZX Spectrum raw screen dumps, SNA snapshots,
   TAP containers, tokenised BASIC resources, standalone AMOS banks, AMOS bank
@@ -163,6 +163,8 @@ Matching case-insensitive extensions add supporting evidence.
   archive hierarchy;
 - `pcx.nim` validates ZSoft PCX headers, dimensions, plane layouts, and row
   storage before retaining the encoded image source;
+- `tga.nim` validates Truevision TGA headers, optional identification and
+  colour-map fields, raw pixels, and complete RLE packet coverage;
 - `bmp.nim` validates wrapped BMP files and standalone Windows or OS/2 DIBs,
   including palette, bitfield, compression, and pixel-data boundaries;
 - `png_container.nim` validates PNG signatures, chunk framing/order, CRC-32,
@@ -232,6 +234,12 @@ without an external palette; six-plane Pac.Pic. modes also remain deferred.
 renders one-through-four-bit indexed planar images, eight-bit indexed images,
 and eight-bit three-plane true-colour images. The true-colour plane order is
 selectable as RGB or BGR at the operations boundary.
+
+`src/vexterlib/resources/tga_image.nim` expands raw or cross-scanline TGA RLE
+packets, normalizes bottom-origin storage, and renders colour-mapped, grayscale,
+and 16/24/32-bit true-colour sources. Palette origins are normalized into the
+generic indexed raster, and specified pixel or palette attributes populate
+per-pixel alpha.
 
 `src/vexterlib/resources/bmp_image.nim` renders packed indexed BMP/DIB rows,
 RLE4/RLE8 streams, BGR true-colour rows, and normalized 16/32-bit colour
@@ -472,6 +480,12 @@ true-colour raster. Scanline padding is excluded from output pixels and RLE
 runs are bounded to individual scanlines. RGB plane order is the default;
 `--pcx-channel-order bgr` selects files written in the alternate order.
 
+TGA images expose `/image`. Raw and RLE colour-mapped, true-colour, and
+grayscale types are supported. Colour-map indices may be eight or sixteen bits;
+map entries and true-colour pixels support the documented 16/24/32-bit layouts.
+Bottom-left and top-left origins are normalized to top-down rasters. Reserved,
+two-way/four-way interleaved, Huffman/delta, and four-pass variants are rejected.
+
 BMP files and standalone DIBs expose `/image`. OS/2 core and Windows INFO,
 V2/V3, V4, and V5 headers are recognized. Uncompressed 1/4/8-bit indexed,
 16/24/32-bit true-colour, RLE4/RLE8, and 16/32-bit bitfield images are
@@ -563,6 +577,9 @@ The routine suites are:
   normalization;
 - `tests/test_pcx.nim`: planar/header palettes, 256-colour trailing palettes,
   true-colour RGB/BGR order, row padding, RLE, and malformed input;
+- `tests/test_tga.nim`: colour-map origins, identification fields, raw and RLE
+  packets, row orientation, grayscale, 16/24/32-bit colour and alpha, and
+  malformed or unsupported layouts;
 - `tests/test_bmp.nim`: Windows and OS/2 DIBs, wrapped BMP offsets, indexed and
   true-colour rows, top-down orientation, bitfields, RLE4/RLE8, and failures;
 - `tests/test_png.nim`: RGBA and indexed transparency, grayscale and 16-bit

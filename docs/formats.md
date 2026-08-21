@@ -691,6 +691,37 @@ scanline padding, RLE expansion and row bounds, RGB/BGR interpretation, and
 missing or malformed image data. An independently produced authentic fixture
 is still desirable for compatibility coverage.
 
+## TGA images
+
+Container type identifier: `tga`
+
+Raster type identifier: `tga.image`
+
+TGA detection validates the 18-byte header, dimensions, image and colour-map
+layouts, identification and colour-map boundaries, and complete raw or RLE
+pixel coverage. Because TGA has no mandatory signature, valid structure
+identifies it as **probable**; case-insensitive `.tga`, `.vda`, `.icb`, and
+`.vst` extensions add supporting evidence. The image is exposed at `/image`.
+
+Raw types 1, 2, and 3 and their RLE equivalents 9, 10, and 11 are supported.
+RLE raw and repeated packets may cross scanline boundaries and must produce
+exactly the declared pixel count. Colour-mapped images accept eight- or
+sixteen-bit stored indices and 16/24/32-bit BGR(A) map entries; non-zero palette
+origins are normalized to the generic zero-based indexed representation.
+Grayscale images currently use eight-bit intensity. True-colour images accept
+the documented 16-bit A1R5G5B5, 24-bit BGR, and 32-bit BGRA layouts.
+
+Bottom-left and top-left storage origins are normalized into top-down raster
+order. Sixteen-bit five-bit components are shifted left by three as directed by
+the supplied specification. Declared binary or eight-bit attributes populate
+per-pixel alpha. Reserved descriptor bits, two-way or four-way interleaving,
+and Huffman/delta image types 32 and 33 are rejected explicitly.
+
+Implementation follows the developer-supplied copy of the format description
+from Paul Bourke's TGA format page, retrieved 2026-08-21. Its linked unlicensed
+C example was not supplied or consulted. Current tests are synthetic; an
+independently rendered authentic compatibility fixture remains desirable.
+
 ## BMP and DIB images
 
 Container type identifiers: `windows.bmp` and `windows.dib`
@@ -868,7 +899,8 @@ Implementation follows the four developer-supplied Netpbm project format
 documents recorded in [`THIRD_PARTY.md`](../THIRD_PARTY.md). Automated tests
 use synthetic inputs for every variant. These documents describe Portable
 Bitmap PBM, not the unrelated Amiga packed-pixel `FORM PBM ` container; IFF PBM
-support remains pending suitable documentation and samples.
+support is documented separately above from its own supplied facts and
+compatibility evidence.
 
 ## Amiga Workbench icons
 

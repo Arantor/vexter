@@ -12,6 +12,7 @@
 /tests/test_gif
 /tests/test_qoi
 /tests/test_netpbm
+/tests/test_tga
 /tests/test_amos_bank
 /tests/test_amos_packed_picture
 /tests/test_amos_bank_set

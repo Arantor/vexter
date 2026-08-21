@@ -3,7 +3,7 @@
 import std/[os, strutils]
 import ./handler_registry
 import ./containers/[amiga_8svx, amiga_16sv, amiga_acbm, amiga_adf, amiga_anim, amiga_dms, amiga_iff, amiga_ilbm, amiga_pbm, amiga_workbench_icon, amos_bank, amos_bank_set, amos_program,
-  amos_sprite_icon_bank, bmp, gif_container, netpbm, pcx, png_container, qoi,
+  amos_sprite_icon_bank, bmp, gif_container, netpbm, pcx, png_container, qoi, tga,
   wav, zip_archive, zx_spectrum_screen_dump, zx_spectrum_snapshot, zx_spectrum_tap]
 import ./resources/zx_spectrum_screen
 
@@ -112,6 +112,17 @@ proc detectFormats*(filename: string, data: openArray[byte]):
     if hasPcxExtension(filename):
       evidence.add VextDetectionEvidence(description: "file extension is .pcx")
     result.add VextDetectionCandidate(typeId: PcxTypeId,
+      confidence: vdcProbable, evidence: evidence)
+
+  if isTga(data):
+    let image = parseTga(data)
+    var evidence = @[VextDetectionEvidence(
+      description: "file has a valid TGA header and complete " & $image.width &
+        "x" & $image.height & " image stream")]
+    if hasTgaExtension(filename):
+      evidence.add VextDetectionEvidence(
+        description: "file extension is associated with TGA")
+    result.add VextDetectionCandidate(typeId: TgaTypeId,
       confidence: vdcProbable, evidence: evidence)
 
   if isWav(data):
