@@ -55,6 +55,15 @@ Windows 7 API baseline and cross-compiles from Linux with MinGW-w64:
 nice -n 15 nimble gui
 ```
 
+This writes `build/win32/vexter-gui.exe`. Build both command-line targets with:
+
+```sh
+nice -n 15 nimble cli
+```
+
+The CLI artifacts are `build/linux/vexter` and
+`build/win32/vexter-cli.exe`. The task builds them sequentially.
+
 There is no fully generalized handler registry yet. ADF and ZIP files perform
 bounded recursive inspection of recognized contained files. The broader option
 surface shown in `PLAN.md` remains future work.
@@ -546,7 +555,7 @@ The routine suites are:
 - `tests/test_cli.nim`: end-to-end CLI inspection, export, defaults, and file
   collision behavior.
 
-`vx4.nimble` builds the CLI before running these suites. Authentic and
+`vx4.nimble` builds the Linux CLI before running these suites. Authentic and
 project-produced fixtures live under `tests/fixtures/`, with provenance and
 hash records alongside them.
 

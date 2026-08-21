@@ -6,10 +6,18 @@ srcDir        = "src"
 bin           = @["vexter"]
 
 task gui, "Cross-compile the native Windows GUI":
-  exec "nim c --os:windows --cpu:amd64 --gcc.exe:x86_64-w64-mingw32-gcc --gcc.linkerexe:x86_64-w64-mingw32-gcc --app:gui --threads:on --mm:arc --path:src -o:build/vexter-gui.exe src/vexter_gui.nim"
+  mkDir "build/win32"
+  exec "nim c --os:windows --cpu:amd64 --gcc.exe:x86_64-w64-mingw32-gcc --gcc.linkerexe:x86_64-w64-mingw32-gcc --app:gui --threads:on --mm:arc --path:src -o:build/win32/vexter-gui.exe src/vexter_gui.nim"
+
+task cli, "Build the Linux and Windows command-line clients":
+  mkDir "build/linux"
+  mkDir "build/win32"
+  exec "nim c --path:src -o:build/linux/vexter src/vexter.nim"
+  exec "nim c --os:windows --cpu:amd64 --gcc.exe:x86_64-w64-mingw32-gcc --gcc.linkerexe:x86_64-w64-mingw32-gcc --path:src -o:build/win32/vexter-cli.exe src/vexter.nim"
 
 task test, "Run the test suite":
-  exec "nim c --path:src -o:build/vexter src/vexter.nim"
+  mkDir "build/linux"
+  exec "nim c --path:src -o:build/linux/vexter src/vexter.nim"
   exec "nim c -r --path:src tests/test_amiga_iff_ilbm.nim"
   exec "nim c -r --path:src tests/test_amiga_8svx.nim"
   exec "nim c -r --path:src tests/test_amiga_16sv.nim"
@@ -34,4 +42,4 @@ task test, "Run the test suite":
   exec "nim c -r --path:src tests/test_amos_program.nim"
   exec "nim c -r --path:src tests/test_amos_sprite_icon_bank.nim"
   exec "nim c -r --path:src tests/test_operations.nim"
-  exec "nim c -r --path:src tests/test_cli.nim"
+  exec "nim c -r --path:src -d:VexterCliPath=build/linux/vexter tests/test_cli.nim"

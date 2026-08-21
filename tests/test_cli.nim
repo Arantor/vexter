@@ -1,7 +1,7 @@
 import std/[json, os, osproc, strutils, unittest]
 
 const
-  VexterCliPath {.strdefine.} = "build/vexter"
+  VexterCliPath {.strdefine.} = "build/linux/vexter"
   FixturePath = "tests/fixtures/zx-spectrum.screen/colours.scr"
   SnapshotFixturePath = "tests/fixtures/zx-spectrum.snapshot/colours.sna"
   AmosFixturePath = "tests/fixtures/amos.sprite-bank/DRAGON.Abk"
