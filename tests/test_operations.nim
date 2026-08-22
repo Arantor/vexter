@@ -1,4 +1,4 @@
-import std/[json, unittest]
+import std/[json, strutils, unittest]
 import vexterlib
 
 proc asString(data: openArray[byte]): string =
@@ -73,19 +73,20 @@ suite "vexterlib operations":
       newSeq[byte](ZxSpectrumScreenSize))
     let resource = inspection.resources.rasterResources[0]
     let formats = resource.exportFormatsFor
-    check formats.len == 3
+    check formats.len == 4
     check formats[0].id == "png"
     check formats[0].isDefault
     check formats[1].id == "gif"
     check formats[2].id == "metadata-json"
+    check formats[3].id == "html-report"
     check resource.defaultExportFormat == "png"
 
     let opaque = VextResourceNode(path: "/raw", kind: vrnkOpaque,
       rawDataAvailable: true)
-    check opaque.exportFormatsFor.len == 2
+    check opaque.exportFormatsFor.len == 3
     check opaque.defaultExportFormat == "bin"
     check VextResourceNode(path: "/group", kind: vrnkGroup).
-      exportFormatsFor.len == 1
+      exportFormatsFor.len == 2
 
   test "inspection reports structured progress and supports cancellation":
     var events: seq[VextProgressEvent]
@@ -176,7 +177,7 @@ suite "vexterlib operations":
     let tree = VextResourceTree(roots: @[VextResourceNode(path: "/cycled",
       typeId: "test.cycled", kind: vrnkRaster, raster: raster)])
     let formats = tree.roots[0].exportFormatsFor
-    check formats.len == 5
+    check formats.len == 6
     check formats[0].id == "png"
     check formats[2].id == "gif-cycled"
     check exportResource(tree, VextExportRequest(outputFormat: "png",
@@ -267,6 +268,47 @@ suite "vexterlib operations":
       artifacts[0].suggestedFilename == "fonts.json"
     check exportAllResources(tree, VextExportAllRequest(
       outputFormat: "metadata-json")).exports.len == 2
+    let report = exportResource(tree, VextExportRequest(
+      resourcePath: child.path, outputFormat: "html-report",
+      suggestedName: "rich-report")).artifacts.artifacts[0]
+    check report.suggestedFilename == "rich-report.html"
+    check report.mediaType == "text/html; charset=utf-8"
+    let html = report.data.asString
+    check html.startsWith("<!doctype html>")
+    check "data:image/png;base64," in html
+    check "vexter.resource-metadata.v1" in html
+    check "This report has no external dependencies" in html
+
+  test "HTML reports embed audio and safely present text and groups":
+    let tree = VextResourceTree(roots: @[
+      VextResourceNode(path: "/group", typeId: "test.group",
+        kind: vrnkGroup, children: @[
+          VextResourceNode(path: "/group/text", typeId: "test.text",
+            kind: vrnkText, text: "<script>alert('&')</script>")]),
+      VextResourceNode(path: "/audio", typeId: "test.audio",
+        kind: vrnkAudio, audioKind: varkSound,
+        sound: VextSound(sampleRate: 8000,
+          buffer: VextAudioBuffer(bitsPerSample: 8,
+            channels: @[@[0'i32]]))),
+      VextResourceNode(path: "/identified", typeId: "test.opaque",
+        kind: vrnkOpaque)])
+    let textReport = exportResource(tree, VextExportRequest(
+      resourcePath: "/group/text", outputFormat: "html-report",
+      suggestedName: "text")).artifacts.artifacts[0].data.asString
+    check "&lt;script&gt;alert(&#39;&amp;&#39;)&lt;/script&gt;" in textReport
+    check "<script>alert" notin textReport
+    let audioReport = exportResource(tree, VextExportRequest(
+      resourcePath: "/audio", outputFormat: "html-report",
+      suggestedName: "audio")).artifacts.artifacts[0].data.asString
+    check "data:audio/wav;base64," in audioReport
+    let groupReport = exportResource(tree, VextExportRequest(
+      resourcePath: "/group", outputFormat: "html-report",
+      suggestedName: "group")).artifacts.artifacts[0].data.asString
+    check "/group/text" in groupReport
+    let opaqueReport = exportResource(tree, VextExportRequest(
+      resourcePath: "/identified", outputFormat: "html-report",
+      suggestedName: "identified")).artifacts.artifacts[0].data.asString
+    check "No retained byte payload is available" in opaqueReport
 
   test "bulk export matches path segments, deduplicates, and names safely":
     let tree = VextResourceTree(roots: @[

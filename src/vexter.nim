@@ -23,11 +23,11 @@ proc usage(): string =
   """Usage:
   vexter inspect [--json] [--all-candidates] [--ignore-warnings]
                  [--input-format FORMAT] [--pcx-channel-order rgb|bgr] INPUT
-  vexter export [--format png|gif|apng|gif-cycled|apng-cycled|bmfont|metadata-json|txt|wav|bin]
+  vexter export [--format png|gif|apng|gif-cycled|apng-cycled|bmfont|html-report|metadata-json|txt|wav|bin]
                 [--resource PATH] [--allow-large-animation]
                 [--input-format FORMAT] [-o OUTPUT] [--force]
                 [--ignore-warnings] [--pcx-channel-order rgb|bgr] INPUT
-  vexter export-all [--format png|gif|apng|gif-cycled|apng-cycled|bmfont|metadata-json|txt|wav|bin]
+  vexter export-all [--format png|gif|apng|gif-cycled|apng-cycled|bmfont|html-report|metadata-json|txt|wav|bin]
                     [--resource PATH-PATTERN]... [--input-format FORMAT]
                     -o DIRECTORY [--force] [--ignore-warnings]
                     [--allow-large-animation]
@@ -279,6 +279,7 @@ proc exportResource(options: CliOptions) =
     of "apng-cycled": "png"
     of "gif-cycled": "gif"
     of "metadata-json": "json"
+    of "html-report": "html"
     else: exported.outputFormat
   let destination = if options.output.len > 0: options.output
                     else: options.input.changeFileExt(extension)

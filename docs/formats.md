@@ -13,7 +13,7 @@ The currently implemented formats use this subset of the intended CLI:
 vexter inspect [--json] [--all-candidates] [--ignore-warnings]
                [--input-format FORMAT] [--pcx-channel-order rgb|bgr] INPUT
 
-vexter export [--format png|gif|apng|gif-cycled|apng-cycled|bmfont|metadata-json|txt|wav|bin]
+vexter export [--format png|gif|apng|gif-cycled|apng-cycled|bmfont|html-report|metadata-json|txt|wav|bin]
               [--resource PATH] [--allow-large-animation]
               [--input-format FORMAT] [-o OUTPUT] [--force]
               [--ignore-warnings] [--pcx-channel-order rgb|bgr] INPUT
@@ -34,6 +34,21 @@ documents retain buffer and sampled-instrument metrics.
 Metadata JSON is supplementary and never replaces a resource's natural default
 export. It is also available to `export-all`, where groups and leaves receive
 separate JSON artifacts.
+
+## Self-contained HTML reports
+
+Every resource can be exported with `--format html-report`. The resulting
+UTF-8 document has no external dependencies: CSS, normalized visual previews,
+audio, and the complete metadata JSON are embedded directly. Raster animations
+use APNG, fonts include a sample and complete glyph grid, sounds use browser
+WAV playback, text is escaped into a readable block, and groups list their
+direct children. The checkerboard uses the GUI's 56/88 grey values.
+
+Reports are deliberately a presentation layer over existing archetypes and
+exporters rather than a second decoding path. This first version reports one
+selected resource; `export-all` can produce parallel reports for a resource
+tree. Media is currently embedded using the ordinary lossless encoders, whose
+size optimization remains outstanding.
 
 ## Raw binary export
 

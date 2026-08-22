@@ -180,6 +180,20 @@ suite "vexter CLI":
       "VextIndexedAnimation"
     check document["resource"]["frames"].getInt == 2
 
+  test "self-contained HTML reports export through the CLI":
+    let destination = getTempDir() / "vexter-cli-colours-report.html"
+    if fileExists(destination): removeFile(destination)
+    defer:
+      if fileExists(destination): removeFile(destination)
+    let exported = run("export", "--resource", "/screen", "--format",
+      "html-report", "-o", destination, FixturePath)
+    check exported.exitCode == 0
+    let report = readFile(destination)
+    check report.startsWith("<!doctype html>")
+    check "data:image/apng;base64," in report
+    check "VextIndexedAnimation" in report
+    check "no external dependencies" in report
+
   test "export defaults a FLASH screen to GIF":
     let destination = getTempDir() / "vexter-cli-colours.gif"
     if fileExists(destination):

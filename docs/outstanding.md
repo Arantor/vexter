@@ -22,6 +22,13 @@ behavior and evidence remain in [`formats.md`](formats.md).
   - Common channel-role combinations beyond explicit single-channel masks and
     the documented packed-outline threshold need representative controls.
 
+- **PNG, APNG, and GIF export optimization**
+  - Current outputs prioritize deterministic correctness and use simple
+    lossless encoding rather than size-optimized filtering, compression,
+    palette construction, or animation-frame differencing.
+  - Embedded HTML-report media consequently remains larger than necessary,
+    even when browsers scale its presentation.
+
 - **LHA/LZH archives**
   - Header levels 2 and 3 are unsupported.
   - Compression methods other than `-lh0-` and `-lh5-` are unsupported,

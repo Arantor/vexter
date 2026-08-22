@@ -7,7 +7,7 @@ import ./archetypes/audio
 import ./transformations/colour_cycle
 import ./detection
 import ./handler_registry
-import ./exporters/[bmfont, gif, metadata_json, png, raw, wav]
+import ./exporters/[bmfont, gif, html_report, metadata_json, png, raw, wav]
 import ./resource_tree
 import ./containers/[amiga_8svx, amiga_16sv, amiga_acbm, amiga_adf, amiga_anim, amiga_diskfont, amiga_dms, amiga_hunk_executable, amiga_iff, amiga_ilbm, amiga_lha_sfx, amiga_pbm, amiga_workbench_icon, amos_bank, amos_bank_set, amos_packed_picture, amos_program,
   amos_sprite_icon_bank, bmfont, bmp, flic, fzx, gif_container, netpbm, pcx, png_container,
@@ -153,6 +153,9 @@ proc exportFormatsFor*(resource: VextResourceNode): seq[VextExportFormat] =
   result.add VextExportFormat(id: "metadata-json",
     displayName: "Metadata JSON", extensions: @["json"],
     mediaTypes: @["application/json"])
+  result.add VextExportFormat(id: "html-report",
+    displayName: "Self-contained HTML report", extensions: @["html"],
+    mediaTypes: @["text/html"])
 
 proc defaultExportFormat*(resource: VextResourceNode): string =
   for format in resource.exportFormatsFor:
@@ -1284,7 +1287,7 @@ proc inspectSource*(filename: string, data: openArray[byte],
 proc exportResource*(tree: VextResourceTree,
     request: VextExportRequest): VextExportResult =
   var available: seq[VextResourceNode]
-  if request.outputFormat == "metadata-json":
+  if request.outputFormat in ["metadata-json", "html-report"]:
     available = tree.allResources
   else:
     for item in tree.leafResources:
@@ -1338,6 +1341,10 @@ proc exportResource*(tree: VextResourceTree,
   if result.outputFormat == "metadata-json":
     result.artifacts = exportMetadataJson(resource,
       request.suggestedName & ".json")
+    return
+  if result.outputFormat == "html-report":
+    result.artifacts = exportHtmlReport(resource,
+      request.suggestedName & ".html")
     return
   case resource.kind
   of vrnkOpaque:
@@ -1427,10 +1434,10 @@ proc exportAllResources*(tree: VextResourceTree,
     patterns.add validateResourcePattern(pattern)
 
   var selected: seq[VextResourceNode]
-  let candidates = if request.outputFormat == "metadata-json":
+  let candidates = if request.outputFormat in ["metadata-json", "html-report"]:
       tree.allResources else: tree.leafResources
   for resource in candidates:
-    if request.outputFormat != "metadata-json" and
+    if request.outputFormat notin ["metadata-json", "html-report"] and
         not (resource.kind in {vrnkRaster, vrnkText, vrnkAudio, vrnkFont} or
         (resource.kind == vrnkOpaque and resource.rawDataAvailable)):
       continue

@@ -38,6 +38,7 @@ client, and a dependency-free native Windows GUI. It supports:
 - animated GIF and APNG export;
 - BMFont text export with one or more PNG atlas pages;
 - metadata JSON export for every resource kind, including groups;
+- self-contained HTML reports with embedded normalized media and metadata;
 - optional CRNG/CCRT colour-cycle expansion with a 1,000-frame safety limit;
 - byte-identical BIN export for opaque resources that retain raw data; and
 - bulk export of all exportable leaves or a union of segment-wildcard resource
@@ -460,6 +461,11 @@ recolourable monochrome coverage.
 `vexter.resource-metadata.v1` schema for groups and every leaf archetype. It
 retains ordered typed metadata and structural values, including font features
 which BMFont cannot serialize, without embedding bulk media buffers.
+
+`src/vexterlib/exporters/html_report.nim` builds a standalone UTF-8 report for
+any resource. It embeds PNG/APNG previews, font sample and grid renderings, WAV
+audio, escaped text or group summaries alongside the metadata JSON. All CSS and
+media use data URLs, so the artifact has no runtime or network dependency.
 
 `src/vexterlib/exporters/` consumes those contracts and
 has no ZX Spectrum-specific knowledge. `src/vexterlib/artifacts.nim` defines
