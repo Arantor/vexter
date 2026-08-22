@@ -11,6 +11,7 @@ import ./resource_tree
 import ./containers/[amiga_8svx, amiga_16sv, amiga_acbm, amiga_adf, amiga_anim, amiga_dms, amiga_iff, amiga_ilbm, amiga_pbm, amiga_workbench_icon, amos_bank, amos_bank_set, amos_packed_picture, amos_program,
   amos_sprite_icon_bank, bmp, flic, gif_container, netpbm, pcx, png_container,
   qoi, tga, wav, zip_archive, zx_spectrum_snapshot, zx_spectrum_tap]
+import ./containers/xpk_shri
 import ./metadata
 import ./resources/[amiga_anim_image, amiga_ilbm_image, amiga_pbm_image, amiga_workbench_icon_image, amos_listing, amos_packed_picture_image, amos_planar_image, bmp_image, flic_animation, gif_image, netpbm_image, png_image, zx_spectrum_basic,
   pcx_image, qoi_image, tga_image, zx_spectrum_screen]
@@ -646,6 +647,16 @@ proc inspectSourceDepth(filename: string, data: openArray[byte],
       disk.children.add adfEntryNode(entry, "/disk", depth, ignoreWarnings,
         pcxChannelOrder, result.warnings)
     result.resources.roots.add disk
+  of vhkXpk:
+    let archive = parsedValue[XpkArchive](selectedParsed, vhkXpk)
+    let unpacked = unpackXpk(archive)
+    result.resources.roots.add containedFileNode("/content", filename,
+      XpkTypeId, unpacked, @[
+        stringMetadata("xpk.compression", archive.compression),
+        integerMetadata("xpk.compressed-length", data.len),
+        integerMetadata("xpk.uncompressed-length", archive.unpackedSize),
+        integerMetadata("xpk.chunks", archive.chunks.len)
+      ], depth, ignoreWarnings, pcxChannelOrder, result.warnings)
   of vhkAmigaAnim:
     let anim = parsedValue[AmigaAnim](selectedParsed, vhkAmigaAnim)
     result.resources.roots.add VextResourceNode(

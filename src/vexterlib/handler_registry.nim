@@ -8,7 +8,7 @@ import ./containers/[amiga_8svx, amiga_16sv, amiga_acbm, amiga_adf, amiga_anim,
   amiga_dms, amiga_iff, amiga_ilbm, amiga_workbench_icon, amos_bank,
   amos_bank_set, amos_program, amos_sprite_icon_bank, bmp, flic, gif_container,
   netpbm, pcx, png_container, qoi, tga, wav, zip_archive, zx_spectrum_screen_dump,
-  zx_spectrum_snapshot, zx_spectrum_tap]
+  zx_spectrum_snapshot, zx_spectrum_tap, xpk_shri]
 import ./containers/amiga_pbm
 type
   VextHandlerKind* = enum
@@ -19,6 +19,7 @@ type
     vhkAmiga16sv
     vhkAmigaAdf
     vhkAmigaDms
+    vhkXpk
     vhkAmigaAnim
     vhkAmigaIlbm
     vhkAmigaIff
@@ -69,6 +70,7 @@ const FormatHandlers* = [
   VextFormatHandler(typeId: Amiga16svTypeId, kind: vhkAmiga16sv),
   VextFormatHandler(typeId: AmigaAdfTypeId, kind: vhkAmigaAdf),
   VextFormatHandler(typeId: AmigaDmsTypeId, kind: vhkAmigaDms),
+  VextFormatHandler(typeId: XpkTypeId, kind: vhkXpk),
   VextFormatHandler(typeId: AmigaAnimTypeId, kind: vhkAmigaAnim),
   VextFormatHandler(typeId: AmigaIlbmTypeId, kind: vhkAmigaIlbm),
   VextFormatHandler(typeId: AmigaIffTypeId, kind: vhkAmigaIff),
@@ -127,6 +129,7 @@ proc parse*(handler: VextFormatHandler,
   of vhkAmiga16sv: result = parsed(parseAmiga16sv(data))
   of vhkAmigaAdf: result = parsed(parseAmigaAdf(data))
   of vhkAmigaDms: result = parsed(parseAmigaDms(data))
+  of vhkXpk: result = parsed(parseXpk(data))
   of vhkAmigaAnim: result = parsed(parseAmigaAnim(data))
   of vhkAmigaIlbm: result = parsed(parseAmigaIlbm(data))
   of vhkAmigaIff: result = parsed(parseAmigaIff(data))

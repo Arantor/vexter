@@ -1,5 +1,55 @@
 # Third-party material
 
+## Ancient Format Decompressor XPK/SHRI reference
+
+`ancient_format_decompressor/` is a developer-supplied checkout of Teemu
+Suutari's Ancient Format Decompressor, sourced from
+[the upstream GitHub repository](https://github.com/bsoja/ancient_format_decompressor).
+The supplied revision is
+`52b911ae52162f0ef19da0264275906590e0db9e` (2017-09-10).
+
+Contrary to the initially stated MIT licence, the checkout's `LICENSE` file is
+the BSD 2-Clause License and identifies Teemu Suutari as copyright holder from
+2017. Vexter's Nim XPK framing and SHRI arithmetic/LZ implementation is a port
+of the behavior in `XPKMaster.cpp` and `SHRIDecompressor.cpp`; the C++ project
+is not compiled or linked into Vexter. The required copyright and licence
+notice must accompany redistributed source and binary forms.
+
+```text
+BSD 2-Clause License
+
+Copyright (c) 2017, Teemu Suutari
+All rights reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are met:
+
+* Redistributions of source code must retain the above copyright notice, this
+  list of conditions and the following disclaimer.
+* Redistributions in binary form must reproduce the above copyright notice,
+  this list of conditions and the following disclaimer in the documentation
+  and/or other materials provided with the distribution.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+```
+
+Relevant supplied-file SHA-256 values are:
+
+```text
+cf4eed95a3c433612fefad68939848f2bd19f549f5addc569815de846d8859cb  LICENSE
+4a3e1f9a5d2d5865e96226fbee91d1debc4c8539171017eb433b9a2c58ff0937  XPKMaster.cpp
+c5d51efdaaad9e62eaa502759a598e1a2e914a948b718a77ee8e8b712842d690  SHRIDecompressor.cpp
+```
+
 ## FLIC family format specification
 
 The developer supplied `The FLIC file format.html`, sourced from

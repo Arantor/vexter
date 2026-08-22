@@ -107,6 +107,31 @@ that self-entry and does not mistake the directory header's parent-level
 collision pointer for a child-chain pointer. Other repeated directory blocks
 continue to be rejected as cycles.
 
+## XPK SHRI compressed containers
+
+Container type identifier: `archive.xpk`
+
+Vexter recognizes checksummed `XPKF` containers using the `SHRI` compressor.
+It validates the master header, short or long chunk headers, four-byte payload
+alignment, alternating-byte payload checksums, total packed and unpacked
+sizes, and the terminal chunk. Raw chunks and SHRI versions one and two are
+supported; version two retains its arithmetic model and LZ history across
+chunk boundaries. Password-protected streams and other XPK compressors are
+reported as unsupported.
+
+The expanded payload appears at `/content` and is inspected recursively using
+the ordinary registered format handlers and eight-container depth bound. The
+directly supplied `Fishdemo.anim` is a 49,216-byte XPK/SHRI stream containing
+five compressed chunks. It reconstructs byte-for-byte to the supplied
+150,464-byte `Fishdemo-unpacked.anim`, which is a 320×256, six-plane method-5
+ANIM containing 102 frames. Their SHA-256 values are respectively
+`cf2893316af009d7885cef0ae3418da579f10c56b1bd2d50a76d539883f50915`
+and `7d906e3ba64417d42452b4c3092148fa6f59a46fdcb01777aad24e120bc96554`.
+
+The XPK framing and SHRI arithmetic/LZ behavior are ported from the supplied
+BSD 2-Clause Ancient Format Decompressor checkout. Its revision and required
+attribution are recorded in [`THIRD_PARTY.md`](../THIRD_PARTY.md).
+
 ## ZIP archives
 
 Container type identifier: `archive.zip`

@@ -18,8 +18,8 @@ client, and a dependency-free native Windows GUI. It supports:
   animations, IFF 8SVX and 16SV sampled audio,
   integer PCM WAV sounds, PCX, TGA, BMP/DIB,
   PNG, QOI, Netpbm P1–P7, GIF87a/GIF89a, and FLI/FLC-family animations,
-  AmigaDOS ADF filesystems, DMS
-  disk archives, ZIP archives, ZX Spectrum raw screen dumps, SNA snapshots,
+  AmigaDOS ADF filesystems, DMS disk archives, XPK/SHRI wrappers, ZIP archives,
+  ZX Spectrum raw screen dumps, SNA snapshots,
   TAP containers, tokenised BASIC resources, standalone AMOS banks, AMOS bank
   sets, and AMOS programs;
 - a resource tree containing decoded raster, audio, and text resources,
@@ -159,6 +159,9 @@ Matching case-insensitive extensions add supporting evidence.
   OFS/FFS directory, file-header, extension, and data-block structures;
 - `amiga_dms.nim` validates DMS information/track CRCs and reconstructs
   NOCOMP, SIMPLE, HEAVY1, and HEAVY2 track streams for the ADF handler;
+- `xpk_shri.nim` validates XPK master/chunk framing and checksums, reconstructs
+  raw and stateful SHRI arithmetic/LZ chunks, and exposes recognized unpacked
+  content through bounded recursive inspection;
 - `zip_archive.nim` validates single-volume ZIP central/local records, expands
   stored and DEFLATE entries, checks CRC-32, and exposes a host-independent
   archive hierarchy;
@@ -489,6 +492,14 @@ first hash slot. ADF traversal recognizes and skips this self-entry without
 following its parent-level collision link, while references to other visited
 directory blocks remain cycle errors.
 
+XPK wrappers using the SHRI compressor expose their recursively inspected
+payload at `/content`. Master and chunk-header XOR checksums, alternating-byte
+payload checksums, short and long chunk headers, four-byte chunk alignment,
+raw chunks, and stateful SHRI continuation chunks are validated. Passwords and
+compressors other than SHRI are unsupported. The BSD-licensed Ancient Format
+Decompressor checkout is the attributed behavioral reference; provenance is
+recorded in `THIRD_PARTY.md`.
+
 ZIP archives expose `/archive`. Entry paths are interpreted as logical archive
 paths rather than host paths: slash and backslash separators are canonicalized,
 absolute, empty, dot, parent, duplicate, and file/directory-conflicting paths
@@ -610,6 +621,8 @@ The routine suites are:
 - `tests/test_zip_archive.nim`: stored/DEFLATE expansion, hierarchy and nested
   decoding, unsafe/duplicate/overlong path rejection, and portable export-name
   normalization;
+- `tests/test_xpk_shri.nim`: XPK framing, raw chunks, checksum failures,
+  recursive inspection, and byte-identical SHRI reconstruction of Fishdemo;
 - `tests/test_pcx.nim`: planar/header palettes, 256-colour trailing palettes,
   true-colour RGB/BGR order, row padding, RLE, and malformed input;
 - `tests/test_tga.nim`: colour-map origins, identification fields, raw and RLE
@@ -717,9 +730,9 @@ names there when adding suites, or direct their output into `/tmp`.
 - Resource nodes currently carry already-decoded raster values; opaque ADF and
   ZIP file leaves additionally retain their reconstructed bytes. Lazy decoding,
   alternate representations, structured metadata, and handler registration
-  are not implemented yet. Recursive decoding is currently specific to ADF.
+  are not implemented yet.
 - Single-resource export currently expects one artifact at the CLI boundary.
   The artifact API and `export-all` directory handling permit multiple files;
   compound exporters themselves remain future work.
-- Recursive decoding is shared by ADF and ZIP through the registered detection,
+- Recursive decoding is shared by ADF, ZIP, and XPK through the registered detection,
   parsed-container, and inspection path, with a fixed eight-layer bound.
