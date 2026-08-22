@@ -17,7 +17,6 @@ behavior and evidence remain in [`formats.md`](formats.md).
     Amiga or font-specific character mapping is supplied.
 
 - **BMFont**
-  - XML descriptors are identified and retained but not decoded.
   - Declared non-Unicode charsets are retained but positions beyond printable
     ASCII need charset-specific mapping tables and representative controls.
   - Packed outline/channel roles beyond explicit single-channel glyph masks

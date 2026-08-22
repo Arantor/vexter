@@ -88,15 +88,15 @@ Binary `BMF` version 3 descriptors decode the information, common, page,
 character, and optional kerning blocks. Block lengths, version, page count,
 Unicode scalar IDs, signed metrics, atlas bounds, and record sizes are checked
 before the same page and glyph conversion used by the text form. XML
-descriptors remain distinguished and retained byte-identically as opaque
-resources.
+descriptors map their equivalent elements and attributes into that same
+validated representation, including declared counts and optional kerning.
 
 The temporarily supplied `bmfonts/` controls are from the AngelCode Bitmap
 Font Generator sample at <https://www.angelcode.com/dev/bmfonts/>. They exercise
 text and binary version 3 descriptors, Unicode glyphs, signed metrics, kerning,
 and packed per-glyph RGBA channel selection. They are compatibility evidence
 only and are not copied into the routine fixtures; synthetic tests cover the
-binary structures.
+binary and XML structures.
 
 ## FZX bitmap fonts
 

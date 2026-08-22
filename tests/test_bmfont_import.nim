@@ -196,13 +196,39 @@ suite "BMFont import":
     check inspection.resources.roots[0].metadata[0].value.stringValue ==
       "binary"
 
-  test "XML remains opaque and malformed binary blocks are rejected":
-    let xml = bytes("<?xml version=\"1.0\"?><font></font>")
-    let inspection = inspectSource("control.fnt", xml)
-    check inspection.resources.leafResources[0].kind == vrnkOpaque
-    check inspection.resources.leafResources[0].data == xml
+  test "XML descriptors share page, metric, channel, and kerning decoding":
+    let xml = bytes("<?xml version=\"1.0\"?>\n" &
+      "<font><info face=\"xml\" size=\"8\" bold=\"0\" italic=\"0\" " &
+      "charset=\"\" unicode=\"1\" stretchH=\"100\" smooth=\"1\" " &
+      "aa=\"1\" padding=\"0,0,0,0\" spacing=\"1,1\" outline=\"0\"/>" &
+      "<common lineHeight=\"8\" base=\"7\" scaleW=\"1\" scaleH=\"1\" " &
+      "pages=\"1\" packed=\"0\" alphaChnl=\"0\" redChnl=\"0\" " &
+      "greenChnl=\"0\" blueChnl=\"0\"/>" &
+      "<pages><page id=\"0\" file=\"page.png\"/></pages>" &
+      "<chars count=\"1\"><char id=\"65\" x=\"0\" y=\"0\" width=\"1\" " &
+      "height=\"1\" xoffset=\"-1\" yoffset=\"2\" xadvance=\"3\" " &
+      "page=\"0\" chnl=\"4\"/></chars>" &
+      "<kernings count=\"1\"><kerning first=\"65\" second=\"65\" " &
+      "amount=\"-1\"/></kernings></font>")
+    let page = exportPng(VextTrueColourImage(width: 1, height: 1,
+      pixels: @[VextRgb(r: 91, g: 0, b: 0)]), "page.png").artifacts[0].data
+    let resolver: VextCompanionResolver = proc(path: string): seq[byte] =
+      if path == "page.png": page else: @[]
+    let inspection = inspectSource("control.fnt", xml,
+      companionResolver = resolver)
+    let font = inspection.resources.findFontResource("/font").font
+    check font.name == "xml"
+    check font.glyphs[0].bearingX == -1
+    check font.glyphs[0].bitmap.coverage == @[91'u8]
+    check font.kerningFor(65, 65) == (-1, 0)
+    check inspection.resources.roots[0].metadata[0].value.stringValue == "xml"
+
+  test "malformed XML and binary descriptors are rejected":
     for malformed in [bytes("BMF\x03"), bytes("BMF\x02"),
-        bytes("BMF\x03\x01\x20\x00\x00\x00")]:
+        bytes("BMF\x03\x01\x20\x00\x00\x00"),
+        bytes("<font></font>"),
+        bytes("<font><unknown/></font>"),
+        bytes("<font>")]:
       expect ValueError: discard parseBmFont(malformed)
 
   test "count discrepancies are retained while structural faults are rejected":

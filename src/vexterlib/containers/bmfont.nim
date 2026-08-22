@@ -1,6 +1,6 @@
 ## AngelCode BMFont descriptor identification and text-format parsing.
 
-import std/[parseutils, strutils]
+import std/[parseutils, strutils, xmlparser, xmltree]
 
 const BmFontTypeId* = "bitmap-font.bmfont"
 
@@ -141,6 +141,31 @@ proc numbers(items: openArray[(string, string)], key: string,
     var parsed: int
     if part.parseInt(parsed) != part.len:
       raise newException(ValueError, "BMFont tuple field is invalid: " & key)
+    result.add parsed
+
+proc xmlValue(node: XmlNode, key: string, required = true): string =
+  result = node.attr(key)
+  if required and result.len == 0:
+    raise newException(ValueError, "BMFont XML attribute is missing: " & key)
+
+proc xmlNumber(node: XmlNode, key: string, required = true): int =
+  let text = node.xmlValue(key, required)
+  if not required and text.len == 0: return 0
+  if text.parseInt(result) != text.len:
+    raise newException(ValueError, "BMFont XML integer is invalid: " & key)
+
+proc xmlNumbers(node: XmlNode, key: string, count: int,
+    required = true): seq[int] =
+  let text = node.xmlValue(key, required)
+  if not required and text.len == 0: return newSeq[int](count)
+  let parts = text.split(',')
+  if parts.len != count:
+    raise newException(ValueError,
+      "BMFont XML tuple has the wrong length: " & key)
+  for part in parts:
+    var parsed: int
+    if part.parseInt(parsed) != part.len:
+      raise newException(ValueError, "BMFont XML tuple is invalid: " & key)
     result.add parsed
 
 proc parseBmFontText(data: openArray[byte]): BmFontSource =
@@ -315,6 +340,99 @@ proc parseBmFontBinary(data: openArray[byte]): BmFontSource =
     raise newException(ValueError, "BMFont binary descriptor is incomplete")
   result.validateSource
 
+proc parseBmFontXml(data: openArray[byte]): BmFontSource =
+  result = BmFontSource(encoding: bfeXml, rawData: @data)
+  var root: XmlNode
+  try:
+    root = parseXml(data.bytesText, {})
+  except CatchableError as error:
+    raise newException(ValueError, "invalid BMFont XML: " & error.msg)
+  if root.kind != xnElement or root.tag != "font":
+    raise newException(ValueError, "BMFont XML root element is not font")
+  var sawInfo, sawCommon, sawPages, sawCharacters, sawKernings: bool
+  for node in root:
+    if node.kind != xnElement: continue
+    case node.tag
+    of "info":
+      if sawInfo:
+        raise newException(ValueError, "duplicate BMFont XML info element")
+      sawInfo = true
+      result.face = node.xmlValue("face")
+      result.size = node.xmlNumber("size")
+      result.bold = node.xmlNumber("bold", false)
+      result.italic = node.xmlNumber("italic", false)
+      result.charset = node.xmlValue("charset", false)
+      result.unicode = node.xmlNumber("unicode", false)
+      result.stretchHeight = node.xmlNumber("stretchH", false)
+      if result.stretchHeight == 0: result.stretchHeight = 100
+      result.smooth = node.xmlNumber("smooth", false)
+      result.antialias = node.xmlNumber("aa", false)
+      let padding = node.xmlNumbers("padding", 4, false)
+      for index, value in padding: result.padding[index] = value
+      let spacing = node.xmlNumbers("spacing", 2, false)
+      for index, value in spacing: result.spacing[index] = value
+      result.outline = node.xmlNumber("outline", false)
+    of "common":
+      if sawCommon:
+        raise newException(ValueError, "duplicate BMFont XML common element")
+      sawCommon = true
+      result.lineHeight = node.xmlNumber("lineHeight")
+      result.baseline = node.xmlNumber("base")
+      result.scaleWidth = node.xmlNumber("scaleW")
+      result.scaleHeight = node.xmlNumber("scaleH")
+      result.declaredPages = node.xmlNumber("pages")
+      result.packed = node.xmlNumber("packed", false)
+      result.alphaChannel = node.xmlNumber("alphaChnl", false)
+      result.redChannel = node.xmlNumber("redChnl", false)
+      result.greenChannel = node.xmlNumber("greenChnl", false)
+      result.blueChannel = node.xmlNumber("blueChnl", false)
+    of "pages":
+      if sawPages:
+        raise newException(ValueError, "duplicate BMFont XML pages element")
+      sawPages = true
+      for page in node:
+        if page.kind != xnElement: continue
+        if page.tag != "page":
+          raise newException(ValueError, "unsupported BMFont XML pages element")
+        result.pages.add BmFontPage(id: page.xmlNumber("id"),
+          filename: page.xmlValue("file"))
+    of "chars":
+      if sawCharacters:
+        raise newException(ValueError, "duplicate BMFont XML chars element")
+      sawCharacters = true
+      result.declaredCharacters = node.xmlNumber("count")
+      for character in node:
+        if character.kind != xnElement: continue
+        if character.tag != "char":
+          raise newException(ValueError, "unsupported BMFont XML chars element")
+        result.characters.add BmFontCharacter(id: character.xmlNumber("id"),
+          x: character.xmlNumber("x"), y: character.xmlNumber("y"),
+          width: character.xmlNumber("width"),
+          height: character.xmlNumber("height"),
+          xOffset: character.xmlNumber("xoffset"),
+          yOffset: character.xmlNumber("yoffset"),
+          xAdvance: character.xmlNumber("xadvance"),
+          page: character.xmlNumber("page"),
+          channel: character.xmlNumber("chnl", false))
+    of "kernings":
+      if sawKernings:
+        raise newException(ValueError, "duplicate BMFont XML kernings element")
+      sawKernings = true
+      result.declaredKernings = node.xmlNumber("count")
+      for pair in node:
+        if pair.kind != xnElement: continue
+        if pair.tag != "kerning":
+          raise newException(ValueError,
+            "unsupported BMFont XML kernings element")
+        result.kernings.add BmFontKerningPair(
+          first: pair.xmlNumber("first"), second: pair.xmlNumber("second"),
+          amount: pair.xmlNumber("amount"))
+    else:
+      raise newException(ValueError, "unsupported BMFont XML element")
+  if not sawInfo or not sawCommon or not sawPages or not sawCharacters:
+    raise newException(ValueError, "BMFont XML descriptor is incomplete")
+  result.validateSource
+
 proc parseBmFont*(data: openArray[byte]): BmFontSource =
   if data.len >= 4 and data[0] == byte('B') and data[1] == byte('M') and
       data[2] == byte('F'):
@@ -322,9 +440,7 @@ proc parseBmFont*(data: openArray[byte]): BmFontSource =
   else:
     let text = data.bytesText.strip
     if text.startsWith("<?xml") or text.startsWith("<font"):
-      if "<font" notin text:
-        raise newException(ValueError, "XML is not a BMFont descriptor")
-      result = BmFontSource(encoding: bfeXml, rawData: @data)
+      result = parseBmFontXml(data)
     else:
       result = parseBmFontText(data)
 

@@ -9,8 +9,7 @@ const
 
 proc decodeBmFont*(source: BmFontSource,
     pages: openArray[VextTrueColourImage]): VextBitmapFont =
-  if source.encoding notin {bfeText, bfeBinary} or
-      pages.len != source.declaredPages:
+  if pages.len != source.declaredPages:
     raise newException(ValueError, "BMFont descriptor pages are incomplete")
   let normalizedLineHeight = max(source.lineHeight, source.baseline)
   result = VextBitmapFont(name: source.face, lineHeight: normalizedLineHeight,
