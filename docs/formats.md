@@ -43,7 +43,11 @@ from character mappings in memory, allowing aliases without duplicate atlas
 images. Vertical advances/kerning, ascent, descent, leading, substitutions, and
 ligatures remain in the generic archetype even though BMFont cannot serialize
 them. The GUI shapes substitutions and longest-match ligatures, wraps its sample
-to the preview width, and displays transparent text over a checker pattern.
+to the preview width, and displays transparent text over a checker pattern. Its
+font inspector switches between editable sample text and a complete glyph grid.
+The grid retains unmapped/default/custom glyphs, highlights a selected glyph,
+draws baseline/ascent/descent guides, and reports source index, mappings,
+dimensions, bearings, advances, and kerning/substitution/ligature counts.
 
 ## BMFont import
 

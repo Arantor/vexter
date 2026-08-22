@@ -137,6 +137,18 @@ suite "generic bitmap fonts and BMFont export":
     let halfUppercase = caseFont(ord('A'), ord('M')).defaultPreviewText
     check halfUppercase.find({'a'..'z'}) < 0
 
+  test "glyph grid exposes every glyph with guides and selection":
+    let grid = renderBitmapFontGlyphGrid(sampleFont(), 40, 0)
+    check grid.width > 0
+    check grid.height >= sampleFont().lineHeight
+    var selectionPixels, guidePixels: int
+    for index, colour in grid.pixels:
+      if grid.alpha[index] == 0: continue
+      if colour == VextRgb(r: 255, g: 200, b: 20): inc selectionPixels
+      if colour == VextRgb(r: 40, g: 160, b: 255): inc guidePixels
+    check selectionPixels > 0
+    check guidePixels > 0
+
   test "font resources naturally export compound BMFont artifacts":
     let tree = VextResourceTree(roots: @[VextResourceNode(path: "/font",
       typeId: "test.font", kind: vrnkFont, font: sampleFont())])

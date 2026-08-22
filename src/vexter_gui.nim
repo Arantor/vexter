@@ -133,6 +133,7 @@ const
   ES_MULTILINE = 0x0004'u32
   ES_AUTOVSCROLL = 0x0040'u32
   ES_READONLY = 0x0800'u32
+  ES_AUTOHSCROLL = 0x0080'u32
   CBS_DROPDOWNLIST = 0x0003'u32
   TVS_HASBUTTONS = 0x0001'u32
   TVS_HASLINES = 0x0002'u32
@@ -199,6 +200,8 @@ proc GetClientRect(hwnd: HWND, rect: ptr RECT): BOOL {.stdcall, importc, header:
 proc GetLastError(): DWORD {.stdcall, importc, header: "<windows.h>".}
 proc EnableWindow(hwnd: HWND, enabled: BOOL): BOOL {.stdcall, importc, header: "<windows.h>".}
 proc SetWindowTextW(hwnd: HWND, text: WideCString): BOOL {.stdcall, importc, header: "<windows.h>".}
+proc GetWindowTextLengthW(hwnd: HWND): int32 {.stdcall, importc, header: "<windows.h>".}
+proc GetWindowTextW(hwnd: HWND, text: WideCString, maximum: int32): int32 {.stdcall, importc, header: "<windows.h>".}
 proc BeginPaint(hwnd: HWND, ps: ptr PAINTSTRUCT): HDC {.stdcall, importc, header: "<windows.h>".}
 proc EndPaint(hwnd: HWND, ps: ptr PAINTSTRUCT): BOOL {.stdcall, importc, header: "<windows.h>".}
 proc FillRect(dc: HDC, rect: ptr RECT, brush: HBRUSH): int32 {.stdcall, importc, header: "<windows.h>".}
@@ -229,6 +232,7 @@ proc waveOutClose(handle: HWAVEOUT): uint32 {.stdcall, importc.}
 var
   instance: HINSTANCE
   mainWindow, treeView, preview, textView, openButton, scaleCombo: HWND
+  fontModeCombo, fontSample, fontGlyphCombo, fontDetails: HWND
   playButton, formatCombo, exportButton, progressBar: HWND
   bindings: seq[TreeBinding]
   selected: TreeBinding
@@ -236,6 +240,9 @@ var
   currentInspection: VextInspection
   currentView = vkNone
   scaleChoice = 0
+  fontGridMode = false
+  fontSelectedGlyph = 0
+  fontPreviewText: string
   animationFrame = 0
   animationPlaying = false
   colourCycleElapsedMs: int64
@@ -251,8 +258,17 @@ proc lowWord(value: WPARAM): int = int(value and 0xffff)
 proc highWord(value: WPARAM): int = int((value shr 16) and 0xffff)
 proc w(value: string): WideCStringObj = newWideCString(value)
 
+proc windowText(hwnd: HWND): string =
+  let length = int(GetWindowTextLengthW(hwnd))
+  if length <= 0: return
+  var buffer = newSeq[Utf16Char](length + 1)
+  discard GetWindowTextW(hwnd, cast[WideCString](addr buffer[0]), int32(length + 1))
+  result = $cast[WideCString](addr buffer[0])
+
 proc showError(message: string) =
   discard MessageBoxW(mainWindow, w(message), w("Vexter"), 0x10)
+
+proc layout(hwnd: HWND)
 
 proc metadataString(node: VextResourceNode): string =
   result = &"Path: {node.path}\r\nType: {node.typeId}\r\n"
@@ -275,8 +291,11 @@ proc stopAudio() =
 proc currentRasterImage(maximumWidth = 0): VextTrueColourImage =
   if not selected.isNil and not selected.node.isNil and
       selected.node.kind == vrnkFont:
-    return renderBitmapFontText(selected.node.font,
-      selected.node.font.defaultPreviewText, max(1, maximumWidth))
+    if fontGridMode:
+      return renderBitmapFontGlyphGrid(selected.node.font,
+        max(1, maximumWidth), fontSelectedGlyph)
+    return renderBitmapFontText(selected.node.font, fontPreviewText,
+      max(1, maximumWidth))
   if selected.isNil or selected.node.isNil or selected.node.kind != vrnkRaster:
     return
   let raster = selected.node.raster
@@ -419,6 +438,62 @@ proc isPlayable(binding: TreeBinding): bool =
   else:
     false
 
+proc glyphDetails(font: VextBitmapFont, glyphIndex: int): string =
+  result = &"Font: {font.name}\r\nGlyphs: {font.glyphs.len}  " &
+    &"Mappings: {font.mappings.len}  Line height: {font.lineHeight}  " &
+    &"Baseline: {font.baseline}  Ascent: {font.ascent}  Descent: {font.descent}\r\n"
+  result.add &"Kerning pairs: {font.kerning.len}  Substitutions: " &
+    &"{font.substitutions.len}  Ligatures: {font.ligatures.len}\r\n"
+  if glyphIndex < 0 or glyphIndex >= font.glyphs.len: return
+  let glyph = font.glyphs[glyphIndex]
+  result.add &"Glyph {glyphIndex}: source index {glyph.sourceIndex}"
+  if glyph.name.len > 0: result.add &"  name: {glyph.name}"
+  result.add &"\r\nBitmap: {width(glyph.bitmap)}x{height(glyph.bitmap)}  " &
+    &"bearing: ({glyph.bearingX}, {glyph.bearingY})  " &
+    &"advance: ({glyph.advanceX}, {glyph.advanceY})\r\nMappings:"
+  var found = false
+  for mapping in font.mappings:
+    if mapping.glyphIndex == glyphIndex:
+      result.add &" U+{mapping.codePoint:04X}"
+      found = true
+  if not found: result.add " (unmapped/custom/default)"
+
+proc fontSummaryDetails(font: VextBitmapFont): string =
+  result = &"Font: {font.name}\r\nGlyphs: {font.glyphs.len}  " &
+    &"Mappings: {font.mappings.len}  Line height: {font.lineHeight}  " &
+    &"Baseline: {font.baseline}  Ascent: {font.ascent}  Descent: {font.descent}\r\n"
+  result.add &"Kerning pairs: {font.kerning.len}  Substitutions: " &
+    &"{font.substitutions.len}  Ligatures: {font.ligatures.len}\r\nMappings:"
+  if font.mappings.len == 0:
+    result.add " (none)"
+  else:
+    for mapping in font.mappings:
+      result.add &" U+{mapping.codePoint:04X}"
+
+proc populateFontControls(font: VextBitmapFont) =
+  fontGridMode = false
+  fontSelectedGlyph = 0
+  fontPreviewText = font.defaultPreviewText
+  discard SetWindowTextW(fontSample, w(fontPreviewText))
+  discard SendMessageW(fontModeCombo, CB_SETCURSEL, 0, 0)
+  discard SendMessageW(fontGlyphCombo, CB_RESETCONTENT, 0, 0)
+  for index, glyph in font.glyphs:
+    var label = &"{index}: source {glyph.sourceIndex}"
+    var mappingCount = 0
+    for mapping in font.mappings:
+      if mapping.glyphIndex == index:
+        label.add (if mappingCount == 0: "  " else: ", ")
+        label.add &"U+{mapping.codePoint:04X}"
+        inc mappingCount
+    if mappingCount == 0: label.add "  unmapped"
+    if glyph.name.len > 0: label.add "  " & glyph.name
+    let wide = w(label)
+    discard SendMessageW(fontGlyphCombo, CB_ADDSTRING, 0,
+      cast[LPARAM](WideCString(wide)))
+  if font.glyphs.len > 0:
+    discard SendMessageW(fontGlyphCombo, CB_SETCURSEL, 0, 0)
+  discard SetWindowTextW(fontDetails, w(fontSummaryDetails(font)))
+
 proc selectBinding(binding: TreeBinding) =
   stopAudio()
   selected = binding
@@ -439,6 +514,7 @@ proc selectBinding(binding: TreeBinding) =
     currentView = vkRaster
   elif binding.node.kind == vrnkFont:
     currentView = vkFont
+    populateFontControls(binding.node.font)
   elif binding.node.kind == vrnkAudio:
     currentView = vkAudio
   else:
@@ -447,6 +523,13 @@ proc selectBinding(binding: TreeBinding) =
   let showText = currentView == vkText
   discard ShowWindow(textView, if showText: SW_SHOW else: 0)
   discard ShowWindow(preview, if showText: 0 else: SW_SHOW)
+  let showFont = currentView == vkFont
+  discard ShowWindow(fontModeCombo, if showFont: SW_SHOW else: 0)
+  discard ShowWindow(fontSample,
+    if showFont and not fontGridMode: SW_SHOW else: 0)
+  discard ShowWindow(fontGlyphCombo,
+    if showFont and fontGridMode: SW_SHOW else: 0)
+  discard ShowWindow(fontDetails, if showFont: SW_SHOW else: 0)
   let playable = binding.isPlayable
   discard EnableWindow(playButton, if playable: 1 else: 0)
   discard SetWindowTextW(playButton, w("Play"))
@@ -465,6 +548,7 @@ proc selectBinding(binding: TreeBinding) =
   else:
     discard EnableWindow(exportButton, 0)
   if preview != nil:
+    layout(mainWindow)
     discard InvalidateRect(preview, nil, 1)
 
 proc selectedFrameDuration(): int =
@@ -650,7 +734,21 @@ proc layout(hwnd: HWND) =
   discard MoveWindow(playButton, int32(treeWidth+91), 5, 70, 24, 1)
   discard MoveWindow(formatCombo, int32(max(treeWidth+167, width-270)), 5, 170, 200, 1)
   discard MoveWindow(exportButton, int32(width-94), 5, 88, 24, 1)
-  discard MoveWindow(preview, int32(treeWidth+3), int32(toolbar), int32(width-treeWidth-9), int32(height-toolbar-6), 1)
+  let contentX = treeWidth + 3
+  let contentWidth = width - treeWidth - 9
+  if currentView == vkFont:
+    discard MoveWindow(fontModeCombo, int32(contentX), int32(toolbar), 100, 200, 1)
+    discard MoveWindow(fontSample, int32(contentX + 106), int32(toolbar),
+      int32(max(1, contentWidth - 106)), 24, 1)
+    discard MoveWindow(fontGlyphCombo, int32(contentX + 106), int32(toolbar),
+      int32(max(1, contentWidth - 106)), 240, 1)
+    discard MoveWindow(preview, int32(contentX), int32(toolbar + 30),
+      int32(contentWidth), int32(max(1, height - toolbar - 146)), 1)
+    discard MoveWindow(fontDetails, int32(contentX), int32(max(toolbar + 30,
+      height - 110)), int32(contentWidth), 104, 1)
+  else:
+    discard MoveWindow(preview, int32(contentX), int32(toolbar),
+      int32(contentWidth), int32(height-toolbar-6), 1)
   discard MoveWindow(textView, int32(treeWidth+3), int32(toolbar), int32(width-treeWidth-9), int32(height-toolbar-6), 1)
   discard InvalidateRect(preview, nil, 1)
 
@@ -668,6 +766,20 @@ proc mainProc(hwnd: HWND, msg: UINT, wp: WPARAM, lp: LPARAM): LRESULT {.stdcall.
     textView = CreateWindowExW(0, w("EDIT"), w(""), WS_CHILD or WS_BORDER or WS_VSCROLL or
       ES_MULTILINE or ES_AUTOVSCROLL or ES_READONLY, 0, 0, 0, 0, hwnd,
       cast[HMENU](1004), instance, nil)
+    fontModeCombo = CreateWindowExW(0, w("COMBOBOX"), w(""), WS_CHILD or
+      CBS_DROPDOWNLIST, 0, 0, 0, 0, hwnd, cast[HMENU](1010), instance, nil)
+    for label in ["Text", "Glyph grid"]:
+      let wide = w(label)
+      discard SendMessageW(fontModeCombo, CB_ADDSTRING, 0,
+        cast[LPARAM](WideCString(wide)))
+    fontSample = CreateWindowExW(0, w("EDIT"), w(""), WS_CHILD or WS_BORDER or
+      ES_AUTOHSCROLL, 0, 0, 0, 0, hwnd, cast[HMENU](1011), instance, nil)
+    fontGlyphCombo = CreateWindowExW(0, w("COMBOBOX"), w(""), WS_CHILD or
+      CBS_DROPDOWNLIST or WS_VSCROLL, 0, 0, 0, 0, hwnd,
+      cast[HMENU](1012), instance, nil)
+    fontDetails = CreateWindowExW(0, w("EDIT"), w(""), WS_CHILD or WS_BORDER or
+      ES_MULTILINE or ES_AUTOVSCROLL or ES_READONLY, 0, 0, 0, 0, hwnd,
+      cast[HMENU](1013), instance, nil)
     scaleCombo = CreateWindowExW(0, w("COMBOBOX"), w(""), WS_CHILD or WS_VISIBLE or CBS_DROPDOWNLIST,
       0, 0, 0, 0, hwnd, cast[HMENU](1005), instance, nil)
     for label in ["Fit", "1x", "2x", "3x", "4x"]:
@@ -703,6 +815,29 @@ proc mainProc(hwnd: HWND, msg: UINT, wp: WPARAM, lp: LPARAM): LRESULT {.stdcall.
         discard InvalidateRect(preview, nil, 1)
     of 1006: togglePlayback()
     of 1008: doExport()
+    of 1010:
+      if highWord(wp) == 1 and currentView == vkFont:
+        fontGridMode = SendMessageW(fontModeCombo, CB_GETCURSEL, 0, 0) == 1
+        discard ShowWindow(fontSample, if fontGridMode: 0 else: SW_SHOW)
+        discard ShowWindow(fontGlyphCombo, if fontGridMode: SW_SHOW else: 0)
+        if not selected.isNil:
+          let details = if fontGridMode:
+            glyphDetails(selected.node.font, fontSelectedGlyph)
+          else:
+            fontSummaryDetails(selected.node.font)
+          discard SetWindowTextW(fontDetails, w(details))
+        layout(hwnd)
+        discard InvalidateRect(preview, nil, 1)
+    of 1011:
+      if highWord(wp) == 0x0300 and currentView == vkFont:
+        fontPreviewText = windowText(fontSample)
+        discard InvalidateRect(preview, nil, 1)
+    of 1012:
+      if highWord(wp) == 1 and currentView == vkFont and not selected.isNil:
+        fontSelectedGlyph = int(SendMessageW(fontGlyphCombo, CB_GETCURSEL, 0, 0))
+        discard SetWindowTextW(fontDetails,
+          w(glyphDetails(selected.node.font, fontSelectedGlyph)))
+        discard InvalidateRect(preview, nil, 1)
     else: discard
     return 0
   of WM_NOTIFY:

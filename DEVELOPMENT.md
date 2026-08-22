@@ -440,8 +440,11 @@ formats which provide their own mapping.
 
 `src/vexterlib/resources/font_preview.nim` performs longest-match ligature and
 substitution shaping, metric-aware placement, kerning, and width wrapping into
-a true-colour alpha raster. The GUI renders this sample instead of the packed
-texture and composites transparency over a checker pattern.
+a true-colour alpha raster. It also lays every stored glyph, including unmapped
+ones, into a selectable grid with baseline/ascent/descent guides. The GUI offers
+an editable wrapped sample and a glyph-grid mode with source index, Unicode
+mapping, bitmap dimensions, bearings, advances, and feature counts. Both views
+composite transparency over a checker pattern.
 
 `src/vexterlib/exporters/bmfont.nim` projects the representable font subset to
 an AngelCode BMFont text descriptor and deterministic, padded PNG pages up to
