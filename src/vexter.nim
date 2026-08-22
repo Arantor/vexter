@@ -10,6 +10,7 @@ type
     json: bool
     allCandidates: bool
     force: bool
+    allowLargeAnimation: bool
     ignoreWarnings: bool
     inputFormat: string
     outputFormat: string
@@ -22,12 +23,14 @@ proc usage(): string =
   """Usage:
   vexter inspect [--json] [--all-candidates] [--ignore-warnings]
                  [--input-format FORMAT] [--pcx-channel-order rgb|bgr] INPUT
-  vexter export [--format png|gif|apng|txt|wav|bin] [--resource PATH]
+  vexter export [--format png|gif|apng|gif-cycled|apng-cycled|txt|wav|bin]
+                [--resource PATH] [--allow-large-animation]
                 [--input-format FORMAT] [-o OUTPUT] [--force]
                 [--ignore-warnings] [--pcx-channel-order rgb|bgr] INPUT
-  vexter export-all [--format png|gif|apng|txt|wav|bin]
+  vexter export-all [--format png|gif|apng|gif-cycled|apng-cycled|txt|wav|bin]
                     [--resource PATH-PATTERN]... [--input-format FORMAT]
                     -o DIRECTORY [--force] [--ignore-warnings]
+                    [--allow-large-animation]
                     [--pcx-channel-order rgb|bgr] INPUT"""
 
 proc readBytes(path: string): seq[byte] =
@@ -47,6 +50,8 @@ proc parseOptions(arguments: seq[string]): CliOptions =
       result.allCandidates = true
     of "--force":
       result.force = true
+    of "--allow-large-animation":
+      result.allowLargeAnimation = true
     of "--ignore-warnings":
       result.ignoreWarnings = true
     of "--input-format", "--format", "--resource", "--pcx-channel-order", "-o":
@@ -213,15 +218,20 @@ proc exportResource(options: CliOptions) =
       resourcePath: (if options.resources.len == 1: options.resources[0]
                      else: ""),
       outputFormat: options.outputFormat,
-      suggestedName: options.input.splitFile.name))
+      suggestedName: options.input.splitFile.name,
+      allowLargeAnimation: options.allowLargeAnimation))
   let artifacts = exported.artifacts
 
   if artifacts.artifacts.len != 1:
     raise newException(CliError,
       "export produced multiple artifacts; an output directory is required")
   let artifact = artifacts.artifacts[0]
+  let extension = case exported.outputFormat
+    of "apng-cycled": "png"
+    of "gif-cycled": "gif"
+    else: exported.outputFormat
   let destination = if options.output.len > 0: options.output
-                    else: options.input.changeFileExt(exported.outputFormat)
+                    else: options.input.changeFileExt(extension)
   if fileExists(destination) and not options.force:
     raise newException(CliError,
       "output already exists (use --force): " & destination)
@@ -244,7 +254,8 @@ proc exportAllResources(options: CliOptions) =
   let exported = vexterlib.exportAllResources(inspection.resources,
     VextExportAllRequest(
       resourcePatterns: options.resources,
-      outputFormat: options.outputFormat))
+      outputFormat: options.outputFormat,
+      allowLargeAnimation: options.allowLargeAnimation))
 
   var destinations: seq[string]
   var relativeNames: seq[string]

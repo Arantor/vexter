@@ -13,7 +13,8 @@ The currently implemented formats use this subset of the intended CLI:
 vexter inspect [--json] [--all-candidates] [--ignore-warnings]
                [--input-format FORMAT] [--pcx-channel-order rgb|bgr] INPUT
 
-vexter export [--format png|gif|apng|txt|wav|bin] [--resource PATH]
+vexter export [--format png|gif|apng|gif-cycled|apng-cycled|txt|wav|bin]
+              [--resource PATH] [--allow-large-animation]
               [--input-format FORMAT] [-o OUTPUT] [--force]
               [--ignore-warnings] [--pcx-channel-order rgb|bgr] INPUT
 ```
@@ -148,7 +149,8 @@ supplied `Lemmings Inspiration.anim` has SHA-256
 expands from 23,192 to 36,598 bytes. Its payload is a 320x256, five-plane ANIM
 with ten stored forms. Its `DPAN` chunk exposes eight logical frames at 10
 frames per second; the final two forms are interleave history for looping.
-Colour cycling in its `CRNG` chunks is not yet applied.
+Its declared colour ranges are available through the optional cycled-animation
+exports; invalid and redundant declarations are filtered as described below.
 
 The decoding behavior is ported from `PPDecompressor.cpp` in the supplied BSD
 2-Clause Ancient Format Decompressor checkout. Its revision, source hashes,
@@ -398,6 +400,28 @@ beyond that logical count are decoded but not presented. Without `DPAN`,
 relative times are Amiga vertical-blank jiffies: explicit PAL CAMG monitor
 modes use 50 Hz and explicit NTSC modes use 60 Hz. Files without a monitor ID
 retain the ANIM specification's 60 Hz default.
+
+ILBM `CRNG` and `CCRT` palette ranges are retained for indexed ILBM and ANIM
+resources. Active CRNG rates use the format's 16,384/60 rate scale; CCRT uses
+its seconds/microseconds interval and signed direction. Vexter retains up to
+six effective ranges. Empty or one-colour ranges, ranges outside the decoded
+palette, inactive or zero-rate ranges, and ranges whose colours are all equal
+are ignored.
+
+Colour cycling is an optional export transformation. `png` writes the natural
+first image, while ordinary `gif` and `apng` preserve an existing animation
+without applying its ranges. `gif-cycled` and `apng-cycled` combine the source
+animation period with every range period, repeat through their least common
+multiple, and emit a frame at each source-frame or palette-step boundary.
+Expansion stops before exceeding 1,000 frames by default. The CLI requires
+`--allow-large-animation` to acknowledge a larger result; the GUI presents a
+confirmation before retrying such an export.
+
+In the GUI, an indexed static image with effective colour ranges is playable
+without pre-expanding the complete loop: its palette advances on demand at
+each range boundary. Existing animations retain their ordinary playback
+behavior for now; whether their colour cycling should be automatic or
+toggleable remains deliberately undecided.
 
 Implemented delta operations are:
 

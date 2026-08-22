@@ -92,6 +92,16 @@ proc dpan(frameCount, framesPerSecond: int): seq[byte] =
   chunk("DPAN", @[0'u8, 3, byte(frameCount shr 8), byte(frameCount),
     byte(framesPerSecond), 0, 0, 0])
 
+proc crng(rate, flags, low, high: int): seq[byte] =
+  chunk("CRNG", @[0'u8, 0, byte(rate shr 8), byte(rate),
+    byte(flags shr 8), byte(flags), byte(low), byte(high)])
+
+proc ccrt(direction, low, high, milliseconds: int): seq[byte] =
+  let micros = milliseconds * 1000
+  chunk("CCRT", @[byte(direction shr 8), byte(direction), byte(low), byte(high),
+    0, 0, 0, 0, byte(micros shr 24), byte(micros shr 16),
+    byte(micros shr 8), byte(micros), 0, 0])
+
 proc animWithDelta(operation: int, delta: seq[byte], bits = 0,
     planes = 1, camg = 0, width = 16): seq[byte] =
   form("ANIM", [initialForm(planes, camg, width),
@@ -283,6 +293,24 @@ suite "Amiga IFF ANIM":
     expect ValueError:
       discard parseAmigaAnim(form("ANIM", [
         initialForm(extraChunks = @[unsupportedDpan]), deltaForm]))
+
+  test "CRNG and CCRT retain up to six effective colour ranges":
+    let deltaForm = form("ILBM", [chunk("ANHD", anhd(5)),
+      chunk("DLTA", method5Delta())])
+    var ranges = @[ccrt(-1, 0, 1, 500)]
+    for unused in 0 ..< 6:
+      ranges.add crng(273, 1, 0, 1)
+    ranges.add crng(273, 1, 1, 1) # Empty range is ignored.
+    let parsed = parseAmigaAnim(form("ANIM", [
+      initialForm(extraChunks = ranges), deltaForm]))
+    let animation = decodeAmigaAnim(parsed).animation
+    check parsed.initial.image.colourCycles.len == 8
+    check animation.colourCycles.len == 6
+    check animation.colourCycles[0].direction == -1
+    check animation.colourCycles[0].stepDurationMs == 500
+    var constantPalette = parsed.initial.image
+    constantPalette.colourMap = newSeq[byte](constantPalette.colourMap.len)
+    check decodeAmigaIlbmImage(constantPalette).colourCycles.len == 0
 
   test "method 7 clips a padded final longword to the ILBM row":
     let image = decodeAmigaAnim(parseAmigaAnim(animWithDelta(

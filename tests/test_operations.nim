@@ -144,6 +144,42 @@ suite "vexterlib operations":
     check natural.outputFormat == "apng"
     check natural.artifacts.artifacts[0].mediaType == "image/apng"
 
+  test "colour cycling is optional and bounded before animated export":
+    let image = VextIndexedImage(width: 1, height: 1,
+      palette: @[
+        VextRgb(r: 1), VextRgb(r: 2), VextRgb(r: 3),
+        VextRgb(r: 4), VextRgb(r: 5)],
+      pixels: @[0'u8],
+      colourCycles: @[
+        VextColourCycleRange(low: 0, high: 1, direction: 1,
+          stepDurationMs: 100),
+        VextColourCycleRange(low: 2, high: 4, direction: -1,
+          stepDurationMs: 150)])
+    let raster = VextRaster(kind: vrkIndexedImage, image: image)
+    let expanded = expandColourCycles(raster,
+      allowLargeAnimation = true)
+    check expanded.frames.len == 24
+    check colourCyclePeriodMs(image.colourCycles) == 1800
+    check colourCycleNextBoundaryMs(image.colourCycles, 0) == 100
+    check colourCycleNextBoundaryMs(image.colourCycles, 100) == 150
+    check colourCycledImageAt(image, image.colourCycles, 100).palette[0].r == 2
+    check expanded.frames[0].image.palette[0].r == 1
+    check expanded.frames[1].image.palette[0].r == 2
+    expect ValueError:
+      discard expandColourCycles(raster, frameLimit = 10)
+
+    let tree = VextResourceTree(roots: @[VextResourceNode(path: "/cycled",
+      typeId: "test.cycled", kind: vrnkRaster, raster: raster)])
+    let formats = tree.roots[0].exportFormatsFor
+    check formats.len == 4
+    check formats[0].id == "png"
+    check formats[2].id == "gif-cycled"
+    check exportResource(tree, VextExportRequest(outputFormat: "png",
+      suggestedName: "still")).artifacts.artifacts[0].mediaType == "image/png"
+    check exportResource(tree, VextExportRequest(outputFormat: "apng-cycled",
+      suggestedName: "cycled", allowLargeAnimation: true)).artifacts.
+      artifacts[0].mediaType == "image/apng"
+
   test "opaque resources with retained bytes export exactly as BIN":
     let tree = VextResourceTree(roots: @[
       VextResourceNode(path: "/raw", typeId: "test.raw", kind: vrnkOpaque,

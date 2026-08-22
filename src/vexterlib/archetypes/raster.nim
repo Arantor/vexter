@@ -7,11 +7,17 @@ type
   VextRgba* = object
     r*, g*, b*, a*: uint8
 
+  VextColourCycleRange* = object
+    low*, high*: int
+    direction*: int
+    stepDurationMs*: int
+
   VextIndexedImage* = object
     width*, height*: int
     palette*: seq[VextRgb]
     pixels*: seq[uint8]
     alpha*: seq[uint8]
+    colourCycles*: seq[VextColourCycleRange]
 
   VextTrueColourImage* = object
     width*, height*: int
@@ -33,6 +39,7 @@ type
   VextIndexedAnimation* = object
     width*, height*: int
     frames*: seq[VextIndexedAnimationFrame]
+    colourCycles*: seq[VextColourCycleRange]
 
   VextRasterKind* = enum
     vrkIndexedImage

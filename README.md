@@ -21,6 +21,8 @@ sufficiently useful to continue as an ongoing project.
 - ZX Spectrum: screen dumps, SNA snapshots, TAP files, and tokenised BASIC
 
 Decoded resources can be exported as PNG, GIF, APNG, WAV, text, or raw binary.
+ILBM and ANIM colour cycling can optionally be expanded into bounded GIF or
+APNG animations while static and original-animation exports remain available.
 Containers such as ADF, ZIP, PowerPacker, and XPK are inspected recursively
 when their contents use another supported format. See
 [format documentation](docs/formats.md) for exact coverage and current

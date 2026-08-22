@@ -2,6 +2,7 @@
 
 import vexterlib/archetypes/raster
 import vexterlib/archetypes/audio
+import vexterlib/transformations/colour_cycle
 import vexterlib/artifacts
 import vexterlib/containers/amos_bank
 import vexterlib/containers/amiga_adf
@@ -59,6 +60,7 @@ import vexterlib/exporters/[gif, png, raw, wav]
 
 export raster
 export audio
+export colour_cycle
 export artifacts
 export amos_bank
 export amiga_adf

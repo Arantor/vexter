@@ -36,6 +36,7 @@ type
     body*: seq[byte]
     camg*: uint32
     planarLayout*: AmigaPlanarLayout
+    colourCycles*: seq[VextColourCycleRange]
 
 proc decodeRow(body: openArray[byte], offset: var int, rowBytes,
     compression: int): seq[byte] =
@@ -228,6 +229,17 @@ proc renderAmigaIlbmImage*(source: AmigaIlbmImageSource,
         r: colour.r shr 1, g: colour.g shr 1, b: colour.b shr 1)
   elif result.palette.len > requiredColours:
     result.palette.setLen(requiredColours)
+  for cycle in source.colourCycles:
+    if cycle.low < 0 or cycle.high >= result.palette.len or
+        cycle.low >= cycle.high:
+      continue
+    var allEqual = true
+    for index in cycle.low + 1 .. cycle.high:
+      if result.palette[index] != result.palette[cycle.low]:
+        allEqual = false
+        break
+    if not allEqual and result.colourCycles.len < 6:
+      result.colourCycles.add cycle
 
 proc decodeAmigaIlbmImage*(source: AmigaIlbmImageSource): VextIndexedImage =
   renderAmigaIlbmImage(source, decodeAmigaIlbmPlanes(source))

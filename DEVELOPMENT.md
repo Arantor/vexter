@@ -29,6 +29,7 @@ client, and a dependency-free native Windows GUI. It supports:
   archetypes;
 - PNG export for a still image or an animation's natural first frame;
 - animated GIF and APNG export;
+- optional CRNG/CCRT colour-cycle expansion with a 1,000-frame safety limit;
 - byte-identical BIN export for opaque resources that retain raw data; and
 - bulk export of all exportable leaves or a union of segment-wildcard resource
   patterns, preserving a safe resource-path hierarchy.
@@ -39,19 +40,22 @@ The implemented command-line surface is:
 vexter inspect [--json] [--all-candidates] [--ignore-warnings]
                [--input-format FORMAT] [--pcx-channel-order rgb|bgr] INPUT
 
-vexter export [--format png|gif|apng|txt|wav|bin] [--resource PATH]
+vexter export [--format png|gif|apng|gif-cycled|apng-cycled|txt|wav|bin]
+              [--resource PATH] [--allow-large-animation]
               [--input-format FORMAT] [-o OUTPUT] [--force]
               [--ignore-warnings] [--pcx-channel-order rgb|bgr] INPUT
 
-vexter export-all [--format png|gif|apng|txt|wav|bin]
+vexter export-all [--format png|gif|apng|gif-cycled|apng-cycled|txt|wav|bin]
                   [--resource PATH-PATTERN]... [--input-format FORMAT]
                   -o DIRECTORY [--force] [--ignore-warnings]
-                  [--pcx-channel-order rgb|bgr] INPUT
+                  [--pcx-channel-order rgb|bgr] [--allow-large-animation]
+                  INPUT
 ```
 
 The Windows GUI is a Unicode Win32/common-controls client of `vexterlib`. It
 loads files on a worker thread, exposes the complete resource hierarchy and
-metadata leaves, previews raster animations and sampled audio, and exports
+metadata leaves, previews raster animations, static-image colour cycling, and
+sampled audio, and exports
 through the library's discoverable per-resource format list. It targets the
 Windows 7 API baseline and cross-compiles from Linux with MinGW-w64:
 
@@ -126,6 +130,11 @@ be used for that transfer.
 - `exportAllResources` selects every exportable leaf or the deduplicated union
   of resource patterns, assigns safe hierarchical names, resolves normalized
   filename collisions deterministically, and returns all artifacts in memory.
+
+`src/vexterlib/transformations/colour_cycle.nim` combines up to six effective
+palette ranges with a still image or source animation timeline. It uses the
+least common multiple of the source and range periods, emits only at actual
+frame/range boundaries, and enforces the default 1,000-frame expansion guard.
 
 `src/vexterlib/handler_registry.nim` is the authoritative registry of supported
 input type identifiers. Each entry binds a stable identifier to its validation

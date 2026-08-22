@@ -238,6 +238,7 @@ var
   scaleChoice = 0
   animationFrame = 0
   animationPlaying = false
+  colourCycleElapsedMs: int64
   audioPlaying = false
   audioPaused = false
   waveHandle: HWAVEOUT
@@ -277,7 +278,11 @@ proc currentRasterImage(): VextTrueColourImage =
   let raster = selected.node.raster
   case raster.kind
   of vrkIndexedImage, vrkIndexedAnimation:
-    let source = if raster.kind == vrkIndexedImage: raster.image
+    let source = if raster.kind == vrkIndexedImage:
+        if raster.image.colourCycles.len > 0:
+          colourCycledImageAt(raster.image, raster.image.colourCycles,
+            colourCycleElapsedMs)
+        else: raster.image
       else: raster.animation.frames[animationFrame].image
     result.width = source.width
     result.height = source.height
@@ -398,7 +403,9 @@ proc isPlayable(binding: TreeBinding): bool =
     binding.node.audioSound.buffer.sampleCount > 0
   of vrnkRaster:
     binding.node.raster.kind in {vrkIndexedAnimation,
-      vrkTrueColourAnimation}
+      vrkTrueColourAnimation} or
+      (binding.node.raster.kind == vrkIndexedImage and
+       binding.node.raster.image.colourCycles.len > 0)
   else:
     false
 
@@ -406,6 +413,7 @@ proc selectBinding(binding: TreeBinding) =
   stopAudio()
   selected = binding
   animationFrame = 0
+  colourCycleElapsedMs = 0
   animationPlaying = false
   discard KillTimer(mainWindow, 1)
   discard SendMessageW(formatCombo, CB_RESETCONTENT, 0, 0)
@@ -450,6 +458,11 @@ proc selectBinding(binding: TreeBinding) =
 proc selectedFrameDuration(): int =
   if selected.isNil or selected.node.kind != vrnkRaster: return 0
   case selected.node.raster.kind
+  of vrkIndexedImage:
+    let ranges = selected.node.raster.image.colourCycles
+    if ranges.len == 0: 0
+    else: int(colourCycleNextBoundaryMs(ranges,
+      colourCycleElapsedMs) - colourCycleElapsedMs)
   of vrkIndexedAnimation: selected.node.raster.animation.frames[animationFrame].durationMs
   of vrkTrueColourAnimation: selected.node.raster.trueColourAnimation.frames[animationFrame].durationMs
   else: 0
@@ -459,6 +472,8 @@ proc frameCount(): int =
   case selected.node.raster.kind
   of vrkIndexedAnimation: selected.node.raster.animation.frames.len
   of vrkTrueColourAnimation: selected.node.raster.trueColourAnimation.frames.len
+  of vrkIndexedImage:
+    if selected.node.raster.image.colourCycles.len > 0: 2 else: 1
   else: 1
 
 proc togglePlayback() =
@@ -570,9 +585,24 @@ proc doExport() =
     format.displayName & "\0*." & format.extensions[0] & "\0All files\0*.*\0\0")
   if destination.len == 0: return
   try:
-    let exported = exportResource(currentInspection.resources,
-      VextExportRequest(resourcePath: selected.node.path, outputFormat: format.id,
-        suggestedName: currentFilename.splitFile.name))
+    var allowLarge = false
+    var exported: VextExportResult
+    while true:
+      try:
+        exported = exportResource(currentInspection.resources,
+          VextExportRequest(resourcePath: selected.node.path,
+            outputFormat: format.id,
+            suggestedName: currentFilename.splitFile.name,
+            allowLargeAnimation: allowLarge))
+        break
+      except ValueError as error:
+        if allowLarge or "explicitly allow a large animation" notin error.msg:
+          raise
+        let answer = MessageBoxW(mainWindow, w(error.msg &
+          "\n\nContinue with this potentially expensive export?"),
+          w("Vexter"), 0x34)
+        if answer != 6: return
+        allowLarge = true
     if exported.artifacts.artifacts.len != 1:
       raise newException(ValueError, "this export produces multiple files")
     let artifact = exported.artifacts.artifacts[0]
@@ -659,7 +689,14 @@ proc mainProc(hwnd: HWND, msg: UINT, wp: WPARAM, lp: LPARAM): LRESULT {.stdcall.
     return 0
   of WM_TIMER:
     if wp == 1 and animationPlaying and frameCount() > 1:
-      animationFrame = (animationFrame + 1) mod frameCount()
+      if selected.node.raster.kind == vrkIndexedImage:
+        let
+          ranges = selected.node.raster.image.colourCycles
+          duration = selectedFrameDuration()
+          period = colourCyclePeriodMs(ranges)
+        colourCycleElapsedMs = (colourCycleElapsedMs + int64(duration)) mod period
+      else:
+        animationFrame = (animationFrame + 1) mod frameCount()
       discard InvalidateRect(preview, nil, 0)
       discard KillTimer(mainWindow, 1)
       discard SetTimer(mainWindow, 1, UINT(max(10, selectedFrameDuration())), nil)

@@ -4,6 +4,7 @@ import std/strutils
 import ./artifacts
 import ./archetypes/raster
 import ./archetypes/audio
+import ./transformations/colour_cycle
 import ./detection
 import ./handler_registry
 import ./exporters/[gif, png, raw, wav]
@@ -58,6 +59,8 @@ type
     resourcePath*: string
     outputFormat*: string
     suggestedName*: string
+    colourCycleFrameLimit*: int
+    allowLargeAnimation*: bool
 
   VextExportResult* = object
     resourcePath*: string
@@ -67,6 +70,8 @@ type
   VextExportAllRequest* = object
     resourcePatterns*: seq[string]
     outputFormat*: string
+    colourCycleFrameLimit*: int
+    allowLargeAnimation*: bool
 
   VextExportAllResult* = object
     exports*: seq[VextExportResult]
@@ -92,17 +97,31 @@ proc exportFormatsFor*(resource: VextResourceNode): seq[VextExportFormat] =
           extensions: @["png"], mediaTypes: @["image/png"], isDefault: true),
         VextExportFormat(id: "gif", displayName: "GIF image",
           extensions: @["gif"], mediaTypes: @["image/gif"])]
+      if resource.raster.image.colourCycles.len > 0:
+        result.add VextExportFormat(id: "gif-cycled",
+          displayName: "Animated GIF with colour cycling",
+          extensions: @["gif"], mediaTypes: @["image/gif"])
+        result.add VextExportFormat(id: "apng-cycled",
+          displayName: "Animated PNG with colour cycling",
+          extensions: @["png"], mediaTypes: @["image/apng"])
     of vrkIndexedAnimation:
       let gifDefault = resource.raster.animation.gifCompatible
       result = @[
         VextExportFormat(id: "png", displayName: "PNG first frame",
           extensions: @["png"], mediaTypes: @["image/png"]),
-        VextExportFormat(id: "gif", displayName: "Animated GIF",
+        VextExportFormat(id: "gif", displayName: "Animated GIF (original)",
           extensions: @["gif"], mediaTypes: @["image/gif"],
           isDefault: gifDefault),
-        VextExportFormat(id: "apng", displayName: "Animated PNG",
+        VextExportFormat(id: "apng", displayName: "Animated PNG (original)",
           extensions: @["png"], mediaTypes: @["image/apng"],
           isDefault: not gifDefault)]
+      if resource.raster.animation.colourCycles.len > 0:
+        result.add VextExportFormat(id: "gif-cycled",
+          displayName: "Animated GIF with colour cycling",
+          extensions: @["gif"], mediaTypes: @["image/gif"])
+        result.add VextExportFormat(id: "apng-cycled",
+          displayName: "Animated PNG with colour cycling",
+          extensions: @["png"], mediaTypes: @["image/apng"])
     of vrkTrueColourImage:
       result = @[VextExportFormat(id: "png", displayName: "PNG image",
         extensions: @["png"], mediaTypes: @["image/png"], isDefault: true)]
@@ -676,6 +695,7 @@ proc inspectSourceDepth(filename: string, data: openArray[byte],
       integerMetadata("frames", if anim.hasDpan: anim.logicalFrameCount
         else: anim.frames.len + 1),
       integerMetadata("stored-frames", anim.frames.len + 1),
+      integerMetadata("colour-cycle-ranges", raster.colourCycleRanges.len),
       integerMetadata("planes", anim.initial.image.header.planes),
       integerMetadata("camg", int(anim.initial.image.camg))]
     if anim.hasDpan:
@@ -744,11 +764,12 @@ proc inspectSourceDepth(filename: string, data: openArray[byte],
       parsedValue[AmigaAcbm](selectedParsed, vhkAmigaAcbm).image
     else:
       parsedValue[AmigaIlbm](selectedParsed, vhkAmigaIlbm).image
+    let raster = decodeAmigaIlbmRaster(image)
     result.resources.roots.add VextResourceNode(
       path: AmigaIlbmImageResourcePath,
       typeId: AmigaIlbmImageTypeId,
       kind: vrnkRaster,
-      raster: decodeAmigaIlbmRaster(image),
+      raster: raster,
       metadata: @[
         integerMetadata("planes", image.header.planes),
         integerMetadata("masking", image.header.masking),
@@ -757,6 +778,7 @@ proc inspectSourceDepth(filename: string, data: openArray[byte],
         integerMetadata("position.y", image.header.y),
         integerMetadata("aspect.x", image.header.xAspect),
         integerMetadata("aspect.y", image.header.yAspect),
+        integerMetadata("colour-cycle-ranges", raster.colourCycleRanges.len),
         integerMetadata("camg", int(image.camg))
       ])
   of vhkAmigaPbm:
@@ -984,6 +1006,9 @@ proc exportResource*(tree: VextResourceTree,
       mediaType: "text/plain; charset=utf-8",
       data: bytes)
   of vrnkRaster:
+    let frameLimit = if request.colourCycleFrameLimit > 0:
+        request.colourCycleFrameLimit
+      else: DefaultColourCycleFrameLimit
     result.artifacts = case result.outputFormat
       of "png":
         case resource.raster.kind
@@ -1014,6 +1039,13 @@ proc exportResource*(tree: VextResourceTree,
         of vrkTrueColourImage:
           raise newException(ValueError,
             "APNG export requires an indexed raster or true-colour animation")
+      of "gif-cycled", "apng-cycled":
+        let cycled = expandColourCycles(resource.raster, frameLimit,
+          request.allowLargeAnimation)
+        if result.outputFormat == "gif-cycled":
+          exportGif(cycled, request.suggestedName & ".gif")
+        else:
+          exportApng(cycled, request.suggestedName & ".png")
       else:
         raise newException(ValueError,
           "unsupported output format: " & result.outputFormat)
@@ -1056,7 +1088,9 @@ proc exportAllResources*(tree: VextResourceTree,
     var exported = exportResource(tree, VextExportRequest(
       resourcePath: resource.path,
       outputFormat: request.outputFormat,
-      suggestedName: exportNameForPath(resource.path)))
+      suggestedName: exportNameForPath(resource.path),
+      colourCycleFrameLimit: request.colourCycleFrameLimit,
+      allowLargeAnimation: request.allowLargeAnimation))
     for artifact in exported.artifacts.artifacts.mitems:
       artifact.suggestedFilename = uniqueArtifactName(
         artifact.suggestedFilename, usedNames)

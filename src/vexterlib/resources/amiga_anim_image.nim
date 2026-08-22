@@ -425,4 +425,8 @@ proc decodeAmigaAnim*(anim: AmigaAnim): VextRaster =
     let image = renderAmigaIlbmImage(source, planes)
     animation.frames.add VextIndexedAnimationFrame(
       image: image, durationMs: durations[index])
+  if animation.frames.len > 0:
+    animation.colourCycles = animation.frames[0].image.colourCycles
+    for frame in animation.frames.mitems:
+      frame.image.colourCycles.setLen(0)
   VextRaster(kind: vrkIndexedAnimation, animation: animation)

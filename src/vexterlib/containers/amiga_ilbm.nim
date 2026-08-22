@@ -2,6 +2,7 @@
 
 import std/[os, strutils]
 import ./amiga_iff
+import ../archetypes/raster
 import ../resources/amiga_ilbm_image
 
 const
@@ -20,6 +21,45 @@ proc signedWord(data: openArray[byte], offset: int): int {.inline.} =
 proc beLong(data: openArray[byte]): uint32 {.inline.} =
   (uint32(data[0]) shl 24) or (uint32(data[1]) shl 16) or
     (uint32(data[2]) shl 8) or uint32(data[3])
+
+proc signedLong(data: openArray[byte], offset: int): int64 {.inline.} =
+  int64(cast[int32]((uint32(data[offset]) shl 24) or
+    (uint32(data[offset + 1]) shl 16) or
+    (uint32(data[offset + 2]) shl 8) or uint32(data[offset + 3])))
+
+proc parseColourCycle(chunk: AmigaIffChunk): VextColourCycleRange =
+  case chunk.id
+  of "CRNG":
+    if chunk.data.len != 8:
+      raise newException(ValueError, "ILBM CRNG chunk must contain 8 bytes")
+    let
+      rate = beWord(chunk.data, 2)
+      flags = beWord(chunk.data, 4)
+    if rate == 0 or (flags and 1) == 0:
+      return
+    result = VextColourCycleRange(
+      low: int(chunk.data[6]), high: int(chunk.data[7]),
+      direction: (if (flags and 2) != 0: -1 else: 1),
+      stepDurationMs: max(1, (16_384_000 + rate * 30) div (rate * 60)))
+  of "CCRT":
+    if chunk.data.len != 14:
+      raise newException(ValueError, "ILBM CCRT chunk must contain 14 bytes")
+    let direction = signedWord(chunk.data, 0)
+    if direction notin [-1, 1]:
+      return
+    let
+      seconds = signedLong(chunk.data, 4)
+      micros = signedLong(chunk.data, 8)
+    if seconds < 0 or micros < 0 or micros >= 1_000_000:
+      return
+    if seconds == 0 and micros == 0:
+      return
+    result = VextColourCycleRange(
+      low: int(chunk.data[2]), high: int(chunk.data[3]),
+      direction: (if direction < 0: -1 else: 1),
+      stepDurationMs: max(1, int(seconds * 1000 + (micros + 500) div 1000)))
+  else:
+    discard
 
 proc parseAmigaBitmapHeader*(data: openArray[byte]): AmigaIlbmHeader =
   if data.len != 20:
@@ -62,6 +102,10 @@ proc parseAmigaBitmapForm*(form: AmigaIffForm, expectedFormType,
         raise newException(ValueError,
           expectedFormType & " CAMG chunk must contain four bytes")
       result.image.camg = beLong(chunk.data)
+    of "CRNG", "CCRT":
+      let cycle = parseColourCycle(chunk)
+      if cycle.stepDurationMs > 0:
+        result.image.colourCycles.add cycle
     else:
       if chunk.id != bitmapChunk:
         continue
