@@ -25,7 +25,13 @@ type
     encoding*: BmFontEncoding
     rawData*: seq[byte]
     face*: string
+    charset*: string
     size*, lineHeight*, baseline*, scaleWidth*, scaleHeight*: int
+    bold*, italic*, unicode*, smooth*, antialias*, stretchHeight*: int
+    padding*: array[4, int]
+    spacing*: array[2, int]
+    outline*, packed*: int
+    alphaChannel*, redChannel*, greenChannel*, blueChannel*: int
     declaredPages*, declaredCharacters*, declaredKernings*: int
     pages*: seq[BmFontPage]
     characters*: seq[BmFontCharacter]
@@ -81,6 +87,19 @@ proc number(items: openArray[(string, string)], key: string,
   if text.parseInt(result) != text.len:
     raise newException(ValueError, "BMFont integer field is invalid: " & key)
 
+proc numbers(items: openArray[(string, string)], key: string,
+    count: int, required = true): seq[int] =
+  let text = items.value(key, required)
+  if not required and text.len == 0: return newSeq[int](count)
+  let parts = text.split(',')
+  if parts.len != count:
+    raise newException(ValueError, "BMFont tuple field has the wrong length: " & key)
+  for part in parts:
+    var parsed: int
+    if part.parseInt(parsed) != part.len:
+      raise newException(ValueError, "BMFont tuple field is invalid: " & key)
+    result.add parsed
+
 proc parseBmFontText(data: openArray[byte]): BmFontSource =
   result.encoding = bfeText
   var sawInfo, sawCommon, sawChars: bool
@@ -93,6 +112,19 @@ proc parseBmFontText(data: openArray[byte]): BmFontSource =
       sawInfo = true
       result.face = items.value("face")
       result.size = items.number("size")
+      result.bold = items.number("bold", false)
+      result.italic = items.number("italic", false)
+      result.charset = items.value("charset", false)
+      result.unicode = items.number("unicode", false)
+      result.stretchHeight = items.number("stretchH", false)
+      if result.stretchHeight == 0: result.stretchHeight = 100
+      result.smooth = items.number("smooth", false)
+      result.antialias = items.number("aa", false)
+      let padding = items.numbers("padding", 4, false)
+      for index, value in padding: result.padding[index] = value
+      let spacing = items.numbers("spacing", 2, false)
+      for index, value in spacing: result.spacing[index] = value
+      result.outline = items.number("outline", false)
     elif line.startsWith("common "):
       if sawCommon: raise newException(ValueError, "duplicate BMFont common record")
       sawCommon = true
@@ -101,6 +133,11 @@ proc parseBmFontText(data: openArray[byte]): BmFontSource =
       result.scaleWidth = items.number("scaleW")
       result.scaleHeight = items.number("scaleH")
       result.declaredPages = items.number("pages")
+      result.packed = items.number("packed", false)
+      result.alphaChannel = items.number("alphaChnl", false)
+      result.redChannel = items.number("redChnl", false)
+      result.greenChannel = items.number("greenChnl", false)
+      result.blueChannel = items.number("blueChnl", false)
     elif line.startsWith("page "):
       result.pages.add BmFontPage(id: items.number("id"),
         filename: items.value("file"))
@@ -128,6 +165,17 @@ proc parseBmFontText(data: openArray[byte]): BmFontSource =
       result.declaredPages <= 0 or result.pages.len != result.declaredPages or
       result.declaredCharacters < 0 or result.declaredKernings < 0:
     raise newException(ValueError, "BMFont text descriptor is inconsistent")
+  if result.bold notin 0 .. 1 or result.italic notin 0 .. 1 or
+      result.unicode notin 0 .. 1 or result.smooth notin 0 .. 1 or
+      result.antialias < 0 or result.packed notin 0 .. 1 or
+      result.stretchHeight <= 0 or result.outline < 0 or
+      result.alphaChannel notin 0 .. 4 or result.redChannel notin 0 .. 4 or
+      result.greenChannel notin 0 .. 4 or result.blueChannel notin 0 .. 4:
+    raise newException(ValueError, "BMFont style or channel metadata is invalid")
+  for value in result.padding:
+    if value < 0: raise newException(ValueError, "BMFont padding is invalid")
+  for value in result.spacing:
+    if value < 0: raise newException(ValueError, "BMFont spacing is invalid")
   var pageIds: seq[int]
   for page in result.pages:
     if page.id < 0 or page.id >= result.declaredPages or

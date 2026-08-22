@@ -92,6 +92,46 @@ suite "BMFont import":
     check font.lineHeight == 20
     check font.baseline == 20
 
+  test "style metadata is retained and non-Unicode IDs are not invented mappings":
+    let text = "info face=\"legacy\" size=12 bold=1 italic=1 charset=\"OEM\" " &
+      "unicode=0 stretchH=125 smooth=1 aa=2 padding=1,2,3,4 " &
+      "spacing=5,6 outline=2\n" &
+      "common lineHeight=2 base=1 scaleW=2 scaleH=1 pages=1 packed=1 " &
+      "alphaChnl=1 redChnl=2 greenChnl=3 blueChnl=4\n" &
+      "page id=0 file=\"page.png\"\nchars count=2\n" &
+      "char id=65 x=0 y=0 width=1 height=1 xoffset=0 yoffset=0 " &
+      "xadvance=1 page=0 chnl=15\n" &
+      "char id=200 x=1 y=0 width=1 height=1 xoffset=0 yoffset=0 " &
+      "xadvance=1 page=0 chnl=15\nkernings count=1\n" &
+      "kerning first=65 second=200 amount=-1\n"
+    let descriptor = parseBmFont(text.bytes)
+    check descriptor.charset == "OEM"
+    check descriptor.bold == 1
+    check descriptor.italic == 1
+    check descriptor.stretchHeight == 125
+    check descriptor.padding == [1, 2, 3, 4]
+    check descriptor.spacing == [5, 6]
+    check descriptor.outline == 2
+    check descriptor.packed == 1
+    check descriptor.alphaChannel == 1
+    check descriptor.redChannel == 2
+    check descriptor.greenChannel == 3
+    check descriptor.blueChannel == 4
+    let page = VextTrueColourImage(width: 2, height: 1,
+      pixels: @[VextRgb(r: 255, g: 255, b: 255),
+        VextRgb(r: 255, g: 255, b: 255)])
+    let font = decodeBmFont(descriptor, @[page])
+    check font.glyphs.len == 2
+    check font.glyphs[1].sourceIndex == 200
+    check font.mappings == @[VextGlyphMapping(codePoint: 65, glyphIndex: 0)]
+    check font.kerning.len == 0
+
+    let unicodeDescriptor = parseBmFont(text.replace("unicode=0",
+      "unicode=1").bytes)
+    let unicodeFont = decodeBmFont(unicodeDescriptor, @[page])
+    check unicodeFont.mappings.len == 2
+    check unicodeFont.kerning.len == 1
+
   test "XML and binary variants are distinguished and retained opaque":
     for control in ["<?xml version=\"1.0\"?><font></font>", "BMF\x03"]:
       let data = control.bytes

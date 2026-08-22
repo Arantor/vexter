@@ -19,8 +19,10 @@ behavior and evidence remain in [`formats.md`](formats.md).
 
 - **BMFont**
   - XML and binary descriptors are identified and retained but not decoded.
-  - Non-Unicode charset interpretation and packed outline/channel roles beyond
-    explicit single-channel glyph masks need documentation and controls.
+  - Declared non-Unicode charsets are retained but positions beyond printable
+    ASCII need charset-specific mapping tables and representative controls.
+  - Packed outline/channel roles beyond explicit single-channel glyph masks
+    are retained but need documentation and controls before interpretation.
 
 - **LHA/LZH archives**
   - Header levels 2 and 3 are unsupported.

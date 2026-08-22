@@ -346,7 +346,11 @@ source index.
 `src/vexterlib/resources/bmfont_font.nim` resolves static PNG atlas pages and
 crops BMFont rectangles into generic glyphs, preserving offsets, advances,
 baseline, mappings, and kerning. White-alpha and selected mask channels become
-monochrome coverage while coloured glyphs retain RGB and alpha.
+monochrome coverage while coloured glyphs retain RGB and alpha. Unicode
+descriptors map scalar IDs directly; non-Unicode descriptors use only the
+printable-ASCII default and retain all other IDs as source positions. Style,
+padding, spacing, outline, charset, packed, and channel-role fields remain
+inspection metadata.
 
 `src/vexterlib/resources/amiga_diskfont_font.nim` extracts potentially
 unaligned strike glyphs, preserves baseline, proportional spacing, and signed

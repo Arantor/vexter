@@ -50,9 +50,12 @@ proc decodeBmFont*(source: BmFontSource,
       bitmap: bitmap, bearingX: character.xOffset,
       bearingY: source.baseline - character.yOffset,
       advanceX: character.xAdvance)
-    result.mappings.add VextGlyphMapping(codePoint: character.id,
-      glyphIndex: result.glyphs.high)
+    if source.unicode == 1 or character.id in 32 .. 127:
+      result.mappings.add VextGlyphMapping(codePoint: character.id,
+        glyphIndex: result.glyphs.high)
   for pair in source.kernings:
-    result.kerning.add VextFontKerning(leftCodePoint: pair.first,
-      rightCodePoint: pair.second, amountX: pair.amount)
+    if result.glyphIndexFor(pair.first) >= 0 and
+        result.glyphIndexFor(pair.second) >= 0:
+      result.kerning.add VextFontKerning(leftCodePoint: pair.first,
+        rightCodePoint: pair.second, amountX: pair.amount)
   result.validate

@@ -67,6 +67,12 @@ kerning become generic font values. White RGB with alpha and explicitly
 selected alpha/red/green/blue mask channels become recolourable monochrome
 coverage; genuinely coloured rectangles remain true-colour glyphs with alpha.
 The resulting font is exposed at `/font` and naturally exports to BMFont again.
+The `info` style, smoothing, antialiasing, stretch, padding, spacing, outline,
+charset and Unicode fields are retained alongside the `common` packed flag and
+four channel-role values. When `unicode=1`, valid character IDs become Unicode
+mappings. Otherwise only printable ASCII positions 32–127 receive the project
+default identity mapping; every other ID remains available as a glyph source
+index without guessing the declared legacy charset.
 BMFont baselines beyond the declared line height are accepted; the original
 values remain metadata and the generic line box expands to contain the baseline.
 Non-semantic generator-specific `letter=` annotations are ignored, including
