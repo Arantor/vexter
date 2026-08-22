@@ -766,6 +766,111 @@ palette conversion, row orientation and padding, 24-bit colour, 16-bit
 bitfields, RLE4/RLE8, invalid offsets, incompatible compression, and
 truncation. Authentic compatibility fixtures remain desirable.
 
+## FLI/FLC-family animations
+
+Container type identifier: `flic`
+
+Raster type identifier: `flic.animation`
+
+The importer recognizes the documented FLI (`0xAF11`), FLC/FLX (`0xAF12`),
+DTA/EGI (`0xAF44`), compressed EGI (`0xAF30`), and frame-shift EGI (`0xAF31`)
+file identifiers. Case-insensitive `.fli`, `.flc`, `.cel`, `.flh`, `.flt`, and
+`.flx` extensions add supporting evidence. Valid headers and fully bounded
+chunk/frame structures identify the family as **certain**.
+
+Eight-bit FLI/FLC files decode changing COLOR_64/COLOR_256 palettes, BLACK,
+FLI_COPY, BYTE_RUN, DELTA_FLI, DELTA_FLC, key images, and key palettes into a
+`VextIndexedAnimation`. FLI speeds are converted from 1/70-second ticks; FLC
+speeds and Pro Motion per-frame overrides are milliseconds. The declared frame
+count excludes and therefore omits a trailing ring frame.
+
+CEL prefix chunks retain registration coordinates and their transparent palette
+index becomes per-pixel alpha. FLH/FLT files using the DTA identifier decode
+documented 15-, 16-, and 24-bit DTA_BRUN, DTA_COPY, and DTA_LC chunks into
+true-colour animations. Both documented 15-bit FLX families use the ordinary
+FLC chunks; the Autodesk creator identifier selects pixel-based DELTA_FLC
+skips, while other FLX sources use Tempra's byte-based skips.
+
+The supplied page documents the structure and identifiers of EGI segment,
+Huffman, script, mask, region, audio, frame-shift, path-map, label, and user
+chunks. Unknown or non-rendering chunks remain safely skippable as required by
+the format. The separately supplied EGI compression page defines Huffman and
+BWT-Huffman blocks and frame shifting; these are decoded for AF30 and AF31
+files, including 16- and 24-bit pixel buffers. Huffman compression applies only
+to the documented DELTA_FLC, BYTE_RUN, and KEY_IMAGE payloads; DELTA_FLC's line
+count remains outside the compressed blocks. One-bit DTA packing and embedded
+Small/Pawn bytecode remain delegated to unavailable documents. Files requiring
+those missing interpretations report an explicit unsupported-decoding error
+rather than guessed behavior.
+
+### Outstanding FLIC work
+
+The remaining work falls into three categories.
+
+Source material is still required before these interpretations can be added
+without inference:
+
+- **One-bit AF44 DTA:** obtain the pixel-packing rules: bit order, row padding,
+  colour interpretation, whether DTA run lengths count pixels or packed bytes,
+  and skip/run units in DTA deltas. Raw/copy, run-length, and delta examples
+  with reference images are desirable.
+- **Embedded scripts:** obtain the referenced Small/Pawn bytecode version and
+  documentation only if bytecode inspection is wanted. Executing scripts is a
+  separate product and security decision and is not implied by importing the
+  animation.
+
+The following documented features need resource-model or presentation decisions
+and authentic examples before implementation:
+
+- EGI bitmap, multilevel, and region masks need an alpha-mapping policy,
+  persistence/compositing rules, and examples of full and delta masks. In
+  particular, the document supplies a level count but no universal mapping
+  from multilevel mask values to opacity. Mask-targeted SHIFT chunks are
+  consequently rejected; image-targeted SHIFT chunks are implemented.
+- Segment tables, nested segments, launch/continue transitions, overlay prefix
+  frames, and path maps need a resource model: whether import exposes every
+  branch or renders a selected path, how per-segment ring frames behave, and
+  how overlays are selected and composited.
+- `WAVE` chunks need single- and multi-block examples and a decision on whether
+  discontinuous segment audio becomes one reconstructed `/audio` resource or
+  remains attached to animation segments.
+- Labels, extended labels, regions, user strings, postage stamps, path maps,
+  scripts, and frame-local CEL data need decisions about which values become
+  public metadata or child resources. Opaque script preservation does not
+  require understanding or executing the bytecode.
+- Compatibility handling needs evidence for the documented real-world defects,
+  notably bad `oframe` offsets, odd chunk sizes, surplus frame padding, garbage
+  reserved fields, and the alternate `0xF5FA` frame identifier. Tolerance will
+  not be added solely from the defect list because accepting malformed lengths
+  can weaken boundary validation.
+
+Finally, authentic compatibility coverage is outstanding. The temporary corpus
+exercises only a classic FLI using COLOR_64, BYTE_RUN, and DELTA_FLI. Synthetic
+tests cover the implemented structures and codecs, including Huffman,
+BWT-Huffman, image frame shifting, and 15/16/24-bit buffers, but do not establish
+compatibility with an EGI encoder. Redistributable, provenance-recorded controls
+are wanted for:
+
+- plain Huffman, BWT-Huffman, horizontal/vertical frame shifting, and combined
+  shifted/delta EGI animations at eight, 16, and 24 bits per pixel;
+- FLC COLOR_256/DELTA_FLC, CEL transparency and registration, both FLX
+  variants, and 15/16/24-bit FLH/FLT with each DTA codec; and
+- BLACK/COPY/key chunks and the other documented EGI extensions.
+
+Useful fixture records include the source and licence, checksum,
+dimensions/depth, declared and ring frame counts, timing, exercised chunks,
+and independently produced reference frames or animation. The best research
+order is representative EGI controls, one-bit DTA clarification, and then
+samples for the already documented extensions.
+
+Implementation follows the developer-supplied copies of CompuPhase's “The FLIC
+file format” and “EGI compression schemes”, retrieved 2026-08-21 and
+2026-08-22 respectively and recorded in
+[`THIRD_PARTY.md`](../THIRD_PARTY.md). Synthetic tests cover every implemented
+codec. One temporary external FLI compatibility file (320×200, 41 frames)
+inspects and exports to GIF successfully but is not retained as a fixture or
+treated as format authority.
+
 ## GIF images and animations
 
 Container type identifier: `gif`

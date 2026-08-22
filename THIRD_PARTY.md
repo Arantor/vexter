@@ -1,5 +1,33 @@
 # Third-party material
 
+## FLIC family format specification
+
+The developer supplied `The FLIC file format.html`, sourced from
+[CompuPhase's FLIC format page](https://www.compuphase.com/flic.htm) on
+2026-08-21. The page is copyright Thiadmer Riemersma and identifies itself as
+licensed under Creative Commons Attribution-ShareAlike 3.0. It documents FLI,
+FLC, CEL, FLH, FLT, both FLX variants, DTA chunks, Pro Motion timing, and EGI
+container/chunk extensions.
+
+The page delegates Huffman/BWT coding, frame-shift application, one-bit DTA
+pixel packing, and embedded Small/Pawn bytecode to separate documents. The
+later-supplied EGI compression page below closes the first two gaps. One-bit
+DTA packing and Small/Pawn bytecode remain unspecified, and Vexter does not
+infer those missing rules. The FLIC page's SHA-256 hash is:
+
+```text
+80cdd87e88495edb1df7732550e3fe19d696b618e1134fd665e7d1d11d5a190a  The FLIC file format.html
+```
+
+The developer subsequently supplied `EGI compression schemes.html`, sourced
+from [CompuPhase's EGI compression page](https://www.compuphase.com/compress.htm)
+on 2026-08-22. It defines EGI Huffman and BWT-Huffman blocks, lazy
+move-to-front reversal, and frame-shift application. Its SHA-256 hash is:
+
+```text
+6f97180e24e2828c9d2886ec8aa3594f0c9a3a2f69aca76d1a88a26dbc323ee5  EGI compression schemes.html
+```
+
 ## TGA format specification
 
 The developer supplied `TGA format specification.html`, sourced from

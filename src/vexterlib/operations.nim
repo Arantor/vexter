@@ -9,10 +9,10 @@ import ./handler_registry
 import ./exporters/[gif, png, raw, wav]
 import ./resource_tree
 import ./containers/[amiga_8svx, amiga_16sv, amiga_acbm, amiga_adf, amiga_anim, amiga_dms, amiga_iff, amiga_ilbm, amiga_pbm, amiga_workbench_icon, amos_bank, amos_bank_set, amos_packed_picture, amos_program,
-  amos_sprite_icon_bank, bmp, gif_container, netpbm, pcx, png_container,
+  amos_sprite_icon_bank, bmp, flic, gif_container, netpbm, pcx, png_container,
   qoi, tga, wav, zip_archive, zx_spectrum_snapshot, zx_spectrum_tap]
 import ./metadata
-import ./resources/[amiga_anim_image, amiga_ilbm_image, amiga_pbm_image, amiga_workbench_icon_image, amos_listing, amos_packed_picture_image, amos_planar_image, bmp_image, gif_image, netpbm_image, png_image, zx_spectrum_basic,
+import ./resources/[amiga_anim_image, amiga_ilbm_image, amiga_pbm_image, amiga_workbench_icon_image, amos_listing, amos_packed_picture_image, amos_planar_image, bmp_image, flic_animation, gif_image, netpbm_image, png_image, zx_spectrum_basic,
   pcx_image, qoi_image, tga_image, zx_spectrum_screen]
 
 type
@@ -773,6 +773,25 @@ proc inspectSourceDepth(filename: string, data: openArray[byte],
         integerMetadata("colour-map.length", image.colourMapLength),
         integerMetadata("colour-map.entry-bits", image.colourMapEntryBits),
         stringMetadata("origin", if image.topOrigin: "top-left" else: "bottom-left")])
+  of vhkFlic:
+    let animation = parsedValue[FlicSource](selectedParsed, vhkFlic)
+    result.resources.roots.add VextResourceNode(
+      path: FlicAnimationResourcePath, typeId: FlicAnimationTypeId,
+      kind: vrnkRaster, raster: decodeFlic(animation), metadata: @[
+        integerMetadata("file-type", animation.fileMagic),
+        integerMetadata("frames", animation.frameCount),
+        integerMetadata("depth", animation.depth),
+        integerMetadata("speed", int(animation.speed)),
+        integerMetadata("flags", animation.flags),
+        integerMetadata("creator", int(animation.creator)),
+        integerMetadata("aspect.x", animation.aspectX),
+        integerMetadata("aspect.y", animation.aspectY),
+        integerMetadata("extension-flags", animation.extensionFlags),
+        integerMetadata("keyframe-frequency", animation.keyframeFrequency),
+        integerMetadata("total-frames", animation.totalFrames),
+        integerMetadata("cel.center.x", animation.celCenterX),
+        integerMetadata("cel.center.y", animation.celCenterY),
+        integerMetadata("cel.transparent-index", animation.transparentIndex)])
   of vhkAmosProgram:
     let program = parsedValue[AmosProgram](selectedParsed, vhkAmosProgram)
     result.resources.roots.add VextResourceNode(

@@ -17,7 +17,8 @@ client, and a dependency-free native Windows GUI. It supports:
   and ACBM images, provisional packed-pixel IFF PBM images, IFF ANIM
   animations, IFF 8SVX and 16SV sampled audio,
   integer PCM WAV sounds, PCX, TGA, BMP/DIB,
-  PNG, QOI, Netpbm P1–P7, and GIF87a/GIF89a images, AmigaDOS ADF filesystems, DMS
+  PNG, QOI, Netpbm P1–P7, GIF87a/GIF89a, and FLI/FLC-family animations,
+  AmigaDOS ADF filesystems, DMS
   disk archives, ZIP archives, ZX Spectrum raw screen dumps, SNA snapshots,
   TAP containers, tokenised BASIC resources, standalone AMOS banks, AMOS bank
   sets, and AMOS programs;
@@ -177,6 +178,9 @@ Matching case-insensitive extensions add supporting evidence.
   PAM headers, sample bounds, and exact raster sizes;
 - `gif_container.nim` validates GIF87a/GIF89a logical screens, global/local
   colour tables, extensions, image descriptors, and LZW data sub-blocks;
+- `flic.nim` validates 128-byte FLIC-family headers, main chunks, frame and
+  prefix subchunks, declared frame counts, CEL registration metadata, and EGI
+  Huffman code tables;
 - `amiga_iff.nim` validates generic IFF `FORM` lengths, chunk boundaries, and
   even-byte padding;
 - `amiga_8svx.nim` interprets `FORM 8SVX` voice headers, channels, loop and
@@ -264,6 +268,20 @@ extra PAM planes are retained structurally and ignored for defined tuple types.
 `src/vexterlib/resources/gif_image.nim` expands GIF LZW codes, restores
 interlaced rows, applies global/local palettes and binary transparency, and
 composites frame rectangles using GIF disposal rules into full indexed frames.
+
+`src/vexterlib/resources/flic_animation.nim` reconstructs FLI/FLC-family frame
+buffers and changing palettes from copy, black, BYTE_RUN, DELTA_FLI,
+DELTA_FLC, and DTA copy/RLE/delta chunks. It renders eight-bit sources as
+indexed animations and 15/16/24-bit FLX/FLH/FLT sources as true-colour
+animations, applies CEL transparent indices, omits ring frames, and converts
+FLI tick timing or FLC/Pro Motion millisecond timing to frame durations.
+AF30 Huffman/BWT blocks and AF31 frame shifts are also decoded from the
+separately supplied EGI compression specification. One-bit AF44 DTA remains
+blocked on its delegated pixel-packing specification. EGI masks,
+segments/overlays, audio, and ancillary metadata are described but still need
+resource-model decisions, implementation, and authentic controls. The detailed
+research and fixture checklist is maintained under “Outstanding FLIC work”
+in `docs/formats.md`.
 
 `src/vexterlib/resources/amiga_ilbm_image.nim` decodes uncompressed or
 ByteRun1-compressed planar data: scanline-interleaved planes from ILBM `BODY`
@@ -511,6 +529,13 @@ output for static GIF input. GIF export uses per-frame local colour tables and
 binary transparency, so palette changes are supported. Partial alpha or a
 composited frame exceeding 256 colours instead requires APNG.
 
+FLI, FLC, CEL, FLH, FLT, and both documented FLX variants expose
+`/animation`. Standard palette/copy/black/BYTE_RUN/DELTA_FLI/DELTA_FLC chunks
+and DTA 15/16/24-bit copy, RLE, and delta chunks are decoded. CEL prefix origin
+and transparent-index data are retained. EGI Huffman/BWT blocks and frame
+shifts are decoded; one-bit DTA images remain pending their separately
+referenced pixel-packing specification.
+
 Generic `AmBk` containers continue to expose unknown bank types as opaque bank
 data. A `Pac.Pic.` bank with its screen palette instead exposes an indexed
 `amos.packed-picture` raster at `/picture`; the same bank nested in an `AmBs`
@@ -596,6 +621,10 @@ The routine suites are:
 - `tests/test_gif.nim`: GIF87a/GIF89a, LZW, interlacing, global/local palettes,
   transparency, changing-palette export, static GIF routing, corruption, and
   all existing independently encoded GIF controls;
+- `tests/test_flic.nim`: FLI/FLC palettes, copy/black/full-frame and both delta
+  RLE schemes, ring frames, timing, CEL metadata/transparency, DTA true colour,
+  both FLX packed layouts, EGI Huffman/BWT expansion, frame shifting across
+  indexed/16/24-bit buffers, extended-type identification, and malformed input;
 - `tests/test_amiga_iff_ilbm.nim`: FORM/chunk validation, ILBM planar and
   ByteRun1 decoding, legacy palette expansion, EHB, focused HAM6/HAM8 cases,
   and authentic Deluxe Paint HAM6/HAM8 controls;

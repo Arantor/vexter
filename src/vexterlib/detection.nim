@@ -3,7 +3,7 @@
 import std/[os, strutils]
 import ./handler_registry
 import ./containers/[amiga_8svx, amiga_16sv, amiga_acbm, amiga_adf, amiga_anim, amiga_dms, amiga_iff, amiga_ilbm, amiga_pbm, amiga_workbench_icon, amos_bank, amos_bank_set, amos_program,
-  amos_sprite_icon_bank, bmp, gif_container, netpbm, pcx, png_container, qoi, tga,
+  amos_sprite_icon_bank, bmp, flic, gif_container, netpbm, pcx, png_container, qoi, tga,
   wav, zip_archive, zx_spectrum_screen_dump, zx_spectrum_snapshot, zx_spectrum_tap]
 import ./resources/zx_spectrum_screen
 
@@ -51,6 +51,17 @@ proc detectFormats*(filename: string, data: openArray[byte]):
     if hasGifExtension(filename):
       evidence.add VextDetectionEvidence(description: "file extension is .gif")
     result.add VextDetectionCandidate(typeId: GifTypeId,
+      confidence: vdcCertain, evidence: evidence)
+
+  if isFlic(data):
+    let animation = parseFlic(data)
+    var evidence = @[VextDetectionEvidence(
+      description: "file has a recognized FLIC magic and a valid chunk stream " &
+        "containing " & $animation.frameCount & " frame(s)")]
+    if hasFlicExtension(filename):
+      evidence.add VextDetectionEvidence(
+        description: "file extension is associated with the FLIC family")
+    result.add VextDetectionCandidate(typeId: FlicTypeId,
       confidence: vdcCertain, evidence: evidence)
 
   if isPng(data):
