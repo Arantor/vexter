@@ -291,7 +291,10 @@ true-colour images for HAM/HAM8. Legacy CMAPs whose component low nibbles are
 uniformly zero are expanded by nibble replication. All defined BMHD masking
 modes populate the raster alpha channel: explicit mask planes, transparent
 palette indices, and boundary-connected lasso transparency. ByteRun1 mask rows
-are decoded independently from their associated colour-plane rows.
+are decoded independently from their associated colour-plane rows. A legacy
+writer error that includes one zero IFF alignment byte in an odd-sized
+ByteRun1 BODY's declared payload is accepted; other trailing BODY data remains
+an error.
 
 `src/vexterlib/resources/amiga_pbm_image.nim` decodes provisional IFF PBM
 chunky rows, with word-aligned raw or row-bounded ByteRun1 storage, into an

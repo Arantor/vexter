@@ -253,7 +253,10 @@ ILBM rows are padded to 16-pixel word boundaries. For every scanline, plane
 rows occur in order from plane zero (the least-significant palette-index bit)
 upward, with the most-significant pixel bit first within each byte. Compression
 zero is read directly. Compression one uses ByteRun1 independently for every
-plane-row; runs may not cross row boundaries.
+plane-row; runs may not cross row boundaries. Some legacy writers incorrectly
+include the external IFF alignment byte in an odd-sized compressed BODY's
+declared payload. Vexter accepts exactly one trailing zero byte in that case;
+other trailing BODY data remains invalid.
 
 An Amiga Contiguous Bitmap is `FORM ACBM` and uses an `ABIT` chunk in place of
 ILBM's `BODY`. It otherwise shares `BMHD`, `CMAP`, `CAMG`, palette, indexed,
@@ -409,6 +412,14 @@ longwords in method 7. It is a 200×150 HAM8 animation whose 26-byte ILBM rows
 are encoded as seven 32-bit delta columns; only the leading two bytes of the
 seventh column belong to the bitmap. It contains 26 decoded frames and has
 SHA-256 `9d29baa58a27c8e13b97f1330459043736f56ea476a1e850730e772074c25e20`.
+
+The directly supplied method-5 animations `3Globes.anim` and `batcomp.anim`
+establish the included-BODY-pad compatibility case. Their initial compressed
+ILBM payloads respectively consume 140,141 of 140,142 bytes and 21,467 of
+21,468 bytes, with a single trailing zero in each. They decode as 60 frames at
+640×480 and 22 frames at 640×400. Their SHA-256 values are
+`5d7d2a89f288278b03bc62fc009d17ccbb6fd2e1cb399d4b2b8633a1866c0c5c`
+and `8878371f4b845b246924bf5c20e3e8e5033bec3396b0320a4889af5801fac0cb`.
 
 ## ZX Spectrum raw screen
 

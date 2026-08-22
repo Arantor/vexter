@@ -256,6 +256,21 @@ suite "Amiga IFF ILBM":
     check image.alpha[0 .. 7] ==
       @[255'u8, 255, 255, 255, 0, 0, 0, 0]
 
+  test "ByteRun1 accepts a zero IFF pad included in the BODY size":
+    let includedPad = form("ILBM", [
+      chunk("BMHD", bmhd(16, 1, 1, compression = 1)),
+      chunk("CMAP", newSeq[byte](6)),
+      chunk("BODY", @[1'u8, 0x80, 0, 0])])
+    let image = decodeAmigaIlbmImage(parseAmigaIlbm(includedPad).image)
+    check image.pixelAt(0, 0) == 1
+
+    let nonPaddingTail = form("ILBM", [
+      chunk("BMHD", bmhd(16, 1, 1, compression = 1)),
+      chunk("CMAP", newSeq[byte](6)),
+      chunk("BODY", @[1'u8, 0x80, 0, 1])])
+    expect ValueError:
+      discard decodeAmigaIlbmImage(parseAmigaIlbm(nonPaddingTail).image)
+
   test "transparent-colour masking makes only its palette index transparent":
     let transparent = form("ILBM", [
       chunk("BMHD", bmhd(16, 1, 1, masking = 2,

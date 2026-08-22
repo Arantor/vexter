@@ -112,7 +112,10 @@ proc decodeAmigaIlbmPlanes*(source: AmigaIlbmImageSource): seq[byte] =
     for plane in 0 ..< storedPlanes:
       for y in 0 ..< header.height:
         decodePlaneRow(plane, y)
-  if bodyOffset != source.body.len:
+  let hasIncludedChunkPad = header.compression == 1 and
+    bodyOffset + 1 == source.body.len and source.body.len mod 2 == 0 and
+    source.body[bodyOffset] == 0
+  if bodyOffset != source.body.len and not hasIncludedChunkPad:
     raise newException(ValueError, "ILBM BODY has trailing image data")
 
 proc codesFromPlanes(source: AmigaIlbmImageSource,
