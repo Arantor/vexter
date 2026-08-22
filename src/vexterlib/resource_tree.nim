@@ -2,6 +2,7 @@
 
 import ./archetypes/raster
 import ./archetypes/audio
+import ./archetypes/font
 import ./metadata
 
 type
@@ -10,6 +11,7 @@ type
     vrnkRaster
     vrnkText
     vrnkAudio
+    vrnkFont
     vrnkOpaque
 
   VextAudioResourceKind* = enum
@@ -25,6 +27,7 @@ type
     audioKind*: VextAudioResourceKind
     sound*: VextSound
     instrument*: VextSampledInstrument
+    font*: VextBitmapFont
     data*: seq[byte]
     rawDataAvailable*: bool
     metadata*: seq[VextMetadataEntry]
@@ -64,6 +67,15 @@ proc leafResources*(tree: VextResourceTree): seq[VextResourceNode] =
   ## Returns every independently addressable resource in depth-first order.
   for root in tree.roots:
     addLeafResources(root, result)
+
+proc fontResources*(tree: VextResourceTree): seq[VextResourceNode] =
+  for resource in tree.leafResources:
+    if resource.kind == vrnkFont: result.add resource
+
+proc findFontResource*(tree: VextResourceTree,
+    path: string): VextResourceNode =
+  for resource in tree.fontResources:
+    if resource.path == path: return resource
 
 proc findRasterResource*(tree: VextResourceTree,
     path: string): VextResourceNode =

@@ -2,7 +2,9 @@
 
 import vexterlib/archetypes/raster
 import vexterlib/archetypes/audio
+import vexterlib/archetypes/font
 import vexterlib/transformations/colour_cycle
+import vexterlib/resources/font_preview
 import vexterlib/artifacts
 import vexterlib/containers/amos_bank
 import vexterlib/containers/amiga_adf
@@ -32,6 +34,7 @@ import vexterlib/containers/qoi
 import vexterlib/containers/netpbm
 import vexterlib/containers/tga
 import vexterlib/containers/flic
+import vexterlib/containers/fzx
 import vexterlib/containers/amos_bank_set
 import vexterlib/containers/amos_program
 import vexterlib/containers/amos_sprite_icon_bank
@@ -56,16 +59,20 @@ import vexterlib/resources/qoi_image
 import vexterlib/resources/netpbm_image
 import vexterlib/resources/tga_image
 import vexterlib/resources/flic_animation
+import vexterlib/resources/fzx_font
 import vexterlib/detection
 import vexterlib/handler_registry
 import vexterlib/metadata
 import vexterlib/operations
 import vexterlib/resource_tree
 import vexterlib/exporters/[gif, png, raw, wav]
+import vexterlib/exporters/bmfont
 
 export raster
 export audio
+export font
 export colour_cycle
+export font_preview
 export artifacts
 export amos_bank
 export amiga_adf
@@ -97,6 +104,7 @@ export qoi
 export netpbm
 export tga
 export flic
+export fzx
 export amiga_anim_image
 export amiga_workbench_icon_image
 export amos_bank_set
@@ -117,10 +125,12 @@ export qoi_image
 export netpbm_image
 export tga_image
 export flic_animation
+export fzx_font
 export zx_spectrum_snapshot
 export zx_spectrum_tap
 export detection
 export handler_registry
+export bmfont
 export metadata
 export operations
 export resource_tree

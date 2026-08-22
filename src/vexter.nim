@@ -23,11 +23,11 @@ proc usage(): string =
   """Usage:
   vexter inspect [--json] [--all-candidates] [--ignore-warnings]
                  [--input-format FORMAT] [--pcx-channel-order rgb|bgr] INPUT
-  vexter export [--format png|gif|apng|gif-cycled|apng-cycled|txt|wav|bin]
+  vexter export [--format png|gif|apng|gif-cycled|apng-cycled|bmfont|txt|wav|bin]
                 [--resource PATH] [--allow-large-animation]
                 [--input-format FORMAT] [-o OUTPUT] [--force]
                 [--ignore-warnings] [--pcx-channel-order rgb|bgr] INPUT
-  vexter export-all [--format png|gif|apng|gif-cycled|apng-cycled|txt|wav|bin]
+  vexter export-all [--format png|gif|apng|gif-cycled|apng-cycled|bmfont|txt|wav|bin]
                     [--resource PATH-PATTERN]... [--input-format FORMAT]
                     -o DIRECTORY [--force] [--ignore-warnings]
                     [--allow-large-animation]
@@ -111,6 +111,7 @@ proc inspect(options: CliOptions) =
           of vrnkRaster: "raster"
           of vrnkText: "text"
           of vrnkAudio: "audio"
+          of vrnkFont: "font"
           else: "opaque")
       }
       if item.kind == vrnkRaster:
@@ -132,6 +133,12 @@ proc inspect(options: CliOptions) =
         resource["bitsPerSample"] = %sound.buffer.bitsPerSample
         resource["sampleRate"] = %sound.sampleRate
         resource["samples"] = %sound.buffer.sampleCount
+      elif item.kind == vrnkFont:
+        resource["archetype"] = %"VextBitmapFont"
+        resource["glyphs"] = %item.font.glyphs.len
+        resource["characters"] = %item.font.mappings.len
+        resource["lineHeight"] = %item.font.lineHeight
+        resource["baseline"] = %item.font.baseline
       if item.metadata.len > 0:
         var metadata = newJObject()
         for entry in item.metadata:
@@ -185,6 +192,10 @@ proc inspect(options: CliOptions) =
           &"{sound.buffer.channels.len} channel(s), " &
           &"{sound.buffer.bitsPerSample}-bit, " &
           &"{sound.sampleRate} Hz"
+      elif item.kind == vrnkFont:
+        description.add &" -> VextBitmapFont {item.font.glyphs.len} glyph(s), " &
+          &"{item.font.mappings.len} character mapping(s), " &
+          &"line height {item.font.lineHeight}, baseline {item.font.baseline}"
       else:
         description.add " (opaque)"
       echo description
@@ -223,8 +234,22 @@ proc exportResource(options: CliOptions) =
   let artifacts = exported.artifacts
 
   if artifacts.artifacts.len != 1:
-    raise newException(CliError,
-      "export produced multiple artifacts; an output directory is required")
+    if options.output.len == 0:
+      raise newException(CliError,
+        "export produced multiple artifacts; specify an output directory with -o")
+    if fileExists(options.output):
+      raise newException(CliError, "output path is not a directory: " & options.output)
+    for artifact in artifacts.artifacts:
+      let destination = options.output / artifact.suggestedFilename
+      if fileExists(destination) and not options.force:
+        raise newException(CliError,
+          "output already exists (use --force): " & destination)
+    createDir(options.output)
+    for artifact in artifacts.artifacts:
+      let destination = options.output / artifact.suggestedFilename
+      writeFile(destination, bytesToString(artifact.data))
+      echo destination
+    return
   let artifact = artifacts.artifacts[0]
   let extension = case exported.outputFormat
     of "apng-cycled": "png"

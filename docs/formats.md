@@ -13,7 +13,7 @@ The currently implemented formats use this subset of the intended CLI:
 vexter inspect [--json] [--all-candidates] [--ignore-warnings]
                [--input-format FORMAT] [--pcx-channel-order rgb|bgr] INPUT
 
-vexter export [--format png|gif|apng|gif-cycled|apng-cycled|txt|wav|bin]
+vexter export [--format png|gif|apng|gif-cycled|apng-cycled|bmfont|txt|wav|bin]
               [--resource PATH] [--allow-large-animation]
               [--input-format FORMAT] [-o OUTPUT] [--force]
               [--ignore-warnings] [--pcx-channel-order rgb|bgr] INPUT
@@ -27,6 +27,61 @@ the `application/octet-stream` media type and a `.bin` suggested extension, and
 its data is byte-identical to the resource bytes. Availability is explicit, so
 zero-length files remain exportable while identification-only resources such
 as unresolved filesystem links do not produce misleading empty artifacts.
+
+## Bitmap-font export
+
+Bitmap-font resources naturally export with `--format bmfont`. This produces a
+UTF-8 BMFont text descriptor plus one or more PNG atlas pages; CLI export
+therefore requires a directory destination. Atlas pages are deterministic, padded,
+power-of-two in height, and at most 1024 pixels in either dimension. Mono glyph
+coverage is written as white with alpha for downstream recolouring; indexed and
+true-colour glyphs retain their colour and transparency.
+
+Unicode mappings, bearings, horizontal advances, baseline and line height, and
+horizontal kerning are projected into BMFont. Glyph identity remains separate
+from character mappings in memory, allowing aliases without duplicate atlas
+images. Vertical advances/kerning, ascent, descent, leading, substitutions, and
+ligatures remain in the generic archetype even though BMFont cannot serialize
+them. The GUI shapes substitutions and longest-match ligatures, wraps its sample
+to the preview width, and displays transparent text over a checker pattern.
+
+## FZX bitmap fonts
+
+Container type identifier: `zx-spectrum.fzx-font`
+
+Resource type identifier: `zx-spectrum.fzx-bitmap-font`
+
+FZX has no magic signature. Vexter validates its positive baseline spacing,
+last-character range, complete three-byte character table, relative 14-bit
+definition offsets, packed two-bit kern values, terminal offset, monotonically
+ordered bounded bitmap definitions, one- or two-byte row alignment, and the
+specified 16-pixel width and 192-pixel height limits. A structurally valid font
+with a `.fzx` extension is **probable**; without the extension it is
+**possible**.
+
+The font is exposed at `/font` as `VextBitmapFont`. Character definitions use
+MSB-first monochrome coverage. The header height becomes line height and the
+inferred baseline; shift becomes vertical glyph placement. A character's
+universal kern becomes a negative horizontal bearing and reduces its advance,
+while header tracking is added to the advance. Empty definitions such as SPACE
+retain their declared width and advance without manufacturing bitmap rows.
+
+FZX records byte positions 32 through `lastchar`, not a Unicode character map.
+Vexter applies the agreed default identity mapping only to printable positions
+32–127. Every definition, including positions 128–255 and custom/remapped fonts,
+retains its original position as `glyph.sourceIndex`; unknown encodings are not
+invented as Unicode mappings. Inspection reports height, tracking, range and
+mapping counts, blank and kerned character counts, and maximum stored glyph
+dimensions. BMFont is the natural export.
+
+Implementation follows the developer-supplied unpacked `FZX_Standard.zip`
+distribution acquired from Spectrum Computing on 22 August 2026. Its `FZX.txt`
+is the FZX v1.0 specification and copyright/open-standard notice by Andrew S. Owen
+(2013). All 41 packaged fonts were checked as temporary structural and decoding
+controls during implementation; they are not redistributed with Vexter.
+Synthetic tests retain the established offset, metric, kern, shift, blank-glyph,
+and one-/two-byte row behavior. `THIRD_PARTY.md` records provenance and selected
+hashes. The supplied assembly example was not used as implementation source.
 
 ## Amiga ADF filesystems
 

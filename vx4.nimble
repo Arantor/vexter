@@ -36,6 +36,8 @@ task test, "Run the test suite":
   exec "nim c -r --path:src tests/test_pcx.nim"
   exec "nim c -r --path:src tests/test_bmp.nim"
   exec "nim c -r --path:src tests/test_windows_icon.nim"
+  exec "nim c -r --path:src tests/test_bitmap_font.nim"
+  exec "nim c -r --path:src tests/test_fzx.nim"
   exec "nim c -r --path:src tests/test_png.nim"
   exec "nim c -r --path:src tests/test_gif.nim"
   exec "nim c -r --path:src tests/test_qoi.nim"

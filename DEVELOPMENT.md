@@ -24,14 +24,18 @@ client, and a dependency-free native Windows GUI. It supports:
   wrappers, ZIP archives, level-0/1 LHA/LZH archives using LH0 or LH5,
   minimally structured Amiga Hunk executables and LHA self-extractors,
   ZX Spectrum raw screen dumps, SNA snapshots,
-  TAP containers, tokenised BASIC resources, standalone AMOS banks, AMOS bank
+  TAP containers, tokenised BASIC resources, FZX bitmap fonts, standalone AMOS banks, AMOS bank
   sets, and AMOS programs;
-- a resource tree containing decoded raster, audio, and text resources,
+- a resource tree containing decoded raster, bitmap-font, audio, and text resources,
   identified opaque resources, and metadata;
 - indexed still-image, indexed-animation, and true-colour image raster
   archetypes;
+- a bitmap-font archetype with mono, indexed, or true-colour glyphs, explicit
+  Unicode mappings, bearings, advances, line metrics, kerning, substitutions,
+  and ligatures;
 - PNG export for a still image or an animation's natural first frame;
 - animated GIF and APNG export;
+- BMFont text export with one or more PNG atlas pages;
 - optional CRNG/CCRT colour-cycle expansion with a 1,000-frame safety limit;
 - byte-identical BIN export for opaque resources that retain raw data; and
 - bulk export of all exportable leaves or a union of segment-wildcard resource
@@ -43,12 +47,12 @@ The implemented command-line surface is:
 vexter inspect [--json] [--all-candidates] [--ignore-warnings]
                [--input-format FORMAT] [--pcx-channel-order rgb|bgr] INPUT
 
-vexter export [--format png|gif|apng|gif-cycled|apng-cycled|txt|wav|bin]
+vexter export [--format png|gif|apng|gif-cycled|apng-cycled|bmfont|txt|wav|bin]
               [--resource PATH] [--allow-large-animation]
               [--input-format FORMAT] [-o OUTPUT] [--force]
               [--ignore-warnings] [--pcx-channel-order rgb|bgr] INPUT
 
-vexter export-all [--format png|gif|apng|gif-cycled|apng-cycled|txt|wav|bin]
+vexter export-all [--format png|gif|apng|gif-cycled|apng-cycled|bmfont|txt|wav|bin]
                   [--resource PATH-PATTERN]... [--input-format FORMAT]
                   -o DIRECTORY [--force] [--ignore-warnings]
                   [--pcx-channel-order rgb|bgr] [--allow-large-animation]
@@ -88,8 +92,8 @@ file bytes
   -> evidence-based detection or a validated forced format
   -> format-specific container parsing and resource extraction
   -> VextResourceTree
-  -> raster, text, or identified opaque resources
-  -> PNG/GIF raster, WAV audio, plain-text, or raw BIN export
+  -> raster, font, text, or identified opaque resources
+  -> PNG/GIF raster, BMFont, WAV audio, plain-text, or raw BIN export
   -> in-memory VextArtifactSet
   -> frontend-owned filesystem write
 ```
@@ -150,11 +154,12 @@ parallel type-identifier list.
 
 `src/vexterlib/resource_tree.nim` defines `VextResourceTree` and
 `VextResourceNode`. Nodes are reference objects and currently have the
-`vrnkGroup`, `vrnkRaster`, `vrnkText`, `vrnkAudio`, or `vrnkOpaque` kind. `leafResources`
+`vrnkGroup`, `vrnkRaster`, `vrnkFont`, `vrnkText`, `vrnkAudio`, or
+`vrnkOpaque` kind. `leafResources`
 returns every
-addressable non-group node, while `rasterResources` returns only raster nodes
-in depth-first tree order. `findRasterResource` performs exact path lookup
-over raster nodes. Groups are structural. Opaque resources with explicitly
+addressable non-group node, while `rasterResources` and `fontResources` return
+their respective media nodes in depth-first tree order. Exact-path helpers are
+available for both. Groups are structural. Opaque resources with explicitly
 retained bytes are BIN-exportable; identification-only opaque nodes are not.
 
 `src/vexterlib/detection.nim` contains evidence-based detection. Candidates
@@ -215,6 +220,9 @@ Matching case-insensitive extensions add supporting evidence.
 - `flic.nim` validates 128-byte FLIC-family headers, main chunks, frame and
   prefix subchunks, declared frame counts, CEL registration metadata, and EGI
   Huffman code tables;
+- `fzx.nim` validates signatureless FZX v1.0 metrics, relative character-table
+  offsets, packed universal kern values, shifts and widths, terminal extent,
+  row alignment, definition order, and the specified size limits;
 - `amiga_iff.nim` validates generic IFF `FORM` lengths, chunk boundaries, and
   even-byte padding;
 - `amiga_8svx.nim` interprets `FORM 8SVX` voice headers, channels, loop and
@@ -318,6 +326,14 @@ resource-model decisions, implementation, and authentic controls. The detailed
 research and fixture checklist is maintained under “Outstanding FLIC work”
 in `docs/formats.md`.
 
+`src/vexterlib/resources/fzx_font.nim` expands one- or two-byte MSB-first FZX
+rows into monochrome coverage glyphs. FZX shift becomes vertical placement,
+its universal per-character kern becomes a negative bearing and reduced
+advance, and tracking contributes to advance. Because FZX contains byte
+positions rather than a Unicode character map, printable positions 32–127 use
+the explicit project default while every position remains preserved as a glyph
+source index.
+
 `src/vexterlib/resources/amiga_ilbm_image.nim` decodes uncompressed or
 ByteRun1-compressed planar data: scanline-interleaved planes from ILBM `BODY`
 chunks and whole sequential planes from ACBM `ABIT` chunks. It produces
@@ -390,6 +406,26 @@ indexed animation, true-colour image, and true-colour animation contracts.
 Indexed and true-colour images may carry an orthogonal per-pixel eight-bit
 alpha channel; an omitted channel means fully opaque. `alphaAt`, `rgbaAt`, and
 `hasAlpha` provide representation-independent access and validation.
+
+`src/vexterlib/archetypes/font.nim` defines `VextBitmapFont`. Glyph identity is
+separate from Unicode mappings, allowing aliases and custom characters without
+duplicating imagery. It retains mono coverage, indexed and true-colour glyphs,
+two-axis advances and kerning, bearings, baseline and line metrics,
+substitutions, ligatures, and a fallback. Sources with no explicit mapping may
+deliberately request the conventional 32–127 mapping; it is not imposed on
+formats which provide their own mapping.
+
+`src/vexterlib/resources/font_preview.nim` performs longest-match ligature and
+substitution shaping, metric-aware placement, kerning, and width wrapping into
+a true-colour alpha raster. The GUI renders this sample instead of the packed
+texture and composites transparency over a checker pattern.
+
+`src/vexterlib/exporters/bmfont.nim` projects the representable font subset to
+an AngelCode BMFont text descriptor and deterministic, padded PNG pages up to
+1024 pixels. Mono coverage becomes white RGB with alpha; coloured glyphs retain
+RGBA. The archetype continues to retain vertical kerning/advance,
+substitutions, ligatures, and richer line metrics which BMFont cannot express.
+
 `src/vexterlib/exporters/` consumes those contracts and
 has no ZX Spectrum-specific knowledge. `src/vexterlib/artifacts.nim` defines
 the in-memory output contract; callers, not exporters, write files.
@@ -793,9 +829,9 @@ names there when adding suites, or direct their output into `/tmp`.
   ZIP file leaves additionally retain their reconstructed bytes. Lazy decoding,
   alternate representations, structured metadata, and handler registration
   are not implemented yet.
-- Single-resource export currently expects one artifact at the CLI boundary.
-  The artifact API and `export-all` directory handling permit multiple files;
-  compound exporters themselves remain future work.
+- Single-resource compound export requires a directory destination at the CLI
+  boundary. Bulk collision resolution renames compound artifact stems as a
+  unit so descriptor references remain synchronized with companion files.
 - Recursive decoding is shared by ADF, ZIP, LHA, PowerPacker, and XPK through the
   registered detection, parsed-container, and inspection path, with a fixed
   eight-layer bound.

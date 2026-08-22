@@ -130,6 +130,31 @@ move-to-front reversal, and frame-shift application. Its SHA-256 hash is:
 6f97180e24e2828c9d2886ec8aa3594f0c9a3a2f69aca76d1a88a26dbc323ee5  EGI compression schemes.html
 ```
 
+## FZX standard distribution
+
+The developer temporarily supplied the unpacked standard FZX distribution,
+sourced from
+[Spectrum Computing](https://spectrumcomputing.co.uk/index.php?cat=96&id=28171)
+and retrieved on 22 August 2026. The FZX format and supplied distribution are
+copyright Andrew S. Owen.
+
+The included `FZX.txt` identifies FZX v1.0 as a royalty-free open standard. It
+permits use for designing and distributing fonts and in programs, including
+commercial releases, provided the standard is followed without incompatible
+irregular changes. Vexter uses that document as its format authority and the
+41 packaged fonts as temporary compatibility controls. The distribution is not
+retained in the repository. Its individual font text files carried their own
+attribution and copyright notices; no font artwork is redistributed by Vexter.
+
+Selected SHA-256 values from the supplied distribution were:
+
+```text
+8cd6d7ff6d0656465ac976b50d2b322a6d17bc649fe2cd1e57ea80be450e1345  FZX.txt
+49d06f615d4cc3f7b70c27b8af6a467e0dcb1754880fe59221c9b5ae01fcd5b0  FZX.png
+8dcb836d04b738ee654c47c7b9a6189030366730c03c3def9c8d33816bdc0842  fonts/Sinclair.fzx
+be62cf1d63c8c31ff5db90a19857ceecfff484e1e7d431290e0221ce5fcfe2f2  fonts/GenevaMono/GenevaMonoCyrillic.fzx
+```
+
 ## TGA format specification
 
 The developer supplied `TGA format specification.html`, sourced from

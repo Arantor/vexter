@@ -113,7 +113,7 @@ type
     lpNext: pointer
     reserved: uint
 
-  ViewKind = enum vkNone, vkRaster, vkAudio, vkText
+  ViewKind = enum vkNone, vkRaster, vkFont, vkAudio, vkText
   TreeBinding = ref object
     node: VextResourceNode
     metadataText: string
@@ -272,7 +272,11 @@ proc stopAudio() =
   audioPlaying = false
   audioPaused = false
 
-proc currentRasterImage(): VextTrueColourImage =
+proc currentRasterImage(maximumWidth = 0): VextTrueColourImage =
+  if not selected.isNil and not selected.node.isNil and
+      selected.node.kind == vrnkFont:
+    return renderBitmapFontText(selected.node.font,
+      selected.node.font.defaultPreviewText, max(1, maximumWidth))
   if selected.isNil or selected.node.isNil or selected.node.kind != vrnkRaster:
     return
   let raster = selected.node.raster
@@ -302,22 +306,28 @@ proc paintPreview(hwnd: HWND) =
   var area: RECT
   discard GetClientRect(hwnd, addr area)
   discard FillRect(dc, addr area, GetSysColorBrush(COLOR_WINDOW))
-  if currentView == vkRaster:
-    let image = currentRasterImage()
+  if currentView in {vkRaster, vkFont}:
+    let availableW = int(area.right - area.left)
+    let availableH = int(area.bottom - area.top)
+    let previewScale = if scaleChoice == 0: 1 else: scaleChoice
+    let image = currentRasterImage(max(1, availableW div previewScale))
     if image.width > 0 and image.height > 0:
       var pixels = newSeq[byte](image.width * image.height * 4)
       for i, colour in image.pixels:
         let alpha = if image.alpha.len == pixels.len div 4: image.alpha[i] else: 255'u8
-        pixels[i * 4] = byte((int(colour.b) * int(alpha) + 255 * (255-int(alpha))) div 255)
-        pixels[i * 4 + 1] = byte((int(colour.g) * int(alpha) + 255 * (255-int(alpha))) div 255)
-        pixels[i * 4 + 2] = byte((int(colour.r) * int(alpha) + 255 * (255-int(alpha))) div 255)
+        let x = i mod image.width
+        let y = i div image.width
+        let background = if currentView == vkFont:
+            (if (x div 8 + y div 8) mod 2 == 0: 56 else: 88)
+          else: 255
+        pixels[i * 4] = byte((int(colour.b) * int(alpha) + background * (255-int(alpha))) div 255)
+        pixels[i * 4 + 1] = byte((int(colour.g) * int(alpha) + background * (255-int(alpha))) div 255)
+        pixels[i * 4 + 2] = byte((int(colour.r) * int(alpha) + background * (255-int(alpha))) div 255)
         pixels[i * 4 + 3] = 0
       var info: BITMAPINFO
       info.bmiHeader = BITMAPINFOHEADER(biSize: DWORD(sizeof(BITMAPINFOHEADER)),
         biWidth: int32(image.width), biHeight: -int32(image.height), biPlanes: 1,
         biBitCount: 32, biCompression: 0)
-      let availableW = int(area.right - area.left)
-      let availableH = int(area.bottom - area.top)
       var dw, dh: int
       if scaleChoice == 0:
         let factor = min(availableW.float / image.width.float,
@@ -370,7 +380,7 @@ proc addTreeNode(node: VextResourceNode, parent: HTREEITEM): HTREEITEM =
       lParam: cast[LPARAM](binding)))
   result = cast[HTREEITEM](SendMessageW(treeView, TVM_INSERTITEMW, 0,
     cast[LPARAM](addr insert)))
-  if firstPreviewItem == nil and node.kind in {vrnkRaster, vrnkAudio, vrnkText}:
+  if firstPreviewItem == nil and node.kind in {vrnkRaster, vrnkFont, vrnkAudio, vrnkText}:
     firstPreviewItem = result
   for child in node.children:
     discard addTreeNode(child, result)
@@ -427,6 +437,8 @@ proc selectBinding(binding: TreeBinding) =
     discard SetWindowTextW(textView, w(binding.node.text))
   elif binding.node.kind == vrnkRaster:
     currentView = vkRaster
+  elif binding.node.kind == vrnkFont:
+    currentView = vkFont
   elif binding.node.kind == vrnkAudio:
     currentView = vkAudio
   else:
@@ -592,7 +604,7 @@ proc doExport() =
         exported = exportResource(currentInspection.resources,
           VextExportRequest(resourcePath: selected.node.path,
             outputFormat: format.id,
-            suggestedName: currentFilename.splitFile.name,
+            suggestedName: destination.splitFile.name,
             allowLargeAnimation: allowLarge))
         break
       except ValueError as error:
@@ -603,12 +615,18 @@ proc doExport() =
           w("Vexter"), 0x34)
         if answer != 6: return
         allowLarge = true
-    if exported.artifacts.artifacts.len != 1:
-      raise newException(ValueError, "this export produces multiple files")
-    let artifact = exported.artifacts.artifacts[0]
-    var contents = newString(artifact.data.len)
-    for i, value in artifact.data: contents[i] = char(value)
-    writeFile(destination, contents)
+    for artifactIndex, artifact in exported.artifacts.artifacts:
+      let artifactDestination = if artifactIndex == 0: destination
+        else: destination.parentDir / artifact.suggestedFilename
+      if artifactIndex > 0 and fileExists(artifactDestination):
+        raise newException(ValueError,
+          "companion output already exists: " & artifactDestination)
+    for artifactIndex, artifact in exported.artifacts.artifacts:
+      let artifactDestination = if artifactIndex == 0: destination
+        else: destination.parentDir / artifact.suggestedFilename
+      var contents = newString(artifact.data.len)
+      for i, value in artifact.data: contents[i] = char(value)
+      writeFile(artifactDestination, contents)
   except CatchableError as error:
     showError(error.msg)
 

@@ -1,22 +1,22 @@
 ## High-level inspection and export operations shared by every frontend.
 
-import std/strutils
+import std/[os, strutils]
 import ./artifacts
 import ./archetypes/raster
 import ./archetypes/audio
 import ./transformations/colour_cycle
 import ./detection
 import ./handler_registry
-import ./exporters/[gif, png, raw, wav]
+import ./exporters/[bmfont, gif, png, raw, wav]
 import ./resource_tree
 import ./containers/[amiga_8svx, amiga_16sv, amiga_acbm, amiga_adf, amiga_anim, amiga_dms, amiga_hunk_executable, amiga_iff, amiga_ilbm, amiga_lha_sfx, amiga_pbm, amiga_workbench_icon, amos_bank, amos_bank_set, amos_packed_picture, amos_program,
-  amos_sprite_icon_bank, bmp, flic, gif_container, netpbm, pcx, png_container,
+  amos_sprite_icon_bank, bmp, flic, fzx, gif_container, netpbm, pcx, png_container,
   qoi, tga, wav, windows_icon, zip_archive, lha_archive, zx_spectrum_snapshot, zx_spectrum_tap]
 import ./containers/xpk_shri
 import ./containers/powerpacker
 import ./metadata
 import ./resources/[amiga_anim_image, amiga_ilbm_image, amiga_pbm_image, amiga_workbench_icon_image, amos_listing, amos_packed_picture_image, amos_planar_image, bmp_image, flic_animation, gif_image, netpbm_image, png_image, zx_spectrum_basic,
-  pcx_image, qoi_image, tga_image, windows_icon_image, zx_spectrum_screen]
+  fzx_font, pcx_image, qoi_image, tga_image, windows_icon_image, zx_spectrum_screen]
 
 type
   VextOperationCancelledError* = object of CatchableError
@@ -131,6 +131,11 @@ proc exportFormatsFor*(resource: VextResourceNode): seq[VextExportFormat] =
   of vrnkAudio:
     result = @[VextExportFormat(id: "wav", displayName: "WAVE audio",
       extensions: @["wav"], mediaTypes: @["audio/wav"], isDefault: true)]
+  of vrnkFont:
+    result = @[VextExportFormat(id: "bmfont",
+      displayName: "BMFont text and PNG atlas",
+      extensions: @["fnt"],
+      mediaTypes: @["text/plain", "image/png"], isDefault: true)]
   of vrnkText:
     result = @[VextExportFormat(id: "txt", displayName: "Plain text",
       extensions: @["txt"], mediaTypes: @["text/plain"], isDefault: true)]
@@ -191,24 +196,11 @@ proc resourcePatternMatches(path: string, pattern: seq[string]): bool =
       return false
   true
 
-proc uniqueArtifactName(name: string, used: var seq[string]): string =
-  result = name
-  var suffix = 2
-  var collision = true
-  while collision:
-    collision = false
-    for existing in used:
-      if existing.toLowerAscii == result.toLowerAscii:
-        collision = true
-        break
-    if not collision:
-      break
-    let slash = name.rfind('/')
-    let dot = name.rfind('.')
-    let extensionAt = if dot > slash: dot else: name.len
-    result = name[0 ..< extensionAt] & "-" & $suffix & name[extensionAt .. ^1]
-    inc suffix
-  used.add result
+proc suffixedExportName(name: string, suffix: int): string =
+  if suffix <= 1: return name
+  let slash = name.rfind('/')
+  if slash < 0: name & "-" & $suffix
+  else: name[0 .. slash] & name[slash + 1 .. ^1] & "-" & $suffix
 
 proc forcedFormat(typeId: string, data: openArray[byte]): VextDetectedFormat =
   let handler = formatHandler(typeId)
@@ -580,6 +572,29 @@ proc inspectSourceDepth(filename: string, data: openArray[byte],
     result.resources.roots.add VextResourceNode(path: GifImageResourcePath,
       typeId: GifImageTypeId, kind: vrnkRaster, raster: decodeGif(source),
       metadata: metadata)
+  of vhkFzx:
+    let source = parsedValue[FzxFontSource](selectedParsed, vhkFzx)
+    let font = decodeFzx(source, filename.splitFile.name)
+    var kernedCharacters, blankCharacters, maximumWidth, maximumRows: int
+    for glyph in source.glyphs:
+      if glyph.kern > 0: inc kernedCharacters
+      if glyph.rowCount == 0: inc blankCharacters
+      maximumWidth = max(maximumWidth, glyph.width)
+      maximumRows = max(maximumRows, glyph.rowCount)
+    result.resources.roots.add VextResourceNode(path: FzxFontResourcePath,
+      typeId: FzxFontResourceTypeId, kind: vrnkFont, font: font,
+      metadata: @[
+        integerMetadata("height", source.height),
+        integerMetadata("tracking", source.tracking),
+        integerMetadata("first-character", 32),
+        integerMetadata("last-character", source.lastCharacter),
+        integerMetadata("characters", source.glyphs.len),
+        integerMetadata("characters.kerned", kernedCharacters),
+        integerMetadata("characters.blank", blankCharacters),
+        integerMetadata("glyph.maximum-width", maximumWidth),
+        integerMetadata("glyph.maximum-stored-rows", maximumRows),
+        integerMetadata("unicode-mappings", font.mappings.len),
+        stringMetadata("mapping", "printable ASCII positions assumed; custom positions retained as glyph source indices")])
   of vhkPng:
     let source = parsedValue[PngImageSource](selectedParsed, vhkPng)
     var metadata = @[
@@ -1065,7 +1080,7 @@ proc exportResource*(tree: VextResourceTree,
     request: VextExportRequest): VextExportResult =
   var available: seq[VextResourceNode]
   for item in tree.leafResources:
-    if item.kind in {vrnkRaster, vrnkText, vrnkAudio} or
+    if item.kind in {vrnkRaster, vrnkText, vrnkAudio, vrnkFont} or
         (item.kind == vrnkOpaque and item.rawDataAvailable):
       available.add item
   var resource: VextResourceNode
@@ -1183,6 +1198,11 @@ proc exportResource*(tree: VextResourceTree,
         "unsupported output format: " & result.outputFormat)
     result.artifacts = exportWav(resource.audioSound,
       request.suggestedName & ".wav")
+  of vrnkFont:
+    if result.outputFormat != "bmfont":
+      raise newException(ValueError,
+        "unsupported output format: " & result.outputFormat)
+    result.artifacts = exportBmFont(resource.font, request.suggestedName)
   else:
     raise newException(ValueError, "resource is not exportable: " &
       resource.path)
@@ -1195,7 +1215,7 @@ proc exportAllResources*(tree: VextResourceTree,
 
   var selected: seq[VextResourceNode]
   for resource in tree.leafResources:
-    if not (resource.kind in {vrnkRaster, vrnkText, vrnkAudio} or
+    if not (resource.kind in {vrnkRaster, vrnkText, vrnkAudio, vrnkFont} or
         (resource.kind == vrnkOpaque and resource.rawDataAvailable)):
       continue
     if patterns.len == 0:
@@ -1213,13 +1233,23 @@ proc exportAllResources*(tree: VextResourceTree,
 
   var usedNames: seq[string]
   for resource in selected:
-    var exported = exportResource(tree, VextExportRequest(
-      resourcePath: resource.path,
-      outputFormat: request.outputFormat,
-      suggestedName: exportNameForPath(resource.path),
-      colourCycleFrameLimit: request.colourCycleFrameLimit,
-      allowLargeAnimation: request.allowLargeAnimation))
-    for artifact in exported.artifacts.artifacts.mitems:
-      artifact.suggestedFilename = uniqueArtifactName(
-        artifact.suggestedFilename, usedNames)
+    let baseName = exportNameForPath(resource.path)
+    var suffix = 1
+    var exported: VextExportResult
+    while true:
+      exported = exportResource(tree, VextExportRequest(
+        resourcePath: resource.path,
+        outputFormat: request.outputFormat,
+        suggestedName: suffixedExportName(baseName, suffix),
+        colourCycleFrameLimit: request.colourCycleFrameLimit,
+        allowLargeAnimation: request.allowLargeAnimation))
+      var collision = false
+      for artifact in exported.artifacts.artifacts:
+        for used in usedNames:
+          if artifact.suggestedFilename.toLowerAscii == used.toLowerAscii:
+            collision = true
+      if not collision: break
+      inc suffix
+    for artifact in exported.artifacts.artifacts:
+      usedNames.add artifact.suggestedFilename
     result.exports.add exported
