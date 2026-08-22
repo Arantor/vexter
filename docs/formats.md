@@ -1175,6 +1175,34 @@ Bitmap PBM, not the unrelated Amiga packed-pixel `FORM PBM ` container; IFF PBM
 support is documented separately above from its own supplied facts and
 compatibility evidence.
 
+## Windows icons and cursors
+
+Container type identifiers: `windows.ico` and `windows.cur`
+
+Vexter validates the six-byte ICO/CUR header, every 16-byte directory record,
+and the bounds of every referenced payload. A structurally valid directory is
+identified as **certain**; matching `.ico` and `.cur` extensions provide
+supporting evidence. Each entry is exposed independently at `/icon/N` or
+`/cursor/N`, so a multi-size file is not flattened into one assumed image.
+
+Embedded PNG streams are parsed and decoded through the ordinary CRC-checked
+PNG implementation. DIB entries support the same Windows and OS/2 header,
+palette, bitfield, raw-pixel, and RLE variants as standalone DIB images. Their
+stored height is explicitly split into equal-height XOR image and one-bit AND
+mask layers. For uncompressed 32-bit DIB entries the fourth byte is treated as
+alpha when it contains any non-zero value; all-zero legacy alpha falls back to
+opaque pixels before applying the AND mask. The AND mask always has final say
+for transparent pixels.
+
+Inspection metadata retains the directory dimensions, colour count, planes and
+nominal depth, data offset and length, detected entry encoding, and actual
+decoded dimensions and depth. CUR directory words are instead reported as
+`hotspot.x` and `hotspot.y`. Directory dimensions are deliberately not forced
+onto embedded images; actual payload dimensions drive decoding and default
+largest-image selection. Unsupported entry payloads remain identified opaque
+BIN-exportable resources rather than causing an otherwise valid collection to
+disappear.
+
 ## Amiga Workbench icons
 
 Classic Workbench `.info` DiskObjects are detected and inspected. Their

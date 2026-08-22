@@ -15,6 +15,7 @@ type
     bitsPerPixel*: int
     compression*: int
     coloursUsed*: int
+    imageSize*: int
     xPixelsPerMetre*, yPixelsPerMetre*: int
     redMask*, greenMask*, blueMask*, alphaMask*: uint32
     palette*: seq[byte]
@@ -73,6 +74,7 @@ proc parseBitmap(data: openArray[byte], wrapped: bool): BmpImageSource =
       raise newException(ValueError, "BMP/DIB must contain one colour plane")
     result.bitsPerPixel = int(leWord(data, dibOffset + 14))
     result.compression = int(leDword(data, dibOffset + 16))
+    result.imageSize = int(leDword(data, dibOffset + 20))
     result.xPixelsPerMetre = int(signedDword(data, dibOffset + 24))
     result.yPixelsPerMetre = int(signedDword(data, dibOffset + 28))
     result.coloursUsed = int(leDword(data, dibOffset + 32))

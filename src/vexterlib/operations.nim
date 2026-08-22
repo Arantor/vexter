@@ -11,12 +11,12 @@ import ./exporters/[gif, png, raw, wav]
 import ./resource_tree
 import ./containers/[amiga_8svx, amiga_16sv, amiga_acbm, amiga_adf, amiga_anim, amiga_dms, amiga_hunk_executable, amiga_iff, amiga_ilbm, amiga_lha_sfx, amiga_pbm, amiga_workbench_icon, amos_bank, amos_bank_set, amos_packed_picture, amos_program,
   amos_sprite_icon_bank, bmp, flic, gif_container, netpbm, pcx, png_container,
-  qoi, tga, wav, zip_archive, lha_archive, zx_spectrum_snapshot, zx_spectrum_tap]
+  qoi, tga, wav, windows_icon, zip_archive, lha_archive, zx_spectrum_snapshot, zx_spectrum_tap]
 import ./containers/xpk_shri
 import ./containers/powerpacker
 import ./metadata
 import ./resources/[amiga_anim_image, amiga_ilbm_image, amiga_pbm_image, amiga_workbench_icon_image, amos_listing, amos_packed_picture_image, amos_planar_image, bmp_image, flic_animation, gif_image, netpbm_image, png_image, zx_spectrum_basic,
-  pcx_image, qoi_image, tga_image, zx_spectrum_screen]
+  pcx_image, qoi_image, tga_image, windows_icon_image, zx_spectrum_screen]
 
 type
   VextOperationCancelledError* = object of CatchableError
@@ -630,6 +630,56 @@ proc inspectSourceDepth(filename: string, data: openArray[byte],
         integerMetadata("colours-used", source.coloursUsed),
         integerMetadata("pixels-per-metre.x", source.xPixelsPerMetre),
         integerMetadata("pixels-per-metre.y", source.yPixelsPerMetre)])
+  of vhkWindowsIcon:
+    let icon = parsedValue[WindowsIcon](selectedParsed, vhkWindowsIcon)
+    let rootPath = if icon.kind == wikIcon: "/icon" else: "/cursor"
+    let group = VextResourceNode(path: rootPath,
+      typeId: icon.windowsIconTypeId, kind: vrnkGroup, metadata: @[
+        stringMetadata("container.kind", if icon.kind == wikIcon: "icon" else: "cursor"),
+        integerMetadata("images", icon.entries.len)])
+    for index, entry in icon.entries:
+      let path = rootPath & "/" & $index
+      var metadata = @[
+        integerMetadata("directory.width", entry.width),
+        integerMetadata("directory.height", entry.height),
+        integerMetadata("directory.colour-count", entry.colourCount),
+        integerMetadata("data.offset", entry.dataOffset),
+        integerMetadata("data.length", entry.dataLength),
+        stringMetadata("encoding", case entry.encoding
+          of wieDib: "dib"
+          of wiePng: "png"
+          of wieUnknown: "unknown")]
+      if icon.kind == wikCursor:
+        metadata.add integerMetadata("hotspot.x", entry.hotspotX)
+        metadata.add integerMetadata("hotspot.y", entry.hotspotY)
+      else:
+        metadata.add integerMetadata("planes", entry.planes)
+        metadata.add integerMetadata("bits-per-pixel", entry.bitsPerPixel)
+      case entry.encoding
+      of wieDib:
+        metadata.add integerMetadata("image.width", entry.dib.width)
+        metadata.add integerMetadata("image.height", entry.dib.height)
+        metadata.add integerMetadata("image.bits-per-pixel", entry.dib.bitsPerPixel)
+        metadata.add integerMetadata("image.compression", entry.dib.compression)
+        metadata.add integerMetadata("mask.bits-per-pixel", 1)
+        group.children.add VextResourceNode(path: path,
+          typeId: WindowsIconImageTypeId, kind: vrnkRaster,
+          raster: decodeWindowsIconEntry(entry), metadata: metadata,
+          defaultExportPriority: entry.dib.width * entry.dib.height)
+      of wiePng:
+        metadata.add integerMetadata("image.width", entry.png.width)
+        metadata.add integerMetadata("image.height", entry.png.height)
+        metadata.add integerMetadata("image.bit-depth", entry.png.bitDepth)
+        metadata.add integerMetadata("image.colour-type", entry.png.colourType)
+        group.children.add VextResourceNode(path: path,
+          typeId: WindowsIconImageTypeId, kind: vrnkRaster,
+          raster: decodeWindowsIconEntry(entry), metadata: metadata,
+          defaultExportPriority: entry.png.width * entry.png.height)
+      of wieUnknown:
+        group.children.add VextResourceNode(path: path,
+          typeId: "windows.icon-image.unknown", kind: vrnkOpaque,
+          data: entry.data, rawDataAvailable: true, metadata: metadata)
+    result.resources.roots.add group
   of vhkPcx:
     let source = parsedValue[PcxImageSource](selectedParsed, vhkPcx)
     result.resources.roots.add VextResourceNode(

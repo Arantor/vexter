@@ -4,7 +4,7 @@ import std/[os, strutils]
 import ./handler_registry
 import ./containers/[amiga_8svx, amiga_16sv, amiga_acbm, amiga_adf, amiga_anim, amiga_dms, amiga_hunk_executable, amiga_iff, amiga_ilbm, amiga_lha_sfx, amiga_pbm, amiga_workbench_icon, amos_bank, amos_bank_set, amos_program,
   amos_sprite_icon_bank, bmp, flic, gif_container, netpbm, pcx, png_container, qoi, tga,
-  wav, zip_archive, lha_archive, zx_spectrum_screen_dump, zx_spectrum_snapshot, zx_spectrum_tap]
+  wav, windows_icon, zip_archive, lha_archive, zx_spectrum_screen_dump, zx_spectrum_snapshot, zx_spectrum_tap]
 import ./containers/xpk_shri
 import ./containers/powerpacker
 import ./resources/zx_spectrum_screen
@@ -128,6 +128,17 @@ proc detectFormats*(filename: string, data: openArray[byte]):
       evidence.add VextDetectionEvidence(description: "file extension is .dib")
     result.add VextDetectionCandidate(typeId: DibTypeId,
       confidence: vdcProbable, evidence: evidence)
+
+  if isWindowsIcon(data):
+    let icon = parseWindowsIcon(data)
+    var evidence = @[VextDetectionEvidence(description:
+      "file has a valid " & (if icon.kind == wikIcon: "ICO" else: "CUR") &
+      " directory with " & $icon.entries.len & " bounded image entry or entries")]
+    if hasWindowsIconExtension(filename, icon.kind):
+      evidence.add VextDetectionEvidence(description:
+        "file extension matches the container type")
+    result.add VextDetectionCandidate(typeId: icon.windowsIconTypeId,
+      confidence: vdcCertain, evidence: evidence)
 
   if isPcx(data):
     let image = parsePcx(data)

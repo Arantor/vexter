@@ -18,7 +18,8 @@ client, and a dependency-free native Windows GUI. It supports:
   and ACBM images, provisional packed-pixel IFF PBM images, IFF ANIM
   animations, IFF 8SVX and 16SV sampled audio,
   integer PCM WAV sounds, PCX, TGA, BMP/DIB,
-  PNG, QOI, Netpbm P1–P7, GIF87a/GIF89a, and FLI/FLC-family animations,
+  PNG, Windows ICO/CUR collections (including PNG and DIB entries), QOI,
+  Netpbm P1–P7, GIF87a/GIF89a, and FLI/FLC-family animations,
   AmigaDOS ADF filesystems, DMS disk archives, PowerPacker and XPK/SHRI
   wrappers, ZIP archives, level-0/1 LHA/LZH archives using LH0 or LH5,
   minimally structured Amiga Hunk executables and LHA self-extractors,
@@ -200,6 +201,10 @@ Matching case-insensitive extensions add supporting evidence.
 - `png_container.nim` validates PNG signatures, chunk framing/order, CRC-32,
   image properties, palettes, transparency, and concatenated IDAT data while
   retaining every known or unknown chunk for metadata;
+- `windows_icon.nim` validates ICO/CUR directories and bounded image entries,
+  distinguishes embedded PNG, icon-style DIB, and unknown payloads, separates
+  DIB XOR imagery from its doubled-height one-bit AND mask, and retains CUR
+  hotspots plus both directory and payload dimensions;
 - `qoi.nim` validates QOI headers, dimensions, channel and colour-space
   descriptors, chunk framing and pixel coverage, and the exact end marker;
 - `netpbm.nim` validates and extracts plain/raw PBM, PGM, and PPM plus PAM,
