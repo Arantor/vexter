@@ -7,6 +7,8 @@ import vexterlib/artifacts
 import vexterlib/containers/amos_bank
 import vexterlib/containers/amiga_adf
 import vexterlib/containers/amiga_dms
+import vexterlib/containers/amiga_hunk_executable
+import vexterlib/containers/amiga_lha_sfx
 import vexterlib/containers/xpk_shri
 import vexterlib/containers/powerpacker
 import vexterlib/containers/amiga_acbm
@@ -66,6 +68,8 @@ export artifacts
 export amos_bank
 export amiga_adf
 export amiga_dms
+export amiga_hunk_executable
+export amiga_lha_sfx
 export xpk_shri
 export powerpacker
 export amiga_acbm

@@ -156,9 +156,30 @@ The decoding behavior is ported from `PPDecompressor.cpp` in the supplied BSD
 2-Clause Ancient Format Decompressor checkout. Its revision, source hashes,
 and required attribution are recorded in [`THIRD_PARTY.md`](../THIRD_PARTY.md).
 
+## Amiga Hunk executables and LHA self-extractors
+
+Type identifiers: `amiga.hunk-executable` and `amiga.lha-sfx`.
+
+The current Hunk parser is intentionally an identification-level reader. It
+validates `HUNK_HEADER`, the allocation table, CODE, DATA, BSS, relocation,
+symbol, debug, and END framing and retains loadable bytes as opaque resources.
+It also retains the length-delimited overlay arrangement present in the
+supplied `lha.run`; detailed executable semantics and broader Hunk variants
+remain future work.
+
+`lha.run`, SHA-256
+`76bae515264fcc3e1c69058ff03a4bcb096152a732cf19fdb03cceee18932497`,
+contains a two-hunk 680x0 executable, one appended level-0 LH5 usage record,
+and a level-1 LH5 archive. It is identified as `amiga.lha-sfx`. The executable
+is exposed below `/executable`, the usage member below `/sfx/usage`, and the
+main archive below `/archive`; main members use ordinary bounded recursive
+inspection. Hunk identifiers and skip framing are informed by `tbsym.c` from
+the supplied public-domain-source IFFSpecs bundle, as recorded in
+`THIRD_PARTY.md`.
+
 ## LHA/LZH archives
 
-Level-0 LHA archives expose a host-independent hierarchy below `/archive`.
+Level-0 and level-1 LHA archives expose a host-independent hierarchy below `/archive`.
 Both `.lha` and `.lzh` extensions are recognized. Header byte sums, member
 bounds, uncompressed sizes, and CRC-16 values are validated. Amiga backslash
 paths are canonicalized to resource-path separators, while absolute, empty,
@@ -166,7 +187,7 @@ dot, parent, duplicate, and conflicting paths are rejected.
 
 Stored `-lh0-` and static-Huffman/LZ `-lh5-` members are reconstructed and
 recognized contents are inspected recursively through the shared eight-layer
-bound. Other compression methods and header levels 1 through 3 remain explicit
+bound. Other compression methods and header levels 2 and 3 remain explicit
 unsupported-format errors pending supplied documentation and controls.
 Checksummed level-0 framing is detected independently of member decoding, so
 an archive using an unsupported method is still identified as LHA and reports

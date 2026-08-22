@@ -32,6 +32,27 @@ proc levelZero(compressionMethod, name: string,
     result[1] = result[1] + result[index]
   result.add packed
 
+proc levelOne(compressionMethod, name: string,
+    raw, packed: seq[byte]): seq[byte] =
+  let headerSize = 25 + name.len
+  result = newSeq[byte](headerSize + 2)
+  result[0] = byte(headerSize)
+  for index, value in compressionMethod: result[2 + index] = byte(value)
+  for index in 0 ..< 4:
+    result[7 + index] = byte(uint32(packed.len) shr (index * 8))
+    result[11 + index] = byte(uint32(raw.len) shr (index * 8))
+  result[20] = 1
+  result[21] = byte(name.len)
+  for index, value in name: result[22 + index] = byte(value)
+  let crc = crc16(raw)
+  result[22 + name.len] = byte(crc)
+  result[23 + name.len] = byte(crc shr 8)
+  result[24 + name.len] = byte('A')
+  # The final two bytes are the zero next-extended-header size.
+  for index in 2 ..< result.len:
+    result[1] = result[1] + result[index]
+  result.add packed
+
 suite "LHA archives":
   test "level-0 LH0 entries form a safe recursive hierarchy":
     var archive = levelZero("-lh0-", "images\\display.scr",
@@ -69,6 +90,15 @@ suite "LHA archives":
     check parsed.entries.len == 1
     check parsed.entries[0].compressionMethod == "-lh5-"
     check parsed.entries[0].data == expected
+
+  test "level-1 headers feed the same member decoders":
+    var archive = levelOne("-lh0-", "level-one.txt",
+      @[byte('o'), byte('k')], @[byte('o'), byte('k')])
+    archive.add 0
+    let parsed = parseLhaArchive(archive)
+    check parsed.entries.len == 1
+    check parsed.entries[0].name == "level-one.txt"
+    check parsed.entries[0].data == @[byte('o'), byte('k')]
 
   test "checksums, traversal, unsupported methods, and truncation fail":
     var valid = levelZero("-lh0-", "safe", @[1'u8], @[1'u8])

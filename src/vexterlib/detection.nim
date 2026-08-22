@@ -2,7 +2,7 @@
 
 import std/[os, strutils]
 import ./handler_registry
-import ./containers/[amiga_8svx, amiga_16sv, amiga_acbm, amiga_adf, amiga_anim, amiga_dms, amiga_iff, amiga_ilbm, amiga_pbm, amiga_workbench_icon, amos_bank, amos_bank_set, amos_program,
+import ./containers/[amiga_8svx, amiga_16sv, amiga_acbm, amiga_adf, amiga_anim, amiga_dms, amiga_hunk_executable, amiga_iff, amiga_ilbm, amiga_lha_sfx, amiga_pbm, amiga_workbench_icon, amos_bank, amos_bank_set, amos_program,
   amos_sprite_icon_bank, bmp, flic, gif_container, netpbm, pcx, png_container, qoi, tga,
   wav, zip_archive, lha_archive, zx_spectrum_screen_dump, zx_spectrum_snapshot, zx_spectrum_tap]
 import ./containers/xpk_shri
@@ -37,6 +37,18 @@ proc detectFormats*(filename: string, data: openArray[byte]):
     seq[VextDetectionCandidate] =
   ## Returns every format candidate recognized from currently available
   ## evidence, ordered from strongest to weakest.
+  if isAmigaLhaSfx(data):
+    result.add VextDetectionCandidate(typeId: AmigaLhaSfxTypeId,
+      confidence: vdcCertain, evidence: @[
+        VextDetectionEvidence(description:
+          "file is a valid Amiga Hunk executable with appended LHA archives")])
+
+  if isAmigaHunkExecutable(data):
+    result.add VextDetectionCandidate(typeId: AmigaHunkExecutableTypeId,
+      confidence: vdcCertain, evidence: @[
+        VextDetectionEvidence(description:
+          "file has a valid Amiga HUNK_HEADER and loadable hunk sequence")])
+
   if isWorkbenchIcon(data):
     var evidence = @[VextDetectionEvidence(
       description: "file has a valid Workbench DiskObject header and serialized resources")]
@@ -163,7 +175,7 @@ proc detectFormats*(filename: string, data: openArray[byte]):
 
   if isLhaArchiveStructure(data):
     var evidence = @[VextDetectionEvidence(
-      description: "file has valid checksummed level-0 LHA member framing")]
+      description: "file has valid checksummed LHA member framing")]
     if hasLhaExtension(filename):
       evidence.add VextDetectionEvidence(
         description: "file extension is .lha or .lzh")

@@ -1,5 +1,18 @@
 # Third-party material
 
+## IFFSpecs bundle Hunk reference
+
+The developer-supplied `IFFSpecs.lzh` bundle from Aminet is documented with
+its hash and public-domain source notice under the ANIM section of
+`docs/formats.md`. Its unpacked `EXAMPLES/PGTB/tbsym.c`, authored by The
+Software Distillery and made available to the Amiga development community,
+defines the classic Hunk record identifiers and demonstrates the framing used
+to skip load-file headers, CODE, DATA, BSS, relocation, symbol, debug, and END
+records. Vexter uses that file only as the supplied structural reference for
+its deliberately narrow executable recognizer. The source itself declines to
+interpret overlays; Vexter retains the length-delimited overlay observed in
+the supplied `lha.run` control without assigning execution semantics to it.
+
 ## jslha LHA/LH5 reference
 
 `jslha/` is a developer-supplied checkout of Jani Poikela's jslha, sourced

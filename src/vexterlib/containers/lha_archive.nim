@@ -217,7 +217,8 @@ proc validateLhaStructure(data: openArray[byte]): int =
     let headerSize = int(data[offset])
     if headerSize < 22 or offset + headerSize + 2 > data.len:
       raise newException(ValueError, "invalid LHA level-0 header length")
-    if data[offset + 20] != 0:
+    let level = int(data[offset + 20])
+    if level notin [0, 1]:
       raise newException(ValueError, "unsupported LHA header level")
     var checksum = 0
     for index in offset + 2 .. offset + headerSize + 1:
@@ -230,16 +231,29 @@ proc validateLhaStructure(data: openArray[byte]): int =
       if data[index] < 0x20 or data[index] > 0x7e:
         raise newException(ValueError, "invalid LHA compression method identifier")
     let nameLength = int(data[offset + 21])
-    if nameLength == 0 or 24 + nameLength > headerSize + 2:
+    if (level == 0 and nameLength == 0) or
+        24 + nameLength > headerSize + 2:
       raise newException(ValueError, "invalid LHA level-0 filename length")
     for index in 0 ..< nameLength:
       if data[offset + 22 + index] == 0:
         raise newException(ValueError, "NUL in LHA entry name")
-    let compressedSize = uint64(leDword(data, offset + 7))
-    let payloadOffset = offset + headerSize + 2
-    if compressedSize > uint64(data.len - payloadOffset):
+    let declaredSize = uint64(leDword(data, offset + 7))
+    var payloadOffset = offset + headerSize + 2
+    var packedSize = declaredSize
+    if level == 1:
+      var extensionSize = int(leWord(data, offset + headerSize))
+      while extensionSize != 0:
+        if extensionSize < 3 or extensionSize > data.len - payloadOffset or
+            uint64(extensionSize) > packedSize:
+          raise newException(ValueError, "invalid LHA level-1 extended header")
+        packedSize -= uint64(extensionSize)
+        let nextSize = int(leWord(data,
+          payloadOffset + extensionSize - 2))
+        payloadOffset += extensionSize
+        extensionSize = nextSize
+    if packedSize > uint64(data.len - payloadOffset):
       raise newException(ValueError, "truncated LHA member data")
-    offset = payloadOffset + int(compressedSize)
+    offset = payloadOffset + int(packedSize)
     inc result
   if offset >= data.len or data[offset] != 0:
     raise newException(ValueError, "LHA end marker was not found")
@@ -265,7 +279,8 @@ proc parseLhaArchive*(data: openArray[byte]): LhaArchive =
     let headerSize = int(data[offset])
     if headerSize < 22 or offset + headerSize + 2 > data.len:
       raise newException(ValueError, "invalid LHA level-0 header length")
-    if data[offset + 20] != 0:
+    let level = int(data[offset + 20])
+    if level notin [0, 1]:
       raise newException(ValueError, "unsupported LHA header level")
     var checksum = 0
     for index in offset + 2 .. offset + headerSize + 1:
@@ -278,14 +293,16 @@ proc parseLhaArchive*(data: openArray[byte]): LhaArchive =
     if compressionMethod notin ["-lh0-", "-lh5-", "-lhd-"]:
       raise newException(ValueError,
         "unsupported LHA compression method: " & compressionMethod)
-    let compressedSize64 = uint64(leDword(data, offset + 7))
+    let declaredSize64 = uint64(leDword(data, offset + 7))
     let uncompressedSize64 = uint64(leDword(data, offset + 11))
-    if compressedSize64 > uint64(high(int)) or uncompressedSize64 > uint64(high(int)):
+    if declaredSize64 > uint64(high(int)) or
+        uncompressedSize64 > uint64(high(int)):
       raise newException(ValueError, "LHA member is too large")
-    let compressedSize = int(compressedSize64)
+    var compressedSize = int(declaredSize64)
     let uncompressedSize = int(uncompressedSize64)
     let nameLength = int(data[offset + 21])
-    if nameLength == 0 or 24 + nameLength > headerSize + 2:
+    if (level == 0 and nameLength == 0) or
+        24 + nameLength > headerSize + 2:
       raise newException(ValueError, "invalid LHA level-0 filename length")
     var name: string
     for index in 0 ..< nameLength:
@@ -294,6 +311,33 @@ proc parseLhaArchive*(data: openArray[byte]): LhaArchive =
       name.add char(value)
     if runeLen(name) > LhaMaximumNameCharacters:
       raise newException(ValueError, "LHA entry name exceeds 255 characters")
+    var payloadOffset = offset + headerSize + 2
+    if level == 1:
+      var extensionSize = int(leWord(data, offset + headerSize))
+      var directoryPrefix = ""
+      while extensionSize != 0:
+        if extensionSize < 3 or extensionSize > data.len - payloadOffset or
+            extensionSize > compressedSize:
+          raise newException(ValueError, "invalid LHA level-1 extended header")
+        let extensionType = data[payloadOffset]
+        let fieldLength = extensionSize - 3
+        if extensionType in [1'u8, 2'u8]:
+          var field = ""
+          for index in 0 ..< fieldLength:
+            let value = data[payloadOffset + 1 + index]
+            if value == 0: field.add '/'
+            else: field.add char(value)
+          if extensionType == 1: name = field
+          else: directoryPrefix = field
+        let nextSize = int(leWord(data,
+          payloadOffset + extensionSize - 2))
+        compressedSize -= extensionSize
+        payloadOffset += extensionSize
+        extensionSize = nextSize
+      if directoryPrefix.len > 0:
+        name = directoryPrefix & name
+    if name.len == 0:
+      raise newException(ValueError, "empty LHA entry name")
     let directory = compressionMethod == "-lhd-" or
       name.endsWith("/") or name.endsWith("\\")
     let segments = validatedSegments(name, directory)
@@ -302,7 +346,6 @@ proc parseLhaArchive*(data: openArray[byte]): LhaArchive =
       raise newException(ValueError, "duplicate LHA entry path: " & canonical)
     names.add canonical
     let expectedCrc = leWord(data, offset + 22 + nameLength)
-    let payloadOffset = offset + headerSize + 2
     if compressedSize > data.len - payloadOffset:
       raise newException(ValueError, "truncated LHA member data")
     var payload: seq[byte]

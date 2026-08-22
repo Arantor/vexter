@@ -19,7 +19,8 @@ client, and a dependency-free native Windows GUI. It supports:
   integer PCM WAV sounds, PCX, TGA, BMP/DIB,
   PNG, QOI, Netpbm P1–P7, GIF87a/GIF89a, and FLI/FLC-family animations,
   AmigaDOS ADF filesystems, DMS disk archives, PowerPacker and XPK/SHRI
-  wrappers, ZIP archives, level-0 LHA/LZH archives using LH0 or LH5,
+  wrappers, ZIP archives, level-0/1 LHA/LZH archives using LH0 or LH5,
+  minimally structured Amiga Hunk executables and LHA self-extractors,
   ZX Spectrum raw screen dumps, SNA snapshots,
   TAP containers, tokenised BASIC resources, standalone AMOS banks, AMOS bank
   sets, and AMOS programs;
@@ -178,11 +179,17 @@ Matching case-insensitive extensions add supporting evidence.
 - `zip_archive.nim` validates single-volume ZIP central/local records, expands
   stored and DEFLATE entries, checks CRC-32, and exposes a host-independent
   archive hierarchy;
-- `lha_archive.nim` validates level-0 LHA member headers and checksums, expands
+- `lha_archive.nim` validates level-0/1 LHA member headers and checksums, expands
   stored LH0 and static-Huffman/LZ LH5 members, checks CRC-16, canonicalizes
   Amiga path separators, and exposes a host-independent archive hierarchy;
   structural detection remains available for unsupported member methods so
   frontends can report the specific codec limitation;
+- `amiga_hunk_executable.nim` validates enough classic load-file Hunk framing
+  to identify CODE, DATA, BSS, relocation, symbol, debug, END, and the supplied
+  length-delimited overlay arrangement while retaining loadable bytes;
+- `amiga_lha_sfx.nim` recognizes the supplied Amiga LHA self-extractor layout,
+  separates its usage record and main appended archive, and routes both through
+  the ordinary LHA parser and recursive inspection path;
 - `pcx.nim` validates ZSoft PCX headers, dimensions, plane layouts, and row
   storage before retaining the encoded image source;
 - `tga.nim` validates Truevision TGA headers, optional identification and
@@ -416,6 +423,12 @@ archive.zip-file
 archive.lha
 archive.lha-directory
 archive.lha-file
+amiga.hunk-executable
+amiga.hunk-code
+amiga.hunk-data
+amiga.hunk-bss
+amiga.hunk-overlay
+amiga.lha-sfx
 pcx
 pcx.image
 windows.bmp
@@ -656,6 +669,9 @@ The routine suites are:
 - `tests/test_lha_archive.nim`: level-0 framing, LH0 storage, authentic Aminet
   LH5 expansion, checksums, hierarchy and recursive decoding, path safety, and
   malformed or unsupported input;
+- `tests/test_amiga_hunk.nim`: minimal load-file Hunk framing, retained code,
+  generic executable detection, appended usage/main LHA recognition, SFX
+  precedence, and normal archive resource routing;
 - `tests/test_xpk_shri.nim`: XPK framing, raw chunks, checksum failures,
   recursive inspection, and byte-identical SHRI reconstruction of Fishdemo;
 - `tests/test_powerpacker.nim`: synthetic PP20 reconstruction, malformed

@@ -5,7 +5,8 @@
 ## validation and inspection implementation for that format.
 
 import ./containers/[amiga_8svx, amiga_16sv, amiga_acbm, amiga_adf, amiga_anim,
-  amiga_dms, amiga_iff, amiga_ilbm, amiga_workbench_icon, amos_bank,
+  amiga_dms, amiga_hunk_executable, amiga_iff, amiga_ilbm, amiga_lha_sfx,
+  amiga_workbench_icon, amos_bank,
   amos_bank_set, amos_program, amos_sprite_icon_bank, bmp, flic, gif_container,
   lha_archive, netpbm, pcx, png_container, powerpacker, qoi, tga, wav, zip_archive,
   zx_spectrum_screen_dump, zx_spectrum_snapshot, zx_spectrum_tap, xpk_shri]
@@ -13,6 +14,8 @@ import ./containers/amiga_pbm
 type
   VextHandlerKind* = enum
     vhkWorkbenchIcon
+    vhkAmigaHunkExecutable
+    vhkAmigaLhaSfx
     vhkAmigaAcbm
     vhkAmigaPbm
     vhkAmiga8svx
@@ -65,6 +68,9 @@ type
     listings*: seq[ZxSpectrumTapBasic]
 
 const FormatHandlers* = [
+  VextFormatHandler(typeId: AmigaLhaSfxTypeId, kind: vhkAmigaLhaSfx),
+  VextFormatHandler(typeId: AmigaHunkExecutableTypeId,
+    kind: vhkAmigaHunkExecutable),
   VextFormatHandler(typeId: AmigaWorkbenchIconTypeId, kind: vhkWorkbenchIcon),
   VextFormatHandler(typeId: AmigaAcbmTypeId, kind: vhkAmigaAcbm),
   VextFormatHandler(typeId: AmigaPbmTypeId, kind: vhkAmigaPbm),
@@ -124,6 +130,8 @@ proc parse*(handler: VextFormatHandler,
       VextParsedValue[type(typedValue)](
         kind: handler.kind, value: typedValue)
   case handler.kind
+  of vhkAmigaLhaSfx: result = parsed(parseAmigaLhaSfx(data))
+  of vhkAmigaHunkExecutable: result = parsed(parseAmigaHunkExecutable(data))
   of vhkWorkbenchIcon:
     result = parsed(VextParsedWorkbenchIcon(icon: parseWorkbenchIcon(data),
       glow: parseGlowIcon(data)))

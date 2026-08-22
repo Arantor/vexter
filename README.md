@@ -14,10 +14,11 @@ sufficiently useful to continue as an ongoing project.
 ## Supported formats
 
 - Amiga: Workbench icons, ADF and DMS disks, PowerPacker, XPK/SHRI, IFF
-  ILBM/ACBM/PBM, ANIM, 8SVX/16SV audio, and AMOS programs and banks
+  ILBM/ACBM/PBM, ANIM, 8SVX/16SV audio, AMOS programs and banks, Hunk
+  executables, and LHA self-extractors
 - Images and animations: BMP/DIB, PCX, TGA, PNG/APNG, GIF, QOI, Netpbm, and
   FLI/FLC-family files
-- Archives and audio: ZIP, level-0 LHA/LZH with LH0/LH5 members, and integer
+- Archives and audio: ZIP, level-0/1 LHA/LZH with LH0/LH5 members, and integer
   PCM WAV
 - ZX Spectrum: screen dumps, SNA snapshots, TAP files, and tokenised BASIC
 

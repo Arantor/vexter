@@ -9,7 +9,7 @@ import ./detection
 import ./handler_registry
 import ./exporters/[gif, png, raw, wav]
 import ./resource_tree
-import ./containers/[amiga_8svx, amiga_16sv, amiga_acbm, amiga_adf, amiga_anim, amiga_dms, amiga_iff, amiga_ilbm, amiga_pbm, amiga_workbench_icon, amos_bank, amos_bank_set, amos_packed_picture, amos_program,
+import ./containers/[amiga_8svx, amiga_16sv, amiga_acbm, amiga_adf, amiga_anim, amiga_dms, amiga_hunk_executable, amiga_iff, amiga_ilbm, amiga_lha_sfx, amiga_pbm, amiga_workbench_icon, amos_bank, amos_bank_set, amos_packed_picture, amos_program,
   amos_sprite_icon_bank, bmp, flic, gif_container, netpbm, pcx, png_container,
   qoi, tga, wav, zip_archive, lha_archive, zx_spectrum_snapshot, zx_spectrum_tap]
 import ./containers/xpk_shri
@@ -443,6 +443,27 @@ proc addLhaEntry(root: VextResourceNode, entry: LhaEntry, depth: int,
         raise newException(ValueError, "conflicting LHA entry path: " & entry.name)
       parent = existing
 
+proc hunkExecutableNode(executable: AmigaHunkExecutable,
+    rootPath: string): VextResourceNode =
+  result = VextResourceNode(path: rootPath,
+    typeId: AmigaHunkExecutableTypeId, kind: vrnkGroup, metadata: @[
+      integerMetadata("hunks", executable.hunks.len),
+      integerMetadata("executable.length", executable.executableLength)])
+  for index, hunk in executable.hunks:
+    let typeId = case hunk.kind
+      of ahkCode: AmigaHunkCodeTypeId
+      of ahkData: AmigaHunkDataTypeId
+      of ahkBss: AmigaHunkBssTypeId
+    result.children.add VextResourceNode(path: rootPath & "/hunks/" & $index,
+      typeId: typeId, kind: vrnkOpaque, data: hunk.data,
+      rawDataAvailable: hunk.kind != ahkBss, metadata: @[
+        integerMetadata("memory.longwords", hunk.memoryLongwords),
+        integerMetadata("data.length", hunk.data.len)])
+  if executable.overlay.len > 0:
+    result.children.add VextResourceNode(path: rootPath & "/overlay",
+      typeId: AmigaHunkOverlayTypeId, kind: vrnkOpaque,
+      data: executable.overlay, rawDataAvailable: true)
+
 proc inspectSourceDepth(filename: string, data: openArray[byte],
     inputFormat: string, depth: int, ignoreWarnings: bool,
     pcxChannelOrder: PcxChannelOrder): VextInspection =
@@ -465,6 +486,26 @@ proc inspectSourceDepth(filename: string, data: openArray[byte],
     raise newException(ValueError,
       "unsupported input format: " & result.selectedFormat.typeId)
   case selectedHandler.kind
+  of vhkAmigaHunkExecutable:
+    result.resources.roots.add hunkExecutableNode(
+      parsedValue[AmigaHunkExecutable](selectedParsed,
+        vhkAmigaHunkExecutable), "/executable")
+  of vhkAmigaLhaSfx:
+    let sfx = parsedValue[AmigaLhaSfx](selectedParsed, vhkAmigaLhaSfx)
+    result.resources.roots.add hunkExecutableNode(sfx.executable, "/executable")
+    let usage = VextResourceNode(path: "/sfx/usage",
+      typeId: LhaArchiveTypeId, kind: vrnkGroup)
+    for entry in sfx.usageArchive.entries:
+      addLhaEntry(usage, entry, depth, ignoreWarnings, pcxChannelOrder,
+        result.warnings)
+    result.resources.roots.add usage
+    let archive = VextResourceNode(path: "/archive",
+      typeId: LhaArchiveTypeId, kind: vrnkGroup, metadata: @[
+        integerMetadata("entries", sfx.archive.entries.len)])
+    for entry in sfx.archive.entries:
+      addLhaEntry(archive, entry, depth, ignoreWarnings, pcxChannelOrder,
+        result.warnings)
+    result.resources.roots.add archive
   of vhkWorkbenchIcon:
     let parsed = parsedValue[VextParsedWorkbenchIcon](selectedParsed,
       vhkWorkbenchIcon)
