@@ -73,7 +73,8 @@ proc pointerTable(first: int, ninth = 0): seq[byte] =
   result[34] = byte(ninth shr 8)
   result[35] = byte(ninth)
 
-proc initialForm(planes = 1, camg = 0, width = 16): seq[byte] =
+proc initialForm(planes = 1, camg = 0, width = 16,
+    extraChunks: seq[seq[byte]] = @[]): seq[byte] =
   var cmap = @[0'u8, 0, 0, 0xff, 0xff, 0xff]
   if planes == 6:
     cmap = newSeq[byte](16 * 3)
@@ -83,8 +84,13 @@ proc initialForm(planes = 1, camg = 0, width = 16): seq[byte] =
   if camg != 0:
     chunks.add chunk("CAMG", @[
       byte(camg shr 24), byte(camg shr 16), byte(camg shr 8), byte(camg)])
+  chunks.add extraChunks
   chunks.add chunk("BODY", newSeq[byte](planes * ((width + 15) div 16) * 4))
   form("ILBM", chunks)
+
+proc dpan(frameCount, framesPerSecond: int): seq[byte] =
+  chunk("DPAN", @[0'u8, 3, byte(frameCount shr 8), byte(frameCount),
+    byte(framesPerSecond), 0, 0, 0])
 
 proc animWithDelta(operation: int, delta: seq[byte], bits = 0,
     planes = 1, camg = 0, width = 16): seq[byte] =
@@ -178,16 +184,16 @@ suite "Amiga IFF ANIM":
       raster = inspection.resources.rasterResources[0].raster
     check parsed.frames.len == 33
     check parsed.frames.allIt(it.header.operation == 5)
+    check parsed.hasDpan
+    check parsed.dpanVersion == 3
+    check parsed.logicalFrameCount == 32
+    check parsed.framesPerSecond == 10
     check raster.kind == vrkIndexedAnimation
     check raster.width == 320
     check raster.height == 200
-    check raster.animation.frames.len == 34
+    check raster.animation.frames.len == 32
     check rgbDigest(raster.animation) ==
-      "FA30299DE1C943A21CE8076586454EB1696E9AAE"
-    check raster.animation.frames[32].image.pixels ==
-      raster.animation.frames[0].image.pixels
-    check raster.animation.frames[33].image.pixels ==
-      raster.animation.frames[1].image.pixels
+      "246809A42660BFF4F4F1A0E27F1ED4D08D2BDFCB"
 
   test "methods 1 through 5, 7, and 8 reconstruct indexed animation frames":
     let cases = [(2, method2Delta()), (3, method3Delta()),
@@ -251,6 +257,32 @@ suite "Amiga IFF ANIM":
         5, method5Delta(), camg = 0x00021000))).animation
     check ntsc.frames[1].durationMs == 100
     check pal.frames[1].durationMs == 120
+
+  test "DPAN controls logical frame count and playback rate":
+    let deltaForm = form("ILBM", [chunk("ANHD", anhd(5)),
+      chunk("DLTA", method5Delta())])
+    let data = form("ANIM", [
+      initialForm(extraChunks = @[dpan(2, 10)]),
+      deltaForm, deltaForm, deltaForm])
+    let
+      parsed = parseAmigaAnim(data)
+      animation = decodeAmigaAnim(parsed).animation
+    check parsed.hasDpan
+    check parsed.dpanVersion == 3
+    check parsed.logicalFrameCount == 2
+    check parsed.framesPerSecond == 10
+    check animation.frames.len == 2
+    check animation.frames[0].durationMs == 100
+    check animation.frames[1].durationMs == 100
+
+    expect ValueError:
+      discard parseAmigaAnim(form("ANIM", [
+        initialForm(extraChunks = @[dpan(2, 0)]), deltaForm]))
+    var unsupportedDpan = dpan(2, 10)
+    unsupportedDpan[9] = 4
+    expect ValueError:
+      discard parseAmigaAnim(form("ANIM", [
+        initialForm(extraChunks = @[unsupportedDpan]), deltaForm]))
 
   test "method 7 clips a padded final longword to the ILBM row":
     let image = decodeAmigaAnim(parseAmigaAnim(animWithDelta(

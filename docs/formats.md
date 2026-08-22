@@ -132,6 +132,28 @@ The XPK framing and SHRI arithmetic/LZ behavior are ported from the supplied
 BSD 2-Clause Ancient Format Decompressor checkout. Its revision and required
 attribution are recorded in [`THIRD_PARTY.md`](../THIRD_PARTY.md).
 
+## PowerPacker compressed containers
+
+Container type identifier: `archive.powerpacker`
+
+Vexter recognizes standalone `PP11` and `PP20` PowerPacker streams. It
+validates the five known efficiency tables, four-byte file alignment, the
+24-bit expanded size and initial bit shift, then reconstructs the backwards
+literal/LZ bitstream with output-bound and back-reference checks.
+
+The expanded payload appears at `/content` and is inspected recursively using
+the ordinary registered format handlers and eight-container depth bound. The
+supplied `Lemmings Inspiration.anim` has SHA-256
+`335c7276d069ee8777dce42933a5d5f76b86c587cad66c4f714ae0d3ef4a8339` and
+expands from 23,192 to 36,598 bytes. Its payload is a 320x256, five-plane ANIM
+with ten stored forms. Its `DPAN` chunk exposes eight logical frames at 10
+frames per second; the final two forms are interleave history for looping.
+Colour cycling in its `CRNG` chunks is not yet applied.
+
+The decoding behavior is ported from `PPDecompressor.cpp` in the supplied BSD
+2-Clause Ancient Format Decompressor checkout. Its revision, source hashes,
+and required attribution are recorded in [`THIRD_PARTY.md`](../THIRD_PARTY.md).
+
 ## ZIP archives
 
 Container type identifier: `archive.zip`
@@ -370,9 +392,12 @@ Vexter exposes the result at `/animation`.
 Planar frames are retained before rendering because deltas modify individual
 planes. An ANHD interleave of zero means the delta refers to two frames back;
 other values give the explicit reference distance. The second frame falls
-back to the initial frame. Relative times are Amiga vertical-blank jiffies:
-explicit PAL CAMG monitor modes use 50 Hz and explicit NTSC modes use 60 Hz.
-Files without a monitor ID retain the ANIM specification's 60 Hz default.
+back to the initial frame. A version-3 `DPAN` chunk supplies the logical frame
+count and frames-per-second playback rate; stored interleave history frames
+beyond that logical count are decoded but not presented. Without `DPAN`,
+relative times are Amiga vertical-blank jiffies: explicit PAL CAMG monitor
+modes use 50 Hz and explicit NTSC modes use 60 Hz. Files without a monitor ID
+retain the ANIM specification's 60 Hz default.
 
 Implemented delta operations are:
 

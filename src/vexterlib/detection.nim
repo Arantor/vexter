@@ -6,6 +6,7 @@ import ./containers/[amiga_8svx, amiga_16sv, amiga_acbm, amiga_adf, amiga_anim, 
   amos_sprite_icon_bank, bmp, flic, gif_container, netpbm, pcx, png_container, qoi, tga,
   wav, zip_archive, zx_spectrum_screen_dump, zx_spectrum_snapshot, zx_spectrum_tap]
 import ./containers/xpk_shri
+import ./containers/powerpacker
 import ./resources/zx_spectrum_screen
 
 type
@@ -199,6 +200,15 @@ proc detectFormats*(filename: string, data: openArray[byte]):
       evidence: @[VextDetectionEvidence(
         description: "file has a checksummed XPKF " & archive.compression &
           " chunk stream")])
+
+  if isPowerPacker(data):
+    let archive = parsePowerPacker(data)
+    result.add VextDetectionCandidate(
+      typeId: PowerPackerTypeId,
+      confidence: vdcCertain,
+      evidence: @[VextDetectionEvidence(
+        description: "file has a valid " & archive.version &
+          " PowerPacker header and efficiency table")])
 
   if isAmiga16sv(data):
     var evidence = @[VextDetectionEvidence(

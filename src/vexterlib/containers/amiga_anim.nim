@@ -30,6 +30,8 @@ type
     initial*: AmigaIlbm
     initialHeader*: AmigaAnimHeader
     hasInitialHeader*: bool
+    dpanVersion*, logicalFrameCount*, framesPerSecond*: int
+    hasDpan*: bool
     frames*: seq[AmigaAnimDeltaFrame]
 
 proc beWord(data: openArray[byte], offset: int): int {.inline.} =
@@ -58,6 +60,20 @@ proc findInitialHeader(form: AmigaIffForm,
     if chunk.id == "ANHD":
       header = parseAnimHeader(chunk.data)
       found = true
+
+proc findDpan(form: AmigaIffForm, anim: var AmigaAnim) =
+  for chunk in form.chunks:
+    if chunk.id == "DPAN":
+      if chunk.data.len != 8:
+        raise newException(ValueError, "ANIM DPAN chunk must contain 8 bytes")
+      anim.dpanVersion = beWord(chunk.data, 0)
+      if anim.dpanVersion != 3:
+        raise newException(ValueError, "unsupported ANIM DPAN version")
+      anim.logicalFrameCount = beWord(chunk.data, 2)
+      anim.framesPerSecond = int(chunk.data[4])
+      if anim.logicalFrameCount <= 0 or anim.framesPerSecond <= 0:
+        raise newException(ValueError, "ANIM DPAN playback values are invalid")
+      anim.hasDpan = true
 
 proc parseDeltaFrame(form: AmigaIffForm): AmigaAnimDeltaFrame =
   if form.formType != "ILBM":
@@ -105,11 +121,14 @@ proc parseAmigaAnim*(data: openArray[byte]): AmigaAnim =
     raise newException(ValueError, "ANIM contains no frame FORMs")
   result.initial = parseAmigaIlbmForm(forms[0])
   findInitialHeader(forms[0], result.initialHeader, result.hasInitialHeader)
+  findDpan(forms[0], result)
   if result.hasInitialHeader and result.initialHeader.operation != 0:
     raise newException(ValueError,
       "DLTA-compressed first ANIM frames are not supported yet")
   for index in 1 ..< forms.len:
     result.frames.add parseDeltaFrame(forms[index])
+  if result.hasDpan and result.logicalFrameCount > result.frames.len + 1:
+    raise newException(ValueError, "ANIM DPAN frame count exceeds stored frames")
 
 proc isAmigaAnim*(data: openArray[byte]): bool =
   try:

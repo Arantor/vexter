@@ -1,6 +1,6 @@
 # Third-party material
 
-## Ancient Format Decompressor XPK/SHRI reference
+## Ancient Format Decompressor XPK/SHRI and PowerPacker reference
 
 `ancient_format_decompressor/` is a developer-supplied checkout of Teemu
 Suutari's Ancient Format Decompressor, sourced from
@@ -10,10 +10,11 @@ The supplied revision is
 
 Contrary to the initially stated MIT licence, the checkout's `LICENSE` file is
 the BSD 2-Clause License and identifies Teemu Suutari as copyright holder from
-2017. Vexter's Nim XPK framing and SHRI arithmetic/LZ implementation is a port
-of the behavior in `XPKMaster.cpp` and `SHRIDecompressor.cpp`; the C++ project
-is not compiled or linked into Vexter. The required copyright and licence
-notice must accompany redistributed source and binary forms.
+2017. Vexter's Nim XPK framing, SHRI arithmetic/LZ, and standalone PowerPacker
+implementations are ports of the behavior in `XPKMaster.cpp`,
+`SHRIDecompressor.cpp`, and `PPDecompressor.cpp`; the C++ project is not
+compiled or linked into Vexter. The required copyright and licence notice must
+accompany redistributed source and binary forms.
 
 ```text
 BSD 2-Clause License
@@ -48,6 +49,8 @@ Relevant supplied-file SHA-256 values are:
 cf4eed95a3c433612fefad68939848f2bd19f549f5addc569815de846d8859cb  LICENSE
 4a3e1f9a5d2d5865e96226fbee91d1debc4c8539171017eb433b9a2c58ff0937  XPKMaster.cpp
 c5d51efdaaad9e62eaa502759a598e1a2e914a948b718a77ee8e8b712842d690  SHRIDecompressor.cpp
+ae95d6f8ec499723625553e7b11b799c0f44c8bf11c476cfcf604d4c38e5bc94  PPDecompressor.cpp
+508203f9f0309a740eee5217f8509783fdceebb34344874599212caea6ada912  PPDecompressor.hpp
 ```
 
 ## FLIC family format specification

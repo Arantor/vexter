@@ -18,7 +18,8 @@ client, and a dependency-free native Windows GUI. It supports:
   animations, IFF 8SVX and 16SV sampled audio,
   integer PCM WAV sounds, PCX, TGA, BMP/DIB,
   PNG, QOI, Netpbm P1–P7, GIF87a/GIF89a, and FLI/FLC-family animations,
-  AmigaDOS ADF filesystems, DMS disk archives, XPK/SHRI wrappers, ZIP archives,
+  AmigaDOS ADF filesystems, DMS disk archives, PowerPacker and XPK/SHRI
+  wrappers, ZIP archives,
   ZX Spectrum raw screen dumps, SNA snapshots,
   TAP containers, tokenised BASIC resources, standalone AMOS banks, AMOS bank
   sets, and AMOS programs;
@@ -162,6 +163,9 @@ Matching case-insensitive extensions add supporting evidence.
 - `xpk_shri.nim` validates XPK master/chunk framing and checksums, reconstructs
   raw and stateful SHRI arithmetic/LZ chunks, and exposes recognized unpacked
   content through bounded recursive inspection;
+- `powerpacker.nim` validates standalone PP11/PP20 headers and efficiency
+  tables, decodes their backwards literal/LZ bitstream, and exposes recognized
+  unpacked content through bounded recursive inspection;
 - `zip_archive.nim` validates single-volume ZIP central/local records, expands
   stored and DEFLATE entries, checks CRC-32, and exposes a host-independent
   archive hierarchy;
@@ -198,7 +202,8 @@ Matching case-insensitive extensions add supporting evidence.
   source while leaving raster decoding separate;
 - `amiga_pbm.nim` provisionally interprets `FORM PBM ` as an eight-bit chunky
   indexed image using BMHD, CMAP, and BODY chunks;
-- `amiga_anim.nim` parses nested ILBM frame forms and their ANHD/DLTA records;
+- `amiga_anim.nim` parses nested ILBM frame forms, their ANHD/DLTA records,
+  and DPAN logical frame-count and playback-rate metadata;
 - `amos_bank.nim` validates generic `AmBk` headers and lengths and identifies
   otherwise unsupported bank payloads, retaining those bytes so nested
   specialized bank resources can be decoded;
@@ -504,6 +509,12 @@ compressors other than SHRI are unsupported. The BSD-licensed Ancient Format
 Decompressor checkout is the attributed behavioral reference; provenance is
 recorded in `THIRD_PARTY.md`.
 
+Standalone PP11 and PP20 PowerPacker streams expose their recursively
+inspected payload at `/content`. The legal efficiency tables, 24-bit expanded
+size, initial bit shift, backwards bitstream, literal runs, and LZ matches are
+validated. The BSD-licensed Ancient Format Decompressor checkout is the
+attributed behavioral reference; provenance is recorded in `THIRD_PARTY.md`.
+
 ZIP archives expose `/archive`. Entry paths are interpreted as logical archive
 paths rather than host paths: slash and backslash separators are canonicalized,
 absolute, empty, dot, parent, duplicate, and file/directory-conflicting paths
@@ -627,6 +638,8 @@ The routine suites are:
   normalization;
 - `tests/test_xpk_shri.nim`: XPK framing, raw chunks, checksum failures,
   recursive inspection, and byte-identical SHRI reconstruction of Fishdemo;
+- `tests/test_powerpacker.nim`: synthetic PP20 reconstruction, malformed
+  headers, recursive inspection, and authentic Lemmings ANIM reconstruction;
 - `tests/test_pcx.nim`: planar/header palettes, 256-colour trailing palettes,
   true-colour RGB/BGR order, row padding, RLE, and malformed input;
 - `tests/test_tga.nim`: colour-map origins, identification fields, raw and RLE
@@ -738,5 +751,6 @@ names there when adding suites, or direct their output into `/tmp`.
 - Single-resource export currently expects one artifact at the CLI boundary.
   The artifact API and `export-all` directory handling permit multiple files;
   compound exporters themselves remain future work.
-- Recursive decoding is shared by ADF, ZIP, and XPK through the registered detection,
-  parsed-container, and inspection path, with a fixed eight-layer bound.
+- Recursive decoding is shared by ADF, ZIP, PowerPacker, and XPK through the
+  registered detection, parsed-container, and inspection path, with a fixed
+  eight-layer bound.

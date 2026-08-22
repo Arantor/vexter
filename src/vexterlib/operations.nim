@@ -12,6 +12,7 @@ import ./containers/[amiga_8svx, amiga_16sv, amiga_acbm, amiga_adf, amiga_anim, 
   amos_sprite_icon_bank, bmp, flic, gif_container, netpbm, pcx, png_container,
   qoi, tga, wav, zip_archive, zx_spectrum_snapshot, zx_spectrum_tap]
 import ./containers/xpk_shri
+import ./containers/powerpacker
 import ./metadata
 import ./resources/[amiga_anim_image, amiga_ilbm_image, amiga_pbm_image, amiga_workbench_icon_image, amos_listing, amos_packed_picture_image, amos_planar_image, bmp_image, flic_animation, gif_image, netpbm_image, png_image, zx_spectrum_basic,
   pcx_image, qoi_image, tga_image, zx_spectrum_screen]
@@ -657,18 +658,36 @@ proc inspectSourceDepth(filename: string, data: openArray[byte],
         integerMetadata("xpk.uncompressed-length", archive.unpackedSize),
         integerMetadata("xpk.chunks", archive.chunks.len)
       ], depth, ignoreWarnings, pcxChannelOrder, result.warnings)
+  of vhkPowerPacker:
+    let archive = parsedValue[PowerPackerArchive](selectedParsed,
+      vhkPowerPacker)
+    let unpacked = unpackPowerPacker(archive)
+    result.resources.roots.add containedFileNode("/content", filename,
+      PowerPackerTypeId, unpacked, @[
+        stringMetadata("powerpacker.version", archive.version),
+        integerMetadata("powerpacker.compressed-length", data.len),
+        integerMetadata("powerpacker.uncompressed-length", archive.unpackedSize)
+      ], depth, ignoreWarnings, pcxChannelOrder, result.warnings)
   of vhkAmigaAnim:
-    let anim = parsedValue[AmigaAnim](selectedParsed, vhkAmigaAnim)
+    let
+      anim = parsedValue[AmigaAnim](selectedParsed, vhkAmigaAnim)
+      raster = decodeAmigaAnim(anim)
+    var animMetadata = @[
+      integerMetadata("frames", if anim.hasDpan: anim.logicalFrameCount
+        else: anim.frames.len + 1),
+      integerMetadata("stored-frames", anim.frames.len + 1),
+      integerMetadata("planes", anim.initial.image.header.planes),
+      integerMetadata("camg", int(anim.initial.image.camg))]
+    if anim.hasDpan:
+      animMetadata.add integerMetadata("dpan-version", anim.dpanVersion)
+      animMetadata.add integerMetadata("frames-per-second",
+        anim.framesPerSecond)
     result.resources.roots.add VextResourceNode(
       path: AmigaAnimResourcePath,
       typeId: AmigaAnimTypeId,
       kind: vrnkRaster,
-      raster: decodeAmigaAnim(anim),
-      metadata: @[
-        integerMetadata("frames", anim.frames.len + 1),
-        integerMetadata("planes", anim.initial.image.header.planes),
-        integerMetadata("camg", int(anim.initial.image.camg))
-      ])
+      raster: raster,
+      metadata: animMetadata)
   of vhkAmiga8svx:
     let source = parsedValue[Amiga8svx](selectedParsed, vhkAmiga8svx)
     let instrument = decodeAmiga8svx(source)

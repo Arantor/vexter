@@ -14,17 +14,18 @@ an ongoing project.
 
 ## Supported formats
 
-- Amiga: Workbench icons, ADF and DMS disks, XPK/SHRI, IFF ILBM/ACBM/PBM,
-  ANIM, 8SVX/16SV audio, and AMOS programs and banks
+- Amiga: Workbench icons, ADF and DMS disks, PowerPacker, XPK/SHRI, IFF
+  ILBM/ACBM/PBM, ANIM, 8SVX/16SV audio, and AMOS programs and banks
 - Images and animations: BMP/DIB, PCX, TGA, PNG/APNG, GIF, QOI, Netpbm, and
   FLI/FLC-family files
 - Archives and audio: ZIP and integer PCM WAV
 - ZX Spectrum: screen dumps, SNA snapshots, TAP files, and tokenised BASIC
 
 Decoded resources can be exported as PNG, GIF, APNG, WAV, text, or raw binary.
-Containers such as ADF, ZIP, and XPK are inspected recursively when their
-contents use another supported format. See [format documentation](docs/formats.md)
-for exact coverage and current limitations.
+Containers such as ADF, ZIP, PowerPacker, and XPK are inspected recursively
+when their contents use another supported format. See
+[format documentation](docs/formats.md) for exact coverage and current
+limitations.
 
 ## Building
 
