@@ -22,6 +22,7 @@ proc decodeBmFont*(source: BmFontSource,
     var colours = newSeq[VextRgb](character.width * character.height)
     var alpha = newSeq[uint8](colours.len)
     let maskChannel = character.channel in [1, 2, 4, 8]
+    let outlinedMask = maskChannel and source.outline > 0
     var monochrome = true
     for y in 0 ..< character.height:
       for x in 0 ..< character.width:
@@ -36,10 +37,20 @@ proc decodeBmFont*(source: BmFontSource,
           of 4: colours[destination].r
           of 8: pageAlpha
           else: pageAlpha
+        if outlinedMask:
+          let value = int(alpha[destination])
+          if value > 127:
+            let interior = uint8(value * 2 - 255)
+            colours[destination] = VextRgb(r: interior, g: interior,
+              b: interior)
+            alpha[destination] = 255
+          else:
+            colours[destination] = VextRgb()
+            alpha[destination] = uint8(value * 2)
         if not maskChannel and
             colours[destination] != VextRgb(r: 255, g: 255, b: 255):
           monochrome = false
-    let bitmap = if monochrome:
+    let bitmap = if monochrome and not outlinedMask:
       VextGlyphBitmap(kind: vgbkMonochrome, width: character.width,
         height: character.height, coverage: alpha)
     else:

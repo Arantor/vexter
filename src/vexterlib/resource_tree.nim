@@ -68,6 +68,17 @@ proc leafResources*(tree: VextResourceTree): seq[VextResourceNode] =
   for root in tree.roots:
     addLeafResources(root, result)
 
+proc addResources(node: VextResourceNode,
+    resources: var seq[VextResourceNode]) =
+  resources.add node
+  for child in node.children:
+    addResources(child, resources)
+
+proc allResources*(tree: VextResourceTree): seq[VextResourceNode] =
+  ## Returns groups and leaves in depth-first presentation order.
+  for root in tree.roots:
+    addResources(root, result)
+
 proc fontResources*(tree: VextResourceTree): seq[VextResourceNode] =
   for resource in tree.leafResources:
     if resource.kind == vrnkFont: result.add resource

@@ -26,7 +26,7 @@ sufficiently useful to continue as an ongoing project.
 - ZX Spectrum: screen dumps, SNA snapshots, TAP files, and tokenised BASIC
 
 Decoded resources can be exported as PNG, GIF, APNG, BMFont text plus PNG
-atlases, WAV, text, or raw binary.
+atlases, metadata JSON, WAV, text, or raw binary.
 ILBM and ANIM colour cycling can optionally be expanded into bounded GIF or
 APNG animations while static and original-animation exports remain available.
 Containers such as ADF, ZIP, LHA, PowerPacker, and XPK are inspected recursively
@@ -52,8 +52,8 @@ the native Windows application and requires MinGW-w64.
 
 ```text
 vexter inspect INPUT
-vexter export [--format png|gif|apng|bmfont|txt|wav|bin] [-o OUTPUT] INPUT
-vexter export-all [--format png|gif|apng|bmfont|txt|wav|bin] -o DIRECTORY INPUT
+vexter export [--format png|gif|apng|bmfont|metadata-json|txt|wav|bin] [-o OUTPUT] INPUT
+vexter export-all [--format png|gif|apng|bmfont|metadata-json|txt|wav|bin] -o DIRECTORY INPUT
 ```
 
 Run `vexter --help` for the complete option list.

@@ -37,6 +37,7 @@ client, and a dependency-free native Windows GUI. It supports:
 - PNG export for a still image or an animation's natural first frame;
 - animated GIF and APNG export;
 - BMFont text export with one or more PNG atlas pages;
+- metadata JSON export for every resource kind, including groups;
 - optional CRNG/CCRT colour-cycle expansion with a 1,000-frame safety limit;
 - byte-identical BIN export for opaque resources that retain raw data; and
 - bulk export of all exportable leaves or a union of segment-wildcard resource
@@ -451,6 +452,14 @@ an AngelCode BMFont text descriptor and deterministic, padded PNG pages up to
 1024 pixels. Mono coverage becomes white RGB with alpha; coloured glyphs retain
 RGBA. The archetype continues to retain vertical kerning/advance,
 substitutions, ligatures, and richer line metrics which BMFont cannot express.
+Outlined packed-channel imports become true-colour glyphs using the AngelCode
+sample shader's half-range outline/interior rule; ordinary masks remain
+recolourable monochrome coverage.
+
+`src/vexterlib/exporters/metadata_json.nim` emits the versioned
+`vexter.resource-metadata.v1` schema for groups and every leaf archetype. It
+retains ordered typed metadata and structural values, including font features
+which BMFont cannot serialize, without embedding bulk media buffers.
 
 `src/vexterlib/exporters/` consumes those contracts and
 has no ZX Spectrum-specific knowledge. `src/vexterlib/artifacts.nim` defines

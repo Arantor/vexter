@@ -69,7 +69,7 @@ import vexterlib/handler_registry
 import vexterlib/metadata
 import vexterlib/operations
 import vexterlib/resource_tree
-import vexterlib/exporters/[gif, png, raw, wav]
+import vexterlib/exporters/[gif, metadata_json, png, raw, wav]
 import vexterlib/exporters/bmfont
 
 export raster
@@ -146,3 +146,4 @@ export gif
 export png
 export raw
 export wav
+export metadata_json

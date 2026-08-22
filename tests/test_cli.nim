@@ -165,6 +165,21 @@ suite "vexter CLI":
     check document["resources"][0]["type"].getStr == "zx-spectrum.screen"
     check document["resources"][0]["frames"].getInt == 2
 
+  test "metadata JSON exports through the CLI":
+    let destination = getTempDir() / "vexter-cli-colours-metadata.json"
+    if fileExists(destination): removeFile(destination)
+    defer:
+      if fileExists(destination): removeFile(destination)
+    let exported = run("export", "--resource", "/screen", "--format",
+      "metadata-json", "-o", destination, FixturePath)
+    check exported.exitCode == 0
+    let document = parseJson(readFile(destination))
+    check document["schema"].getStr == "vexter.resource-metadata.v1"
+    check document["path"].getStr == "/screen"
+    check document["resource"]["archetype"].getStr ==
+      "VextIndexedAnimation"
+    check document["resource"]["frames"].getInt == 2
+
   test "export defaults a FLASH screen to GIF":
     let destination = getTempDir() / "vexter-cli-colours.gif"
     if fileExists(destination):

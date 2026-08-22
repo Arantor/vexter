@@ -1,5 +1,9 @@
-import std/unittest
+import std/[json, unittest]
 import vexterlib
+
+proc asString(data: openArray[byte]): string =
+  result = newString(data.len)
+  for index, value in data: result[index] = char(value)
 
 suite "vexterlib operations":
   test "format handlers are unique and cover detected formats":
@@ -69,18 +73,19 @@ suite "vexterlib operations":
       newSeq[byte](ZxSpectrumScreenSize))
     let resource = inspection.resources.rasterResources[0]
     let formats = resource.exportFormatsFor
-    check formats.len == 2
+    check formats.len == 3
     check formats[0].id == "png"
     check formats[0].isDefault
     check formats[1].id == "gif"
+    check formats[2].id == "metadata-json"
     check resource.defaultExportFormat == "png"
 
     let opaque = VextResourceNode(path: "/raw", kind: vrnkOpaque,
       rawDataAvailable: true)
-    check opaque.exportFormatsFor.len == 1
+    check opaque.exportFormatsFor.len == 2
     check opaque.defaultExportFormat == "bin"
     check VextResourceNode(path: "/group", kind: vrnkGroup).
-      exportFormatsFor.len == 0
+      exportFormatsFor.len == 1
 
   test "inspection reports structured progress and supports cancellation":
     var events: seq[VextProgressEvent]
@@ -171,7 +176,7 @@ suite "vexterlib operations":
     let tree = VextResourceTree(roots: @[VextResourceNode(path: "/cycled",
       typeId: "test.cycled", kind: vrnkRaster, raster: raster)])
     let formats = tree.roots[0].exportFormatsFor
-    check formats.len == 4
+    check formats.len == 5
     check formats[0].id == "png"
     check formats[2].id == "gif-cycled"
     check exportResource(tree, VextExportRequest(outputFormat: "png",
@@ -218,6 +223,50 @@ suite "vexterlib operations":
     check tree.rasterResources[1].path == "/screens/2"
     check tree.findRasterResource("/screens/2").path == "/screens/2"
     check tree.findRasterResource("/screens").isNil
+
+  test "metadata JSON retains typed metadata and rich font features":
+    let font = VextBitmapFont(name: "rich", lineHeight: 3, baseline: 2,
+      ascent: 2, descent: 1, leading: 1, fallbackCodePoint: 65,
+      glyphs: @[VextBitmapGlyph(name: "A", sourceIndex: 7,
+        bitmap: VextGlyphBitmap(kind: vgbkTrueColour,
+          trueColourImage: VextTrueColourImage(width: 1, height: 1,
+            pixels: @[VextRgb(r: 255, g: 255, b: 255)])),
+        bearingX: -1, bearingY: 2,
+        advanceX: 3, advanceY: 4)],
+      mappings: @[VextGlyphMapping(codePoint: 65, glyphIndex: 0)],
+      kerning: @[VextFontKerning(leftCodePoint: 65, rightCodePoint: 65,
+        amountX: -1, amountY: 2)],
+      substitutions: @[VextFontSubstitution(sourceCodePoint: 97,
+        replacementCodePoint: 65)],
+      ligatures: @[VextFontLigature(components: @[65, 65], glyphIndex: 0)])
+    let child = VextResourceNode(path: "/fonts/rich", typeId: "test.font",
+      kind: vrnkFont, font: font,
+      metadata: @[stringMetadata("source", "synthetic")])
+    let tree = VextResourceTree(roots: @[VextResourceNode(path: "/fonts",
+      typeId: "test.group", kind: vrnkGroup,
+      metadata: @[integerMetadata("count", 1)], children: @[child])])
+    check tree.allResources.len == 2
+    let exported = exportResource(tree, VextExportRequest(
+      resourcePath: child.path, outputFormat: "metadata-json",
+      suggestedName: "rich"))
+    check exported.artifacts.artifacts[0].suggestedFilename == "rich.json"
+    check exported.artifacts.artifacts[0].mediaType == "application/json"
+    let document = parseJson(exported.artifacts.artifacts[0].data.asString)
+    check document["schema"].getStr == "vexter.resource-metadata.v1"
+    check document["metadata"][0]["kind"].getStr == "string"
+    check document["resource"]["glyphs"][0]["advanceY"].getInt == 4
+    check document["resource"]["glyphs"][0]["bitmapKind"].getStr ==
+      "true-colour"
+    check document["resource"]["glyphs"][0]["width"].getInt == 1
+    check document["resource"]["mappings"][0]["codePoint"].getInt == 65
+    check document["resource"]["kerning"][0]["amountY"].getInt == 2
+    check document["resource"]["substitutions"].len == 1
+    check document["resource"]["ligatures"][0]["components"].len == 2
+    check exportResource(tree, VextExportRequest(resourcePath: "/fonts",
+      outputFormat: "metadata-json", suggestedName: "fonts")).artifacts.
+      artifacts[0].suggestedFilename == "fonts.json"
+    check exportAllResources(tree, VextExportAllRequest(
+      outputFormat: "metadata-json")).exports.len == 2
 
   test "bulk export matches path segments, deduplicates, and names safely":
     let tree = VextResourceTree(roots: @[

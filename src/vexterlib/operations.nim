@@ -7,7 +7,7 @@ import ./archetypes/audio
 import ./transformations/colour_cycle
 import ./detection
 import ./handler_registry
-import ./exporters/[bmfont, gif, png, raw, wav]
+import ./exporters/[bmfont, gif, metadata_json, png, raw, wav]
 import ./resource_tree
 import ./containers/[amiga_8svx, amiga_16sv, amiga_acbm, amiga_adf, amiga_anim, amiga_diskfont, amiga_dms, amiga_hunk_executable, amiga_iff, amiga_ilbm, amiga_lha_sfx, amiga_pbm, amiga_workbench_icon, amos_bank, amos_bank_set, amos_packed_picture, amos_program,
   amos_sprite_icon_bank, bmfont, bmp, flic, fzx, gif_container, netpbm, pcx, png_container,
@@ -150,6 +150,9 @@ proc exportFormatsFor*(resource: VextResourceNode): seq[VextExportFormat] =
         isDefault: true)]
   of vrnkGroup:
     discard
+  result.add VextExportFormat(id: "metadata-json",
+    displayName: "Metadata JSON", extensions: @["json"],
+    mediaTypes: @["application/json"])
 
 proc defaultExportFormat*(resource: VextResourceNode): string =
   for format in resource.exportFormatsFor:
@@ -1281,10 +1284,13 @@ proc inspectSource*(filename: string, data: openArray[byte],
 proc exportResource*(tree: VextResourceTree,
     request: VextExportRequest): VextExportResult =
   var available: seq[VextResourceNode]
-  for item in tree.leafResources:
-    if item.kind in {vrnkRaster, vrnkText, vrnkAudio, vrnkFont} or
-        (item.kind == vrnkOpaque and item.rawDataAvailable):
-      available.add item
+  if request.outputFormat == "metadata-json":
+    available = tree.allResources
+  else:
+    for item in tree.leafResources:
+      if item.kind in {vrnkRaster, vrnkText, vrnkAudio, vrnkFont} or
+          (item.kind == vrnkOpaque and item.rawDataAvailable):
+        available.add item
   var resource: VextResourceNode
   if request.resourcePath.len > 0:
     for item in available:
@@ -1292,7 +1298,7 @@ proc exportResource*(tree: VextResourceTree,
         resource = item
         break
     if resource.isNil:
-      for item in tree.leafResources:
+      for item in tree.allResources:
         if item.path == request.resourcePath:
           raise newException(ValueError,
             "resource is not exportable: " & request.resourcePath)
@@ -1329,6 +1335,10 @@ proc exportResource*(tree: VextResourceTree,
   if not supported:
     raise newException(ValueError,
       "unsupported output format: " & result.outputFormat)
+  if result.outputFormat == "metadata-json":
+    result.artifacts = exportMetadataJson(resource,
+      request.suggestedName & ".json")
+    return
   case resource.kind
   of vrnkOpaque:
     if not resource.rawDataAvailable:
@@ -1417,8 +1427,11 @@ proc exportAllResources*(tree: VextResourceTree,
     patterns.add validateResourcePattern(pattern)
 
   var selected: seq[VextResourceNode]
-  for resource in tree.leafResources:
-    if not (resource.kind in {vrnkRaster, vrnkText, vrnkAudio, vrnkFont} or
+  let candidates = if request.outputFormat == "metadata-json":
+      tree.allResources else: tree.leafResources
+  for resource in candidates:
+    if request.outputFormat != "metadata-json" and
+        not (resource.kind in {vrnkRaster, vrnkText, vrnkAudio, vrnkFont} or
         (resource.kind == vrnkOpaque and resource.rawDataAvailable)):
       continue
     if patterns.len == 0:

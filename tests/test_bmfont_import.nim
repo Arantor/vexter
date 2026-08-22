@@ -120,6 +120,26 @@ suite "BMFont import":
     check font.glyphs[0].bitmap.kind == vgbkMonochrome
     check font.glyphs[0].bitmap.coverage == @[32'u8, 240]
 
+  test "packed outlined channels separate dark outline and white interior":
+    let descriptor = BmFontSource(encoding: bfeText, face: "outline",
+      size: 8, lineHeight: 1, baseline: 1, stretchHeight: 100,
+      antialias: 1, outline: 1, declaredPages: 1,
+      pages: @[BmFontPage(id: 0, filename: "page.png")],
+      declaredCharacters: 1, characters: @[BmFontCharacter(id: 65,
+        x: 0, y: 0, width: 6, height: 1, xAdvance: 6, channel: 4)],
+      scaleWidth: 6, scaleHeight: 1)
+    let page = VextTrueColourImage(width: 6, height: 1,
+      pixels: @[
+        VextRgb(r: 0), VextRgb(r: 64), VextRgb(r: 127),
+        VextRgb(r: 128), VextRgb(r: 192), VextRgb(r: 255)])
+    let glyph = decodeBmFont(descriptor, @[page]).glyphs[0].bitmap
+    check glyph.kind == vgbkTrueColour
+    check glyph.trueColourImage.alpha ==
+      @[0'u8, 128, 254, 255, 255, 255]
+    check glyph.trueColourImage.pixels == @[
+      VextRgb(), VextRgb(), VextRgb(), VextRgb(r: 1, g: 1, b: 1),
+      VextRgb(r: 129, g: 129, b: 129), VextRgb(r: 255, g: 255, b: 255)]
+
   test "a baseline beyond declared lineHeight normalizes the generic line box":
     let text = "info face=\"real-world\" size=32\n" &
       "common lineHeight=19 base=20 scaleW=1 scaleH=1 pages=1 packed=0\n" &

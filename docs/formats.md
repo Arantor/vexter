@@ -13,11 +13,27 @@ The currently implemented formats use this subset of the intended CLI:
 vexter inspect [--json] [--all-candidates] [--ignore-warnings]
                [--input-format FORMAT] [--pcx-channel-order rgb|bgr] INPUT
 
-vexter export [--format png|gif|apng|gif-cycled|apng-cycled|bmfont|txt|wav|bin]
+vexter export [--format png|gif|apng|gif-cycled|apng-cycled|bmfont|metadata-json|txt|wav|bin]
               [--resource PATH] [--allow-large-animation]
               [--input-format FORMAT] [-o OUTPUT] [--force]
               [--ignore-warnings] [--pcx-channel-order rgb|bgr] INPUT
 ```
+
+## Metadata JSON export
+
+Every resource, including groups and opaque identification-only resources, can
+be exported with `--format metadata-json`. The stable
+`vexter.resource-metadata.v1` document records the resource path, type and
+kind, ordered typed metadata, direct child paths, and archetype-specific
+structure. Font documents include glyph identity and metrics, mappings,
+two-axis advances and kerning, fallback behavior, substitutions, and ligatures;
+bitmap pixels remain in the natural visual export. Raster documents retain
+dimensions, animation timing and colour-cycle declarations, while audio
+documents retain buffer and sampled-instrument metrics.
+
+Metadata JSON is supplementary and never replaces a resource's natural default
+export. It is also available to `export-all`, where groups and leaves receive
+separate JSON artifacts.
 
 ## Raw binary export
 
@@ -72,6 +88,10 @@ Character rectangles are cropped into independent glyphs. BMFont `xoffset`,
 kerning become generic font values. White RGB with alpha and explicitly
 selected alpha/red/green/blue mask channels become recolourable monochrome
 coverage; genuinely coloured rectangles remain true-colour glyphs with alpha.
+For an outlined single-channel glyph, the AngelCode packed threshold separates
+the dark antialiased outline from the white antialiased interior and produces a
+true-colour glyph. This follows the behavior demonstrated by the supplied
+AngelCode sample `font.fx` shader.
 The resulting font is exposed at `/font` and naturally exports to BMFont again.
 The `info` style, smoothing, antialiasing, stretch, padding, spacing, outline,
 charset and Unicode fields are retained alongside the `common` packed flag and

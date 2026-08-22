@@ -19,8 +19,8 @@ behavior and evidence remain in [`formats.md`](formats.md).
 - **BMFont**
   - Declared non-Unicode charsets are retained but positions beyond printable
     ASCII need charset-specific mapping tables and representative controls.
-  - Packed outline/channel roles beyond explicit single-channel glyph masks
-    are retained but need documentation and controls before interpretation.
+  - Common channel-role combinations beyond explicit single-channel masks and
+    the documented packed-outline threshold need representative controls.
 
 - **LHA/LZH archives**
   - Header levels 2 and 3 are unsupported.
