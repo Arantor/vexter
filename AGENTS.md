@@ -12,7 +12,9 @@ The current development environment is subject to heat-related constraints:
   (for example, `nice -n 15` on Linux); and
 - prefer sequential test execution unless concurrency is necessary.
 
+Keep compiler warnings enabled for builds and test compilations; do not use
+`--warnings:off`, because warnings are part of the verification result.
+
 Format implementation must follow the source and research policy in
 `PLAN.md`: do not search the internet for Vexter format research or
 implementation material.
-

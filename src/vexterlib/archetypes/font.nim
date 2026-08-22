@@ -1,6 +1,6 @@
 ## Generic bitmap-font values, independent of any source or export format.
 
-import std/[strutils, unicode]
+import std/unicode
 import ./raster
 
 type
