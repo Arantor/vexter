@@ -28,7 +28,8 @@ APNG animations while static and original-animation exports remain available.
 Containers such as ADF, ZIP, LHA, PowerPacker, and XPK are inspected recursively
 when their contents use another supported format. See
 [format documentation](docs/formats.md) for exact coverage and current
-limitations.
+limitations, or the [outstanding-format index](docs/outstanding.md) for a
+concise format-by-format list of known gaps.
 
 ## Building
 

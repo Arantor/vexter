@@ -4,7 +4,8 @@ This document describes the repository as it exists now. It is the starting
 point for maintenance and implementation work. [`PLAN.md`](PLAN.md) describes
 the intended trajectory and must not be read as a list of implemented
 features. [`docs/formats.md`](docs/formats.md) records current and historical
-format coverage in greater detail.
+format coverage in greater detail. [`docs/outstanding.md`](docs/outstanding.md)
+is the single concise index of known gaps in formats already recognized.
 
 ## Current product surface
 
@@ -776,6 +777,9 @@ names there when adding suites, or direct their output into `/tmp`.
 
 - Preserve the clean-room source policy in `PLAN.md`. Do not browse for
   Vexter research or format implementation details.
+- Keep `docs/outstanding.md` synchronized when a known format gap is added,
+  resolved, or deliberately declared out of scope; do not use it as a roadmap
+  for formats Vexter does not yet recognize.
 - Preserve stable type identifiers and canonical resource paths unless a
   deliberate compatibility change is agreed.
 - Prefer generic resource/archetype operations over format-specific branches
