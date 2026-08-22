@@ -127,6 +127,16 @@ suite "generic bitmap fonts and BMFont export":
     check lowercase == "the quick brown fox jumps over the lazy dog"
     check lowercase.find({'A'..'Z'}) < 0
 
+    var uppercaseWithLowercaseOutlier = caseFont(ord('A'), ord('Z'))
+    uppercaseWithLowercaseOutlier.mappings.add VextGlyphMapping(
+      codePoint: ord('x'), glyphIndex: 0)
+    let outlierPreview = uppercaseWithLowercaseOutlier.defaultPreviewText
+    check outlierPreview == "THE QUICK BROWN FOX JUMPS OVER THE LAZY DOG"
+    check 'x' notin outlierPreview
+
+    let halfUppercase = caseFont(ord('A'), ord('M')).defaultPreviewText
+    check halfUppercase.find({'a'..'z'}) < 0
+
   test "font resources naturally export compound BMFont artifacts":
     let tree = VextResourceTree(roots: @[VextResourceNode(path: "/font",
       typeId: "test.font", kind: vrnkFont, font: sampleFont())])

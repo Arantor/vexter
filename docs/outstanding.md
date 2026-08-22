@@ -17,6 +17,11 @@ behavior and evidence remain in [`formats.md`](formats.md).
     Amiga or font-specific character mapping is supplied.
   - Tagged font DPI values and reverse-path presentation need dedicated tests.
 
+- **BMFont**
+  - XML and binary descriptors are identified and retained but not decoded.
+  - Non-Unicode charset interpretation and packed outline/channel roles beyond
+    explicit single-channel glyph masks need documentation and controls.
+
 - **LHA/LZH archives**
   - Header levels 2 and 3 are unsupported.
   - Compression methods other than `-lh0-` and `-lh5-` are unsupported,

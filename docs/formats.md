@@ -45,6 +45,44 @@ ligatures remain in the generic archetype even though BMFont cannot serialize
 them. The GUI shapes substitutions and longest-match ligatures, wraps its sample
 to the preview width, and displays transparent text over a checker pattern.
 
+## BMFont import
+
+Container type identifier: `bitmap-font.bmfont`
+
+Resource type identifier: `bitmap-font.bmfont-font`
+
+AngelCode BMFont text descriptors are parsed as multi-file containers. Vexter
+validates the `info`, `common`, `page`, `chars`, `char`, `kernings`, and
+`kerning` records; page IDs, Unicode scalar IDs, atlas bounds and numeric
+fields must agree. Character and kerning counts are retained and discrepancies
+produce structured warnings because real generators can emit stale counts.
+Quoted page names go through the
+same safe companion resolver as Amiga diskfont indexes, and every companion
+must be a static PNG matching the common atlas dimensions. Multiple pages are
+supported.
+
+Character rectangles are cropped into independent glyphs. BMFont `xoffset`,
+`yoffset`, `xadvance`, baseline, line height, Unicode mappings, and horizontal
+kerning become generic font values. White RGB with alpha and explicitly
+selected alpha/red/green/blue mask channels become recolourable monochrome
+coverage; genuinely coloured rectangles remain true-colour glyphs with alpha.
+The resulting font is exposed at `/font` and naturally exports to BMFont again.
+BMFont baselines beyond the declared line height are accepted; the original
+values remain metadata and the generic line box expands to contain the baseline.
+Non-semantic generator-specific `letter=` annotations are ignored, including
+unescaped quote and backslash glyph annotations.
+
+XML and `BMF` binary descriptors are distinguished with explicit metadata and
+retained byte-identically as opaque resources; they are not interpreted as the
+text variant. Implementation is based on the existing Vexter BMFont exporter
+contract and synthetic round-trip controls, including multi-page and coloured
+fonts. No third-party fixtures are redistributed.
+
+The four temporarily supplied `bmfonts/` controls exercise these compatibility
+rules: all import with their PNG pages; `lit-small.fnt` reports its declared
+57-versus-47 character discrepancy. Their origin and redistribution terms were
+not supplied, so they are not committed as routine fixtures.
+
 ## FZX bitmap fonts
 
 Container type identifier: `zx-spectrum.fzx-font`

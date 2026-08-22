@@ -227,15 +227,21 @@ proc defaultPreviewText*(font: VextBitmapFont): string =
           if mapping.codePoint == substitution.replacementCodePoint:
             return true
     false
-  var hasUpper, hasLower: bool
+  var upperCount, lowerCount: int
   for codePoint in ord('A') .. ord('Z'):
-    hasUpper = hasUpper or hasPreviewGlyph(codePoint)
+    if hasPreviewGlyph(codePoint): inc upperCount
   for codePoint in ord('a') .. ord('z'):
-    hasLower = hasLower or hasPreviewGlyph(codePoint)
+    if hasPreviewGlyph(codePoint): inc lowerCount
+  const SubstantialAlphabet = 13
+  let hasUpper = upperCount >= SubstantialAlphabet
+  let hasLower = lowerCount >= SubstantialAlphabet
   let preferred =
     if hasUpper and not hasLower: UpperSample
     elif hasLower and not hasUpper: LowerSample
     elif hasUpper and hasLower: MixedSample
+    elif upperCount > lowerCount: UpperSample
+    elif lowerCount > upperCount: LowerSample
+    elif upperCount > 0: MixedSample
     else: NeutralSample
   for rune in preferred.runes:
     if hasPreviewGlyph(int(rune)):

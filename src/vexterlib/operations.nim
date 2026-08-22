@@ -10,13 +10,13 @@ import ./handler_registry
 import ./exporters/[bmfont, gif, png, raw, wav]
 import ./resource_tree
 import ./containers/[amiga_8svx, amiga_16sv, amiga_acbm, amiga_adf, amiga_anim, amiga_diskfont, amiga_dms, amiga_hunk_executable, amiga_iff, amiga_ilbm, amiga_lha_sfx, amiga_pbm, amiga_workbench_icon, amos_bank, amos_bank_set, amos_packed_picture, amos_program,
-  amos_sprite_icon_bank, bmp, flic, fzx, gif_container, netpbm, pcx, png_container,
+  amos_sprite_icon_bank, bmfont, bmp, flic, fzx, gif_container, netpbm, pcx, png_container,
   qoi, tga, wav, windows_icon, zip_archive, lha_archive, zx_spectrum_snapshot, zx_spectrum_tap]
 import ./containers/xpk_shri
 import ./containers/powerpacker
 import ./metadata
 import ./resources/[amiga_anim_image, amiga_diskfont_font, amiga_ilbm_image, amiga_pbm_image, amiga_workbench_icon_image, amos_listing, amos_packed_picture_image, amos_planar_image, bmp_image, flic_animation, gif_image, netpbm_image, png_image, zx_spectrum_basic,
-  fzx_font, pcx_image, qoi_image, tga_image, windows_icon_image, zx_spectrum_screen]
+  bmfont_font, fzx_font, pcx_image, qoi_image, tga_image, windows_icon_image, zx_spectrum_screen]
 
 type
   VextOperationCancelledError* = object of CatchableError
@@ -496,6 +496,24 @@ proc safeCompanionPath(path: string): bool =
     if segment.len == 0 or segment in [".", ".."]: return false
   true
 
+proc trueColourPage(raster: VextRaster): VextTrueColourImage =
+  case raster.kind
+  of vrkTrueColourImage:
+    result = raster.trueColourImage
+  of vrkIndexedImage:
+    result = VextTrueColourImage(width: raster.image.width,
+      height: raster.image.height,
+      pixels: newSeq[VextRgb](raster.image.width * raster.image.height),
+      alpha: newSeq[uint8](raster.image.width * raster.image.height))
+    for y in 0 ..< raster.image.height:
+      for x in 0 ..< raster.image.width:
+        let offset = y * raster.image.width + x
+        let pixel = raster.image.rgbaAt(x, y)
+        result.pixels[offset] = VextRgb(r: pixel.r, g: pixel.g, b: pixel.b)
+        result.alpha[offset] = pixel.a
+  else:
+    raise newException(ValueError, "BMFont atlas must be a static PNG image")
+
 proc inspectSourceDepth(filename: string, data: openArray[byte],
     inputFormat: string, depth: int, ignoreWarnings: bool,
     pcxChannelOrder: PcxChannelOrder,
@@ -697,6 +715,57 @@ proc inspectSourceDepth(filename: string, data: openArray[byte],
         integerMetadata("glyph.maximum-stored-rows", maximumRows),
         integerMetadata("unicode-mappings", font.mappings.len),
         stringMetadata("mapping", "printable ASCII positions assumed; custom positions retained as glyph source indices")])
+  of vhkBmFont:
+    let source = parsedValue[BmFontSource](selectedParsed, vhkBmFont)
+    if source.encoding != bfeText:
+      result.resources.roots.add VextResourceNode(path: "/font/descriptor",
+        typeId: BmFontTypeId, kind: vrnkOpaque, data: source.rawData,
+        rawDataAvailable: true, metadata: @[stringMetadata("encoding",
+          if source.encoding == bfeXml: "xml" else: "binary")])
+    else:
+      if companionResolver == nil:
+        raise newException(ValueError,
+          "BMFont text descriptor requires an atlas companion resolver")
+      var pages = newSeq[VextTrueColourImage](source.declaredPages)
+      for page in source.pages:
+        if not safeCompanionPath(page.filename):
+          raise newException(ValueError,
+            "unsafe BMFont atlas path: " & page.filename)
+        let pageData = companionResolver(page.filename.replace('\\', '/'))
+        if pageData.len == 0:
+          raise newException(ValueError,
+            "BMFont atlas page was not found: " & page.filename)
+        var png: PngImageSource
+        try:
+          png = parsePng(pageData)
+        except ValueError as error:
+          raise newException(ValueError,
+            "invalid BMFont atlas page " & page.filename & ": " & error.msg)
+        pages[page.id] = decodePngOrApng(png).trueColourPage
+      let font = decodeBmFont(source, pages)
+      if source.declaredCharacters != source.characters.len:
+        result.warnings.add VextInspectionWarning(path: BmFontResourcePath,
+          format: BmFontTypeId, message: "descriptor declares " &
+            $source.declaredCharacters & " characters but contains " &
+            $source.characters.len & " records")
+      if source.declaredKernings != source.kernings.len:
+        result.warnings.add VextInspectionWarning(path: BmFontResourcePath,
+          format: BmFontTypeId, message: "descriptor declares " &
+            $source.declaredKernings & " kernings but contains " &
+            $source.kernings.len & " records")
+      result.resources.roots.add VextResourceNode(path: BmFontResourcePath,
+        typeId: BmFontResourceTypeId, kind: vrnkFont, font: font,
+        metadata: @[
+          stringMetadata("encoding", "text"),
+          integerMetadata("pages", source.pages.len),
+          integerMetadata("characters", source.characters.len),
+          integerMetadata("characters.declared", source.declaredCharacters),
+          integerMetadata("kernings", source.kernings.len),
+          integerMetadata("kernings.declared", source.declaredKernings),
+          integerMetadata("font.declared-line-height", source.lineHeight),
+          integerMetadata("font.declared-baseline", source.baseline),
+          integerMetadata("atlas.width", source.scaleWidth),
+          integerMetadata("atlas.height", source.scaleHeight)])
   of vhkPng:
     let source = parsedValue[PngImageSource](selectedParsed, vhkPng)
     var metadata = @[

@@ -310,6 +310,15 @@ redistributed as a Vexter test fixture.
 35df2062557d81ebe497f85fcc50ae988f1c911005dcb796b5300acdf18a6c6c  Graphics Library and Text - AmigaOS Documentation Wiki.html
 ```
 
+## BMFont compatibility collection
+
+The developer supplied `bmfonts/` containing four BMFont text descriptors and
+their PNG atlas pages (`lit-large`, `lit-small`, `unlit-large`, and
+`unlit-small`). They are used temporarily to validate baseline/line-height
+tolerance, optional glyph annotations, stale declared counts, companion-page
+resolution, and GUI loading. Their source, copyright, and redistribution terms
+have not been supplied, so they are not copied into the routine test fixtures.
+
 ## AMOS sprite-bank fixture
 
 `tests/fixtures/amos.sprite-bank/DRAGON.Abk` is part of the “Sprites 600” demo

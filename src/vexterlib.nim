@@ -36,6 +36,7 @@ import vexterlib/containers/netpbm
 import vexterlib/containers/tga
 import vexterlib/containers/flic
 import vexterlib/containers/fzx
+import vexterlib/containers/bmfont as bmfont_container
 import vexterlib/containers/amos_bank_set
 import vexterlib/containers/amos_program
 import vexterlib/containers/amos_sprite_icon_bank
@@ -62,6 +63,7 @@ import vexterlib/resources/netpbm_image
 import vexterlib/resources/tga_image
 import vexterlib/resources/flic_animation
 import vexterlib/resources/fzx_font
+import vexterlib/resources/bmfont_font
 import vexterlib/detection
 import vexterlib/handler_registry
 import vexterlib/metadata
@@ -108,6 +110,7 @@ export netpbm
 export tga
 export flic
 export fzx
+export bmfont_container
 export amiga_anim_image
 export amiga_workbench_icon_image
 export amiga_diskfont_font
@@ -130,6 +133,7 @@ export netpbm_image
 export tga_image
 export flic_animation
 export fzx_font
+export bmfont_font
 export zx_spectrum_snapshot
 export zx_spectrum_tap
 export detection

@@ -3,7 +3,7 @@
 import std/[os, strutils]
 import ./handler_registry
 import ./containers/[amiga_8svx, amiga_16sv, amiga_acbm, amiga_adf, amiga_anim, amiga_diskfont, amiga_dms, amiga_hunk_executable, amiga_iff, amiga_ilbm, amiga_lha_sfx, amiga_pbm, amiga_workbench_icon, amos_bank, amos_bank_set, amos_program,
-  amos_sprite_icon_bank, bmp, flic, fzx, gif_container, netpbm, pcx, png_container, qoi, tga,
+  amos_sprite_icon_bank, bmfont, bmp, flic, fzx, gif_container, netpbm, pcx, png_container, qoi, tga,
   wav, windows_icon, zip_archive, lha_archive, zx_spectrum_screen_dump, zx_spectrum_snapshot, zx_spectrum_tap]
 import ./containers/xpk_shri
 import ./containers/powerpacker
@@ -178,6 +178,27 @@ proc detectFormats*(filename: string, data: openArray[byte]):
       evidence.add VextDetectionEvidence(description: "file extension is .fzx")
     result.add VextDetectionCandidate(typeId: FzxTypeId,
       confidence: if extension: vdcProbable else: vdcPossible,
+      evidence: evidence)
+
+  if isBmFont(data):
+    let font = parseBmFont(data)
+    let encoding = case font.encoding
+      of bfeText: "text"
+      of bfeXml: "XML"
+      of bfeBinary: "binary"
+    var evidence = @[VextDetectionEvidence(description:
+      "file is an AngelCode BMFont " & encoding & " descriptor")]
+    let countsMatch = font.encoding != bfeText or
+      (font.declaredCharacters == font.characters.len and
+       font.declaredKernings == font.kernings.len)
+    if not countsMatch:
+      evidence.add VextDetectionEvidence(description:
+        "declared character or kerning count differs from parsed records")
+    if filename.splitFile.ext.toLowerAscii == ".fnt":
+      evidence.add VextDetectionEvidence(description: "file extension is .fnt")
+    result.add VextDetectionCandidate(typeId: BmFontTypeId,
+      confidence: if font.encoding == bfeText and countsMatch: vdcCertain
+        else: vdcProbable,
       evidence: evidence)
 
   if isTga(data):

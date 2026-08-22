@@ -8,7 +8,7 @@ import ./containers/[amiga_8svx, amiga_16sv, amiga_acbm, amiga_adf, amiga_anim,
   amiga_diskfont, amiga_dms, amiga_hunk_executable, amiga_iff, amiga_ilbm, amiga_lha_sfx,
   amiga_workbench_icon, amos_bank,
   amos_bank_set, amos_program, amos_sprite_icon_bank, bmp, flic, gif_container,
-  fzx, lha_archive, netpbm, pcx, png_container, powerpacker, qoi, tga, wav, windows_icon, zip_archive,
+  bmfont, fzx, lha_archive, netpbm, pcx, png_container, powerpacker, qoi, tga, wav, windows_icon, zip_archive,
   zx_spectrum_screen_dump, zx_spectrum_snapshot, zx_spectrum_tap, xpk_shri]
 import ./containers/amiga_pbm
 type
@@ -38,6 +38,7 @@ type
     vhkGif
     vhkFlic
     vhkFzx
+    vhkBmFont
     vhkPcx
     vhkTga
     vhkWav
@@ -100,6 +101,7 @@ const FormatHandlers* = [
   VextFormatHandler(typeId: GifTypeId, kind: vhkGif),
   VextFormatHandler(typeId: FlicTypeId, kind: vhkFlic),
   VextFormatHandler(typeId: FzxTypeId, kind: vhkFzx),
+  VextFormatHandler(typeId: BmFontTypeId, kind: vhkBmFont),
   VextFormatHandler(typeId: PcxTypeId, kind: vhkPcx),
   VextFormatHandler(typeId: TgaTypeId, kind: vhkTga),
   VextFormatHandler(typeId: WavTypeId, kind: vhkWav),
@@ -171,6 +173,7 @@ proc parse*(handler: VextFormatHandler,
   of vhkGif: result = parsed(parseGif(data))
   of vhkFlic: result = parsed(parseFlic(data))
   of vhkFzx: result = parsed(parseFzx(data))
+  of vhkBmFont: result = parsed(parseBmFont(data))
   of vhkPcx: result = parsed(parsePcx(data))
   of vhkTga: result = parsed(parseTga(data))
   of vhkWav: result = parsed(parseWav(data))

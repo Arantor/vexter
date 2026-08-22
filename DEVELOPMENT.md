@@ -24,7 +24,7 @@ client, and a dependency-free native Windows GUI. It supports:
   wrappers, ZIP archives, level-0/1 LHA/LZH archives using LH0 or LH5,
   minimally structured Amiga Hunk executables and LHA self-extractors,
   ZX Spectrum raw screen dumps, SNA snapshots,
-  TAP containers, tokenised BASIC resources, FZX and Amiga bitmap diskfonts
+  TAP containers, tokenised BASIC resources, BMFont text descriptors, FZX and Amiga bitmap diskfonts
   (including ColorFonts), standalone AMOS banks, AMOS bank
   sets, and AMOS programs;
 - a resource tree containing decoded raster, bitmap-font, audio, and text resources,
@@ -225,6 +225,9 @@ Matching case-insensitive extensions add supporting evidence.
 - `fzx.nim` validates signatureless FZX v1.0 metrics, relative character-table
   offsets, packed universal kern values, shifts and widths, terminal extent,
   row alignment, definition order, and the specified size limits;
+- `bmfont.nim` distinguishes text, XML, and binary BMFont descriptors and
+  validates the text variant's records, declared counts, page table, Unicode
+  IDs, metrics, and atlas rectangles;
 - `amiga_diskfont.nim` validates plain/tagged bitmap `.font` indexes and
   recognizes loadable size descriptors by DFH_ID, validates TextFont glyph
   tables and strike bounds, and retains ColorTextFont planes, plane-selection
@@ -339,6 +342,11 @@ advance, and tracking contributes to advance. Because FZX contains byte
 positions rather than a Unicode character map, printable positions 32–127 use
 the explicit project default while every position remains preserved as a glyph
 source index.
+
+`src/vexterlib/resources/bmfont_font.nim` resolves static PNG atlas pages and
+crops BMFont rectangles into generic glyphs, preserving offsets, advances,
+baseline, mappings, and kerning. White-alpha and selected mask channels become
+monochrome coverage while coloured glyphs retain RGB and alpha.
 
 `src/vexterlib/resources/amiga_diskfont_font.nim` extracts potentially
 unaligned strike glyphs, preserves baseline, proportional spacing, and signed
@@ -729,6 +737,9 @@ The routine suites are:
   companion resolution, TextFont and ColorTextFont descriptors, proportional
   metrics, default glyphs, planes and palettes, detection, inspection, and
   BMFont export;
+- `tests/test_bmfont_import.nim`: text-descriptor round trips, coloured and
+  monochrome glyph recovery, multi-page resolution, XML/binary identification,
+  unsafe paths, counts, page references, and rectangle validation;
 - `tests/test_xpk_shri.nim`: XPK framing, raw chunks, checksum failures,
   recursive inspection, and byte-identical SHRI reconstruction of Fishdemo;
 - `tests/test_powerpacker.nim`: synthetic PP20 reconstruction, malformed
