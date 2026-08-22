@@ -301,10 +301,17 @@ even-width, unmasked images, but committed fixtures remain pending and the raw,
 odd-width, and transparency assumptions are still synthetic-only.
 
 `src/vexterlib/resources/amiga_anim_image.nim` reconstructs retained planar
-buffers with ANIM delta methods 5, 7, and 8, including interleave references
+buffers with ANIM delta methods 1 through 5, 7, and 8, including interleave references
 and method-5 XOR used by Deluxe Paint animation brushes. It then renders each
-frame through the same indexed/EHB/HAM ILBM path as still images. Methods 1–4,
-6, and 74 are identified but report explicit unsupported-method errors.
+frame through the same indexed/EHB/HAM ILBM path as still images. Method 1
+supports plane-masked rectangular BODY XOR, while method 4 supports all six
+documented option bits. Methods 6 and 74 are identified but report explicit
+unsupported-method errors.
+Method 3's negative-run cursor behavior is verified across every shared frame
+of two VideoScape originals and their independently resaved Deluxe Paint
+method-5 controls; the controls' extra bottom-row padding is not delta-addressed.
+Method 7 consumes complete encoded short or long units and clips a padded final
+unit when the ILBM row width is not longword-aligned.
 
 `src/vexterlib/resources/amos_listing.nim` reconstructs diagnostic AMOS source
 text from line records and complex tokens. `amos_listing_tokens.nim` contains
@@ -643,7 +650,7 @@ The routine suites are:
 - `tests/test_amiga_pbm.nim`: provisional packed eight-bit rows, word
   alignment, raw and ByteRun1 storage, palettes, transparent indices, and
   explicit header/masking failures;
-- `tests/test_amiga_anim.nim`: nested ANIM structure, methods 5/7/8, animation
+- `tests/test_amiga_anim.nim`: nested ANIM structure, methods 1–5/7/8, animation
   brush XOR behavior, timing, GIF routing, APNG output, the authentic TheTour
   method-5 control, and failure modes;
 - `tests/test_zx_spectrum_screen.nim`: screen decoding, palette/pixel

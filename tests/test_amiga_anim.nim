@@ -43,9 +43,10 @@ proc form(formType: string, chunks: openArray[seq[byte]]): seq[byte] =
   result.addLong(payload.len)
   result.add payload
 
-proc bmhd(planes = 1): seq[byte] =
-  @[0'u8, 16, 0, 2, 0, 0, 0, 0, byte(planes), 0, 0, 0,
-    0, 0, 1, 1, 0, 16, 0, 2]
+proc bmhd(planes = 1, width = 16): seq[byte] =
+  @[byte(width shr 8), byte(width), 0, 2, 0, 0, 0, 0,
+    byte(planes), 0, 0, 0, 0, 0, 1, 1,
+    byte(width shr 8), byte(width), 0, 2]
 
 proc anhd(operation: int, bits = 0, interleave = 1): seq[byte] =
   result = newSeq[byte](40)
@@ -72,32 +73,86 @@ proc pointerTable(first: int, ninth = 0): seq[byte] =
   result[34] = byte(ninth shr 8)
   result[35] = byte(ninth)
 
-proc initialForm(planes = 1, camg = 0): seq[byte] =
+proc initialForm(planes = 1, camg = 0, width = 16): seq[byte] =
   var cmap = @[0'u8, 0, 0, 0xff, 0xff, 0xff]
   if planes == 6:
     cmap = newSeq[byte](16 * 3)
   var chunks = @[
-    chunk("BMHD", bmhd(planes)),
+    chunk("BMHD", bmhd(planes, width)),
     chunk("CMAP", cmap)]
   if camg != 0:
     chunks.add chunk("CAMG", @[
       byte(camg shr 24), byte(camg shr 16), byte(camg shr 8), byte(camg)])
-  chunks.add chunk("BODY", newSeq[byte](planes * 2 * 2))
+  chunks.add chunk("BODY", newSeq[byte](planes * ((width + 15) div 16) * 4))
   form("ILBM", chunks)
 
 proc animWithDelta(operation: int, delta: seq[byte], bits = 0,
-    planes = 1, camg = 0): seq[byte] =
-  form("ANIM", [initialForm(planes, camg),
+    planes = 1, camg = 0, width = 16): seq[byte] =
+  form("ANIM", [initialForm(planes, camg, width),
     form("ILBM", [chunk("ANHD", anhd(operation, bits)),
       chunk("DLTA", delta)])])
+
+proc animWithXorBody(): seq[byte] =
+  var header = anhd(1)
+  header[1] = 1 # plane zero
+  header[2] = 0
+  header[3] = 1
+  header[4] = 0
+  header[5] = 1
+  header[6] = 0
+  header[7] = 1 # x = 1
+  header[8] = 0
+  header[9] = 1 # y = 1
+  form("ANIM", [initialForm(),
+    form("ILBM", [chunk("ANHD", header),
+      chunk("BODY", @[0x80'u8, 0])])])
 
 proc method5Delta(): seq[byte] =
   result = pointerTable(64)
   result.add @[1'u8, 0x81, 0x80, 0] # literal row zero, then empty column
 
+proc method2Delta(): seq[byte] =
+  result = newSeq[byte](32)
+  result[3] = 32
+  result.add @[0'u8, 0, 0x80, 0, 0, 0, 0xff, 0xff]
+
+proc method3Delta(): seq[byte] =
+  result = newSeq[byte](32)
+  result[3] = 32
+  result.add @[0'u8, 0, 0x80, 0, 0xff, 0xff]
+
+proc method3RunDelta(): seq[byte] =
+  result = newSeq[byte](32)
+  result[3] = 32
+  # Establish word zero, then -2 starts a run one word beyond that cursor.
+  result.add @[0'u8, 0, 0x80, 0,
+    0xff, 0xfe, 0, 1, 0x40, 0, 0xff, 0xff]
+
+proc method4ShortDelta(repeatVertical = false): seq[byte] =
+  result = pointerTable(32, 33) # method-4 pointers count 16-bit words
+  result.add @[0x80'u8, 0]
+  result.add @[0'u8, 0,
+    byte(if repeatVertical: 0xff else: 0),
+    byte(if repeatVertical: 0xfe else: 1),
+    0xff, 0xff]
+
+proc method4SharedDelta(): seq[byte] =
+  result = method4ShortDelta(true)
+  result[39] = 33 # repeat the info pointer for unchanged plane one
+
+proc method4LongXorDelta(): seq[byte] =
+  result = pointerTable(32, 34)
+  result.add @[0x80'u8, 0, 0, 0]
+  result.add @[0'u8, 0, 0, 0, 0, 0, 0, 1,
+    0xff, 0xff, 0xff, 0xff]
+
 proc method7Delta(): seq[byte] =
   result = pointerTable(64, 66)
   result.add @[1'u8, 0x81, 0x80, 0x00]
+
+proc method7PaddedLongDelta(): seq[byte] =
+  result = pointerTable(64, 66)
+  result.add @[1'u8, 0x81, 0x80, 0x00, 0xaa, 0x55]
 
 proc method8Delta(): seq[byte] =
   result = pointerTable(64)
@@ -134,8 +189,9 @@ suite "Amiga IFF ANIM":
     check raster.animation.frames[33].image.pixels ==
       raster.animation.frames[1].image.pixels
 
-  test "methods 5, 7, and 8 reconstruct indexed animation frames":
-    let cases = [(5, method5Delta()), (7, method7Delta()),
+  test "methods 1 through 5, 7, and 8 reconstruct indexed animation frames":
+    let cases = [(2, method2Delta()), (3, method3Delta()),
+      (5, method5Delta()), (7, method7Delta()),
       (8, method8Delta())]
     for item in cases:
       let
@@ -157,11 +213,41 @@ suite "Amiga IFF ANIM":
       check exported.artifacts.artifacts[0].data[0 .. 5] ==
         @[byte('G'), byte('I'), byte('F'), byte('8'), byte('9'), byte('a')]
 
+    let runImage = decodeAmigaAnim(parseAmigaAnim(animWithDelta(
+      3, method3RunDelta()))).animation.frames[1].image
+    check runImage.pixelAt(0, 0) == 1
+    check runImage.pixelAt(1, 1) == 1
+
+    let xorImage = decodeAmigaAnim(parseAmigaAnim(
+      animWithXorBody())).animation.frames[1].image
+    check xorImage.pixelAt(1, 1) == 1
+
+    let method4Image = decodeAmigaAnim(parseAmigaAnim(animWithDelta(
+      4, method4ShortDelta()))).animation.frames[1].image
+    check method4Image.pixelAt(0, 0) == 1
+
+  test "method 4 supports RLC, vertical, long-data, long-info, and XOR options":
+    let repeated = decodeAmigaAnim(parseAmigaAnim(animWithDelta(
+      4, method4SharedDelta(), bits = 0x1c,
+      planes = 2))).animation.frames[1].image
+    check repeated.pixelAt(0, 0) == 1
+    check repeated.pixelAt(0, 1) == 1
+
+    let longXor = decodeAmigaAnim(parseAmigaAnim(animWithDelta(
+      4, method4LongXorDelta(), bits = 0x23, width = 32))).animation.frames[1].image
+    check longXor.pixelAt(0, 0) == 1
+
   test "method 5 supports animation-brush XOR semantics":
     let raster = decodeAmigaAnim(parseAmigaAnim(
       animWithDelta(5, method5Delta(), bits = 4))).animation
     check raster.frames[0].image.pixelAt(0, 0) == 0
     check raster.frames[1].image.pixelAt(0, 0) == 1
+
+  test "method 7 clips a padded final longword to the ILBM row":
+    let image = decodeAmigaAnim(parseAmigaAnim(animWithDelta(
+      7, method7PaddedLongDelta(), bits = 1))).animation.frames[1].image
+    check image.pixelAt(0, 0) == 1
+    check image.pixelAt(1, 0) == 0
 
   test "true-colour animations export as APNG":
     let animation = VextTrueColourAnimation(
@@ -207,3 +293,6 @@ suite "Amiga IFF ANIM":
     badDelta[3] = 63
     expect ValueError:
       discard inspectSource("bad.anim", animWithDelta(5, badDelta))
+    expect ValueError:
+      discard decodeAmigaAnim(parseAmigaAnim(animWithDelta(
+        4, method4ShortDelta(), bits = 0x40)))

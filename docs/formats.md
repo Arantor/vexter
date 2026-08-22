@@ -327,6 +327,12 @@ and redistribution cautions are recorded in [`THIRD_PARTY.md`](../THIRD_PARTY.md
 
 Type identifier: `amiga.anim`
 
+The operation 1–5 structures are documented by the locally supplied Aminet
+`IFFSpecs.lzh` archive, SHA-256
+`de8d37539503f3ee8599ec2e6121866d9e8186918ecaed96543626b56e0c2f85`.
+Its `DOCUMENTS/Code.doc` declares the example source public domain, and its
+ANIM specification is the 4 May 1988 SPARTA/Aegis revision.
+
 An animation is `FORM ANIM` containing nested `FORM ILBM` records. The first
 record is a complete ILBM and establishes dimensions, bitplane depth, palette,
 and CAMG display mode. Later records contain a 40-byte `ANHD` animation header
@@ -340,15 +346,30 @@ back to the initial frame. Relative times are Amiga jiffies at 1/60 second.
 
 Implemented delta operations are:
 
+- method 1, a plane-masked rectangular ILBM BODY XOR applied at its ANHD
+  coordinates;
+- methods 2 and 3, longword and word horizontal skip/single/run changes,
+  including the historical negative-run cursor convention used by VideoScape;
+- method 4, generalized short/long assignment or XOR deltas with separate or
+  shared instruction lists, optional RLE, horizontal or vertical traversal,
+  and short or long instruction fields;
 - method 5, byte-vertical skip/literal/repeat encoding;
-- method 7, byte opcodes with separate short/long data lists; and
+- method 7, byte opcodes with separate short/long data lists, clipping the
+  padded tail of a final longword when the ILBM row is only word-aligned; and
 - method 8, embedded short/long vertical operations, including a final short
   column when a row is not longword-aligned.
 
-Method 5 also honors the XOR convention and interleave-one layout documented
-for Deluxe Paint animation brushes. This provides implementation support for
-brushes, pending authentic sample verification. Methods 1–4, stereo method 6,
-and reserved method 74 remain structurally identifiable but explicitly
+Method 1 decodes its BODY with the initial ILBM compression mode and XORs only
+the rectangle and planes selected by ANHD. Methods 2 and 3 use eight plane
+pointers followed by signed 16-bit controls.
+Non-negative controls skip that many units and replace one unit. For negative
+controls other than minus one, the run starts `abs(control) - 1` units beyond
+the previous destination; a following count introduces that many contiguous
+replacement units and leaves the cursor on the last one. Minus one terminates
+the plane. Method 5 also honors the XOR convention and interleave-one layout
+documented for Deluxe Paint animation brushes. This provides implementation support for
+brushes, pending authentic sample verification. Stereo method 6 and reserved
+method 74 remain structurally identifiable but explicitly
 unsupported; their behavior is not inferred beyond the supplied specification.
 Delta-compressed first frames are likewise deferred.
 
@@ -364,12 +385,30 @@ indexed animation that GIF cannot represent naturally defaults to APNG, while
 GIF remains preferred whenever both formats are viable. GIF export of
 true-colour animation remains unavailable without quantization.
 
-Synthetic tests cover methods 5, 7, and 8, brush-style XOR, interleave
+Synthetic tests cover methods 1 through 5, 7, and 8, brush-style XOR, interleave
 behavior, and APNG structure. The authentic `TheTour.anim` method-5 fixture
 contains 34 reconstructed frames; after normalizing its GIF control's legacy
 `$x0` palette components to `$xx`, every expanded RGB pixel matches. Its last
 two frames reproduce frames zero and one for conventional continuous looping.
 An authentic animation-brush fixture is still needed for verification.
+
+The directly supplied `StarWars1.anim` and `StarWars2.anim` VideoScape
+method-3 files were independently loaded and resaved by the supplier in Deluxe
+Paint as `StarWars1-op5.anim` and `StarWars2-op5.anim`. Every shared visible
+frame of each original reconstructs identically to its method-5 control. The
+controls store 352×256 frames while the originals store 352×220 frames; the
+additional 36 rows are padding and are not addressed by either method-3
+stream. Their respective SHA-256 values are
+`e92a4713ea2c5b193c28632ac19c952b24c8bef287c079126a69f55b508e7598`,
+`f80fe41d33d36de34dca7bcf8becefff555d0c7f68c85c0813c2e9529f9a9d1f`,
+`2539fa8cf006f88bdcdf20827f033cef4dfd898993300fd83742dc24926cfc0f`,
+and `22c1b01c20b1c978a4c1a668c6b3d561b5d58952f15cdb30202a9988b1612afa`.
+
+The directly supplied `babewalk.anim7` sample establishes padded final
+longwords in method 7. It is a 200×150 HAM8 animation whose 26-byte ILBM rows
+are encoded as seven 32-bit delta columns; only the leading two bytes of the
+seventh column belong to the bitmap. It contains 26 decoded frames and has
+SHA-256 `9d29baa58a27c8e13b97f1330459043736f56ea476a1e850730e772074c25e20`.
 
 ## ZX Spectrum raw screen
 
