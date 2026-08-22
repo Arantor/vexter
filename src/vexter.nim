@@ -33,11 +33,30 @@ proc usage(): string =
                     [--allow-large-animation]
                     [--pcx-channel-order rgb|bgr] INPUT"""
 
-proc readBytes(path: string): seq[byte] =
+proc readBytes(path: string): seq[byte] {.gcsafe.} =
   let contents = readFile(path)
   result = newSeq[byte](contents.len)
   for index, value in contents:
     result[index] = byte(value)
+
+proc companionResolverFor(path: string): VextCompanionResolver =
+  let directory = path.parentDir
+  result = proc(relativePath: string): seq[byte] {.gcsafe.} =
+    var candidate = directory
+    for segment in relativePath.split('/'):
+      let exact = candidate / segment
+      if exact.fileExists or exact.dirExists:
+        candidate = exact
+        continue
+      var match = ""
+      if candidate.dirExists:
+        for kind, item in candidate.walkDir:
+          if item.extractFilename.cmpIgnoreCase(segment) == 0:
+            if match.len > 0: return @[] # ambiguous on a case-sensitive host
+            match = item
+      if match.len == 0: return @[]
+      candidate = match
+    if candidate.fileExists: readBytes(candidate) else: @[]
 
 proc parseOptions(arguments: seq[string]): CliOptions =
   var index = 0
@@ -84,7 +103,8 @@ proc parseOptions(arguments: seq[string]): CliOptions =
 proc inspect(options: CliOptions) =
   let data = readBytes(options.input)
   let inspection = inspectSource(options.input, data, options.inputFormat,
-    options.ignoreWarnings, options.pcxChannelOrder)
+    options.ignoreWarnings, options.pcxChannelOrder,
+    companionResolver = companionResolverFor(options.input))
   let resources = inspection.resources.leafResources
 
   if options.json:
@@ -220,7 +240,8 @@ proc exportResource(options: CliOptions) =
       "--resource may be repeated only with export-all")
   let data = readBytes(options.input)
   let inspection = inspectSource(options.input, data, options.inputFormat,
-    options.ignoreWarnings, options.pcxChannelOrder)
+    options.ignoreWarnings, options.pcxChannelOrder,
+    companionResolver = companionResolverFor(options.input))
   for warning in inspection.warnings:
     stderr.writeLine(&"vexter: warning: {warning.path} " &
       &"({warning.format}): {warning.message}")
@@ -272,7 +293,8 @@ proc exportAllResources(options: CliOptions) =
 
   let data = readBytes(options.input)
   let inspection = inspectSource(options.input, data, options.inputFormat,
-    options.ignoreWarnings, options.pcxChannelOrder)
+    options.ignoreWarnings, options.pcxChannelOrder,
+    companionResolver = companionResolverFor(options.input))
   for warning in inspection.warnings:
     stderr.writeLine(&"vexter: warning: {warning.path} " &
       &"({warning.format}): {warning.message}")

@@ -113,6 +113,20 @@ suite "generic bitmap fonts and BMFont export":
     let substituted = renderBitmapFontText(font, "a", 20)
     check substituted.alphaAt(0, 2) == 255
 
+  test "default preview follows the font's available letter case":
+    proc caseFont(first, last: int): VextBitmapFont =
+      result = VextBitmapFont(lineHeight: 1, baseline: 1,
+        glyphs: @[VextBitmapGlyph(bitmap: mono(0, 0, @[]), advanceX: 1)])
+      result.mappings.add VextGlyphMapping(codePoint: 32, glyphIndex: 0)
+      for codePoint in first .. last:
+        result.mappings.add VextGlyphMapping(codePoint: codePoint, glyphIndex: 0)
+    let uppercase = caseFont(ord('A'), ord('Z')).defaultPreviewText
+    check uppercase == "THE QUICK BROWN FOX JUMPS OVER THE LAZY DOG"
+    check uppercase.find({'a'..'z'}) < 0
+    let lowercase = caseFont(ord('a'), ord('z')).defaultPreviewText
+    check lowercase == "the quick brown fox jumps over the lazy dog"
+    check lowercase.find({'A'..'Z'}) < 0
+
   test "font resources naturally export compound BMFont artifacts":
     let tree = VextResourceTree(roots: @[VextResourceNode(path: "/font",
       typeId: "test.font", kind: vrnkFont, font: sampleFont())])

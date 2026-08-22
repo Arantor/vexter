@@ -9,13 +9,13 @@ import ./detection
 import ./handler_registry
 import ./exporters/[bmfont, gif, png, raw, wav]
 import ./resource_tree
-import ./containers/[amiga_8svx, amiga_16sv, amiga_acbm, amiga_adf, amiga_anim, amiga_dms, amiga_hunk_executable, amiga_iff, amiga_ilbm, amiga_lha_sfx, amiga_pbm, amiga_workbench_icon, amos_bank, amos_bank_set, amos_packed_picture, amos_program,
+import ./containers/[amiga_8svx, amiga_16sv, amiga_acbm, amiga_adf, amiga_anim, amiga_diskfont, amiga_dms, amiga_hunk_executable, amiga_iff, amiga_ilbm, amiga_lha_sfx, amiga_pbm, amiga_workbench_icon, amos_bank, amos_bank_set, amos_packed_picture, amos_program,
   amos_sprite_icon_bank, bmp, flic, fzx, gif_container, netpbm, pcx, png_container,
   qoi, tga, wav, windows_icon, zip_archive, lha_archive, zx_spectrum_snapshot, zx_spectrum_tap]
 import ./containers/xpk_shri
 import ./containers/powerpacker
 import ./metadata
-import ./resources/[amiga_anim_image, amiga_ilbm_image, amiga_pbm_image, amiga_workbench_icon_image, amos_listing, amos_packed_picture_image, amos_planar_image, bmp_image, flic_animation, gif_image, netpbm_image, png_image, zx_spectrum_basic,
+import ./resources/[amiga_anim_image, amiga_diskfont_font, amiga_ilbm_image, amiga_pbm_image, amiga_workbench_icon_image, amos_listing, amos_packed_picture_image, amos_planar_image, bmp_image, flic_animation, gif_image, netpbm_image, png_image, zx_spectrum_basic,
   fzx_font, pcx_image, qoi_image, tga_image, windows_icon_image, zx_spectrum_screen]
 
 type
@@ -36,6 +36,9 @@ type
     message*: string
 
   VextProgressCallback* = proc(event: VextProgressEvent): bool {.closure.}
+
+  VextCompanionResolver* = proc(relativePath: string): seq[byte]
+    {.closure.}
 
   VextExportFormat* = object
     id*: string
@@ -302,7 +305,8 @@ proc amosBankSetGroup(bankSet: AmosBankSet): VextResourceNode =
 
 proc inspectSourceDepth(filename: string, data: openArray[byte],
     inputFormat: string, depth: int, ignoreWarnings: bool,
-    pcxChannelOrder: PcxChannelOrder): VextInspection
+    pcxChannelOrder: PcxChannelOrder,
+    companionResolver: VextCompanionResolver): VextInspection
 
 proc rebaseNode(node: VextResourceNode, prefix: string) =
   node.path = prefix & node.path
@@ -326,7 +330,7 @@ proc containedFileNode(path, filename, fallbackType: string,
   var nested: VextInspection
   try:
     nested = inspectSourceDepth(filename, data, "", depth + 1, ignoreWarnings,
-      pcxChannelOrder)
+      pcxChannelOrder, nil)
   except ValueError as error:
     if ignoreWarnings:
       warnings.add VextInspectionWarning(
@@ -456,9 +460,46 @@ proc hunkExecutableNode(executable: AmigaHunkExecutable,
       typeId: AmigaHunkOverlayTypeId, kind: vrnkOpaque,
       data: executable.overlay, rawDataAvailable: true)
 
+proc diskfontNode(source: AmigaDiskfontSource, path, fallbackName: string,
+    extraMetadata: seq[VextMetadataEntry] = @[]): VextResourceNode =
+  var font = decodeAmigaDiskfont(source)
+  if font.name.len == 0: font.name = fallbackName
+  var metadata = extraMetadata
+  metadata.add @[
+    stringMetadata("font.name", source.name),
+    integerMetadata("font.revision", source.revision),
+    integerMetadata("font.style", source.style),
+    integerMetadata("font.flags", source.flags),
+    integerMetadata("font.nominal-width", source.xSize),
+    integerMetadata("font.height", source.ySize),
+    integerMetadata("font.baseline", source.baseline),
+    integerMetadata("font.bold-smear", source.boldSmear),
+    integerMetadata("character.first", source.lowCharacter),
+    integerMetadata("character.last", source.highCharacter),
+    integerMetadata("glyphs", source.glyphs.len),
+    integerMetadata("bitmap.modulo", source.modulo),
+    integerMetadata("colour.depth", source.depth),
+    integerMetadata("colour.flags", source.colourFlags),
+    integerMetadata("colour.foreground", source.foregroundColour),
+    integerMetadata("colour.low", source.lowColour),
+    integerMetadata("colour.high", source.highColour),
+    integerMetadata("colour.plane-pick", source.planePick),
+    integerMetadata("colour.plane-on-off", source.planeOnOff),
+    integerMetadata("colour.palette-size", source.palette.len)]
+  VextResourceNode(path: path, typeId: AmigaDiskfontResourceTypeId,
+    kind: vrnkFont, font: font, metadata: metadata)
+
+proc safeCompanionPath(path: string): bool =
+  if path.len == 0 or path[0] in {'/', '\\'} or ':' in path or '\0' in path:
+    return false
+  for segment in path.replace('\\', '/').split('/'):
+    if segment.len == 0 or segment in [".", ".."]: return false
+  true
+
 proc inspectSourceDepth(filename: string, data: openArray[byte],
     inputFormat: string, depth: int, ignoreWarnings: bool,
-    pcxChannelOrder: PcxChannelOrder): VextInspection =
+    pcxChannelOrder: PcxChannelOrder,
+    companionResolver: VextCompanionResolver): VextInspection =
   let detected = detectParsedFormats(filename, data)
   for item in detected:
     result.candidates.add item.candidate
@@ -478,6 +519,62 @@ proc inspectSourceDepth(filename: string, data: openArray[byte],
     raise newException(ValueError,
       "unsupported input format: " & result.selectedFormat.typeId)
   case selectedHandler.kind
+  of vhkAmigaDiskfontIndex:
+    let index = parsedValue[AmigaDiskfontIndex](selectedParsed,
+      vhkAmigaDiskfontIndex)
+    let group = VextResourceNode(path: "/font",
+      typeId: AmigaDiskfontIndexTypeId, kind: vrnkGroup, metadata: @[
+        stringMetadata("index.kind", if index.tagged: "tagged" else: "plain"),
+        integerMetadata("index.entries", index.entries.len)])
+    for entryIndex, entry in index.entries:
+      let entryKey = "index.entry." & $entryIndex
+      group.metadata.add stringMetadata(entryKey & ".filename", entry.filename)
+      group.metadata.add integerMetadata(entryKey & ".height", entry.ySize)
+      group.metadata.add integerMetadata(entryKey & ".style", entry.style)
+      group.metadata.add integerMetadata(entryKey & ".flags", entry.flags)
+      group.metadata.add integerMetadata(entryKey & ".tags", entry.tags.len)
+      let warningPath = "/font/" & $entry.ySize
+      if not safeCompanionPath(entry.filename):
+        result.warnings.add VextInspectionWarning(path: warningPath,
+          format: AmigaDiskfontTypeId,
+          message: "unsafe companion path in diskfont index: " & entry.filename)
+        continue
+      if companionResolver == nil:
+        continue
+      let companion = companionResolver(entry.filename.replace('\\', '/'))
+      if companion.len == 0:
+        continue
+      var source: AmigaDiskfontSource
+      try:
+        source = parseAmigaDiskfont(companion)
+      except ValueError as error:
+        result.warnings.add VextInspectionWarning(path: warningPath,
+          format: AmigaDiskfontTypeId,
+          message: "invalid companion " & entry.filename & ": " & error.msg)
+        continue
+      if source.ySize != entry.ySize or
+          ((source.style xor entry.style) and FsfColorFont) != 0:
+        result.warnings.add VextInspectionWarning(path: warningPath,
+          format: AmigaDiskfontTypeId,
+          message: "companion metrics do not match index entry: " & entry.filename)
+        continue
+      var metadata = @[
+        stringMetadata("index.filename", entry.filename),
+        integerMetadata("index.position", entryIndex),
+        integerMetadata("index.tags", entry.tags.len)]
+      for tagIndex, tag in entry.tags:
+        metadata.add integerMetadata("index.tag." & $tagIndex & ".id",
+          int(tag.identifier))
+        metadata.add integerMetadata("index.tag." & $tagIndex & ".value",
+          int(tag.value))
+      var path = warningPath
+      for child in group.children:
+        if child.path == path:
+          path.add "-" & $(entryIndex + 1)
+          break
+      group.children.add diskfontNode(source, path,
+        entry.filename.splitFile.name, metadata)
+    result.resources.roots.add group
   of vhkAmigaHunkExecutable:
     result.resources.roots.add hunkExecutableNode(
       parsedValue[AmigaHunkExecutable](selectedParsed,
@@ -556,6 +653,11 @@ proc inspectSourceDepth(filename: string, data: openArray[byte],
           defaultExportPriority: if index == 0: 30 else: 0)
       result.resources.roots.add glowGroup
     result.resources.roots.add group
+  of vhkAmigaDiskfont:
+    let source = parsedValue[AmigaDiskfontSource](selectedParsed,
+      vhkAmigaDiskfont)
+    result.resources.roots.add diskfontNode(source, AmigaDiskfontResourcePath,
+      filename.splitFile.name)
   of vhkGif:
     let source = parsedValue[GifImageSource](selectedParsed, vhkGif)
     var metadata = @[
@@ -1065,12 +1167,13 @@ proc inspectSourceDepth(filename: string, data: openArray[byte],
 proc inspectSource*(filename: string, data: openArray[byte],
     inputFormat = "", ignoreWarnings = false,
     pcxChannelOrder = pcoRgb,
-    progress: VextProgressCallback = nil): VextInspection =
+    progress: VextProgressCallback = nil,
+    companionResolver: VextCompanionResolver = nil): VextInspection =
   reportProgress(progress, vppDetecting, filename, "Detecting input format")
   reportProgress(progress, vppInspecting, filename, "Inspecting container")
   reportProgress(progress, vppDecoding, filename, "Decoding resources")
   result = inspectSourceDepth(filename, data, inputFormat, 0, ignoreWarnings,
-    pcxChannelOrder)
+    pcxChannelOrder, companionResolver)
   reportProgress(progress, vppTraversing, filename,
     "Resource tree complete", result.resources.leafResources.len,
     result.resources.leafResources.len)

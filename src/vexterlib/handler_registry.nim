@@ -5,7 +5,7 @@
 ## validation and inspection implementation for that format.
 
 import ./containers/[amiga_8svx, amiga_16sv, amiga_acbm, amiga_adf, amiga_anim,
-  amiga_dms, amiga_hunk_executable, amiga_iff, amiga_ilbm, amiga_lha_sfx,
+  amiga_diskfont, amiga_dms, amiga_hunk_executable, amiga_iff, amiga_ilbm, amiga_lha_sfx,
   amiga_workbench_icon, amos_bank,
   amos_bank_set, amos_program, amos_sprite_icon_bank, bmp, flic, gif_container,
   fzx, lha_archive, netpbm, pcx, png_container, powerpacker, qoi, tga, wav, windows_icon, zip_archive,
@@ -14,6 +14,8 @@ import ./containers/amiga_pbm
 type
   VextHandlerKind* = enum
     vhkWorkbenchIcon
+    vhkAmigaDiskfontIndex
+    vhkAmigaDiskfont
     vhkAmigaHunkExecutable
     vhkAmigaLhaSfx
     vhkAmigaAcbm
@@ -70,6 +72,9 @@ type
     listings*: seq[ZxSpectrumTapBasic]
 
 const FormatHandlers* = [
+  VextFormatHandler(typeId: AmigaDiskfontIndexTypeId,
+    kind: vhkAmigaDiskfontIndex),
+  VextFormatHandler(typeId: AmigaDiskfontTypeId, kind: vhkAmigaDiskfont),
   VextFormatHandler(typeId: AmigaLhaSfxTypeId, kind: vhkAmigaLhaSfx),
   VextFormatHandler(typeId: AmigaHunkExecutableTypeId,
     kind: vhkAmigaHunkExecutable),
@@ -135,6 +140,8 @@ proc parse*(handler: VextFormatHandler,
       VextParsedValue[type(typedValue)](
         kind: handler.kind, value: typedValue)
   case handler.kind
+  of vhkAmigaDiskfontIndex: result = parsed(parseAmigaDiskfontIndex(data))
+  of vhkAmigaDiskfont: result = parsed(parseAmigaDiskfont(data))
   of vhkAmigaLhaSfx: result = parsed(parseAmigaLhaSfx(data))
   of vhkAmigaHunkExecutable: result = parsed(parseAmigaHunkExecutable(data))
   of vhkWorkbenchIcon:

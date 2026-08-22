@@ -10,6 +10,7 @@ import vexterlib/containers/amos_bank
 import vexterlib/containers/amiga_adf
 import vexterlib/containers/amiga_dms
 import vexterlib/containers/amiga_hunk_executable
+import vexterlib/containers/amiga_diskfont
 import vexterlib/containers/amiga_lha_sfx
 import vexterlib/containers/xpk_shri
 import vexterlib/containers/powerpacker
@@ -47,6 +48,7 @@ import vexterlib/resources/amiga_ilbm_image
 import vexterlib/resources/amiga_pbm_image
 import vexterlib/resources/amiga_anim_image
 import vexterlib/resources/amiga_workbench_icon_image
+import vexterlib/resources/amiga_diskfont_font
 import vexterlib/resources/amos_listing
 import vexterlib/resources/zx_spectrum_screen
 import vexterlib/resources/zx_spectrum_basic
@@ -78,6 +80,7 @@ export amos_bank
 export amiga_adf
 export amiga_dms
 export amiga_hunk_executable
+export amiga_diskfont
 export amiga_lha_sfx
 export xpk_shri
 export powerpacker
@@ -107,6 +110,7 @@ export flic
 export fzx
 export amiga_anim_image
 export amiga_workbench_icon_image
+export amiga_diskfont_font
 export amos_bank_set
 export amos_program
 export amos_sprite_icon_bank

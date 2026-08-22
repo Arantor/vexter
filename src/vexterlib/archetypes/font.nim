@@ -1,6 +1,6 @@
 ## Generic bitmap-font values, independent of any source or export format.
 
-import std/unicode
+import std/[strutils, unicode]
 import ./raster
 
 type
@@ -212,10 +212,35 @@ proc rgbaAt*(bitmap: VextGlyphBitmap, x, y: int): VextRgba =
 
 proc defaultPreviewText*(font: VextBitmapFont): string =
   ## Produces a stable readable sample from mappings, including non-ASCII text.
-  const Preferred = "The quick brown fox jumps over the lazy dog 0123456789"
-  for rune in Preferred.runes:
-    if font.glyphIndexFor(int(rune)) >= 0:
+  const
+    MixedSample = "The quick brown fox jumps over the lazy dog 0123456789"
+    UpperSample = "THE QUICK BROWN FOX JUMPS OVER THE LAZY DOG 0123456789"
+    LowerSample = "the quick brown fox jumps over the lazy dog 0123456789"
+    NeutralSample = "0123456789"
+  proc hasPreviewGlyph(codePoint: int): bool =
+    # Do not let the font fallback make every character appear supported.
+    for mapping in font.mappings:
+      if mapping.codePoint == codePoint: return true
+    for substitution in font.substitutions:
+      if substitution.sourceCodePoint == codePoint:
+        for mapping in font.mappings:
+          if mapping.codePoint == substitution.replacementCodePoint:
+            return true
+    false
+  var hasUpper, hasLower: bool
+  for codePoint in ord('A') .. ord('Z'):
+    hasUpper = hasUpper or hasPreviewGlyph(codePoint)
+  for codePoint in ord('a') .. ord('z'):
+    hasLower = hasLower or hasPreviewGlyph(codePoint)
+  let preferred =
+    if hasUpper and not hasLower: UpperSample
+    elif hasLower and not hasUpper: LowerSample
+    elif hasUpper and hasLower: MixedSample
+    else: NeutralSample
+  for rune in preferred.runes:
+    if hasPreviewGlyph(int(rune)):
       result.add rune.toUTF8
+  result = result.strip
   if result.len == 0:
     for mapping in font.mappings:
       if mapping.codePoint >= 32 and mapping.codePoint != 127:

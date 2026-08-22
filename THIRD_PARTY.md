@@ -293,6 +293,23 @@ c7c4a85061e6453542129f8ca44040eda962e0c3da41127d9fe9f89cdc3b72a9  dispatch.c
 ccb4f0f1ae28e2f3b304c6b6e88eab38e91a75f0eceadd7a9b0bac74cfe91522  Bluebird.16sv
 ```
 
+## Amiga bitmap diskfont documentation and compatibility collection
+
+The developer supplied `Graphics Library and Text - AmigaOS Documentation
+Wiki.html`, an excerpt saved from the [AmigaOS wiki](https://wiki.amigaos.net/wiki/Graphics_Library_and_Text)
+on 22 August 2026. Its TextFont, ColorTextFont, FontContentsHeader, and
+DiskFontHeader descriptions informed the bitmap diskfont implementation.
+
+The developer also supplied a copy of their Amiga `Fonts` folder as temporary
+compatibility evidence. Its 117 loadable bitmap size descriptors were used to
+check monochrome and ColorFont parsing; Agfa Compugraphic outline material was
+ignored. Neither the documentation excerpt nor the font collection is
+redistributed as a Vexter test fixture.
+
+```text
+35df2062557d81ebe497f85fcc50ae988f1c911005dcb796b5300acdf18a6c6c  Graphics Library and Text - AmigaOS Documentation Wiki.html
+```
+
 ## AMOS sprite-bank fixture
 
 `tests/fixtures/amos.sprite-bank/DRAGON.Abk` is part of the “Sprites 600” demo

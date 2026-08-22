@@ -83,6 +83,48 @@ Synthetic tests retain the established offset, metric, kern, shift, blank-glyph,
 and one-/two-byte row behavior. `THIRD_PARTY.md` records provenance and selected
 hashes. The supplied assembly example was not used as implementation source.
 
+## Amiga bitmap diskfonts and ColorFonts
+
+Container type identifier: `amiga.bitmap-diskfont`
+
+Resource type identifier: `amiga.bitmap-diskfont-font`
+
+Vexter recognizes `FCH_ID` and tagged `TFCH_ID` `.font` indexes as multi-file
+containers. Each index entry retains its relative filename, intended height,
+style, flags, and raw tag pairs. Safe relative paths are offered to a
+frontend-owned companion resolver. Companions that exist and validate against
+the indexed height and ColorFont kind become `/font/<height>` children;
+unavailable optional sizes are simply retained as index metadata. Absolute,
+volume-qualified, empty-segment, and traversal paths are never resolved.
+Case-insensitive path fallback gives the CLI Amiga-like filename behavior on
+case-sensitive hosts. Compugraphic `0x0f03` indexes remain excluded.
+
+An individual bitmap size descriptor is also recognized as a loadable Amiga
+Hunk containing `DFH_ID`. Vexter validates the serialized `DiskFontHeader` and
+`TextFont`, strike dimensions, character-location table, optional signed
+spacing and per-character kerning tables, and every referenced bitmap plane.
+The descriptor is preferred over the generic Hunk candidate and exposes a
+font at `/font`.
+
+Printable byte positions 32–127 receive the project's default identity Unicode
+mapping. Every other position is retained as a source index without inventing
+an encoding. The additional Amiga default glyph is retained but left unmapped.
+Baseline, proportional advances, signed left bearings, bold-smear, style and
+flag fields, modulo, range, and revision are retained as values or metadata.
+Monochrome strikes become recolourable white-alpha glyphs.
+
+`FSF_COLORFONT` descriptors additionally decode the `ColorTextFont` extension,
+one through eight bitplanes, `PlanePick` and `PlaneOnOff`, foreground/low/high
+colour metadata, and designer-supplied xRGB palettes. Palette index zero is
+transparent in extracted glyphs; other source colours remain indexed and
+opaque. BMFont text plus PNG is the natural export for both font kinds.
+
+Implementation follows the developer-supplied AmigaOS documentation excerpt
+acquired on 22 August 2026. All 117 bitmap size descriptors in the temporarily
+supplied Amiga `Fonts` folder decoded (102 monochrome and 15 ColorFonts). Agfa
+Compugraphic `.otag` material was ignored. The collection is not redistributed;
+synthetic tests cover the serialized structures and decoding rules.
+
 ## Amiga ADF filesystems
 
 Container type identifier: `amiga.adf`

@@ -24,7 +24,8 @@ client, and a dependency-free native Windows GUI. It supports:
   wrappers, ZIP archives, level-0/1 LHA/LZH archives using LH0 or LH5,
   minimally structured Amiga Hunk executables and LHA self-extractors,
   ZX Spectrum raw screen dumps, SNA snapshots,
-  TAP containers, tokenised BASIC resources, FZX bitmap fonts, standalone AMOS banks, AMOS bank
+  TAP containers, tokenised BASIC resources, FZX and Amiga bitmap diskfonts
+  (including ColorFonts), standalone AMOS banks, AMOS bank
   sets, and AMOS programs;
 - a resource tree containing decoded raster, bitmap-font, audio, and text resources,
   identified opaque resources, and metadata;
@@ -88,7 +89,7 @@ surface shown in `PLAN.md` remains future work.
 The currently implemented path through the application is:
 
 ```text
-file bytes
+source file bytes plus an optional bounded companion resolver
   -> evidence-based detection or a validated forced format
   -> format-specific container parsing and resource extraction
   -> VextResourceTree
@@ -98,7 +99,7 @@ file bytes
   -> frontend-owned filesystem write
 ```
 
-The library owns detection, forced-format validation, container inspection,
+The library owns detection, safe companion-name validation, forced-format validation, container inspection,
 resource construction and selection, default output-format choice, and
 exporter invocation. Frontends own input reading, presentation, destination
 selection, collision policy, and artifact writing. The GUI calls `vexterlib`
@@ -124,7 +125,8 @@ be used for that transfer.
 `src/vexterlib/operations.nim` brokers high-level library work:
 
 - `inspectSource` detects or validates a format and builds a decoded resource
-  tree;
+  tree; callers may provide a companion resolver for validated multi-file
+  indexes while retaining ownership of filesystem reads;
 - `VextInspection` carries the selected candidate, all detected candidates,
   and the resource tree; and
 - inspection optionally reports structured progress and supports cooperative
@@ -223,6 +225,10 @@ Matching case-insensitive extensions add supporting evidence.
 - `fzx.nim` validates signatureless FZX v1.0 metrics, relative character-table
   offsets, packed universal kern values, shifts and widths, terminal extent,
   row alignment, definition order, and the specified size limits;
+- `amiga_diskfont.nim` validates plain/tagged bitmap `.font` indexes and
+  recognizes loadable size descriptors by DFH_ID, validates TextFont glyph
+  tables and strike bounds, and retains ColorTextFont planes, plane-selection
+  fields, and xRGB palettes;
 - `amiga_iff.nim` validates generic IFF `FORM` lengths, chunk boundaries, and
   even-byte padding;
 - `amiga_8svx.nim` interprets `FORM 8SVX` voice headers, channels, loop and
@@ -333,6 +339,11 @@ advance, and tracking contributes to advance. Because FZX contains byte
 positions rather than a Unicode character map, printable positions 32–127 use
 the explicit project default while every position remains preserved as a glyph
 source index.
+
+`src/vexterlib/resources/amiga_diskfont_font.nim` extracts potentially
+unaligned strike glyphs, preserves baseline, proportional spacing, and signed
+left bearings, retains the unmapped default glyph, emits monochrome coverage,
+and combines ColorFont planes into transparent indexed glyphs.
 
 `src/vexterlib/resources/amiga_ilbm_image.nim` decodes uncompressed or
 ByteRun1-compressed planar data: scanline-interleaved planes from ILBM `BODY`
@@ -714,6 +725,10 @@ The routine suites are:
 - `tests/test_amiga_hunk.nim`: minimal load-file Hunk framing, retained code,
   generic executable detection, appended usage/main LHA recognition, SFX
   precedence, and normal archive resource routing;
+- `tests/test_amiga_diskfont.nim`: synthetic plain/tagged indexes, safe
+  companion resolution, TextFont and ColorTextFont descriptors, proportional
+  metrics, default glyphs, planes and palettes, detection, inspection, and
+  BMFont export;
 - `tests/test_xpk_shri.nim`: XPK framing, raw chunks, checksum failures,
   recursive inspection, and byte-identical SHRI reconstruction of Fishdemo;
 - `tests/test_powerpacker.nim`: synthetic PP20 reconstruction, malformed

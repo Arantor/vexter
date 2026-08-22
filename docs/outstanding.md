@@ -12,6 +12,11 @@ behavior and evidence remain in [`formats.md`](formats.md).
     names, and execution semantics are only framed or retained, not interpreted.
   - Other self-extractor layouts and executable stubs are not recognized.
 
+- **Amiga bitmap diskfonts and ColorFonts**
+  - Positions outside printable ASCII remain source indices until an explicit
+    Amiga or font-specific character mapping is supplied.
+  - Tagged font DPI values and reverse-path presentation need dedicated tests.
+
 - **LHA/LZH archives**
   - Header levels 2 and 3 are unsupported.
   - Compression methods other than `-lh0-` and `-lh5-` are unsupported,

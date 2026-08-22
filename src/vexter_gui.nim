@@ -556,7 +556,13 @@ proc loadWorker(job: LoadJob) {.thread.} =
     for i, value in contents: data[i] = byte(value)
     {.cast(gcsafe).}:
       loaded.inspection = inspectSource(job.filename, data, progress =
-        proc(event: VextProgressEvent): bool = true)
+        proc(event: VextProgressEvent): bool = true,
+        companionResolver = proc(relativePath: string): seq[byte] {.gcsafe.} =
+          let companionPath = job.filename.parentDir / relativePath
+          if companionPath.fileExists:
+            let companion = readFile(companionPath)
+            result = newSeq[byte](companion.len)
+            for index, value in companion: result[index] = byte(value))
   except CatchableError as error:
     loaded.error = error.msg
   job.result[] = loaded
