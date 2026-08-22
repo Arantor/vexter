@@ -168,6 +168,9 @@ Stored `-lh0-` and static-Huffman/LZ `-lh5-` members are reconstructed and
 recognized contents are inspected recursively through the shared eight-layer
 bound. Other compression methods and header levels 1 through 3 remain explicit
 unsupported-format errors pending supplied documentation and controls.
+Checksummed level-0 framing is detected independently of member decoding, so
+an archive using an unsupported method is still identified as LHA and reports
+that method rather than appearing to be an unrecognized file.
 
 The level-0 layout follows the supplied CC0 Kaitai specification. The LH5
 decoder is a native Nim port of the supplied MIT-licensed jslha revision,

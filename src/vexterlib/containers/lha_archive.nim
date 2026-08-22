@@ -207,6 +207,55 @@ proc validatedSegments(name: string, directory: bool): seq[string] =
       raise newException(ValueError, "cyclic or ambiguous LHA entry path: " & name)
     result.add segment
 
+proc validateLhaStructure(data: openArray[byte]): int =
+  ## Validates level-0 record framing without requiring a supported member
+  ## codec. This lets frontends identify an LHA archive before decoding it.
+  if data.len < 2:
+    raise newException(ValueError, "LHA archive is too short")
+  var offset = 0
+  while offset < data.len and data[offset] != 0:
+    let headerSize = int(data[offset])
+    if headerSize < 22 or offset + headerSize + 2 > data.len:
+      raise newException(ValueError, "invalid LHA level-0 header length")
+    if data[offset + 20] != 0:
+      raise newException(ValueError, "unsupported LHA header level")
+    var checksum = 0
+    for index in offset + 2 .. offset + headerSize + 1:
+      checksum = (checksum + int(data[index])) and 0xff
+    if checksum != int(data[offset + 1]):
+      raise newException(ValueError, "LHA header checksum does not match")
+    if data[offset + 2] != byte('-') or data[offset + 6] != byte('-'):
+      raise newException(ValueError, "invalid LHA compression method identifier")
+    for index in offset + 2 .. offset + 6:
+      if data[index] < 0x20 or data[index] > 0x7e:
+        raise newException(ValueError, "invalid LHA compression method identifier")
+    let nameLength = int(data[offset + 21])
+    if nameLength == 0 or 24 + nameLength > headerSize + 2:
+      raise newException(ValueError, "invalid LHA level-0 filename length")
+    for index in 0 ..< nameLength:
+      if data[offset + 22 + index] == 0:
+        raise newException(ValueError, "NUL in LHA entry name")
+    let compressedSize = uint64(leDword(data, offset + 7))
+    let payloadOffset = offset + headerSize + 2
+    if compressedSize > uint64(data.len - payloadOffset):
+      raise newException(ValueError, "truncated LHA member data")
+    offset = payloadOffset + int(compressedSize)
+    inc result
+  if offset >= data.len or data[offset] != 0:
+    raise newException(ValueError, "LHA end marker was not found")
+  for index in offset + 1 ..< data.len:
+    if data[index] != 0:
+      raise newException(ValueError, "trailing data after LHA end marker")
+  if result == 0:
+    raise newException(ValueError, "LHA archive contains no entries")
+
+proc isLhaArchiveStructure*(data: openArray[byte]): bool =
+  try:
+    discard validateLhaStructure(data)
+    true
+  except ValueError:
+    false
+
 proc parseLhaArchive*(data: openArray[byte]): LhaArchive =
   if data.len < 2:
     raise newException(ValueError, "LHA archive is too short")

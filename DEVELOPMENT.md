@@ -181,6 +181,8 @@ Matching case-insensitive extensions add supporting evidence.
 - `lha_archive.nim` validates level-0 LHA member headers and checksums, expands
   stored LH0 and static-Huffman/LZ LH5 members, checks CRC-16, canonicalizes
   Amiga path separators, and exposes a host-independent archive hierarchy;
+  structural detection remains available for unsupported member methods so
+  frontends can report the specific codec limitation;
 - `pcx.nim` validates ZSoft PCX headers, dimensions, plane layouts, and row
   storage before retaining the encoded image source;
 - `tga.nim` validates Truevision TGA headers, optional identification and

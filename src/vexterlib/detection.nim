@@ -161,11 +161,9 @@ proc detectFormats*(filename: string, data: openArray[byte]):
       confidence: vdcCertain,
       evidence: evidence)
 
-  if isLhaArchive(data):
-    let archive = parseLhaArchive(data)
+  if isLhaArchiveStructure(data):
     var evidence = @[VextDetectionEvidence(
-      description: "file has a valid level-0 LHA archive with " &
-        $archive.entries.len & " checked entry or entries")]
+      description: "file has valid checksummed level-0 LHA member framing")]
     if hasLhaExtension(filename):
       evidence.add VextDetectionEvidence(
         description: "file extension is .lha or .lzh")

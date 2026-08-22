@@ -83,5 +83,8 @@ suite "LHA archives":
     expect ValueError:
       var unsupported = levelZero("-lh1-", "file", @[1'u8], @[1'u8])
       unsupported.add 0
+      check detectFormats("old.lzh", unsupported)[0].typeId == LhaArchiveTypeId
+      expect ValueError:
+        discard inspectSource("old.lzh", unsupported)
       discard parseLhaArchive(unsupported)
     expect ValueError: discard parseLhaArchive(valid[0 ..< valid.high - 1])
