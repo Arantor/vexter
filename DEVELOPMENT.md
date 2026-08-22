@@ -286,7 +286,7 @@ in `docs/formats.md`.
 `src/vexterlib/resources/amiga_ilbm_image.nim` decodes uncompressed or
 ByteRun1-compressed planar data: scanline-interleaved planes from ILBM `BODY`
 chunks and whole sequential planes from ACBM `ABIT` chunks. It produces
-indexed images for one through five ordinary planes and six-plane EHB, and
+indexed images for one through eight ordinary planes and six-plane EHB, and
 true-colour images for HAM/HAM8. Legacy CMAPs whose component low nibbles are
 uniformly zero are expanded by nibble replication. All defined BMHD masking
 modes populate the raster alpha channel: explicit mask planes, transparent
@@ -626,8 +626,9 @@ The routine suites are:
   both FLX packed layouts, EGI Huffman/BWT expansion, frame shifting across
   indexed/16/24-bit buffers, extended-type identification, and malformed input;
 - `tests/test_amiga_iff_ilbm.nim`: FORM/chunk validation, ILBM planar and
-  ByteRun1 decoding, legacy palette expansion, EHB, focused HAM6/HAM8 cases,
-  and authentic Deluxe Paint HAM6/HAM8 controls;
+  ByteRun1 decoding, one-through-eight-plane indexed images, legacy palette
+  expansion, EHB, focused HAM6/HAM8 cases, and authentic Deluxe Paint HAM6/HAM8
+  controls;
 - `tests/test_amiga_8svx.nim`: raw mono/stereo samples, sampled-instrument
   metadata, Fibonacci-delta expansion, detection, WAV routing, and malformed
   input;

@@ -2,6 +2,7 @@
 /nimcache/
 /tests/test_cli
 /tests/test_amiga_iff_ilbm
+/tests/test_amiga_acbm
 /tests/test_amiga_anim
 /tests/test_amiga_pbm
 /tests/test_amiga_adf

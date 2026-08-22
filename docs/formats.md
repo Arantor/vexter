@@ -278,7 +278,7 @@ components are currently retained as full eight-bit values. Raw, odd-width,
 and transparent images currently have synthetic coverage only and remain
 subject to fixture confirmation.
 
-Ordinary indexed images with one through five planes are supported. A `CAMG`
+Ordinary indexed images with one through eight planes are supported. A `CAMG`
 EHB flag selects six-plane Extra Half-Brite: palette indices 32 through 63 are
 generated from colours 0 through 31 by shifting each expanded RGB component
 right once. If every component in a CMAP has a zero low nibble, Vexter treats

@@ -115,6 +115,25 @@ suite "Amiga IFF ILBM":
     check image.palette[32] == VextRgb(r: 34, g: 51, b: 68)
     check image.pixelAt(0, 0) == 32
 
+  test "eight-plane indexed images preserve all 256 palette indices":
+    var palette = newSeq[byte](256 * 3)
+    for index in 0 ..< 256:
+      palette[index * 3] = byte(index)
+      palette[index * 3 + 1] = byte(255 - index)
+      palette[index * 3 + 2] = byte(index xor 0x55)
+    let
+      codes = @[0'u8, 1, 63, 127, 128, 192, 254, 255]
+      data = form("ILBM", [
+        chunk("BMHD", bmhd(16, 1, 8)),
+        chunk("CMAP", palette),
+        chunk("BODY", planarBody(codes, 8))])
+      image = inspectSource("indexed-256.ilbm", data).resources.
+        rasterResources[0].raster.image
+    check image.palette.len == 256
+    check image.pixels[0 ..< codes.len] == codes
+    check image.palette[255] == VextRgb(r: 255, g: 0, b: 170)
+    check image.colourAt(6, 0) == VextRgb(r: 254, g: 1, b: 171)
+
   test "HAM6 holds and modifies RGB components across a scanline":
     var palette = newSeq[byte](16 * 3)
     palette[3] = 0x10

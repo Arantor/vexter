@@ -200,9 +200,9 @@ proc renderAmigaIlbmImage*(source: AmigaIlbmImageSource,
     raise newException(ValueError,
       "HAM and HAM8 ILBM images require a true-colour raster archetype")
   let ehb = (source.camg and AmigaIlbmCamgEhb) != 0
-  if (ehb and header.planes != 6) or (not ehb and header.planes notin 1 .. 5):
+  if (ehb and header.planes != 6) or (not ehb and header.planes notin 1 .. 8):
     raise newException(ValueError,
-      "indexed ILBM decoding supports one to five planes or six-plane EHB")
+      "indexed ILBM decoding supports one to eight planes or six-plane EHB")
 
   let codes = codesFromPlanes(source, planes)
   result = VextIndexedImage(
