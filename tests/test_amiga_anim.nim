@@ -243,6 +243,15 @@ suite "Amiga IFF ANIM":
     check raster.frames[0].image.pixelAt(0, 0) == 0
     check raster.frames[1].image.pixelAt(0, 0) == 1
 
+  test "ANIM jiffies follow explicit PAL and NTSC monitor timing":
+    let
+      ntsc = decodeAmigaAnim(parseAmigaAnim(animWithDelta(
+        5, method5Delta(), camg = 0x00011000))).animation
+      pal = decodeAmigaAnim(parseAmigaAnim(animWithDelta(
+        5, method5Delta(), camg = 0x00021000))).animation
+    check ntsc.frames[1].durationMs == 100
+    check pal.frames[1].durationMs == 120
+
   test "method 7 clips a padded final longword to the ILBM row":
     let image = decodeAmigaAnim(parseAmigaAnim(animWithDelta(
       7, method7PaddedLongDelta(), bits = 1))).animation.frames[1].image

@@ -313,6 +313,10 @@ frame through the same indexed/EHB/HAM ILBM path as still images. Method 1
 supports plane-masked rectangular BODY XOR, while method 4 supports all six
 documented option bits. Methods 6 and 74 are identified but report explicit
 unsupported-method errors.
+
+ANHD relative times use 50 Hz for explicit PAL CAMG monitor IDs and 60 Hz for
+explicit NTSC or unspecified monitor IDs.
+
 Method 3's negative-run cursor behavior is verified across every shared frame
 of two VideoScape originals and their independently resaved Deluxe Paint
 method-5 controls; the controls' extra bottom-row padding is not delta-addressed.

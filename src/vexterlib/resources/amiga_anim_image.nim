@@ -338,8 +338,11 @@ proc applyMethod8(planes: var seq[byte], delta: openArray[byte],
         dec opCount
       column += unitSize
 
-proc durationMs(header: AmigaAnimHeader): int =
-  max(1, (int(header.relativeTime) * 1000 + 30) div 60)
+proc durationMs(header: AmigaAnimHeader, camg: uint32): int =
+  let tickRate =
+    if (camg and AmigaIlbmCamgMonitorMask) == AmigaIlbmCamgPalMonitor: 50
+    else: 60
+  max(1, (int(header.relativeTime) * 1000 + tickRate div 2) div tickRate)
 
 proc decodeAmigaAnim*(anim: AmigaAnim): VextRaster =
   let
@@ -348,7 +351,8 @@ proc decodeAmigaAnim*(anim: AmigaAnim): VextRaster =
   var
     source = anim.initial.image
     planarFrames = @[decodeAmigaIlbmPlanes(source)]
-    durations = @[if anim.hasInitialHeader: durationMs(anim.initialHeader)
+    durations = @[if anim.hasInitialHeader:
+                    durationMs(anim.initialHeader, source.camg)
                   else: 17]
     palettes = @[source.colourMap]
 
@@ -391,7 +395,7 @@ proc decodeAmigaAnim*(anim: AmigaAnim): VextRaster =
         $frame.header.operation)
     planarFrames.add planes
     palettes.add source.colourMap
-    durations.add durationMs(frame.header)
+    durations.add durationMs(frame.header, source.camg)
 
   if (source.camg and AmigaIlbmCamgHam) != 0:
     var animation = VextTrueColourAnimation(

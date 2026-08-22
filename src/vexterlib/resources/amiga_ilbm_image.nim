@@ -7,6 +7,9 @@ const
   AmigaIlbmImageResourcePath* = "/image"
   AmigaIlbmCamgHam* = 0x0800'u32
   AmigaIlbmCamgEhb* = 0x0080'u32
+  AmigaIlbmCamgMonitorMask* = 0xffff0000'u32
+  AmigaIlbmCamgNtscMonitor* = 0x00010000'u32
+  AmigaIlbmCamgPalMonitor* = 0x00020000'u32
   AmigaIlbmMaskNone* = 0
   AmigaIlbmMaskPlane* = 1
   AmigaIlbmMaskTransparentColour* = 2

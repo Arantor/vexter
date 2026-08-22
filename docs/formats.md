@@ -370,7 +370,9 @@ Vexter exposes the result at `/animation`.
 Planar frames are retained before rendering because deltas modify individual
 planes. An ANHD interleave of zero means the delta refers to two frames back;
 other values give the explicit reference distance. The second frame falls
-back to the initial frame. Relative times are Amiga jiffies at 1/60 second.
+back to the initial frame. Relative times are Amiga vertical-blank jiffies:
+explicit PAL CAMG monitor modes use 50 Hz and explicit NTSC modes use 60 Hz.
+Files without a monitor ID retain the ANIM specification's 60 Hz default.
 
 Implemented delta operations are:
 
