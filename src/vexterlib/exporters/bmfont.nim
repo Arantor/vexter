@@ -17,6 +17,45 @@ type
     usedHeight: int
     image: VextTrueColourImage
 
+proc bmFontLossWarnings*(font: VextBitmapFont): seq[string] =
+  ## Describes populated font information which AngelCode BMFont text cannot
+  ## represent. These are advisory: export remains available.
+  var mapped = newSeq[bool](font.glyphs.len)
+  for mapping in font.mappings:
+    if mapping.glyphIndex >= 0 and mapping.glyphIndex < mapped.len:
+      mapped[mapping.glyphIndex] = true
+  var unmapped = 0
+  for value in mapped:
+    if not value: inc unmapped
+  if unmapped > 0:
+    result.add $unmapped & " unmapped glyph" &
+      (if unmapped == 1: " is" else: "s are") &
+      " not addressable in BMFont"
+  var verticalAdvances = 0
+  for glyph in font.glyphs:
+    if glyph.advanceY != 0: inc verticalAdvances
+  if verticalAdvances > 0:
+    result.add $verticalAdvances & " vertical glyph advance" &
+      (if verticalAdvances == 1: " is" else: "s are") & " not preserved"
+  var verticalKernings = 0
+  for pair in font.kerning:
+    if pair.amountY != 0: inc verticalKernings
+  if verticalKernings > 0:
+    result.add $verticalKernings & " vertical kerning value" &
+      (if verticalKernings == 1: " is" else: "s are") & " not preserved"
+  if font.leading != 0 or
+      (font.ascent != 0 and font.ascent != font.baseline) or
+      (font.descent != 0 and font.descent != font.lineHeight - font.baseline):
+    result.add "ascent, descent, or leading metrics cannot be fully represented"
+  if font.fallbackCodePoint != 0:
+    result.add "fallback-character behavior is not preserved"
+  if font.substitutions.len > 0:
+    result.add $font.substitutions.len & " character substitution" &
+      (if font.substitutions.len == 1: " is" else: "s are") & " not preserved"
+  if font.ligatures.len > 0:
+    result.add $font.ligatures.len & " ligature" &
+      (if font.ligatures.len == 1: " is" else: "s are") & " not preserved"
+
 proc textBytes(value: string): seq[byte] =
   result = newSeq[byte](value.len)
   for index, character in value: result[index] = byte(character)

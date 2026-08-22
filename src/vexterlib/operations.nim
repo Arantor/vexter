@@ -69,6 +69,7 @@ type
     resourcePath*: string
     outputFormat*: string
     artifacts*: VextArtifactSet
+    warnings*: seq[string]
 
   VextExportAllRequest* = object
     resourcePatterns*: seq[string]
@@ -551,6 +552,12 @@ proc inspectSourceDepth(filename: string, data: openArray[byte],
       group.metadata.add integerMetadata(entryKey & ".style", entry.style)
       group.metadata.add integerMetadata(entryKey & ".flags", entry.flags)
       group.metadata.add integerMetadata(entryKey & ".tags", entry.tags.len)
+      for tag in entry.tags:
+        if tag.identifier == TaDeviceDpi:
+          group.metadata.add integerMetadata(entryKey & ".dpi.x",
+            int(tag.value shr 16))
+          group.metadata.add integerMetadata(entryKey & ".dpi.y",
+            int(tag.value and 0xffff))
       let warningPath = "/font/" & $entry.ySize
       if not safeCompanionPath(entry.filename):
         result.warnings.add VextInspectionWarning(path: warningPath,
@@ -585,6 +592,9 @@ proc inspectSourceDepth(filename: string, data: openArray[byte],
           int(tag.identifier))
         metadata.add integerMetadata("index.tag." & $tagIndex & ".value",
           int(tag.value))
+        if tag.identifier == TaDeviceDpi:
+          metadata.add integerMetadata("dpi.x", int(tag.value shr 16))
+          metadata.add integerMetadata("dpi.y", int(tag.value and 0xffff))
       var path = warningPath
       for child in group.children:
         if child.path == path:
@@ -1395,6 +1405,7 @@ proc exportResource*(tree: VextResourceTree,
     if result.outputFormat != "bmfont":
       raise newException(ValueError,
         "unsupported output format: " & result.outputFormat)
+    result.warnings = bmFontLossWarnings(resource.font)
     result.artifacts = exportBmFont(resource.font, request.suggestedName)
   else:
     raise newException(ValueError, "resource is not exportable: " &

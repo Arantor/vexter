@@ -15,7 +15,6 @@ behavior and evidence remain in [`formats.md`](formats.md).
 - **Amiga bitmap diskfonts and ColorFonts**
   - Positions outside printable ASCII remain source indices until an explicit
     Amiga or font-specific character mapping is supplied.
-  - Tagged font DPI values and reverse-path presentation need dedicated tests.
 
 - **BMFont**
   - XML and binary descriptors are identified and retained but not decoded.

@@ -1,4 +1,4 @@
-import std/[strutils, unittest]
+import std/[sequtils, strutils, unittest]
 import vexterlib
 
 proc asString(data: openArray[byte]): string =
@@ -71,6 +71,26 @@ suite "generic bitmap fonts and BMFont export":
     check atlas.rgbaAt(1, 1) == VextRgba(r: 255, g: 255, b: 255, a: 255)
     check atlas.rgbaAt(2, 1) == VextRgba(r: 255, g: 255, b: 255, a: 0)
     check atlas.rgbaAt(1, 2) == VextRgba(r: 255, g: 255, b: 255, a: 128)
+
+  test "BMFont loss warnings are limited to populated unsupported features":
+    let warnings = bmFontLossWarnings(sampleFont())
+    check warnings.len == 5
+    check warnings.anyIt("unmapped glyph" in it)
+    check warnings.anyIt("vertical kerning" in it)
+    check warnings.anyIt("fallback-character" in it)
+    check warnings.anyIt("substitution" in it)
+    check warnings.anyIt("ligature" in it)
+
+    let compatible = VextBitmapFont(name: "compatible", lineHeight: 2,
+      baseline: 1, ascent: 1, descent: 1,
+      glyphs: @[VextBitmapGlyph(bitmap: mono(1, 1, @[255'u8]),
+        bearingY: 1, advanceX: 1)],
+      mappings: @[VextGlyphMapping(codePoint: 65, glyphIndex: 0)])
+    check bmFontLossWarnings(compatible).len == 0
+    let tree = VextResourceTree(roots: @[VextResourceNode(path: "/font",
+      kind: vrnkFont, font: compatible)])
+    check exportResource(tree, VextExportRequest(
+      suggestedName: "compatible")).warnings.len == 0
 
   test "small atlases spill to consistently sized multiple pages":
     var font = VextBitmapFont(name: "pages", lineHeight: 4, baseline: 3)

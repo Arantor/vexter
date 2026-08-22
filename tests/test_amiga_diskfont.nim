@@ -1,4 +1,4 @@
-import std/[strutils, unittest]
+import std/[sequtils, strutils, unittest]
 import vexterlib
 
 proc putWord(data: var seq[byte], offset, value: int) =
@@ -145,6 +145,27 @@ suite "Amiga bitmap diskfonts":
     check inspection.resources.roots[0].children.len == 0
     check inspection.warnings.len == 1
     check "do not match" in inspection.warnings[0].message
+
+  test "tagged device DPI and Amiga path separators reach child metadata":
+    let sizeData = hunk(baseFontPayload(true))
+    let resolver: VextCompanionResolver = proc(path: string): seq[byte] =
+      if path == "Test/2": sizeData else: @[]
+    let inspection = inspectSource("Test.font", fontIndex("Test\\2", true),
+      companionResolver = resolver)
+    check inspection.warnings.len == 0
+    check inspection.resources.roots[0].children.len == 1
+    let group = inspection.resources.roots[0]
+    let font = group.children[0]
+    check group.metadata.anyIt(it.key == "index.entry.0.dpi.x" and
+      it.value.integerValue == 72)
+    check group.metadata.anyIt(it.key == "index.entry.0.dpi.y" and
+      it.value.integerValue == 72)
+    check font.metadata.anyIt(it.key == "index.filename" and
+      it.value.stringValue == "Test\\2")
+    check font.metadata.anyIt(it.key == "dpi.x" and
+      it.value.integerValue == 72)
+    check font.metadata.anyIt(it.key == "dpi.y" and
+      it.value.integerValue == 72)
 
   test "unsafe and missing companion paths never become resources":
     var called = false

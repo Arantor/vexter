@@ -42,7 +42,9 @@ horizontal kerning are projected into BMFont. Glyph identity remains separate
 from character mappings in memory, allowing aliases without duplicate atlas
 images. Vertical advances/kerning, ascent, descent, leading, substitutions, and
 ligatures remain in the generic archetype even though BMFont cannot serialize
-them. The GUI shapes substitutions and longest-match ligatures, wraps its sample
+them. Export reports only losses present in the source font and remains
+available after those advisory warnings; compatible fonts export without
+warnings. The GUI shapes substitutions and longest-match ligatures, wraps its sample
 to the preview width, and displays transparent text over a checker pattern. Its
 font inspector switches between editable sample text and a complete glyph grid.
 The grid retains unmapped/default/custom glyphs, highlights a selected glyph,
@@ -146,6 +148,9 @@ unavailable optional sizes are simply retained as index metadata. Absolute,
 volume-qualified, empty-segment, and traversal paths are never resolved.
 Case-insensitive path fallback gives the CLI Amiga-like filename behavior on
 case-sensitive hosts. Compugraphic `0x0f03` indexes remain excluded.
+Amiga backslash path separators are normalized for companion lookup while the
+original index filename remains visible as metadata. Tagged `TA_DeviceDPI`
+values are exposed as separate horizontal and vertical DPI metadata.
 
 An individual bitmap size descriptor is also recognized as a loadable Amiga
 Hunk containing `DFH_ID`. Vexter validates the serialized `DiskFontHeader` and

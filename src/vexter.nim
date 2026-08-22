@@ -252,6 +252,9 @@ proc exportResource(options: CliOptions) =
       outputFormat: options.outputFormat,
       suggestedName: options.input.splitFile.name,
       allowLargeAnimation: options.allowLargeAnimation))
+  for warning in exported.warnings:
+    stderr.writeLine("vexter: warning: " & exported.resourcePath &
+      " (" & exported.outputFormat & "): " & warning)
   let artifacts = exported.artifacts
 
   if artifacts.artifacts.len != 1:
@@ -303,6 +306,11 @@ proc exportAllResources(options: CliOptions) =
       resourcePatterns: options.resources,
       outputFormat: options.outputFormat,
       allowLargeAnimation: options.allowLargeAnimation))
+
+  for item in exported.exports:
+    for warning in item.warnings:
+      stderr.writeLine("vexter: warning: " & item.resourcePath &
+        " (" & item.outputFormat & "): " & warning)
 
   var destinations: seq[string]
   var relativeNames: seq[string]

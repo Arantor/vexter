@@ -10,6 +10,7 @@ const
   FchId = 0x0f00
   TfchId = 0x0f02
   FsfColorFont* = 0x40
+  TaDeviceDpi* = 0x80000001'u32
 
 type
   AmigaDiskfontTag* = object

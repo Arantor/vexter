@@ -462,13 +462,36 @@ proc fontSummaryDetails(font: VextBitmapFont): string =
   result = &"Font: {font.name}\r\nGlyphs: {font.glyphs.len}  " &
     &"Mappings: {font.mappings.len}  Line height: {font.lineHeight}  " &
     &"Baseline: {font.baseline}  Ascent: {font.ascent}  Descent: {font.descent}\r\n"
-  result.add &"Kerning pairs: {font.kerning.len}  Substitutions: " &
-    &"{font.substitutions.len}  Ligatures: {font.ligatures.len}\r\nMappings:"
+  result.add "\r\nMappings:"
   if font.mappings.len == 0:
     result.add " (none)"
   else:
     for mapping in font.mappings:
-      result.add &" U+{mapping.codePoint:04X}"
+      result.add &" U+{mapping.codePoint:04X}->glyph {mapping.glyphIndex}"
+  result.add "\r\nKerning:"
+  if font.kerning.len == 0:
+    result.add " (none)"
+  else:
+    for pair in font.kerning:
+      result.add &" U+{pair.leftCodePoint:04X}/U+{pair.rightCodePoint:04X}" &
+        &"=({pair.amountX},{pair.amountY})"
+  result.add "\r\nSubstitutions:"
+  if font.substitutions.len == 0:
+    result.add " (none)"
+  else:
+    for substitution in font.substitutions:
+      result.add &" U+{substitution.sourceCodePoint:04X}->" &
+        &"U+{substitution.replacementCodePoint:04X}"
+  result.add "\r\nLigatures:"
+  if font.ligatures.len == 0:
+    result.add " (none)"
+  else:
+    for ligature in font.ligatures:
+      result.add " ["
+      for index, codePoint in ligature.components:
+        if index > 0: result.add "+"
+        result.add &"U+{codePoint:04X}"
+      result.add &"]->glyph {ligature.glyphIndex}"
 
 proc populateFontControls(font: VextBitmapFont) =
   fontGridMode = false
@@ -705,6 +728,14 @@ proc doExport() =
           w("Vexter"), 0x34)
         if answer != 6: return
         allowLarge = true
+    if exported.warnings.len > 0:
+      var message = "This export cannot preserve:\n\n"
+      for warning in exported.warnings:
+        message.add "- " & warning & "\n"
+      message.add "\nContinue with the export?"
+      if MessageBoxW(mainWindow, w(message), w("Vexter export warning"),
+          0x34) != 6:
+        return
     for artifactIndex, artifact in exported.artifacts.artifacts:
       let artifactDestination = if artifactIndex == 0: destination
         else: destination.parentDir / artifact.suggestedFilename
