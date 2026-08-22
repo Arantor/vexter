@@ -156,6 +156,24 @@ The decoding behavior is ported from `PPDecompressor.cpp` in the supplied BSD
 2-Clause Ancient Format Decompressor checkout. Its revision, source hashes,
 and required attribution are recorded in [`THIRD_PARTY.md`](../THIRD_PARTY.md).
 
+## LHA/LZH archives
+
+Level-0 LHA archives expose a host-independent hierarchy below `/archive`.
+Both `.lha` and `.lzh` extensions are recognized. Header byte sums, member
+bounds, uncompressed sizes, and CRC-16 values are validated. Amiga backslash
+paths are canonicalized to resource-path separators, while absolute, empty,
+dot, parent, duplicate, and conflicting paths are rejected.
+
+Stored `-lh0-` and static-Huffman/LZ `-lh5-` members are reconstructed and
+recognized contents are inspected recursively through the shared eight-layer
+bound. Other compression methods and header levels 1 through 3 remain explicit
+unsupported-format errors pending supplied documentation and controls.
+
+The level-0 layout follows the supplied CC0 Kaitai specification. The LH5
+decoder is a native Nim port of the supplied MIT-licensed jslha revision,
+validated against authentic Aminet archives and independent 7-Zip output. The
+routine suite embeds one authentic small LH5 member with its decoded control.
+
 ## ZIP archives
 
 Container type identifier: `archive.zip`

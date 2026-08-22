@@ -7,7 +7,7 @@
 import ./containers/[amiga_8svx, amiga_16sv, amiga_acbm, amiga_adf, amiga_anim,
   amiga_dms, amiga_iff, amiga_ilbm, amiga_workbench_icon, amos_bank,
   amos_bank_set, amos_program, amos_sprite_icon_bank, bmp, flic, gif_container,
-  netpbm, pcx, png_container, powerpacker, qoi, tga, wav, zip_archive,
+  lha_archive, netpbm, pcx, png_container, powerpacker, qoi, tga, wav, zip_archive,
   zx_spectrum_screen_dump, zx_spectrum_snapshot, zx_spectrum_tap, xpk_shri]
 import ./containers/amiga_pbm
 type
@@ -35,6 +35,7 @@ type
     vhkTga
     vhkWav
     vhkZip
+    vhkLha
     vhkAmosProgram
     vhkAmosBankSet
     vhkAmosBank
@@ -87,6 +88,7 @@ const FormatHandlers* = [
   VextFormatHandler(typeId: TgaTypeId, kind: vhkTga),
   VextFormatHandler(typeId: WavTypeId, kind: vhkWav),
   VextFormatHandler(typeId: ZipArchiveTypeId, kind: vhkZip),
+  VextFormatHandler(typeId: LhaArchiveTypeId, kind: vhkLha),
   VextFormatHandler(typeId: AmosProgramTypeId, kind: vhkAmosProgram),
   VextFormatHandler(typeId: AmosBankSetTypeId, kind: vhkAmosBankSet),
   VextFormatHandler(typeId: AmosBankTypeId, kind: vhkAmosBank),
@@ -147,6 +149,7 @@ proc parse*(handler: VextFormatHandler,
   of vhkTga: result = parsed(parseTga(data))
   of vhkWav: result = parsed(parseWav(data))
   of vhkZip: result = parsed(parseZipArchive(data))
+  of vhkLha: result = parsed(parseLhaArchive(data))
   of vhkAmosProgram: result = parsed(parseAmosProgram(data))
   of vhkAmosBankSet: result = parsed(parseAmosBankSet(data))
   of vhkAmosBank: result = parsed(parseAmosBank(data))

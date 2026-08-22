@@ -17,13 +17,14 @@ sufficiently useful to continue as an ongoing project.
   ILBM/ACBM/PBM, ANIM, 8SVX/16SV audio, and AMOS programs and banks
 - Images and animations: BMP/DIB, PCX, TGA, PNG/APNG, GIF, QOI, Netpbm, and
   FLI/FLC-family files
-- Archives and audio: ZIP and integer PCM WAV
+- Archives and audio: ZIP, level-0 LHA/LZH with LH0/LH5 members, and integer
+  PCM WAV
 - ZX Spectrum: screen dumps, SNA snapshots, TAP files, and tokenised BASIC
 
 Decoded resources can be exported as PNG, GIF, APNG, WAV, text, or raw binary.
 ILBM and ANIM colour cycling can optionally be expanded into bounded GIF or
 APNG animations while static and original-animation exports remain available.
-Containers such as ADF, ZIP, PowerPacker, and XPK are inspected recursively
+Containers such as ADF, ZIP, LHA, PowerPacker, and XPK are inspected recursively
 when their contents use another supported format. See
 [format documentation](docs/formats.md) for exact coverage and current
 limitations.

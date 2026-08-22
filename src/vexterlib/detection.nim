@@ -4,7 +4,7 @@ import std/[os, strutils]
 import ./handler_registry
 import ./containers/[amiga_8svx, amiga_16sv, amiga_acbm, amiga_adf, amiga_anim, amiga_dms, amiga_iff, amiga_ilbm, amiga_pbm, amiga_workbench_icon, amos_bank, amos_bank_set, amos_program,
   amos_sprite_icon_bank, bmp, flic, gif_container, netpbm, pcx, png_container, qoi, tga,
-  wav, zip_archive, zx_spectrum_screen_dump, zx_spectrum_snapshot, zx_spectrum_tap]
+  wav, zip_archive, lha_archive, zx_spectrum_screen_dump, zx_spectrum_snapshot, zx_spectrum_tap]
 import ./containers/xpk_shri
 import ./containers/powerpacker
 import ./resources/zx_spectrum_screen
@@ -160,6 +160,17 @@ proc detectFormats*(filename: string, data: openArray[byte]):
       typeId: ZipArchiveTypeId,
       confidence: vdcCertain,
       evidence: evidence)
+
+  if isLhaArchive(data):
+    let archive = parseLhaArchive(data)
+    var evidence = @[VextDetectionEvidence(
+      description: "file has a valid level-0 LHA archive with " &
+        $archive.entries.len & " checked entry or entries")]
+    if hasLhaExtension(filename):
+      evidence.add VextDetectionEvidence(
+        description: "file extension is .lha or .lzh")
+    result.add VextDetectionCandidate(typeId: LhaArchiveTypeId,
+      confidence: vdcCertain, evidence: evidence)
 
   if isAmigaAdf(data):
     let volume = parseAmigaAdf(data)

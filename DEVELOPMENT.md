@@ -19,7 +19,7 @@ client, and a dependency-free native Windows GUI. It supports:
   integer PCM WAV sounds, PCX, TGA, BMP/DIB,
   PNG, QOI, Netpbm P1–P7, GIF87a/GIF89a, and FLI/FLC-family animations,
   AmigaDOS ADF filesystems, DMS disk archives, PowerPacker and XPK/SHRI
-  wrappers, ZIP archives,
+  wrappers, ZIP archives, level-0 LHA/LZH archives using LH0 or LH5,
   ZX Spectrum raw screen dumps, SNA snapshots,
   TAP containers, tokenised BASIC resources, standalone AMOS banks, AMOS bank
   sets, and AMOS programs;
@@ -72,7 +72,7 @@ nice -n 15 nimble cli
 The CLI artifacts are `build/linux/vexter` and
 `build/win32/vexter-cli.exe`. The task builds them sequentially.
 
-There is no fully generalized handler registry yet. ADF and ZIP files perform
+There is no fully generalized handler registry yet. ADF, ZIP, and LHA files perform
 bounded recursive inspection of recognized contained files. The broader option
 surface shown in `PLAN.md` remains future work.
 
@@ -178,6 +178,9 @@ Matching case-insensitive extensions add supporting evidence.
 - `zip_archive.nim` validates single-volume ZIP central/local records, expands
   stored and DEFLATE entries, checks CRC-32, and exposes a host-independent
   archive hierarchy;
+- `lha_archive.nim` validates level-0 LHA member headers and checksums, expands
+  stored LH0 and static-Huffman/LZ LH5 members, checks CRC-16, canonicalizes
+  Amiga path separators, and exposes a host-independent archive hierarchy;
 - `pcx.nim` validates ZSoft PCX headers, dimensions, plane layouts, and row
   storage before retaining the encoded image source;
 - `tga.nim` validates Truevision TGA headers, optional identification and
@@ -408,6 +411,9 @@ amiga.adf-link
 archive.zip
 archive.zip-directory
 archive.zip-file
+archive.lha
+archive.lha-directory
+archive.lha-file
 pcx
 pcx.image
 windows.bmp
@@ -645,6 +651,9 @@ The routine suites are:
 - `tests/test_zip_archive.nim`: stored/DEFLATE expansion, hierarchy and nested
   decoding, unsafe/duplicate/overlong path rejection, and portable export-name
   normalization;
+- `tests/test_lha_archive.nim`: level-0 framing, LH0 storage, authentic Aminet
+  LH5 expansion, checksums, hierarchy and recursive decoding, path safety, and
+  malformed or unsupported input;
 - `tests/test_xpk_shri.nim`: XPK framing, raw chunks, checksum failures,
   recursive inspection, and byte-identical SHRI reconstruction of Fishdemo;
 - `tests/test_powerpacker.nim`: synthetic PP20 reconstruction, malformed
@@ -760,6 +769,6 @@ names there when adding suites, or direct their output into `/tmp`.
 - Single-resource export currently expects one artifact at the CLI boundary.
   The artifact API and `export-all` directory handling permit multiple files;
   compound exporters themselves remain future work.
-- Recursive decoding is shared by ADF, ZIP, PowerPacker, and XPK through the
+- Recursive decoding is shared by ADF, ZIP, LHA, PowerPacker, and XPK through the
   registered detection, parsed-container, and inspection path, with a fixed
   eight-layer bound.

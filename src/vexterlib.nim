@@ -19,6 +19,7 @@ import vexterlib/containers/amiga_ilbm
 import vexterlib/containers/amiga_anim
 import vexterlib/containers/amiga_workbench_icon
 import vexterlib/containers/zip_archive
+import vexterlib/containers/lha_archive
 import vexterlib/containers/pcx
 import vexterlib/containers/bmp
 import vexterlib/containers/png_container
@@ -79,6 +80,7 @@ export amiga_pbm_image
 export amiga_anim
 export amiga_workbench_icon
 export zip_archive
+export lha_archive
 export pcx
 export bmp
 export png_container

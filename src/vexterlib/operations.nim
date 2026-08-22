@@ -11,7 +11,7 @@ import ./exporters/[gif, png, raw, wav]
 import ./resource_tree
 import ./containers/[amiga_8svx, amiga_16sv, amiga_acbm, amiga_adf, amiga_anim, amiga_dms, amiga_iff, amiga_ilbm, amiga_pbm, amiga_workbench_icon, amos_bank, amos_bank_set, amos_packed_picture, amos_program,
   amos_sprite_icon_bank, bmp, flic, gif_container, netpbm, pcx, png_container,
-  qoi, tga, wav, zip_archive, zx_spectrum_snapshot, zx_spectrum_tap]
+  qoi, tga, wav, zip_archive, lha_archive, zx_spectrum_snapshot, zx_spectrum_tap]
 import ./containers/xpk_shri
 import ./containers/powerpacker
 import ./metadata
@@ -415,6 +415,34 @@ proc addZipEntry(root: VextResourceNode, entry: ZipEntry, depth: int,
         raise newException(ValueError, "conflicting ZIP entry path: " & entry.name)
       parent = existing
 
+proc addLhaEntry(root: VextResourceNode, entry: LhaEntry, depth: int,
+    ignoreWarnings: bool, pcxChannelOrder: PcxChannelOrder,
+    warnings: var seq[VextInspectionWarning]) =
+  var parent = root
+  var path = root.path
+  for index, segment in entry.segments:
+    path.add "/" & segment
+    let last = index == entry.segments.high
+    var existing = childNamed(parent, path)
+    if last and not entry.isDirectory:
+      if not existing.isNil:
+        raise newException(ValueError, "conflicting LHA entry path: " & entry.name)
+      let metadata = @[
+        stringMetadata("lha.name", entry.name),
+        stringMetadata("compression.method", entry.compressionMethod),
+        integerMetadata("compressed.length", entry.compressedSize),
+        integerMetadata("data.length", entry.uncompressedSize)]
+      parent.children.add containedFileNode(path, segment, LhaFileTypeId,
+        entry.data, metadata, depth, ignoreWarnings, pcxChannelOrder, warnings)
+    else:
+      if existing.isNil:
+        existing = VextResourceNode(path: path, typeId: LhaDirectoryTypeId,
+          kind: vrnkGroup)
+        parent.children.add existing
+      elif existing.kind != vrnkGroup or existing.typeId != LhaDirectoryTypeId:
+        raise newException(ValueError, "conflicting LHA entry path: " & entry.name)
+      parent = existing
+
 proc inspectSourceDepth(filename: string, data: openArray[byte],
     inputFormat: string, depth: int, ignoreWarnings: bool,
     pcxChannelOrder: PcxChannelOrder): VextInspection =
@@ -597,6 +625,15 @@ proc inspectSourceDepth(filename: string, data: openArray[byte],
         stringMetadata("comment", archive.comment)])
     for entry in archive.entries:
       addZipEntry(root, entry, depth, ignoreWarnings, pcxChannelOrder,
+        result.warnings)
+    result.resources.roots.add root
+  of vhkLha:
+    let archive = parsedValue[LhaArchive](selectedParsed, vhkLha)
+    let root = VextResourceNode(path: "/archive", typeId: LhaArchiveTypeId,
+      kind: vrnkGroup, metadata: @[
+        integerMetadata("entries", archive.entries.len)])
+    for entry in archive.entries:
+      addLhaEntry(root, entry, depth, ignoreWarnings, pcxChannelOrder,
         result.warnings)
     result.resources.roots.add root
   of vhkAmigaAdf:
