@@ -1,7 +1,7 @@
 version       = "0.1.0"
-author        = "Vexter contributors"
+author        = "Peter Spicer and Codex"
 description   = "Viewer and extractor for legacy file formats"
-license       = "TBD"
+license       = "BSD-3-Clause"
 srcDir        = "src"
 bin           = @["vexter"]
 

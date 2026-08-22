@@ -1,0 +1,56 @@
+# Vexter
+
+Vexter is a viewer and extractor for legacy file formats. It provides a Nim
+library, a command-line client, and a dependency-free native Windows GUI for
+inspecting, previewing, and exporting resources without modifying their source
+files.
+
+Vexter is authored by Peter Spicer and Codex. It has been developed by Peter
+Spicer in collaboration with OpenAI Codex, including substantial AI-assisted
+implementation, testing, research against supplied reference material, and
+documentation. The implementation began as a study of the current state of
+AI use in the software industry and proved sufficiently useful to continue as
+an ongoing project.
+
+## Supported formats
+
+- Amiga: Workbench icons, ADF and DMS disks, XPK/SHRI, IFF ILBM/ACBM/PBM,
+  ANIM, 8SVX/16SV audio, and AMOS programs and banks
+- Images and animations: BMP/DIB, PCX, TGA, PNG/APNG, GIF, QOI, Netpbm, and
+  FLI/FLC-family files
+- Archives and audio: ZIP and integer PCM WAV
+- ZX Spectrum: screen dumps, SNA snapshots, TAP files, and tokenised BASIC
+
+Decoded resources can be exported as PNG, GIF, APNG, WAV, text, or raw binary.
+Containers such as ADF, ZIP, and XPK are inspected recursively when their
+contents use another supported format. See [format documentation](docs/formats.md)
+for exact coverage and current limitations.
+
+## Building
+
+Vexter requires Nim and Nimble.
+
+```sh
+nice -n 15 nimble test
+nice -n 15 nimble cli
+nice -n 15 nimble gui
+```
+
+The CLI task builds Linux and Windows executables. The GUI task cross-compiles
+the native Windows application and requires MinGW-w64.
+
+## Command line
+
+```text
+vexter inspect INPUT
+vexter export [--format png|gif|apng|txt|wav|bin] [-o OUTPUT] INPUT
+vexter export-all [--format png|gif|apng|txt|wav|bin] -o DIRECTORY INPUT
+```
+
+Run `vexter --help` for the complete option list.
+
+## Licence
+
+Vexter is distributed under the [BSD 3-Clause License](LICENSE). Supplied
+specifications, reference implementations, and compatibility fixtures may
+have separate terms documented in [THIRD_PARTY.md](THIRD_PARTY.md).
