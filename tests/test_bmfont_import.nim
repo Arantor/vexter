@@ -8,6 +8,49 @@ proc mono(width, height: int, coverage: seq[uint8]): VextGlyphBitmap =
 proc bytes(text: string): seq[byte] =
   for value in text: result.add byte(value)
 
+proc addLittleWord(data: var seq[byte], value: int) =
+  data.add byte(value and 0xff)
+  data.add byte((value shr 8) and 0xff)
+
+proc addLittleLong(data: var seq[byte], value: int) =
+  data.add byte(value and 0xff)
+  data.add byte((value shr 8) and 0xff)
+  data.add byte((value shr 16) and 0xff)
+  data.add byte((value shr 24) and 0xff)
+
+proc addBlock(data: var seq[byte], kind: byte, payload: seq[byte]) =
+  data.add kind
+  data.addLittleLong(payload.len)
+  data.add payload
+
+proc binaryDescriptor(): seq[byte] =
+  result = @[byte('B'), byte('M'), byte('F'), 3]
+  var info: seq[byte]
+  info.addLittleWord(8)
+  info.add 0x40 # Unicode
+  info.add 0 # charset
+  info.addLittleWord(100)
+  info.add 1 # antialiasing
+  info.add @[0'u8, 0, 0, 0, 1, 1, 0] # padding, spacing, outline
+  info.add bytes("binary")
+  info.add 0
+  result.addBlock(1, info)
+  var common: seq[byte]
+  for value in [8, 7, 1, 1, 1]: common.addLittleWord(value)
+  common.add @[0'u8, 0, 0, 0, 0]
+  result.addBlock(2, common)
+  result.addBlock(3, bytes("page.png\0"))
+  var characters: seq[byte]
+  characters.addLittleLong(65)
+  for value in [0, 0, 1, 1, -1, 2, 3]: characters.addLittleWord(value)
+  characters.add @[0'u8, 4] # page zero, red channel
+  result.addBlock(4, characters)
+  var kernings: seq[byte]
+  kernings.addLittleLong(65)
+  kernings.addLittleLong(65)
+  kernings.addLittleWord(-1)
+  result.addBlock(5, kernings)
+
 proc imported(exported: VextArtifactSet): VextInspection =
   let descriptor = exported.artifacts[0].data
   let resolver: VextCompanionResolver = proc(path: string): seq[byte] =
@@ -132,13 +175,35 @@ suite "BMFont import":
     check unicodeFont.mappings.len == 2
     check unicodeFont.kerning.len == 1
 
-  test "XML and binary variants are distinguished and retained opaque":
-    for control in ["<?xml version=\"1.0\"?><font></font>", "BMF\x03"]:
-      let data = control.bytes
-      let inspection = inspectSource("control.fnt", data)
-      check inspection.selectedFormat.typeId == BmFontTypeId
-      check inspection.resources.leafResources[0].kind == vrnkOpaque
-      check inspection.resources.leafResources[0].data == data
+  test "binary v3 descriptors reconstruct metrics, channels, and kerning":
+    let descriptor = binaryDescriptor()
+    let page = exportPng(VextTrueColourImage(width: 1, height: 1,
+      pixels: @[VextRgb(r: 77, g: 0, b: 0)]), "page.png").artifacts[0].data
+    let resolver: VextCompanionResolver = proc(path: string): seq[byte] =
+      if path == "page.png": page else: @[]
+    let inspection = inspectSource("binary.fnt", descriptor,
+      companionResolver = resolver)
+    let font = inspection.resources.findFontResource("/font").font
+    check font.name == "binary"
+    check font.lineHeight == 8
+    check font.baseline == 7
+    check font.glyphs[0].bearingX == -1
+    check font.glyphs[0].bearingY == 5
+    check font.glyphs[0].advanceX == 3
+    check font.glyphs[0].bitmap.coverage == @[77'u8]
+    check font.glyphIndexFor(65) == 0
+    check font.kerningFor(65, 65) == (-1, 0)
+    check inspection.resources.roots[0].metadata[0].value.stringValue ==
+      "binary"
+
+  test "XML remains opaque and malformed binary blocks are rejected":
+    let xml = bytes("<?xml version=\"1.0\"?><font></font>")
+    let inspection = inspectSource("control.fnt", xml)
+    check inspection.resources.leafResources[0].kind == vrnkOpaque
+    check inspection.resources.leafResources[0].data == xml
+    for malformed in [bytes("BMF\x03"), bytes("BMF\x02"),
+        bytes("BMF\x03\x01\x20\x00\x00\x00")]:
+      expect ValueError: discard parseBmFont(malformed)
 
   test "count discrepancies are retained while structural faults are rejected":
     let valid = "info face=\"x\" size=8\n" &

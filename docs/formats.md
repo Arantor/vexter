@@ -84,16 +84,19 @@ values remain metadata and the generic line box expands to contain the baseline.
 Non-semantic generator-specific `letter=` annotations are ignored, including
 unescaped quote and backslash glyph annotations.
 
-XML and `BMF` binary descriptors are distinguished with explicit metadata and
-retained byte-identically as opaque resources; they are not interpreted as the
-text variant. Implementation is based on the existing Vexter BMFont exporter
-contract and synthetic round-trip controls, including multi-page and coloured
-fonts. No third-party fixtures are redistributed.
+Binary `BMF` version 3 descriptors decode the information, common, page,
+character, and optional kerning blocks. Block lengths, version, page count,
+Unicode scalar IDs, signed metrics, atlas bounds, and record sizes are checked
+before the same page and glyph conversion used by the text form. XML
+descriptors remain distinguished and retained byte-identically as opaque
+resources.
 
-The four temporarily supplied `bmfonts/` controls exercise these compatibility
-rules: all import with their PNG pages; `lit-small.fnt` reports its declared
-57-versus-47 character discrepancy. Their origin and redistribution terms were
-not supplied, so they are not committed as routine fixtures.
+The temporarily supplied `bmfonts/` controls are from the AngelCode Bitmap
+Font Generator sample at <https://www.angelcode.com/dev/bmfonts/>. They exercise
+text and binary version 3 descriptors, Unicode glyphs, signed metrics, kerning,
+and packed per-glyph RGBA channel selection. They are compatibility evidence
+only and are not copied into the routine fixtures; synthetic tests cover the
+binary structures.
 
 ## FZX bitmap fonts
 

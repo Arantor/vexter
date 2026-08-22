@@ -727,15 +727,15 @@ proc inspectSourceDepth(filename: string, data: openArray[byte],
         stringMetadata("mapping", "printable ASCII positions assumed; custom positions retained as glyph source indices")])
   of vhkBmFont:
     let source = parsedValue[BmFontSource](selectedParsed, vhkBmFont)
-    if source.encoding != bfeText:
+    if source.encoding == bfeXml:
       result.resources.roots.add VextResourceNode(path: "/font/descriptor",
         typeId: BmFontTypeId, kind: vrnkOpaque, data: source.rawData,
         rawDataAvailable: true, metadata: @[stringMetadata("encoding",
-          if source.encoding == bfeXml: "xml" else: "binary")])
+          "xml")])
     else:
       if companionResolver == nil:
         raise newException(ValueError,
-          "BMFont text descriptor requires an atlas companion resolver")
+          "BMFont descriptor requires an atlas companion resolver")
       var pages = newSeq[VextTrueColourImage](source.declaredPages)
       for page in source.pages:
         if not safeCompanionPath(page.filename):
@@ -766,7 +766,8 @@ proc inspectSourceDepth(filename: string, data: openArray[byte],
       result.resources.roots.add VextResourceNode(path: BmFontResourcePath,
         typeId: BmFontResourceTypeId, kind: vrnkFont, font: font,
         metadata: @[
-          stringMetadata("encoding", "text"),
+          stringMetadata("encoding",
+            if source.encoding == bfeText: "text" else: "binary"),
           stringMetadata("font.face", source.face),
           integerMetadata("font.size", source.size),
           integerMetadata("font.bold", source.bold),

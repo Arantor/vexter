@@ -197,7 +197,7 @@ proc detectFormats*(filename: string, data: openArray[byte]):
     if filename.splitFile.ext.toLowerAscii == ".fnt":
       evidence.add VextDetectionEvidence(description: "file extension is .fnt")
     result.add VextDetectionCandidate(typeId: BmFontTypeId,
-      confidence: if font.encoding == bfeText and countsMatch: vdcCertain
+      confidence: if font.encoding != bfeXml and countsMatch: vdcCertain
         else: vdcProbable,
       evidence: evidence)
 

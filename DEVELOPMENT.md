@@ -225,7 +225,7 @@ Matching case-insensitive extensions add supporting evidence.
 - `fzx.nim` validates signatureless FZX v1.0 metrics, relative character-table
   offsets, packed universal kern values, shifts and widths, terminal extent,
   row alignment, definition order, and the specified size limits;
-- `bmfont.nim` distinguishes text, XML, and binary BMFont descriptors and
+- `bmfont.nim` decodes text and binary-v3 BMFont descriptors, distinguishes XML, and
   validates the text variant's records, declared counts, page table, Unicode
   IDs, metrics, and atlas rectangles;
 - `amiga_diskfont.nim` validates plain/tagged bitmap `.font` indexes and

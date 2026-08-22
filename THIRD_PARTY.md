@@ -312,12 +312,26 @@ redistributed as a Vexter test fixture.
 
 ## BMFont compatibility collection
 
-The developer supplied `bmfonts/` containing four BMFont text descriptors and
-their PNG atlas pages (`lit-large`, `lit-small`, `unlit-large`, and
-`unlit-small`). They are used temporarily to validate baseline/line-height
-tolerance, optional glyph annotations, stale declared counts, companion-page
-resolution, and GUI loading. Their source, copyright, and redistribution terms
-have not been supplied, so they are not copied into the routine test fixtures.
+The developer supplied `bmfonts/` from the AngelCode Bitmap Font Generator
+sample distributed at <https://www.angelcode.com/dev/bmfonts/>. The collection
+contains text and binary-version-3 descriptors, packed RGBA atlas pages, and
+the sample `font.fx` channel/outline shader. It is used temporarily to validate
+binary blocks, Unicode IDs, signed metrics, kerning, companion-page resolution,
+and per-glyph channel selection. It is not copied into the routine fixtures.
+
+Relevant SHA-256 hashes:
+
+```text
+f4f3f9c9cbb08e9ba066e319c2e58871bc428ed77d39022d55f89a976d1d6cf1  arial24.fnt
+d73216ae1ca3560737e6fcd8336930d9248e926dee0bcba6a88861dd50b772fa  arial24_00.png
+68e71784f5d0d1068cb56e59cb74531a9468e1ce887e67502aa72c0f160fb2f1  chinese.fnt
+fba8034512000059ca15deba482d071465c65bf9b2f54f06a61cb612328967cb  chinese_00.png
+4d3d288380a7710e4658222441154a9ba6b604d49f996bc79930e19914bfc626  comic10.fnt
+a743acd6c89509626e6f2522e695b010492f05825df2eda015b6e3c5b97d0dfc  comic10_00.png
+cba9a703474980f1b04f80097d9249546f15614c0355bb94113b5772e17efbf0  comic24.fnt
+8f01891ae6b3b05985d69d868f7948d5f81bc152e024856ed929fd38495df76a  comic24_00.png
+34eae5a5de5a91d1a1de5498612bcc2db7170af3702cd1a6c38abdb91033b565  font.fx
+```
 
 ## AMOS sprite-bank fixture
 
