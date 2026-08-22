@@ -5,12 +5,11 @@ library, a command-line client, and a dependency-free native Windows GUI for
 inspecting, previewing, and exporting resources without modifying their source
 files.
 
-Vexter is authored by Peter Spicer and Codex. It has been developed by Peter
-Spicer in collaboration with OpenAI Codex, including substantial AI-assisted
-implementation, testing, research against supplied reference material, and
-documentation. The implementation began as a study of the current state of
-AI use in the software industry and proved sufficiently useful to continue as
-an ongoing project.
+Vexter is authored by Peter Spicer in collaboration with OpenAI Codex,
+including substantial AI-assisted implementation, testing, research against
+supplied reference material, and documentation. This implementation began as a
+study of the current state of AI use in the software industry and proved
+sufficiently useful to continue as an ongoing project.
 
 ## Supported formats
 
