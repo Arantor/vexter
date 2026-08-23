@@ -12,13 +12,13 @@ import ./handler_registry
 import ./exporters/[bmfont, gif, html_report, metadata_json, png, raw, wav]
 import ./resource_tree
 import ./containers/[amiga_8svx, amiga_16sv, amiga_acbm, amiga_adf, amiga_anim, amiga_diskfont, amiga_dms, amiga_hunk_executable, amiga_iff, amiga_ilbm, amiga_lha_sfx, amiga_pbm, amiga_workbench_icon, amos_bank, amos_bank_set, amos_packed_picture, amos_program,
-  amos_sprite_icon_bank, ansi_art, bmfont, bmp, flic, fzx, gif_container, netpbm, openraster, pcx, png_container,
+  amos_sprite_icon_bank, ansi_art, bmfont, bmp, flic, fzx, gif_container, jpeg, netpbm, openraster, pcx, png_container,
   qoi, tga, wav, windows_icon, zip_archive, lha_archive, zx_spectrum_snapshot, zx_spectrum_tap]
 import ./containers/xpk_shri
 import ./containers/powerpacker
 import ./metadata
 import ./resources/[amiga_anim_image, amiga_diskfont_font, amiga_ilbm_image, amiga_pbm_image, amiga_workbench_icon_image, amos_listing, amos_packed_picture_image, amos_planar_image, bmp_image, flic_animation, gif_image, netpbm_image, png_image, zx_spectrum_basic,
-  ansi_art_image, bmfont_font, fzx_font, pcx_image, qoi_image, tga_image, windows_icon_image, zx_spectrum_screen]
+  ansi_art_image, bmfont_font, fzx_font, jpeg_image, pcx_image, qoi_image, tga_image, windows_icon_image, zx_spectrum_screen]
 
 type
   VextOperationCancelledError* = object of CatchableError
@@ -888,6 +888,27 @@ proc inspectSourceDepth(filename: string, data: openArray[byte],
       metadata.add integerMetadata("chunk." & $index & ".length", chunk.data.len)
     result.resources.roots.add VextResourceNode(path: PngImageResourcePath,
       typeId: PngImageTypeId, kind: vrnkRaster, raster: decodePngOrApng(source),
+      metadata: metadata)
+  of vhkJpeg:
+    let source = parsedValue[JpegSource](selectedParsed, vhkJpeg)
+    var metadata = @[
+      integerMetadata("jpeg.precision", source.precision),
+      integerMetadata("jpeg.frame-marker", source.frameMarker),
+      integerMetadata("jpeg.components", source.components.len),
+      integerMetadata("exif.present", int(source.hasExif)),
+      integerMetadata("exif.valid", int(source.exifValid)),
+      integerMetadata("exif.orientation", source.orientation),
+      integerMetadata("jfif.present", int(source.hasJfif))]
+    if source.exifError.len > 0:
+      metadata.add stringMetadata("exif.error", source.exifError)
+    if source.hasJfif:
+      metadata.add stringMetadata("jfif.version",
+        $source.jfifMajor & "." & $source.jfifMinor)
+      metadata.add integerMetadata("jfif.density-units", source.densityUnits)
+      metadata.add integerMetadata("jfif.density.x", source.xDensity)
+      metadata.add integerMetadata("jfif.density.y", source.yDensity)
+    result.resources.roots.add VextResourceNode(path: JpegImageResourcePath,
+      typeId: JpegImageTypeId, kind: vrnkRaster, raster: decodeJpeg(source),
       metadata: metadata)
   of vhkQoi:
     let source = parsedValue[QoiImageSource](selectedParsed, vhkQoi)

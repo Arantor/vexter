@@ -5,7 +5,7 @@ import ./handler_registry
 import ./format_detection_types
 export format_detection_types
 import ./containers/[amiga_8svx, amiga_16sv, amiga_acbm, amiga_adf, amiga_anim, amiga_diskfont, amiga_dms, amiga_hunk_executable, amiga_iff, amiga_ilbm, amiga_lha_sfx, amiga_pbm, amiga_workbench_icon, amos_bank, amos_bank_set, amos_program,
-  amos_sprite_icon_bank, ansi_art, bmfont, bmp, flic, fzx, gif_container, netpbm, pcx, png_container, qoi, tga,
+  amos_sprite_icon_bank, ansi_art, bmfont, bmp, flic, fzx, gif_container, jpeg, netpbm, pcx, png_container, qoi, tga,
   wav, windows_icon, zip_archive, lha_archive, zx_spectrum_screen_dump, zx_spectrum_snapshot, zx_spectrum_tap]
 import ./containers/xpk_shri
 import ./containers/powerpacker
@@ -88,6 +88,19 @@ proc detectBaseFormats(filename: string, data: openArray[byte]):
       evidence.add VextDetectionEvidence(description: "file extension is .png")
     result.add VextDetectionCandidate(typeId: PngTypeId,
       confidence: vdcCertain, evidence: evidence)
+
+  try:
+    let image = parseJpeg(data)
+    var evidence = @[VextDetectionEvidence(description:
+      "file has valid JPEG marker framing and an " & $image.width & "x" &
+      $image.height & " eight-bit DCT frame")]
+    if hasJpegExtension(filename):
+      evidence.add VextDetectionEvidence(description:
+        "filename uses a conventional JPEG extension")
+    result.add VextDetectionCandidate(typeId: JpegTypeId,
+      confidence: vdcCertain, evidence: evidence)
+  except ValueError:
+    discard
 
   if isQoi(data):
     let image = parseQoi(data)

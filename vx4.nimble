@@ -1,6 +1,6 @@
 version       = "0.1.0"
 author        = "Peter Spicer and Codex"
-description   = "Viewer and extractor for legacy file formats"
+description   = "Dependency-free viewer and extractor for reusable file formats"
 license       = "BSD-3-Clause"
 srcDir        = "src"
 bin           = @["vexter"]
@@ -39,6 +39,7 @@ task test, "Run the test suite":
   exec "nim c -r --path:src tests/test_bitmap_font.nim"
   exec "nim c -r --path:src tests/test_fzx.nim"
   exec "nim c -r --path:src tests/test_png.nim"
+  exec "nim c -r --path:src tests/test_jpeg.nim"
   exec "nim c -r --path:src tests/test_gif.nim"
   exec "nim c -r --path:src tests/test_qoi.nim"
   exec "nim c -r --path:src tests/test_netpbm.nim"

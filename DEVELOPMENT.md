@@ -19,7 +19,8 @@ client, and a dependency-free native Windows GUI. It supports:
   animations, IFF 8SVX and 16SV sampled audio,
   integer PCM WAV sounds, PCX, TGA, BMP/DIB,
   static DOS ANSI art with optional SAUCE metadata,
-  PNG, OpenRaster layered documents, Windows ICO/CUR collections (including PNG and DIB entries), QOI,
+  PNG, baseline/extended-sequential Huffman JPEG with EXIF orientation,
+  OpenRaster layered documents, Windows ICO/CUR collections (including PNG and DIB entries), QOI,
   Netpbm P1–P7, GIF87a/GIF89a, and FLI/FLC-family animations,
   AmigaDOS ADF filesystems, DMS disk archives, PowerPacker and XPK/SHRI
   wrappers, ZIP archives, level-0/1 LHA/LZH archives using LH0 or LH5,
@@ -244,6 +245,9 @@ Matching case-insensitive extensions add supporting evidence.
 - `png_container.nim` validates PNG signatures, chunk framing/order, CRC-32,
   image properties, palettes, transparency, and concatenated IDAT data while
   retaining every known or unknown chunk for metadata;
+- `jpeg.nim` validates JPEG marker framing, eight-bit DCT frame dimensions and
+  component sampling, retains JFIF density information, and parses bounded
+  little- or big-endian EXIF IFD0 orientation metadata;
 - `windows_icon.nim` validates ICO/CUR directories and bounded image entries,
   distinguishes embedded PNG, icon-style DIB, and unknown payloads, separates
   DIB XOR imagery from its doubled-height one-bit AND mask, and retains CUR
@@ -342,6 +346,13 @@ scanline, expands all standard colour types and legal bit depths, applies
 palette or `tRNS` alpha, and reconstructs Adam7 passes. APNG and unknown chunks
 are distinguished: valid APNG frame streams are decomposed and composited into
 a true-colour animation, while unknown chunks remain metadata-only.
+
+`src/vexterlib/resources/jpeg_image.nim` natively decodes eight-bit baseline
+and extended-sequential Huffman scans, including quantization and Huffman
+tables, restart intervals, grayscale and YCbCr component sampling, and inverse
+DCT reconstruction. It applies EXIF orientations 1 through 8 to the decoded
+image before preview or export. No JPEG C library or runtime dependency is
+linked into Vexter.
 
 `src/vexterlib/resources/qoi_image.nim` decodes every QOI RGB, RGBA, INDEX,
 DIFF, LUMA, and RUN operation into a true-colour image with optional alpha,
@@ -709,6 +720,12 @@ source/over blend and none/background/previous disposal operations, and exposed
 as a full-frame true-colour animation. Unknown standard/private chunks remain
 reported metadata and do not cause import failure.
 
+JPEG files expose `/image` as a true-colour raster and naturally export as PNG.
+Detection is structural; `.jpg`, `.jpeg`, and `.jpe` are supporting evidence
+only. JFIF fields and EXIF presence, validity, orientation, and parser errors
+are inspection metadata. A malformed EXIF block does not invalidate otherwise
+valid JPEG image data.
+
 GIF87a and GIF89a files expose `/image` as a `VextIndexedAnimation`, including
 single-image files. LZW, interlacing, global/local colour tables, transparency,
 delays, and none/background/previous disposal are decoded into full-canvas
@@ -820,6 +837,12 @@ The routine suites are:
   export round trips, private chunk tolerance, metadata retention, CRCs,
   malformed required chunks, and every existing independently encoded PNG
   control;
+- `tests/test_jpeg.nim`: self-contained baseline Huffman decoding, structural
+  detection, PNG routing, both EXIF TIFF byte orders, all eight orientation
+  mappings, medium-image component-plane scaling, malformed EXIF isolation,
+  malformed JPEG framing, and explicit progressive-decoding rejection; the
+  separately supplied IJG baseline sample is also used as an uncommitted
+  compatibility control;
 - `tests/test_qoi.nim`: every QOI opcode, colour-index hashing, runs,
   modulo-256 channel differences, alpha, metadata, detection, PNG routing,
   declared pixel coverage, exact termination, and malformed input;

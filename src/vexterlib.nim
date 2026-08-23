@@ -31,6 +31,7 @@ import vexterlib/containers/lha_archive
 import vexterlib/containers/pcx
 import vexterlib/containers/bmp
 import vexterlib/containers/png_container
+import vexterlib/containers/jpeg
 import vexterlib/containers/windows_icon
 import vexterlib/containers/gif_container
 import vexterlib/containers/wav as wav_container
@@ -60,6 +61,7 @@ import vexterlib/resources/zx_spectrum_basic
 import vexterlib/resources/pcx_image
 import vexterlib/resources/bmp_image
 import vexterlib/resources/png_image
+import vexterlib/resources/jpeg_image
 import vexterlib/resources/windows_icon_image
 import vexterlib/resources/gif_image
 import vexterlib/resources/qoi_image
@@ -87,6 +89,8 @@ export palette_swatch
 export font_preview
 export artifacts
 export openraster
+export jpeg
+export jpeg_image
 export ansi_art
 export ansi_art_image
 export amos_bank

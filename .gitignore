@@ -10,6 +10,7 @@
 /tests/test_pcx
 /tests/test_bmp
 /tests/test_png
+/tests/test_jpeg
 /tests/test_gif
 /tests/test_qoi
 /tests/test_netpbm

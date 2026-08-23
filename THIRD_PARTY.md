@@ -170,6 +170,44 @@ e3991de55ec2933ee4466e10c9fef634dcacc3a271d200ba07f37689028a0595  Layer Stack Sp
 fb59d839968f1ba91651f3888a997fe9563b18f9be277f8d4378702f477e9e3e  2018-11-28_coc.ora
 ```
 
+## JPEG, JFIF, EXIF, and Independent JPEG Group references
+
+The developer supplied the local, untracked `jpeg-10/` source distribution
+from [the Independent JPEG Group](https://ijg.org/), originally distributed as
+`jpegsr10.zip`. Its README identifies it as release 10 of 2026-01-25 and
+copyright © 1991–2026 Thomas G. Lane and Guido Vollbeding. Vexter uses this
+industrial implementation as an attributed behavioral and algorithmic
+reference while porting JPEG decompression to native Nim; the C library is not
+compiled, linked, or redistributed with Vexter.
+
+As required by the supplied licence, Vexter documentation acknowledges that:
+
+> this software is based in part on the work of the Independent JPEG Group
+
+The distribution identifies the work of Tom Lane, Guido Vollbeding, Philip
+Gladstone, Bill Allombert, Jim Boucher, Lee Crocker, Bob Friesenhahn, Ben
+Jackson, John Korejwa, Julian Minguillon, Luis Ortiz, George Phillips, Davide
+Rossi, Ge' Weijers, and other members of the Independent JPEG Group. The local
+README contains the complete copyright, no-warranty, and use conditions and is
+the licence authority for the port.
+
+The developer also supplied `JPEG File Interchange Format - Wikipedia.html`,
+sourced from [Wikipedia's JFIF article](https://en.wikipedia.org/wiki/JPEG_File_Interchange_Format),
+as the local reference for JFIF marker layout, APP0 fields, density, thumbnails,
+and Y/YCbCr interpretation. `Exif.php` and `ExifTag.php` are developer-authored
+2014–2015 code supplied as prior practical research into JPEG APP1 discovery,
+TIFF byte order, IFD entry framing, and EXIF orientation tag `0x0112`. They are
+references only and are not incorporated as PHP or redistributed.
+
+Relevant SHA-256 hashes are:
+
+```text
+9558ec9e705f74c3e4c0bc0063effd9e1434ac33b6551602c5f1b8fbdb00fa49  jpeg-10/README
+0bdc0e108e92a0abd3e37262a230dd09ddb854b26c8a0bb61e723e90c2ff8d2b  JPEG File Interchange Format - Wikipedia.html
+bebd171da0521564ce9301cc5a5b0295f53e4b6aa9f89d1116ce200d9adf8ba8  Exif.php
+4c490f2f51a4379452091a9828c82b7b2f4a162c596ec2f53fd3b779ab62a2fd  ExifTag.php
+```
+
 ## Temporary 16colo.rs ANSI and character-art compatibility controls
 
 The developer supplied three artwork files and their PNG renderings from

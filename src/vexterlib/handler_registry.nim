@@ -8,7 +8,7 @@ import ./containers/[amiga_8svx, amiga_16sv, amiga_acbm, amiga_adf, amiga_anim,
   amiga_diskfont, amiga_dms, amiga_hunk_executable, amiga_iff, amiga_ilbm, amiga_lha_sfx,
   amiga_workbench_icon, amos_bank,
   amos_bank_set, amos_program, amos_sprite_icon_bank, ansi_art, bmp, flic, gif_container,
-  bmfont, fzx, lha_archive, netpbm, openraster, pcx, png_container, powerpacker, qoi, tga, wav, windows_icon, zip_archive,
+  bmfont, fzx, jpeg, lha_archive, netpbm, openraster, pcx, png_container, powerpacker, qoi, tga, wav, windows_icon, zip_archive,
   zx_spectrum_screen_dump, zx_spectrum_snapshot, zx_spectrum_tap, xpk_shri]
 import ./containers/amiga_pbm
 import ./format_detection_types
@@ -34,6 +34,7 @@ type
     vhkDib
     vhkWindowsIcon
     vhkPng
+    vhkJpeg
     vhkQoi
     vhkNetpbm
     vhkGif
@@ -116,6 +117,7 @@ const FormatHandlers* = [
   VextFormatHandler(typeId: WindowsIcoTypeId, kind: vhkWindowsIcon),
   VextFormatHandler(typeId: WindowsCurTypeId, kind: vhkWindowsIcon),
   VextFormatHandler(typeId: PngTypeId, kind: vhkPng),
+  VextFormatHandler(typeId: JpegTypeId, kind: vhkJpeg),
   VextFormatHandler(typeId: QoiTypeId, kind: vhkQoi),
   VextFormatHandler(typeId: NetpbmTypeId, kind: vhkNetpbm),
   VextFormatHandler(typeId: GifTypeId, kind: vhkGif),
@@ -211,6 +213,7 @@ proc parse*(handler: VextFormatHandler,
       raise newException(ValueError, "ICO/CUR type does not match the selected format")
     result = parsed(icon)
   of vhkPng: result = parsed(parsePng(data))
+  of vhkJpeg: result = parsed(parseJpeg(data))
   of vhkQoi: result = parsed(parseQoi(data))
   of vhkNetpbm: result = parsed(parseNetpbm(data))
   of vhkGif: result = parsed(parseGif(data))

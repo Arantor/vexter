@@ -1356,6 +1356,38 @@ filters, Adam7 coordinate reconstruction, APNG import/export round trips,
 partial-frame blending/disposal, private chunk tolerance/metadata, CRC
 rejection, and required chunks.
 
+## JPEG images
+
+Container type identifier: `jpeg`
+
+Raster type identifier: `jpeg.image`
+
+JPEG import structurally validates start/end markers, bounded marker segments,
+one eight-bit DCT frame, positive dimensions, component sampling, and at least
+one scan. Valid data is detected as **certain** independently of its filename;
+`.jpg`, `.jpeg`, and `.jpe` add supporting evidence. The decoded true-colour
+image is exposed at `/image` and naturally exports as PNG.
+
+The dependency-free Nim decoder supports baseline and extended-sequential
+Huffman coding with one grayscale or three YCbCr components. It reads 8- or
+16-bit quantization tables, canonical Huffman tables, restart intervals,
+component sampling, DC prediction, AC runs, dequantization, and inverse DCT.
+Chroma planes are currently expanded with nearest-neighbour sampling.
+
+JFIF version, density units, and density values are exposed as metadata. An
+EXIF APP1 segment is parsed as bounded TIFF in either byte order to obtain the
+IFD0 orientation tag. Orientations 1 through 8 are applied to the decoded
+raster before it reaches GUI preview, PNG export, or any other raster consumer.
+Malformed EXIF metadata is reported through `exif.error` but does not prevent
+decoding otherwise valid JPEG image data.
+
+Implementation was informed by the developer-supplied IJG release 10 source,
+JFIF reference page, and earlier PHP EXIF parser. These inputs remain local
+research rather than committed fixtures or linked dependencies. The supplied
+IJG baseline sample decodes as a 227×149 image; routine tests construct their
+own minimal JPEG and EXIF streams. Attribution and source hashes are recorded
+in [`THIRD_PARTY.md`](../THIRD_PARTY.md).
+
 ## QOI images
 
 Container type identifier: `qoi`

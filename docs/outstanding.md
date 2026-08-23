@@ -37,6 +37,16 @@ behavior and evidence remain in [`formats.md`](formats.md).
   - Application-specific extensions and archival-intent features are not yet
     interpreted.
 
+- **JPEG**
+  - Progressive, lossless, arithmetic-coded, hierarchical, and multi-scan
+    sequential JPEG processes are recognized only as unsupported or rejected;
+    the native decoder currently handles one baseline or extended-sequential
+    Huffman scan.
+  - Four-component CMYK/YCCK images and uncommon component interpretations are
+    unsupported. Three components are currently interpreted as YCbCr.
+  - Chroma upsampling is nearest-neighbour, and ICC profiles, EXIF fields other
+    than orientation, XMP, and other application metadata are not interpreted.
+
 - **Palette interchange**
   - Ordered palettes can currently be exported as PNG swatches and exact
     metadata JSON. Dedicated GIMP GPL, Paint.NET TXT, and Aseprite palette
