@@ -390,6 +390,13 @@ routine suite embeds one authentic small LH5 member with its decoded control.
 
 Container type identifier: `archive.zip`
 
+ZIP is registered as a physical carrier. The library has a carrier-refinement
+stage through which future semantic package handlers can declare `archive.zip`
+as their carrier and inspect the already parsed archive without teaching the ZIP
+module about each package format. Detection retains the generic ZIP candidate;
+forcing `archive.zip` bypasses those refinements. No ZIP package profiles are
+registered at present.
+
 Vexter supports ordinary single-volume ZIP archives containing stored or raw
 DEFLATE-compressed members. It validates the end record, central directory,
 local header and data bounds, declared expanded sizes, and each file's CRC-32.
