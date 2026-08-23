@@ -1375,18 +1375,29 @@ component sampling, DC prediction, AC runs, dequantization, and inverse DCT.
 Chroma planes are currently expanded with nearest-neighbour sampling.
 
 JFIF version, density units, and density values are exposed as metadata. An
-EXIF APP1 segment is parsed as bounded TIFF in either byte order to obtain the
-IFD0 orientation tag. Orientations 1 through 8 are applied to the decoded
-raster before it reaches GUI preview, PNG export, or any other raster consumer.
-Malformed EXIF metadata is reported through `exif.error` but does not prevent
-decoding otherwise valid JPEG image data.
+EXIF APP1 segment is parsed as bounded TIFF in either byte order. IFD0,
+photographic, GPS, interoperability, and thumbnail directories are followed
+with cycle, depth, entry-count, field-size, and APP1-boundary checks. Standard
+text, integer, rational, and selected undefined fields are reported under
+stable `exif.ifd0.*`, `exif.photo.*`, `exif.gps.*`,
+`exif.interoperability.*`, and `exif.thumbnail.*` keys. Common enumerations and
+photographic units are rendered readably; large MakerNote and unknown binary
+fields are represented by their bounded byte counts rather than dumped.
+
+The IFD0 orientation tag retains special behavior: orientations 1 through 8
+are applied to the decoded raster before it reaches GUI preview, PNG export,
+or any other raster consumer. Malformed EXIF metadata is reported through
+`exif.error` but does not prevent decoding otherwise valid JPEG image data.
 
 Implementation was informed by the developer-supplied IJG release 10 source,
 JFIF reference page, and earlier PHP EXIF parser. These inputs remain local
 research rather than committed fixtures or linked dependencies. The supplied
 IJG baseline sample decodes as a 227×149 image; routine tests construct their
-own minimal JPEG and EXIF streams. Attribution and source hashes are recorded
-in [`THIRD_PARTY.md`](../THIRD_PARTY.md).
+own minimal JPEG and EXIF streams. The temporarily supplied `DSCF0048.JPG`
+camera photograph exercises 12 IFD0 entries, 36 photographic entries, an
+eight-entry thumbnail IFD, and a two-entry interoperability IFD; it remains an
+uncommitted compatibility control. Attribution and research-source hashes are
+recorded in [`THIRD_PARTY.md`](../THIRD_PARTY.md).
 
 ## QOI images
 

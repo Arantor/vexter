@@ -247,7 +247,8 @@ Matching case-insensitive extensions add supporting evidence.
   retaining every known or unknown chunk for metadata;
 - `jpeg.nim` validates JPEG marker framing, eight-bit DCT frame dimensions and
   component sampling, retains JFIF density information, and parses bounded
-  little- or big-endian EXIF IFD0 orientation metadata;
+  little- or big-endian EXIF IFD0, photographic, GPS, interoperability, and
+  thumbnail directories, including orientation and readable standard fields;
 - `windows_icon.nim` validates ICO/CUR directories and bounded image entries,
   distinguishes embedded PNG, icon-style DIB, and unknown payloads, separates
   DIB XOR imagery from its doubled-height one-bit AND mask, and retains CUR
@@ -839,10 +840,10 @@ The routine suites are:
   control;
 - `tests/test_jpeg.nim`: self-contained baseline Huffman decoding, structural
   detection, PNG routing, both EXIF TIFF byte orders, all eight orientation
-  mappings, medium-image component-plane scaling, malformed EXIF isolation,
-  malformed JPEG framing, and explicit progressive-decoding rejection; the
-  separately supplied IJG baseline sample is also used as an uncommitted
-  compatibility control;
+  mappings, photographic sub-IFD values, medium-image component-plane scaling,
+  malformed EXIF isolation, malformed JPEG framing, and explicit progressive
+  decoding rejection; separately supplied IJG and camera JPEGs are also used
+  as uncommitted compatibility controls;
 - `tests/test_qoi.nim`: every QOI opcode, colour-index hashing, runs,
   modulo-256 channel differences, alpha, metadata, detection, PNG routing,
   declared pixel coverage, exact termination, and malformed input;

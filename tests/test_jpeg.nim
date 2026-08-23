@@ -5,6 +5,16 @@ proc word(data: var seq[byte], value: int) =
   data.add byte(value shr 8)
   data.add byte(value)
 
+proc littleWord(data: var seq[byte], value: int) =
+  data.add byte(value)
+  data.add byte(value shr 8)
+
+proc littleDword(data: var seq[byte], value: int) =
+  data.add byte(value)
+  data.add byte(value shr 8)
+  data.add byte(value shr 16)
+  data.add byte(value shr 24)
+
 proc segment(data: var seq[byte], marker: byte, payload: openArray[byte]) =
   data.add 0xff
   data.add marker
@@ -21,6 +31,38 @@ proc exifPayload(orientation: int, little = true): seq[byte] =
     result.add @[byte('M'), byte('M'), 0'u8, 42, 0, 0, 0, 8,
       0, 1, 0x01, 0x12, 0, 3, 0, 0, 0, 1,
       0, byte(orientation), 0, 0, 0, 0, 0, 0]
+
+proc richExifPayload(): seq[byte] =
+  result = @[byte('E'), byte('x'), byte('i'), byte('f'), 0'u8, 0,
+    byte('I'), byte('I'), 42, 0, 8, 0, 0, 0]
+  result.littleWord(2)
+  result.littleWord(0x0112); result.littleWord(3); result.littleDword(1)
+  result.littleWord(1); result.littleWord(0)
+  result.littleWord(0x8769); result.littleWord(4); result.littleDword(1)
+  result.littleDword(38)
+  result.littleDword(0)
+  result.littleWord(4)
+  result.littleWord(0x829a); result.littleWord(5); result.littleDword(1)
+  result.littleDword(92)
+  result.littleWord(0x829d); result.littleWord(5); result.littleDword(1)
+  result.littleDword(100)
+  result.littleWord(0x8827); result.littleWord(3); result.littleDword(1)
+  result.littleWord(80); result.littleWord(0)
+  result.littleWord(0x9003); result.littleWord(2); result.littleDword(20)
+  result.littleDword(108)
+  result.littleDword(0)
+  result.littleDword(1); result.littleDword(420)
+  result.littleDword(29); result.littleDword(10)
+  for character in "2007:01:20 13:19:03\0": result.add byte(character)
+
+proc withExif(data, payload: seq[byte]): seq[byte] =
+  result.add data.toOpenArray(0, 1)
+  result.segment(0xe1, payload)
+  result.add data.toOpenArray(2, data.high)
+
+proc exifValue(source: JpegSource, key: string): string =
+  for entry in source.exifMetadata:
+    if entry.key == key: return entry.value
 
 proc constantJpeg(width = 16, height = 8, orientation = 1,
     includeExif = false, littleExif = true): seq[byte] =
@@ -96,6 +138,25 @@ suite "JPEG and EXIF":
       let image = decodeJpeg(source).trueColourImage
       check image.width == 8
       check image.height == 16
+
+  test "photographic EXIF sub-IFD values become readable metadata":
+    let data = constantJpeg().withExif(richExifPayload())
+    let source = parseJpeg(data)
+    check source.exifValid
+    check source.exifValue("exif.ifd0.orientation") == "1 (top-left)"
+    check source.exifValue("exif.photo.exposure-time") == "1/420 s"
+    check source.exifValue("exif.photo.f-number") == "f/2.9"
+    check source.exifValue("exif.photo.iso-speed") == "80"
+    check source.exifValue("exif.photo.date-time-original") ==
+      "2007:01:20 13:19:03"
+    let resource = inspectSource("metadata.jpg", data).resources.
+      findRasterResource(JpegImageResourcePath)
+    var exposed = false
+    for entry in resource.metadata:
+      if entry.key == "exif.photo.iso-speed":
+        check entry.value.stringValue == "80"
+        exposed = true
+    check exposed
 
   test "all eight orientation transforms use the defined coordinates":
     let image = VextTrueColourImage(width: 2, height: 3, pixels: @[

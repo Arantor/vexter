@@ -45,7 +45,9 @@ behavior and evidence remain in [`formats.md`](formats.md).
   - Four-component CMYK/YCCK images and uncommon component interpretations are
     unsupported. Three components are currently interpreted as YCbCr.
   - Chroma upsampling is nearest-neighbour, and ICC profiles, EXIF fields other
-    than orientation, XMP, and other application metadata are not interpreted.
+    than the standard bounded TIFF directories and values currently exposed,
+    XMP, vendor MakerNote semantics, embedded thumbnails, and other application
+    metadata are not interpreted.
 
 - **Palette interchange**
   - Ordered palettes can currently be exported as PNG swatches and exact

@@ -901,6 +901,8 @@ proc inspectSourceDepth(filename: string, data: openArray[byte],
       integerMetadata("jfif.present", int(source.hasJfif))]
     if source.exifError.len > 0:
       metadata.add stringMetadata("exif.error", source.exifError)
+    for entry in source.exifMetadata:
+      metadata.add stringMetadata(entry.key, entry.value)
     if source.hasJfif:
       metadata.add stringMetadata("jfif.version",
         $source.jfifMajor & "." & $source.jfifMinor)
