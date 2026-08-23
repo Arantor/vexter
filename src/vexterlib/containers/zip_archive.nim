@@ -14,6 +14,8 @@ type
     segments*: seq[string]
     isDirectory*: bool
     compressionMethod*: int
+    localHeaderOffset*: int
+    utf8Name*: bool
     compressedSize*: int
     uncompressedSize*: int
     data*: seq[byte]
@@ -230,6 +232,7 @@ proc parseZipArchive*(data: openArray[byte]): ZipArchive =
       raise newException(ValueError, "ZIP directory entry contains file data")
     result.entries.add ZipEntry(name: canonical, segments: segments,
       isDirectory: directory, compressionMethod: compression,
+      localHeaderOffset: localOffset, utf8Name: (flags and 0x800) != 0,
       compressedSize: compressedSize, uncompressedSize: uncompressedSize,
       data: payload)
     offset = nextOffset

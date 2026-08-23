@@ -12,7 +12,7 @@ import ./handler_registry
 import ./exporters/[bmfont, gif, html_report, metadata_json, png, raw, wav]
 import ./resource_tree
 import ./containers/[amiga_8svx, amiga_16sv, amiga_acbm, amiga_adf, amiga_anim, amiga_diskfont, amiga_dms, amiga_hunk_executable, amiga_iff, amiga_ilbm, amiga_lha_sfx, amiga_pbm, amiga_workbench_icon, amos_bank, amos_bank_set, amos_packed_picture, amos_program,
-  amos_sprite_icon_bank, ansi_art, bmfont, bmp, flic, fzx, gif_container, netpbm, pcx, png_container,
+  amos_sprite_icon_bank, ansi_art, bmfont, bmp, flic, fzx, gif_container, netpbm, openraster, pcx, png_container,
   qoi, tga, wav, windows_icon, zip_archive, lha_archive, zx_spectrum_snapshot, zx_spectrum_tap]
 import ./containers/xpk_shri
 import ./containers/powerpacker
@@ -223,15 +223,6 @@ proc suffixedExportName(name: string, suffix: int): string =
   let slash = name.rfind('/')
   if slash < 0: name & "-" & $suffix
   else: name[0 .. slash] & name[slash + 1 .. ^1] & "-" & $suffix
-
-proc forcedFormat(typeId: string, data: openArray[byte]): VextDetectedFormat =
-  let handler = formatHandler(typeId)
-  if handler.isNil:
-    raise newException(ValueError, "unsupported input format: " & typeId)
-  result.parsed = handler[].parse(data)
-  result.candidate = VextDetectionCandidate(typeId: typeId,
-    confidence: vdcProbable, evidence: @[VextDetectionEvidence(
-      description: "format selected by the caller")])
 
 proc rasterNode(path: string, data: openArray[byte]): VextResourceNode =
   VextResourceNode(
@@ -534,6 +525,38 @@ proc trueColourPage(raster: VextRaster): VextTrueColourImage =
   else:
     raise newException(ValueError, "BMFont atlas must be a static PNG image")
 
+proc openRasterElementNode(element: OpenRasterElement,
+    path: string): VextResourceNode =
+  var metadata = @[
+    stringMetadata("name", element.name),
+    stringMetadata("opacity", $element.opacity),
+    stringMetadata("visibility", element.visibility),
+    stringMetadata("composite-op", element.compositeOp),
+    integerMetadata("offset.x", element.x),
+    integerMetadata("offset.y", element.y)]
+  case element.kind
+  of orekStack:
+    metadata.add stringMetadata("isolation", element.isolation)
+    result = VextResourceNode(path: path, typeId: OpenRasterStackTypeId,
+      kind: vrnkGroup, metadata: metadata)
+    for index, child in element.children:
+      result.children.add openRasterElementNode(child, path & "/" & $index)
+  of orekLayer:
+    metadata.add stringMetadata("source", element.sourcePath)
+    metadata.add integerMetadata("selected", int(element.selected))
+    if element.pngSource:
+      metadata.add integerMetadata("image.width", element.image.width)
+      metadata.add integerMetadata("image.height", element.image.height)
+      result = VextResourceNode(path: path, typeId: OpenRasterLayerTypeId,
+        kind: vrnkRaster, raster: decodePngOrApng(element.image),
+        metadata: metadata)
+    else:
+      metadata.add stringMetadata("decode.status",
+        "source encoding is retained but not decoded")
+      result = VextResourceNode(path: path, typeId: OpenRasterLayerTypeId,
+        kind: vrnkOpaque, data: element.sourceData, rawDataAvailable: true,
+        metadata: metadata)
+
 proc inspectSourceDepth(filename: string, data: openArray[byte],
     inputFormat: string, depth: int, ignoreWarnings: bool,
     pcxChannelOrder: PcxChannelOrder, ansiLetterSpacing: AnsiLetterSpacing,
@@ -544,7 +567,7 @@ proc inspectSourceDepth(filename: string, data: openArray[byte],
     result.candidates.add item.candidate
   var selectedParsed: VextParsedContainer
   if inputFormat.len > 0:
-    let forced = forcedFormat(inputFormat, data)
+    let forced = forceFormat(filename, data, inputFormat)
     result.selectedFormat = forced.candidate
     selectedParsed = forced.parsed
   else:
@@ -977,6 +1000,29 @@ proc inspectSourceDepth(filename: string, data: openArray[byte],
       addZipEntry(root, entry, depth, ignoreWarnings, pcxChannelOrder,
         result.warnings)
     result.resources.roots.add root
+  of vhkOpenRaster:
+    let document = parsedValue[OpenRasterDocument](selectedParsed,
+      vhkOpenRaster)
+    result.resources.roots.add VextResourceNode(path: "/image",
+      typeId: OpenRasterImageTypeId, kind: vrnkRaster,
+      raster: decodePngOrApng(document.mergedImage),
+      defaultExportPriority: 100, metadata: @[
+        stringMetadata("role", "canonical merged image"),
+        integerMetadata("canvas.width", document.width),
+        integerMetadata("canvas.height", document.height)])
+    result.resources.roots.add VextResourceNode(path: "/thumbnail",
+      typeId: OpenRasterThumbnailTypeId, kind: vrnkRaster,
+      raster: decodePngOrApng(document.thumbnail), metadata: @[
+        stringMetadata("role", "document thumbnail")])
+    let layers = openRasterElementNode(document.stack, "/layers")
+    layers.metadata.add @[
+      stringMetadata("openraster.version", document.version),
+      stringMetadata("document.name", document.name),
+      integerMetadata("canvas.width", document.width),
+      integerMetadata("canvas.height", document.height),
+      integerMetadata("resolution.x", document.xResolution),
+      integerMetadata("resolution.y", document.yResolution)]
+    result.resources.roots.add layers
   of vhkLha:
     let archive = parsedValue[LhaArchive](selectedParsed, vhkLha)
     let root = VextResourceNode(path: "/archive", typeId: LhaArchiveTypeId,

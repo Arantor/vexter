@@ -2,6 +2,8 @@
 
 import std/[os, strutils]
 import ./handler_registry
+import ./format_detection_types
+export format_detection_types
 import ./containers/[amiga_8svx, amiga_16sv, amiga_acbm, amiga_adf, amiga_anim, amiga_diskfont, amiga_dms, amiga_hunk_executable, amiga_iff, amiga_ilbm, amiga_lha_sfx, amiga_pbm, amiga_workbench_icon, amos_bank, amos_bank_set, amos_program,
   amos_sprite_icon_bank, ansi_art, bmfont, bmp, flic, fzx, gif_container, netpbm, pcx, png_container, qoi, tga,
   wav, windows_icon, zip_archive, lha_archive, zx_spectrum_screen_dump, zx_spectrum_snapshot, zx_spectrum_tap]
@@ -10,30 +12,11 @@ import ./containers/powerpacker
 import ./resources/zx_spectrum_screen
 
 type
-  VextDetectionConfidence* = enum
-    vdcPossible
-    vdcProbable
-    vdcCertain
-
-  VextDetectionEvidence* = object
-    description*: string
-
-  VextDetectionCandidate* = object
-    typeId*: string
-    confidence*: VextDetectionConfidence
-    evidence*: seq[VextDetectionEvidence]
-
   VextDetectedFormat* = object
     candidate*: VextDetectionCandidate
     parsed*: VextParsedContainer
 
-proc `$`*(confidence: VextDetectionConfidence): string =
-  case confidence
-  of vdcPossible: "possible"
-  of vdcProbable: "probable"
-  of vdcCertain: "certain"
-
-proc detectFormats*(filename: string, data: openArray[byte]):
+proc detectBaseFormats(filename: string, data: openArray[byte]):
     seq[VextDetectionCandidate] =
   ## Returns every format candidate recognized from currently available
   ## evidence, ordered from strongest to weakest.
@@ -474,10 +457,100 @@ proc detectFormats*(filename: string, data: openArray[byte]):
       raise newException(Defect,
         "detector returned an unregistered input format: " & candidate.typeId)
 
+  for candidate in result.mitems:
+    candidate.derivation = baseDerivation(candidate.typeId)
+
+proc applyFormatRefiners*(filename: string, data: openArray[byte],
+    carrier: VextDetectedFormat, refiners: openArray[VextFormatRefiner],
+    depth = 0): seq[VextDetectedFormat] =
+  ## Applies semantic refiners to an already parsed physical or semantic
+  ## carrier. More-specific descendants precede their immediate parent.
+  if depth >= 8: return
+  for refiner in refiners:
+    if refiner.carrierTypeId != carrier.candidate.typeId or
+        refiner.probe.isNil:
+      continue
+    var repeated = false
+    for stage in carrier.candidate.derivation.stages:
+      if stage.typeId == refiner.typeId: repeated = true
+    if repeated: continue
+    let matched = refiner.probe(filename, data, carrier.parsed)
+    if matched.parsed.isNil: continue
+    let refined = VextDetectedFormat(candidate: VextDetectionCandidate(
+      typeId: refiner.typeId, confidence: matched.confidence,
+      evidence: matched.evidence,
+      derivation: carrier.candidate.derivation.refinedDerivation(refiner.typeId)),
+      parsed: matched.parsed)
+    result.add applyFormatRefiners(filename, data, refined, refiners, depth + 1)
+    result.add refined
+
+proc detectParsedFormatsWith*(filename: string, data: openArray[byte],
+    refiners: openArray[VextFormatRefiner]): seq[VextDetectedFormat] =
+  ## Detection entry point used by the registered path and focused tests.
+  ## Every base parser runs once; refiners receive and may retain that value.
+  for candidate in detectBaseFormats(filename, data):
+    let handler = formatHandler(candidate.typeId)
+    let carrier = VextDetectedFormat(candidate: candidate,
+      parsed: handler[].parse(data))
+    result.add applyFormatRefiners(filename, data, carrier, refiners)
+    result.add carrier
+
 proc detectParsedFormats*(filename: string, data: openArray[byte]):
     seq[VextDetectedFormat] =
-  ## Detects formats and retains each parsed container for later inspection.
-  for candidate in detectFormats(filename, data):
-    let handler = formatHandler(candidate.typeId)
-    result.add VextDetectedFormat(candidate: candidate,
-      parsed: handler[].parse(data))
+  ## Detects physical formats plus registered semantic refinements.
+  let refiners = formatRefiners()
+  for refiner in refiners:
+    let target = formatHandler(refiner.typeId)
+    if target.isNil or target[].carrierTypeId != refiner.carrierTypeId:
+      raise newException(Defect,
+        "refiner does not match its registered semantic handler: " &
+          refiner.typeId)
+  detectParsedFormatsWith(filename, data, refiners)
+
+proc detectFormats*(filename: string, data: openArray[byte]):
+    seq[VextDetectionCandidate] =
+  for detected in detectParsedFormats(filename, data):
+    result.add detected.candidate
+
+proc forceFormatWithDepth(filename: string, data: openArray[byte],
+    typeId: string, refiners: openArray[VextFormatRefiner],
+    depth: int): VextDetectedFormat =
+  ## Forces either a physical handler or a semantic refinement. Forcing a
+  ## physical carrier deliberately bypasses its refiners.
+  if depth >= 8:
+    raise newException(ValueError,
+      "format refinement exceeds the maximum derivation depth")
+  let direct = formatHandler(typeId)
+  if not direct.isNil and direct[].carrierTypeId.len == 0:
+    result = VextDetectedFormat(candidate: VextDetectionCandidate(typeId: typeId,
+      confidence: vdcProbable, evidence: @[VextDetectionEvidence(
+        description: "format selected by the caller")],
+      derivation: baseDerivation(typeId)), parsed: direct[].parse(data))
+    return
+  for refiner in refiners:
+    if refiner.typeId != typeId: continue
+    let carrierHandler = formatHandler(refiner.carrierTypeId)
+    let carrier = if not carrierHandler.isNil and
+        carrierHandler[].carrierTypeId.len == 0:
+        VextDetectedFormat(candidate: VextDetectionCandidate(
+          typeId: refiner.carrierTypeId, confidence: vdcProbable,
+          evidence: @[VextDetectionEvidence(description:
+            "carrier selected for a forced semantic format")],
+          derivation: baseDerivation(refiner.carrierTypeId)),
+          parsed: carrierHandler[].parse(data))
+      else:
+        forceFormatWithDepth(filename, data, refiner.carrierTypeId, refiners,
+          depth + 1)
+    for refined in applyFormatRefiners(filename, data, carrier, refiners):
+      if refined.candidate.typeId == typeId: return refined
+    raise newException(ValueError,
+      "input does not match forced format: " & typeId)
+  raise newException(ValueError, "unsupported input format: " & typeId)
+
+proc forceFormatWith*(filename: string, data: openArray[byte], typeId: string,
+    refiners: openArray[VextFormatRefiner]): VextDetectedFormat =
+  forceFormatWithDepth(filename, data, typeId, refiners, 0)
+
+proc forceFormat*(filename: string, data: openArray[byte],
+    typeId: string): VextDetectedFormat =
+  forceFormatWith(filename, data, typeId, formatRefiners())

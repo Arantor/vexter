@@ -130,6 +130,46 @@ a2124dfa0076075692846fed238d92c017a1032265c89a4ffdd6d69e6e042ff4  README.md
 322ad2fa4291d88334b702067b5f542ed8e458b85337f4e3fdb9b94050840cd4  sauce-00-5.htm
 ```
 
+## OpenRaster 0.0.6 specification and temporary compatibility subject
+
+The developer supplied the local, untracked `openraster/` research directory
+with the Baseline Intent, File Layout, and Layer Stack pages of the OpenRaster
+specification version 0.0.6 from
+[openraster.org](https://www.openraster.org/), together with its RELAX NG
+Compact schema. These local documents are the format authority for
+OpenRaster's ZIP profile, required members, layer-stack vocabulary, and
+baseline rendering model. They are implementation references only and are not
+redistributed or committed to Vexter.
+
+The accompanying `2018-11-28_coc.ora` is a temporary authentic compatibility
+subject and is likewise excluded from version control. Its artwork is David
+Revoy's *Pepper & Carrot* image for the project's Code of Conduct page circa
+2018. The source was obtained from the ZIP linked by the
+[archived Code of Conduct page](https://web.archive.org/web/20181130120539/https://www.peppercarrot.com/en/article455/our-code-of-conduct),
+opened from the artist's original Krita document, and exported as OpenRaster.
+The original work is licensed under the
+[Creative Commons Attribution 4.0 International licence](https://creativecommons.org/licenses/by/4.0/).
+Attribution is to David Revoy and *Pepper & Carrot*.
+
+The resulting OpenRaster file has a 1912×1215 canvas, fourteen PNG layers,
+nested and isolated stacks, hidden layers, offsets, opacity, and multiple
+compositing operators. Its required `mergedimage.png` and 256×162 thumbnail
+provide rendering controls. The document declares OpenRaster version 0.0.1
+and uses stack offsets that are deprecated by version 0.0.6, making it useful
+for testing version-compatible parsing. It may be used locally for format
+research and compatibility testing, but must not be copied into Vexter's
+fixture set.
+
+Relevant SHA-256 hashes are:
+
+```text
+794873ee930364dbb1026df8535cf160f96b8b38dbe764acf0499f9ebd769cc9  Baseline Intent — Open Raster Specification version 0.0.6.html
+2292af3394ac310acd786e4b58f306963739bb6ac7e54f0d8b5583245c73b2f1  File Layout Specification — Open Raster Specification version 0.0.6.html
+e3991de55ec2933ee4466e10c9fef634dcacc3a271d200ba07f37689028a0595  Layer Stack Specification — Open Raster Specification version 0.0.6.html
+6675b4e6d881d932c8072748159a79762218d495f30676551a113afe08a357c2  schema.rnc
+fb59d839968f1ba91651f3888a997fe9563b18f9be277f8d4378702f477e9e3e  2018-11-28_coc.ora
+```
+
 ## Temporary 16colo.rs ANSI and character-art compatibility controls
 
 The developer supplied three artwork files and their PNG renderings from

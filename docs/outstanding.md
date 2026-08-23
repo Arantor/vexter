@@ -27,6 +27,16 @@ behavior and evidence remain in [`formats.md`](formats.md).
     `auto|N` width interpretation option with carefully bounded extent
     inference; do not infer width from `.DIZ` or other filenames.
 
+- **OpenRaster**
+  - The canonical `mergedimage.png` is exposed directly; Vexter does not yet
+    recomposite the layer stack or compare its rendering with that image.
+  - Blend operators, isolated groups, opacity, visibility, and offsets are
+    retained as metadata but are not applied by a native compositor.
+  - Non-PNG layer source encodings are retained as opaque reusable data rather
+    than decoded.
+  - Application-specific extensions and archival-intent features are not yet
+    interpreted.
+
 - **Palette interchange**
   - Ordered palettes can currently be exported as PNG swatches and exact
     metadata JSON. Dedicated GIMP GPL, Paint.NET TXT, and Aseprite palette

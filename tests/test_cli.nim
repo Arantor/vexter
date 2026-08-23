@@ -161,6 +161,8 @@ suite "vexter CLI":
     let document = parseJson(inspected.output)
     check document["selectedFormat"].getStr == "zx-spectrum.screen"
     check document["candidates"][0]["confidence"].getStr == "probable"
+    check document["candidates"][0]["derivation"][0].getStr ==
+      "zx-spectrum.screen"
     check document["resources"][0]["path"].getStr == "/screen"
     check document["resources"][0]["type"].getStr == "zx-spectrum.screen"
     check document["resources"][0]["frames"].getInt == 2

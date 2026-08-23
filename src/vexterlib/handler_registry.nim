@@ -8,9 +8,10 @@ import ./containers/[amiga_8svx, amiga_16sv, amiga_acbm, amiga_adf, amiga_anim,
   amiga_diskfont, amiga_dms, amiga_hunk_executable, amiga_iff, amiga_ilbm, amiga_lha_sfx,
   amiga_workbench_icon, amos_bank,
   amos_bank_set, amos_program, amos_sprite_icon_bank, ansi_art, bmp, flic, gif_container,
-  bmfont, fzx, lha_archive, netpbm, pcx, png_container, powerpacker, qoi, tga, wav, windows_icon, zip_archive,
+  bmfont, fzx, lha_archive, netpbm, openraster, pcx, png_container, powerpacker, qoi, tga, wav, windows_icon, zip_archive,
   zx_spectrum_screen_dump, zx_spectrum_snapshot, zx_spectrum_tap, xpk_shri]
 import ./containers/amiga_pbm
+import ./format_detection_types
 type
   VextHandlerKind* = enum
     vhkWorkbenchIcon
@@ -43,6 +44,7 @@ type
     vhkTga
     vhkWav
     vhkZip
+    vhkOpenRaster
     vhkLha
     vhkAmosProgram
     vhkAmosBankSet
@@ -57,6 +59,9 @@ type
   VextFormatHandler* = object
     typeId*: string
     kind*: VextHandlerKind
+    ## Empty for physical formats; semantic formats name the parsed carrier
+    ## through which their registered refiner must be invoked.
+    carrierTypeId*: string
 
   VextParsedContainer* = ref object of RootObj
     ## Type-erased parsed input with a checked handler-kind tag.
@@ -64,6 +69,20 @@ type
 
   VextParsedValue*[T] = ref object of VextParsedContainer
     value*: T
+
+  VextRefinementMatch* = object
+    confidence*: VextDetectionConfidence
+    evidence*: seq[VextDetectionEvidence]
+    parsed*: VextParsedContainer
+
+  VextRefinementProbe* = proc(filename: string, data: openArray[byte],
+    carrier: VextParsedContainer): VextRefinementMatch {.closure.}
+
+  VextFormatRefiner* = object
+    ## A semantic format probe that consumes an already parsed carrier.
+    typeId*: string
+    carrierTypeId*: string
+    probe*: VextRefinementProbe
 
   VextParsedWorkbenchIcon* = object
     icon*: WorkbenchIcon
@@ -107,6 +126,8 @@ const FormatHandlers* = [
   VextFormatHandler(typeId: TgaTypeId, kind: vhkTga),
   VextFormatHandler(typeId: WavTypeId, kind: vhkWav),
   VextFormatHandler(typeId: ZipArchiveTypeId, kind: vhkZip),
+  VextFormatHandler(typeId: OpenRasterTypeId, kind: vhkOpenRaster,
+    carrierTypeId: ZipArchiveTypeId),
   VextFormatHandler(typeId: LhaArchiveTypeId, kind: vhkLha),
   VextFormatHandler(typeId: AmosProgramTypeId, kind: vhkAmosProgram),
   VextFormatHandler(typeId: AmosBankSetTypeId, kind: vhkAmosBankSet),
@@ -135,9 +156,29 @@ proc parsedValue*[T](parsed: VextParsedContainer,
     raise newException(Defect, "parsed container does not match its handler")
   VextParsedValue[T](parsed).value
 
+proc formatRefiners*(): seq[VextFormatRefiner] =
+  ## Authoritative semantic refiners. Format modules add entries here without
+  ## teaching their physical carrier about package profiles.
+  @[VextFormatRefiner(typeId: OpenRasterTypeId,
+    carrierTypeId: ZipArchiveTypeId,
+    probe: proc(filename: string, data: openArray[byte],
+        carrier: VextParsedContainer): VextRefinementMatch =
+      let archive = parsedValue[ZipArchive](carrier, vhkZip)
+      if not archive.hasOpenRasterMimeMarker: return
+      let document = parseOpenRaster(archive)
+      result = VextRefinementMatch(confidence: vdcCertain,
+        evidence: @[VextDetectionEvidence(description:
+          "ZIP begins with the stored image/openraster MIME marker and " &
+          "contains a valid baseline OpenRaster document")],
+        parsed: VextParsedValue[OpenRasterDocument](kind: vhkOpenRaster,
+          value: document))) ]
+
 proc parse*(handler: VextFormatHandler,
     data: openArray[byte]): VextParsedContainer =
   ## Structurally validates and retains one format-specific parsed value.
+  if handler.carrierTypeId.len > 0:
+    raise newException(Defect,
+      "semantic format handlers must be parsed through their carrier refiner")
   template parsed(parsedInput: untyped): VextParsedContainer =
     block:
       let typedValue = parsedInput
@@ -180,6 +221,9 @@ proc parse*(handler: VextFormatHandler,
   of vhkTga: result = parsed(parseTga(data))
   of vhkWav: result = parsed(parseWav(data))
   of vhkZip: result = parsed(parseZipArchive(data))
+  of vhkOpenRaster:
+    raise newException(Defect,
+      "OpenRaster must be parsed through its ZIP carrier refiner")
   of vhkLha: result = parsed(parseLhaArchive(data))
   of vhkAmosProgram: result = parsed(parseAmosProgram(data))
   of vhkAmosBankSet: result = parsed(parseAmosBankSet(data))

@@ -391,11 +391,11 @@ routine suite embeds one authentic small LH5 member with its decoded control.
 Container type identifier: `archive.zip`
 
 ZIP is registered as a physical carrier. The library has a carrier-refinement
-stage through which future semantic package handlers can declare `archive.zip`
+stage through which semantic package handlers can declare `archive.zip`
 as their carrier and inspect the already parsed archive without teaching the ZIP
 module about each package format. Detection retains the generic ZIP candidate;
-forcing `archive.zip` bypasses those refinements. No ZIP package profiles are
-registered at present.
+forcing `archive.zip` bypasses those refinements. OpenRaster is the first
+registered ZIP package profile.
 
 Vexter supports ordinary single-volume ZIP archives containing stored or raw
 DEFLATE-compressed members. It validates the end record, central directory,
@@ -420,6 +420,37 @@ without attempting to materialize archive names on the host filesystem.
 and punctuation characters, trim trailing dots/spaces, and protect Windows
 device names. `export-all` preserves the normalized resource hierarchy and
 adds deterministic suffixes when distinct logical names normalize identically.
+
+## OpenRaster layered images
+
+Container type identifier: `image.openraster`
+
+Resource type identifiers: `openraster.image`, `openraster.thumbnail`,
+`openraster.stack`, and `openraster.layer`
+
+OpenRaster is detected as a semantic refinement of `archive.zip`, independently
+of filename extension. Certain identification requires the first physical ZIP
+member to be the uncompressed `mimetype` file with exact contents
+`image/openraster`, followed by a structurally valid baseline document.
+Detection retains `archive.zip` as the less-specific candidate. Explicitly
+forcing `archive.zip` provides ordinary archive inspection instead.
+
+Vexter validates `stack.xml`, `mergedimage.png`,
+`Thumbnails/thumbnail.png`, every referenced member path, canvas dimensions,
+resolution fields, stack/layer structure, opacity, visibility, isolation,
+offsets, selection state, and PNG framing. `/image` is the specification's
+canonical merged image and is the natural export resource; `/thumbnail` is the
+bounded non-interlaced preview. `/layers` preserves nested stack order and
+exposes PNG layer sources as independently exportable rasters with their
+presentation attributes retained as metadata. Other referenced source
+encodings are retained as raw opaque layer resources.
+
+Vexter does not currently recomposite layers or verify the canonical merged
+image against an independently rendered stack. Blend operators and group
+isolation are preserved as metadata for that future work. The locally supplied,
+untracked David Revoy compatibility subject covers fourteen layers, nested
+groups, older stack offsets, hidden content, cropped sources, and several blend
+modes; its provenance is recorded in `THIRD_PARTY.md`.
 
 ## Amiga IFF 8SVX audio
 

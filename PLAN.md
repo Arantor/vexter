@@ -63,6 +63,13 @@ generic containers may later be identified more specifically after their
 contents are inspected. Callers can bypass or constrain detection by supplying
 an input format identifier.
 
+Physical carrier detection and semantic package identification are separate
+stages. A package handler declares its carrier by stable identifier; after the
+carrier has been parsed, registered refiners may derive a more-specific format
+from that parsed value. Derivations may contain multiple stages and are not
+specific to ZIP. The carrier remains a valid candidate, and forcing its format
+identifier deliberately requests generic carrier inspection.
+
 Every supported type has a stable machine-readable identifier. The first is:
 
 ```text

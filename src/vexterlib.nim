@@ -26,6 +26,7 @@ import vexterlib/containers/amiga_ilbm
 import vexterlib/containers/amiga_anim
 import vexterlib/containers/amiga_workbench_icon
 import vexterlib/containers/zip_archive
+import vexterlib/containers/openraster
 import vexterlib/containers/lha_archive
 import vexterlib/containers/pcx
 import vexterlib/containers/bmp
@@ -69,6 +70,7 @@ import vexterlib/resources/fzx_font
 import vexterlib/resources/bmfont_font
 import vexterlib/resources/ansi_art_image
 import vexterlib/detection
+import vexterlib/format_detection_types
 import vexterlib/handler_registry
 import vexterlib/metadata
 import vexterlib/operations
@@ -84,6 +86,7 @@ export colour_cycle
 export palette_swatch
 export font_preview
 export artifacts
+export openraster
 export ansi_art
 export ansi_art_image
 export amos_bank
@@ -145,6 +148,7 @@ export bmfont_font
 export zx_spectrum_snapshot
 export zx_spectrum_tap
 export detection
+export format_detection_types
 export handler_registry
 export bmfont
 export metadata

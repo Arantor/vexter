@@ -141,9 +141,13 @@ proc inspect(options: CliOptions) =
       var evidence = newJArray()
       for item in candidate.evidence:
         evidence.add %item.description
+      var derivation = newJArray()
+      for stage in candidate.derivation.stages:
+        derivation.add %stage.typeId
       candidateNodes.add %*{
         "type": candidate.typeId,
         "confidence": $candidate.confidence,
+        "derivation": derivation,
         "evidence": evidence
       }
     var resourceNodes = newJArray()
@@ -216,6 +220,11 @@ proc inspect(options: CliOptions) =
     echo options.input
     echo &"Format: {inspection.selectedFormat.typeId} " &
       &"({inspection.selectedFormat.confidence})"
+    if inspection.selectedFormat.derivation.stages.len > 1:
+      var stages: seq[string]
+      for stage in inspection.selectedFormat.derivation.stages:
+        stages.add stage.typeId
+      echo "Derivation: " & stages.join(" -> ")
     for item in inspection.selectedFormat.evidence:
       echo "  Evidence: " & item.description
     echo "Resources:"

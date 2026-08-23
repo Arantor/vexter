@@ -14,10 +14,20 @@ suite "vexterlib operations":
       for otherIndex in index + 1 .. FormatHandlers.high:
         check handler.typeId != FormatHandlers[otherIndex].typeId
 
+    for refiner in formatRefiners():
+      let target = formatHandler(refiner.typeId)
+      let carrier = formatHandler(refiner.carrierTypeId)
+      check not target.isNil
+      check not carrier.isNil
+      check target[].carrierTypeId == refiner.carrierTypeId
+      check not refiner.probe.isNil
+
     let candidates = detectFormats("display.scr",
       newSeq[byte](ZxSpectrumScreenSize))
     check candidates.len == 1
     check not formatHandler(candidates[0].typeId).isNil
+    check candidates[0].derivation.stages.len == 1
+    check candidates[0].derivation.stages[0].typeId == candidates[0].typeId
 
   test "detected and forced handlers retain checked parsed containers":
     let data = newSeq[byte](ZxSpectrumScreenSize)

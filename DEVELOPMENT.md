@@ -19,7 +19,7 @@ client, and a dependency-free native Windows GUI. It supports:
   animations, IFF 8SVX and 16SV sampled audio,
   integer PCM WAV sounds, PCX, TGA, BMP/DIB,
   static DOS ANSI art with optional SAUCE metadata,
-  PNG, Windows ICO/CUR collections (including PNG and DIB entries), QOI,
+  PNG, OpenRaster layered documents, Windows ICO/CUR collections (including PNG and DIB entries), QOI,
   Netpbm P1–P7, GIF87a/GIF89a, and FLI/FLC-family animations,
   AmigaDOS ADF filesystems, DMS disk archives, PowerPacker and XPK/SHRI
   wrappers, ZIP archives, level-0/1 LHA/LZH archives using LH0 or LH5,
@@ -90,9 +90,13 @@ nice -n 15 nimble cli
 The CLI artifacts are `build/linux/vexter` and
 `build/win32/vexter-cli.exe`. The task builds them sequentially.
 
-There is no fully generalized handler registry yet. ADF, ZIP, and LHA files perform
-bounded recursive inspection of recognized contained files. The broader option
-surface shown in `PLAN.md` remains future work.
+The handler registry is authoritative for physical format identifiers and parser
+dispatch. It also exposes a carrier-refinement registry for semantic package
+formats: a handler can declare that it is carried by another registered format,
+and its refiner receives the already parsed carrier. No semantic package
+refiners are registered yet. ADF, ZIP, and LHA files also perform bounded
+recursive inspection of recognized contained files. The broader option surface
+shown in `PLAN.md` remains future work.
 
 ## Architectural flow
 
@@ -100,7 +104,8 @@ The currently implemented path through the application is:
 
 ```text
 source file bytes plus an optional bounded companion resolver
-  -> evidence-based detection or a validated forced format
+  -> evidence-based physical-format detection or a validated forced format
+  -> optional semantic refinements of the parsed carrier
   -> format-specific container parsing and resource extraction
   -> VextResourceTree
   -> raster, font, text, or identified opaque resources
@@ -113,6 +118,15 @@ The library owns detection, safe companion-name validation, forced-format valida
 resource construction and selection, default output-format choice, and
 exporter invocation. Frontends own input reading, presentation, destination
 selection, collision policy, and artifact writing. The GUI calls `vexterlib`
+
+Each detection candidate carries a derivation. A physical format has a
+single-stage derivation such as `archive.zip`; a semantic package discovered
+inside that carrier appends its stable identifier. Refiners are keyed by their
+declared carrier identifier, can themselves be refined, and receive the exact
+parsed value produced for the carrier rather than reparsing its bytes. Detection
+keeps both the more-specific candidate and its generic carrier, ordering the
+refinement first. Explicitly forcing the carrier bypasses refinement, preserving
+generic inspection even when a package profile also matches.
 directly and does not reproduce CLI behavior.
 
 ## Source layout and responsibilities
@@ -199,6 +213,11 @@ Matching case-insensitive extensions add supporting evidence.
   tables, decodes their backwards literal/LZ bitstream, and exposes recognized
   unpacked content through bounded recursive inspection;
 - `zip_archive.nim` validates single-volume ZIP central/local records, expands
+  stored and raw-DEFLATE members, and retains physical member offsets needed by
+  package-profile refiners;
+- `openraster.nim` refines a parsed ZIP carrier through the baseline MIME and
+  required-member rules, parses its layer-stack XML, and validates referenced
+  PNG layers, canonical merged image, and thumbnail;
   stored and DEFLATE entries, checks CRC-32, and exposes a host-independent
   archive hierarchy;
 - `lha_archive.nim` validates level-0/1 LHA member headers and checksums, expands
@@ -514,6 +533,11 @@ amiga.adf-link
 archive.zip
 archive.zip-directory
 archive.zip-file
+image.openraster
+openraster.image
+openraster.thumbnail
+openraster.stack
+openraster.layer
 archive.lha
 archive.lha-directory
 archive.lha-file
@@ -760,6 +784,9 @@ The routine suites are:
 - `tests/test_zip_archive.nim`: stored/DEFLATE expansion, hierarchy and nested
   decoding, unsafe/duplicate/overlong path rejection, and portable export-name
   normalization;
+- `tests/test_openraster.nim`: synthetic ZIP-profile refinement, required MIME
+  placement and members, layer-stack metadata and raster exposure, derivation
+  reporting, and forced generic-carrier inspection;
 - `tests/test_lha_archive.nim`: level-0 framing, LH0 storage, authentic Aminet
   LH5 expansion, checksums, hierarchy and recursive decoding, path safety, and
   malformed or unsupported input;
