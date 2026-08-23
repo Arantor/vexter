@@ -328,8 +328,12 @@ proc detectFormats*(filename: string, data: openArray[byte]):
     result.add VextDetectionCandidate(typeId: AmigaPbmTypeId,
       confidence: vdcCertain, evidence: evidence)
   elif isAmigaAcbm(data):
-    var evidence = @[VextDetectionEvidence(
-      description: "file is a valid FORM ACBM with BMHD and ABIT chunks")]
+    let acbm = parseAmigaAcbm(data)
+    var evidence = @[VextDetectionEvidence(description:
+      if acbm.image.hasBitmap:
+        "file is a valid FORM ACBM with BMHD and ABIT chunks"
+      else:
+        "file is a valid palette-only FORM ACBM with a CMAP chunk")]
     if hasAmigaAcbmExtension(filename):
       evidence.add VextDetectionEvidence(
         description: "file extension is associated with ACBM")
@@ -338,8 +342,12 @@ proc detectFormats*(filename: string, data: openArray[byte]):
       confidence: vdcCertain,
       evidence: evidence)
   elif isAmigaIlbm(data):
-    var evidence = @[VextDetectionEvidence(
-      description: "file is a valid FORM ILBM with BMHD and BODY chunks")]
+    let ilbm = parseAmigaIlbm(data)
+    var evidence = @[VextDetectionEvidence(description:
+      if ilbm.image.hasBitmap:
+        "file is a valid FORM ILBM with BMHD and BODY chunks"
+      else:
+        "file is a valid palette-only FORM ILBM with a CMAP chunk")]
     if hasAmigaIlbmExtension(filename):
       evidence.add VextDetectionEvidence(
         description: "file extension is associated with ILBM")

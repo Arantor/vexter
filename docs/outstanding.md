@@ -5,6 +5,12 @@ recognizes. It is not a roadmap: an item being listed does not imply priority,
 and unsupported historical or proposed formats are not included. Detailed
 behavior and evidence remain in [`formats.md`](formats.md).
 
+- **Palette interchange**
+  - Ordered palettes can currently be exported as PNG swatches and exact
+    metadata JSON. Dedicated GIMP GPL, Paint.NET TXT, and Aseprite palette
+    interchange needs supplied specifications or controls before choosing the
+    supported variants.
+
 - **Amiga Hunk executables and LHA self-extractors**
   - Broader Hunk record and executable-variant coverage needs a supplied Hunk
     specification and authentic controls.

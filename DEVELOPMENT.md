@@ -27,14 +27,15 @@ client, and a dependency-free native Windows GUI. It supports:
   TAP containers, tokenised BASIC resources, BMFont text descriptors, FZX and Amiga bitmap diskfonts
   (including ColorFonts), standalone AMOS banks, AMOS bank
   sets, and AMOS programs;
-- a resource tree containing decoded raster, bitmap-font, audio, and text resources,
+- a resource tree containing decoded raster, palette, bitmap-font, audio, and text resources,
   identified opaque resources, and metadata;
 - indexed still-image, indexed-animation, and true-colour image raster
   archetypes;
 - a bitmap-font archetype with mono, indexed, or true-colour glyphs, explicit
   Unicode mappings, bearings, advances, line metrics, kerning, substitutions,
   and ligatures;
-- PNG export for a still image or an animation's natural first frame;
+- PNG export for a still image or an animation's natural first frame, plus
+  ordered palette swatches for palette resources and indexed rasters;
 - animated GIF and APNG export;
 - BMFont text export with one or more PNG atlas pages;
 - metadata JSON export for every resource kind, including groups;

@@ -4,7 +4,9 @@ import std/[os, strutils]
 import ./artifacts
 import ./archetypes/raster
 import ./archetypes/audio
+import ./archetypes/palette
 import ./transformations/colour_cycle
+import ./transformations/palette_swatch
 import ./detection
 import ./handler_registry
 import ./exporters/[bmfont, gif, html_report, metadata_json, png, raw, wav]
@@ -108,6 +110,9 @@ proc exportFormatsFor*(resource: VextResourceNode): seq[VextExportFormat] =
         result.add VextExportFormat(id: "apng-cycled",
           displayName: "Animated PNG with colour cycling",
           extensions: @["png"], mediaTypes: @["image/apng"])
+      result.add VextExportFormat(id: "palette-swatch",
+        displayName: "Palette swatch PNG", extensions: @["png"],
+        mediaTypes: @["image/png"])
     of vrkIndexedAnimation:
       let gifDefault = resource.raster.animation.gifCompatible
       result = @[
@@ -126,6 +131,9 @@ proc exportFormatsFor*(resource: VextResourceNode): seq[VextExportFormat] =
         result.add VextExportFormat(id: "apng-cycled",
           displayName: "Animated PNG with colour cycling",
           extensions: @["png"], mediaTypes: @["image/apng"])
+      result.add VextExportFormat(id: "palette-swatch",
+        displayName: "Palette swatch PNG", extensions: @["png"],
+        mediaTypes: @["image/png"])
     of vrkTrueColourImage:
       result = @[VextExportFormat(id: "png", displayName: "PNG image",
         extensions: @["png"], mediaTypes: @["image/png"], isDefault: true)]
@@ -140,6 +148,10 @@ proc exportFormatsFor*(resource: VextResourceNode): seq[VextExportFormat] =
       displayName: "BMFont text and PNG atlas",
       extensions: @["fnt"],
       mediaTypes: @["text/plain", "image/png"], isDefault: true)]
+  of vrnkPalette:
+    result = @[VextExportFormat(id: "palette-swatch",
+      displayName: "Palette swatch PNG", extensions: @["png"],
+      mediaTypes: @["image/png"], isDefault: true)]
   of vrnkText:
     result = @[VextExportFormat(id: "txt", displayName: "Plain text",
       extensions: @["txt"], mediaTypes: @["text/plain"], isDefault: true)]
@@ -1114,6 +1126,23 @@ proc inspectSourceDepth(filename: string, data: openArray[byte],
       parsedValue[AmigaAcbm](selectedParsed, vhkAmigaAcbm).image
     else:
       parsedValue[AmigaIlbm](selectedParsed, vhkAmigaIlbm).image
+    if not image.hasBitmap:
+      let colours = decodeAmigaIlbmPalette(image)
+      var cycles: seq[VextColourCycleRange]
+      for cycle in image.colourCycles:
+        if cycle.low >= 0 and cycle.high < colours.len and
+            cycle.low < cycle.high and cycle.direction in [-1, 1] and
+            cycle.stepDurationMs > 0 and cycles.len < 6:
+          cycles.add cycle
+      result.resources.roots.add VextResourceNode(
+        path: "/palette", typeId: "amiga.iff-palette",
+        kind: vrnkPalette,
+        palette: VextPalette(colours: colours, colourCycles: cycles),
+        metadata: @[
+          integerMetadata("colours", image.colourMap.len div 3),
+          integerMetadata("colour-cycle-ranges", cycles.len),
+          integerMetadata("camg", int(image.camg))])
+      return
     let raster = decodeAmigaIlbmRaster(image)
     result.resources.roots.add VextResourceNode(
       path: AmigaIlbmImageResourcePath,
@@ -1291,7 +1320,7 @@ proc exportResource*(tree: VextResourceTree,
     available = tree.allResources
   else:
     for item in tree.leafResources:
-      if item.kind in {vrnkRaster, vrnkText, vrnkAudio, vrnkFont} or
+      if item.kind in {vrnkRaster, vrnkText, vrnkAudio, vrnkFont, vrnkPalette} or
           (item.kind == vrnkOpaque and item.rawDataAvailable):
         available.add item
   var resource: VextResourceNode
@@ -1345,6 +1374,20 @@ proc exportResource*(tree: VextResourceTree,
   if result.outputFormat == "html-report":
     result.artifacts = exportHtmlReport(resource,
       request.suggestedName & ".html")
+    return
+  if result.outputFormat == "palette-swatch":
+    let palette = case resource.kind
+      of vrnkPalette: resource.palette
+      of vrnkRaster:
+        case resource.raster.kind
+        of vrkIndexedImage: paletteOf(resource.raster.image)
+        of vrkIndexedAnimation: paletteOf(resource.raster.animation)
+        else: raise newException(ValueError,
+          "palette swatch export requires indexed colour")
+      else: raise newException(ValueError,
+        "palette swatch export requires a palette or indexed raster")
+    result.artifacts = exportPng(renderPaletteSwatch(palette),
+      request.suggestedName & ".png")
     return
   case resource.kind
   of vrnkOpaque:
@@ -1423,6 +1466,9 @@ proc exportResource*(tree: VextResourceTree,
         "unsupported output format: " & result.outputFormat)
     result.warnings = bmFontLossWarnings(resource.font)
     result.artifacts = exportBmFont(resource.font, request.suggestedName)
+  of vrnkPalette:
+    raise newException(ValueError, "unsupported output format: " &
+      result.outputFormat)
   else:
     raise newException(ValueError, "resource is not exportable: " &
       resource.path)
@@ -1438,7 +1484,8 @@ proc exportAllResources*(tree: VextResourceTree,
       tree.allResources else: tree.leafResources
   for resource in candidates:
     if request.outputFormat notin ["metadata-json", "html-report"] and
-        not (resource.kind in {vrnkRaster, vrnkText, vrnkAudio, vrnkFont} or
+        not (resource.kind in {vrnkRaster, vrnkText, vrnkAudio, vrnkFont,
+          vrnkPalette} or
         (resource.kind == vrnkOpaque and resource.rawDataAvailable)):
       continue
     if patterns.len == 0:

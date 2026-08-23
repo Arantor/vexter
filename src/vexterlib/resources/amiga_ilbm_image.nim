@@ -34,6 +34,7 @@ type
     header*: AmigaIlbmHeader
     colourMap*: seq[byte]
     body*: seq[byte]
+    hasBitmap*: bool
     camg*: uint32
     planarLayout*: AmigaPlanarLayout
     colourCycles*: seq[VextColourCycleRange]
@@ -72,7 +73,7 @@ proc decodeRow(body: openArray[byte], offset: var int, rowBytes,
     else:
       discard # -128 is a no-op.
 
-proc decodePalette(source: AmigaIlbmImageSource): seq[VextRgb] =
+proc decodeAmigaIlbmPalette*(source: AmigaIlbmImageSource): seq[VextRgb] =
   if source.colourMap.len mod 3 != 0:
     raise newException(ValueError, "ILBM CMAP length must be divisible by three")
   var legacyFourBit = source.colourMap.len > 0
@@ -215,7 +216,7 @@ proc renderAmigaIlbmImage*(source: AmigaIlbmImageSource,
   result = VextIndexedImage(
     width: header.width,
     height: header.height,
-    palette: decodePalette(source),
+    palette: decodeAmigaIlbmPalette(source),
     pixels: codes,
     alpha: alphaFromMasking(source, planes, codes))
   let requiredColours = if ehb: 32 else: 1 shl header.planes
@@ -259,7 +260,7 @@ proc renderAmigaIlbmHam*(source: AmigaIlbmImageSource,
     dataMask = (1 shl dataBits) - 1
     maximum = dataMask
     codes = codesFromPlanes(source, planes)
-  var palette = decodePalette(source)
+  var palette = decodeAmigaIlbmPalette(source)
   while palette.len < (1 shl dataBits):
     palette.add VextRgb()
   result = VextTrueColourImage(

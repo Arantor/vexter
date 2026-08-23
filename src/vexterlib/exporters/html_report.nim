@@ -5,6 +5,7 @@ import ../archetypes/[font, raster]
 import ../artifacts
 import ../resource_tree
 import ../resources/font_preview
+import ../transformations/palette_swatch
 import ./[metadata_json, png, wav]
 
 proc textBytes(value: string): seq[byte] =
@@ -63,6 +64,10 @@ proc exportHtmlReport*(resource: VextResourceNode,
       "glyphs.png").artifacts[0]
     body.add imageSection("Sample text", sample)
     body.add imageSection("Glyph grid", grid)
+  of vrnkPalette:
+    let swatch = exportPng(renderPaletteSwatch(resource.palette),
+      "palette.png").artifacts[0]
+    body.add imageSection("Palette swatch", swatch)
   of vrnkAudio:
     let audio = exportWav(resource.audioSound, "audio.wav").artifacts[0]
     body.add "<section><h2>Audio</h2><audio controls src=\"" &

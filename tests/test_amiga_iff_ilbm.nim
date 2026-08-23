@@ -69,6 +69,40 @@ proc rgbDigest(image: VextTrueColourImage): string =
   $secureHash(rgb)
 
 suite "Amiga IFF ILBM":
+  test "CMAP-only ILBM exposes an ordered palette with colour cycling":
+    let data = form("ILBM", [
+      chunk("CMAP", @[0x10'u8, 0x20, 0x30, 0x40, 0x50, 0x60,
+        0x70, 0x80, 0x90, 0xa1, 0xb2, 0xc3]),
+      chunk("CRNG", @[0'u8, 0, 0, 64, 0, 1, 1, 3])])
+    let
+      inspection = inspectSource("shared-palette.iff", data)
+      resource = inspection.resources.leafResources[0]
+    check resource.kind == vrnkPalette
+    check resource.path == "/palette"
+    check resource.palette.colours.len == 4
+    check resource.palette.colours[0] == VextRgb(r: 0x10, g: 0x20, b: 0x30)
+    check resource.palette.colourCycles.len == 1
+    check resource.palette.colourCycles[0].low == 1
+    check resource.palette.colourCycles[0].high == 3
+    let swatch = renderPaletteSwatch(resource.palette)
+    check swatch.width > 48 # Caption is embedded in the image.
+    check swatch.height == 61
+    check swatch.colourAt(8, 8) == resource.palette.colours[0]
+    check swatch.colourAt(24, 8) == resource.palette.colours[1]
+    check swatch.colourAt(8, 53) == resource.palette.colours[1]
+    check swatch.colourAt(24, 53) == resource.palette.colours[2]
+    check swatch.colourAt(40, 53) == resource.palette.colours[3]
+    var reversePalette = resource.palette
+    reversePalette.colourCycles[0].direction = -1
+    let reverseSwatch = renderPaletteSwatch(reversePalette)
+    check reverseSwatch.colourAt(8, 53) == resource.palette.colours[3]
+    check reverseSwatch.colourAt(24, 53) == resource.palette.colours[2]
+    check reverseSwatch.colourAt(40, 53) == resource.palette.colours[1]
+    let exported = exportResource(inspection.resources,
+      VextExportRequest(suggestedName: "shared-palette"))
+    check exported.outputFormat == "palette-swatch"
+    check exported.artifacts.artifacts[0].mediaType == "image/png"
+
   test "King Tut is detected and matches the normalized PNG control":
     let
       data = readBytes(FixturePath)
@@ -133,6 +167,20 @@ suite "Amiga IFF ILBM":
     check image.pixels[0 ..< codes.len] == codes
     check image.palette[255] == VextRgb(r: 255, g: 0, b: 170)
     check image.colourAt(6, 0) == VextRgb(r: 254, g: 1, b: 171)
+    let swatch = renderPaletteSwatch(paletteOf(image))
+    check swatch.width == 256
+    check swatch.height == 256
+
+  test "standalone palettes are not limited by eight-bit image indices":
+    var colours = newSeq[VextRgb](384)
+    for index in 0 ..< colours.len:
+      colours[index] = VextRgb(r: uint8(index mod 256),
+        g: uint8(index div 2 mod 256), b: uint8(index div 3 mod 256))
+    let swatch = renderPaletteSwatch(VextPalette(colours: colours))
+    check swatch.width == 320
+    check swatch.height == 320
+    check swatch.colourAt(8, 8) == colours[0]
+    check swatch.colourAt(56, 312) == colours[383]
 
   test "HAM6 holds and modifies RGB components across a scanline":
     var palette = newSeq[byte](16 * 3)

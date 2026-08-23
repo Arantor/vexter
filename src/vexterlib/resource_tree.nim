@@ -3,6 +3,7 @@
 import ./archetypes/raster
 import ./archetypes/audio
 import ./archetypes/font
+import ./archetypes/palette
 import ./metadata
 
 type
@@ -12,6 +13,7 @@ type
     vrnkText
     vrnkAudio
     vrnkFont
+    vrnkPalette
     vrnkOpaque
 
   VextAudioResourceKind* = enum
@@ -28,6 +30,7 @@ type
     sound*: VextSound
     instrument*: VextSampledInstrument
     font*: VextBitmapFont
+    palette*: VextPalette
     data*: seq[byte]
     rawDataAvailable*: bool
     metadata*: seq[VextMetadataEntry]

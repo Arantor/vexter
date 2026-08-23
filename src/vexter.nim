@@ -132,6 +132,7 @@ proc inspect(options: CliOptions) =
           of vrnkText: "text"
           of vrnkAudio: "audio"
           of vrnkFont: "font"
+          of vrnkPalette: "palette"
           else: "opaque")
       }
       if item.kind == vrnkRaster:
@@ -159,6 +160,10 @@ proc inspect(options: CliOptions) =
         resource["characters"] = %item.font.mappings.len
         resource["lineHeight"] = %item.font.lineHeight
         resource["baseline"] = %item.font.baseline
+      elif item.kind == vrnkPalette:
+        resource["archetype"] = %"VextPalette"
+        resource["colours"] = %item.palette.colours.len
+        resource["colourCycleRanges"] = %item.palette.colourCycles.len
       if item.metadata.len > 0:
         var metadata = newJObject()
         for entry in item.metadata:
@@ -216,6 +221,9 @@ proc inspect(options: CliOptions) =
         description.add &" -> VextBitmapFont {item.font.glyphs.len} glyph(s), " &
           &"{item.font.mappings.len} character mapping(s), " &
           &"line height {item.font.lineHeight}, baseline {item.font.baseline}"
+      elif item.kind == vrnkPalette:
+        description.add &" -> VextPalette {item.palette.colours.len} colour(s), " &
+          &"{item.palette.colourCycles.len} cycling range(s)"
       else:
         description.add " (opaque)"
       echo description

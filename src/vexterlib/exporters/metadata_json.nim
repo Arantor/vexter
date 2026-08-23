@@ -1,7 +1,7 @@
 ## Machine-readable metadata export for any resource node.
 
 import std/json
-import ../archetypes/[audio, font, raster]
+import ../archetypes/[audio, font, palette, raster]
 import ../[artifacts, metadata, resource_tree]
 
 proc textBytes(value: string): seq[byte] =
@@ -24,6 +24,14 @@ proc cyclesNode(cycles: openArray[VextColourCycleRange]): JsonNode =
   for cycle in cycles:
     result.add %*{"low": cycle.low, "high": cycle.high,
       "direction": cycle.direction, "stepDurationMs": cycle.stepDurationMs}
+
+proc paletteNode(palette: VextPalette): JsonNode =
+  result = %*{"archetype": "VextPalette",
+    "colourCycles": cyclesNode(palette.colourCycles)}
+  var colours = newJArray()
+  for colour in palette.colours:
+    colours.add %*{"r": colour.r, "g": colour.g, "b": colour.b}
+  result["colours"] = colours
 
 proc rasterNode(raster: VextRaster): JsonNode =
   result = %*{"archetype": raster.archetypeName,
@@ -112,6 +120,7 @@ proc exportMetadataJson*(resource: VextResourceNode,
     of vrnkText: "text"
     of vrnkAudio: "audio"
     of vrnkFont: "font"
+    of vrnkPalette: "palette"
     of vrnkOpaque: "opaque"
   var document = %*{"schema": "vexter.resource-metadata.v1",
     "path": resource.path, "type": resource.typeId, "kind": kind,
@@ -123,6 +132,7 @@ proc exportMetadataJson*(resource: VextResourceNode,
     of vrnkGroup: %*{"children": resource.children.len}
     of vrnkRaster: rasterNode(resource.raster)
     of vrnkFont: fontNode(resource.font)
+    of vrnkPalette: paletteNode(resource.palette)
     of vrnkAudio: audioNode(resource)
     of vrnkText: %*{"archetype": "text", "utf8Bytes": resource.text.len}
     of vrnkOpaque: %*{"archetype": "opaque",

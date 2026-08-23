@@ -296,6 +296,9 @@ proc currentRasterImage(maximumWidth = 0): VextTrueColourImage =
         max(1, maximumWidth), fontSelectedGlyph)
     return renderBitmapFontText(selected.node.font, fontPreviewText,
       max(1, maximumWidth))
+  if not selected.isNil and not selected.node.isNil and
+      selected.node.kind == vrnkPalette:
+    return renderPaletteSwatch(selected.node.palette)
   if selected.isNil or selected.node.isNil or selected.node.kind != vrnkRaster:
     return
   let raster = selected.node.raster
@@ -399,7 +402,8 @@ proc addTreeNode(node: VextResourceNode, parent: HTREEITEM): HTREEITEM =
       lParam: cast[LPARAM](binding)))
   result = cast[HTREEITEM](SendMessageW(treeView, TVM_INSERTITEMW, 0,
     cast[LPARAM](addr insert)))
-  if firstPreviewItem == nil and node.kind in {vrnkRaster, vrnkFont, vrnkAudio, vrnkText}:
+  if firstPreviewItem == nil and node.kind in
+      {vrnkRaster, vrnkPalette, vrnkFont, vrnkAudio, vrnkText}:
     firstPreviewItem = result
   for child in node.children:
     discard addTreeNode(child, result)
@@ -533,7 +537,7 @@ proc selectBinding(binding: TreeBinding) =
   elif binding.node.kind == vrnkText:
     currentView = vkText
     discard SetWindowTextW(textView, w(binding.node.text))
-  elif binding.node.kind == vrnkRaster:
+  elif binding.node.kind in {vrnkRaster, vrnkPalette}:
     currentView = vkRaster
   elif binding.node.kind == vrnkFont:
     currentView = vkFont

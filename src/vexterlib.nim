@@ -3,7 +3,9 @@
 import vexterlib/archetypes/raster
 import vexterlib/archetypes/audio
 import vexterlib/archetypes/font
+import vexterlib/archetypes/palette
 import vexterlib/transformations/colour_cycle
+import vexterlib/transformations/palette_swatch
 import vexterlib/resources/font_preview
 import vexterlib/artifacts
 import vexterlib/containers/amos_bank
@@ -75,7 +77,9 @@ import vexterlib/exporters/bmfont
 export raster
 export audio
 export font
+export palette
 export colour_cycle
+export palette_swatch
 export font_preview
 export artifacts
 export amos_bank

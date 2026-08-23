@@ -504,6 +504,18 @@ the `audio/wav` media type is returned.
 
 ## Amiga IFF, ILBM, ACBM, and PBM
 
+An ILBM or ACBM containing a `CMAP` but no bitmap `BODY`/`ABIT` is treated as
+an ordered palette resource; `BMHD` is optional when there is no bitmap data.
+Its `CRNG` and `CCRT` ranges are retained. Palette resources naturally export
+as a PNG swatch, with 16×16-pixel tiles in palette order. Indexed images and
+animations offer the same swatch as an additional export. Metadata JSON
+contains the exact RGB entries and range timing. Cycling colours are not
+marked inside the main palette grid. Instead, each range appears below it as
+an explicitly captioned row in its natural forward or reverse sequence, with
+its palette indices and step timing. Standalone palettes are not limited to
+256 entries; that limit applies to current eight-bit indexed raster storage,
+not to ordered palette collections or their swatches.
+
 Container type identifier: `amiga.iff`
 
 Image/container type identifier: `amiga.ilbm`

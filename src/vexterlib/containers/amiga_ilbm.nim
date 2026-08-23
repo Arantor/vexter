@@ -77,23 +77,24 @@ proc parseAmigaBitmapForm*(form: AmigaIffForm, expectedFormType,
   if form.formType != expectedFormType:
     raise newException(ValueError,
       "IFF FORM type is not " & expectedFormType)
-  var haveHeader, haveBody: bool
+  var haveHeader, havePalette, haveBody: bool
   for chunk in form.chunks:
     case chunk.id
     of "BMHD":
-      if haveBody:
+      if haveHeader or haveBody:
         raise newException(ValueError,
           expectedFormType & " BMHD must precede " & bitmapChunk)
       result.image.header = parseAmigaBitmapHeader(chunk.data)
       haveHeader = true
     of "CMAP":
-      if haveBody:
+      if havePalette or haveBody:
         raise newException(ValueError,
           expectedFormType & " CMAP must precede " & bitmapChunk)
       if chunk.data.len mod 3 != 0:
         raise newException(ValueError,
           expectedFormType & " CMAP length must be divisible by three")
       result.image.colourMap = chunk.data
+      havePalette = true
     of "CAMG":
       if haveBody:
         raise newException(ValueError,
@@ -116,10 +117,17 @@ proc parseAmigaBitmapForm*(form: AmigaIffForm, expectedFormType,
         raise newException(ValueError,
           expectedFormType & " may contain only one " & bitmapChunk & " chunk")
       result.image.body = chunk.data
+      result.image.hasBitmap = true
       haveBody = true
-  if not haveHeader or not haveBody:
+  if not haveBody and (not havePalette or result.image.colourMap.len == 0):
     raise newException(ValueError,
-      expectedFormType & " requires BMHD and " & bitmapChunk & " chunks")
+      expectedFormType & " requires " & bitmapChunk & " or CMAP")
+  if not haveBody:
+    result.image.planarLayout = planarLayout
+    return
+  if not haveHeader:
+    raise newException(ValueError,
+      expectedFormType & " " & bitmapChunk & " requires BMHD")
   if result.image.header.planes < 1:
     raise newException(ValueError,
       expectedFormType & " must contain at least one bitplane")
