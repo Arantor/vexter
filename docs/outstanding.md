@@ -10,6 +10,9 @@ behavior and evidence remain in [`formats.md`](formats.md).
     metadata JSON. Dedicated GIMP GPL, Paint.NET TXT, and Aseprite palette
     interchange needs supplied specifications or controls before choosing the
     supported variants.
+  - Brilliance `DRNG` and `BRNG` chunks in palette-only IFF files are not yet
+    interpreted. Their accompanying `CMAP` colours remain available, but the
+    additional range definitions require documentation and focused controls.
 
 - **Amiga Hunk executables and LHA self-extractors**
   - Broader Hunk record and executable-variant coverage needs a supplied Hunk
