@@ -5,6 +5,28 @@ recognizes. It is not a roadmap: an item being listed does not imply priority,
 and unsupported historical or proposed formats are not included. Detailed
 behavior and evidence remain in [`formats.md`](formats.md).
 
+- **DOS ANSI art**
+  - ANSiMation currently yields only its final static terminal state; no source
+    timing convention has yet been supplied.
+  - Additional local controls show that 16colo.rs canvas-tail cropping varies
+    between artworks. The first two provenance-recorded controls match their
+    reference dimensions, while `FLC0995.ANS` differs by one logical trailing
+    row and `SL-INC2.ANS` by two rows before the confirmed aspect correction is
+    applied; `SK-BLUE.ANS` differs by four rows under the same provisional
+    policy. Cropping strictly to the last written row matches `SK-BLUE.ANS` but
+    breaks the other controls, so a broader rule needs documentary evidence
+    before becoming a compatibility contract.
+  - Modern 256-colour/true-colour SGR, interactive device operations, keyboard
+    redefinition, and unsupported private modes are intentionally absent.
+  - Plain CP437 art is deliberately not classified as ANSI. The supplied
+    `2E_gs.nfo` control can support a future distinct character-art handler,
+    including non-80-column width inference, but that type is not yet
+    implemented.
+  - Non-SAUCE canvas width can also vary. `FILE_ID.DIZ` requires a tight
+    37-column canvas while conventional ANSI art assumes 80 columns. Add an
+    `auto|N` width interpretation option with carefully bounded extent
+    inference; do not infer width from `.DIZ` or other filenames.
+
 - **Palette interchange**
   - Ordered palettes can currently be exported as PNG swatches and exact
     metadata JSON. Dedicated GIMP GPL, Paint.NET TXT, and Aseprite palette

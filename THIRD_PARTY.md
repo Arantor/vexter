@@ -102,6 +102,164 @@ ae95d6f8ec499723625553e7b11b799c0f44c8bf11c476cfcf604d4c38e5bc94  PPDecompressor
 508203f9f0309a740eee5217f8509783fdceebb34344874599212caea6ada912  PPDecompressor.hpp
 ```
 
+## SAUCE 00.5 specification
+
+The developer supplied `sauce/`, a checkout of Olivier "Tasmaniac" Reubens'
+SAUCE (Standard Architecture for Universal Comment Extensions)
+specification, sourced from
+[the radman1 GitHub repository](https://github.com/radman1/sauce). The supplied
+revision is `f72abdf242fb9cb791f4bd25dffedc2aab0cae7c` (2015-03-13).
+
+The checkout's `README.md` and `sauce-00-5.htm` both contain revision 00.5 of
+the specification. On 2026-08-23, the developer confirmed that this is the
+same revision published by ACiD at
+[its accompanying SAUCE specification page](https://www.acid.org/info/sauce/sauce.htm)
+and that revision 00.5 is current at that time. These two sources are the
+format authority for future SAUCE metadata handling, including record and
+comment framing, field encodings, data/file classifications, type-dependent
+information, and flags. Their ANSI and ANSiMation classifications may inform
+format detection, but ANSI terminal-control semantics will require separately
+supplied documentation and controls.
+
+The checkout does not include an explicit licence file. Vexter treats it as
+supplied specification material and does not copy substantial specification
+text into the implementation or project documentation. Relevant hashes are:
+
+```text
+a2124dfa0076075692846fed238d92c017a1032265c89a4ffdd6d69e6e042ff4  README.md
+322ad2fa4291d88334b702067b5f542ed8e458b85337f4e3fdb9b94050840cd4  sauce-00-5.htm
+```
+
+## Temporary 16colo.rs ANSI and character-art compatibility controls
+
+The developer supplied three artwork files and their PNG renderings from
+[16colo.rs](https://16colo.rs/) on 2026-08-23:
+
+- `BC-DEEP4.ART`, from the
+  [art-r1 pack](https://16colo.rs/pack/art-r1/BC-DEEP4.ART), is an ANSI stream
+  without SAUCE and ends with the DOS EOF byte;
+- `HX-ICE.ICE`, from the
+  [ice-9405 pack](https://16colo.rs/pack/ice-9405/HX-ICE.ICE), has a SAUCE 00.0
+  record classifying it as an 80-column Character/ANSI file.
+- `FLC0995.ANS`, subsequently supplied from the
+  [flat0995 pack](https://16colo.rs/pack/flat0995/FLC0995.ANS), has a SAUCE
+  00.0 record classifying it as an 80-column Character/ANSI file and exercises
+  a substantially taller multi-artist logo collection.
+- `SL-INC2.ANS`, subsequently supplied from the
+  [ansis-s pack](https://16colo.rs/pack/ansis-s/SL-INC2.ANS), is a non-SAUCE
+  ANSI stream whose final operation is cursor movement rather than a DOS EOF
+  marker.
+- `SK-BLUE.ANS`, subsequently supplied from the
+  [anshelp pack](https://16colo.rs/pack/anshelp/SK-BLUE.ANS), is a non-SAUCE
+  ANSI help document ending in CR/LF followed by a DOS EOF marker.
+- `2E_gs.nfo`, subsequently supplied from the
+  [bafh-pack6 pack](https://16colo.rs/pack/bafh-pack6/2E_gs.nfo), is plain
+  72-column CP437 character art with CR/LF records, no ANSI escape sequences,
+  and no SAUCE. It is both a negative ANSI-detection control and a future
+  plain character-art rendering control.
+- `us-arts.ans`, subsequently supplied from the
+  [rmrs-56 pack](https://16colo.rs/pack/rmrs-56/us-arts.ans), is a non-SAUCE
+  80-column ANSI stream whose 640-pixel-wide PNG establishes eight-pixel
+  letter spacing. Its 2,784-pixel height is an exact multiple of the 16-pixel
+  font height and establishes square-pixel presentation without legacy aspect
+  correction. Together with the earlier non-SAUCE controls, it demonstrates
+  that spacing and presentation aspect cannot always be inferred from the
+  payload.
+- `FILE_ID.DIZ`, subsequently supplied from the
+  [ttnt-010 pack](https://16colo.rs/pack/ttnt-010/FILE_ID.DIZ), is a non-SAUCE
+  ANSI stream despite its distribution-description extension. Its 296 by 688
+  PNG establishes a tight 37-column canvas with 8x16 square-pixel rendering;
+  applying its cursor-right commands gives the same 37-column written extent.
+
+The accompanying PNGs are rendering controls from the same site. All are
+720 pixels wide, demonstrating 80-column, nine-pixel-wide glyph rendering.
+The developer established that 16colo.rs uses nine-pixel font rendering for
+works made before 2000, including these controls, unless SAUCE indicates
+otherwise, and explicitly applies legacy display-aspect correction. These
+files may be used as temporary test subjects but must not be committed to
+Vexter's fixture set.
+
+```text
+cadca202bbb57d6c86b5a2e8aac0c42880028ad7e630cdaca77cb6730f300287  BC-DEEP4.ART
+9d8963790e017e7c7ae448c29774db589f28d3dce352bdb6dfc4c459ba6345e7  BC-DEEP4.ART.png
+82be414bbcf3f4f8d1805dc4855ba8b90224b773a1c6072d511bc3a03f4b16d0  HX-ICE.ICE
+24a025788c81e96c1e07257274930bd976d38e22eae23e19caa191f667eb2b13  HX-ICE.ICE.png
+e45e95bf06d62513aeb7fcad4394228492e85d16e28dff6d94f8d45afd64e3dd  FLC0995.ANS
+2d12c84b0c39b614cb1cbe1273114591defe9896d639b805237f7ab93dffa9a5  FLC0995.ANS.png
+9140f154152640dfc0075aafc848965edb2632b6bf1f76f4a409730098f73832  SL-INC2.ANS
+d40d07fcc18de5fbf7630356f59ba297233a75a6e3bd4cec06babd1e3946a006  SL-INC2.ANS.png
+82feeae6db06508e021cd79971c9829830841e512938c9e97f3cca5aec6c03af  SK-BLUE.ANS
+4e0e9154c85f6cb59d59afd8d54951b4e5ed34799bcf32a511044eae130a6f4f  SK-BLUE.ANS.png
+58df1a0203262585a652e64842ae1a4a7e698765cc721fe5e5703d42c7b88527  2E_gs.nfo
+2aba1dabe71b5a3a0a5d38ce8d2e7e6b1d3f7393544815bb873f60b2ec40ab81  2E_gs.nfo.png
+a338d502cee2fe97492d2a7b2b31bd072ac58a442f919280b00c9d42caf04dbd  us-arts.ans
+cd82c0e3f6dd13f8e6a41fd80ca76791eed989d8c1ea5774ee251df967a28bad  us-arts.ans.png
+6a727604a561bcf59985d6aa2f16d665606368eda79de98ce5483bd2bd1d20ea  FILE_ID.DIZ
+d330b41794ff8b67bab03b20fed887db8497dd3f6b8723443d21400fd3476103  FILE_ID.DIZ.png
+```
+
+## Ultimate Oldschool PC Font Pack
+
+The developer supplied the complete `oldschool_pc_font_pack_v2.2_FULL/`
+distribution from [int10h.org](https://int10h.org/) on 2026-08-23. Its README
+identifies it as “The Ultimate Oldschool PC Font Pack” version 2.2, dated
+2020-11-21, copyright 2016–2020 VileR. The pack is licensed under the Creative
+Commons Attribution-ShareAlike 4.0 International licence; its complete licence
+text is supplied as `LICENSE.TXT` in the package.
+
+```
+
+   The Ultimate Oldschool PC Font Pack is licensed under a Creative Commons
+   Attribution-ShareAlike 4.0 International License.
+
+   You should have received a copy of the license along with this work. If
+   not, see < http://creativecommons.org/licenses/by-sa/4.0/ >.
+
+                                                        (c) 2016-2020 VileR
+
+```
+
+The pack is the font authority for future PC text-mode and ANSI rendering. It
+contains base CP437 and extended “Plus” variants in several formats and at
+multiple authentic bitmap sizes. Byte-oriented ANSI input should use a base
+CP437 face; extended variants may be useful for later Unicode-facing features
+but do not redefine the source byte mapping. Any font or derived glyph data
+redistributed with Vexter must retain attribution to VileR and int10h.org, the
+CC BY-SA 4.0 licence and its required notices, and an indication of any
+modifications.
+
+For the two temporary 16colo.rs controls above, the base CP437 IBM VGA 9x16
+strike is the initial reference face. Equivalent `.FON` and `.otb` copies are
+available; implementation may mechanically extract the same bitmap glyphs
+into a compact native asset. Relevant hashes are:
+
+```text
+9348ddfd44da5a127c59141981954746a860ec8e03e0412cf3af7134af0f97e2  LICENSE.TXT
+02c3ff012a36c9c220678a515998ebea8b7cbe053d7e1c45003019f01d70b83e  README.TXT
+5d90f6bc6f415288aa0d028bf3f2109e2ae22677aab4c928e722ad2e4be9626d  Bm437_IBM_VGA_9x16.FON
+995baf3be9fe1a71cc2ce270a3cf7b9d97c707664c2ee86c8094392026d32755  Bm437_IBM_VGA_9x16.otb
+90e4ae6c6f8bd41d88df53f5c3e0755e483229aac4f64bed883a6c51909ae8fe  embedded IBM VGA 9x16 CP437 glyph data
+```
+
+## ANSI escape-sequence reference
+
+The developer supplied `ANSI.md` on 2026-08-23, sourced from
+[fnky's ANSI escape-sequence reference](https://gist.github.com/fnky/458719343aabd01cfb17a3a4f7296797).
+It is the initial control-sequence authority for Vexter's ANSI art support,
+covering general ASCII controls, cursor positioning and movement, erasure,
+SGR attributes and colours, save/restore operations, and ANSI.SYS screen
+modes. Vexter will implement only the bounded, non-interactive subset relevant
+to inspection and rendering; device reports, keyboard redefinition, and other
+host interaction must never be executed.
+
+The supplied document has no explicit licence notice. It is retained as
+developer-supplied research material rather than copied into implementation
+documentation. Its hash is:
+
+```text
+c6d3202759082f5909c377d411d299826f7f6e62aa722b50b2f2731a7b919200  ANSI.md
+```
+
 ## FLIC family format specification
 
 The developer supplied `The FLIC file format.html`, sourced from

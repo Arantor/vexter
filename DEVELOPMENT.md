@@ -18,6 +18,7 @@ client, and a dependency-free native Windows GUI. It supports:
   and ACBM images, provisional packed-pixel IFF PBM images, IFF ANIM
   animations, IFF 8SVX and 16SV sampled audio,
   integer PCM WAV sounds, PCX, TGA, BMP/DIB,
+  static DOS ANSI art with optional SAUCE metadata,
   PNG, Windows ICO/CUR collections (including PNG and DIB entries), QOI,
   Netpbm P1–P7, GIF87a/GIF89a, and FLI/FLC-family animations,
   AmigaDOS ADF filesystems, DMS disk archives, PowerPacker and XPK/SHRI
@@ -49,17 +50,23 @@ The implemented command-line surface is:
 
 ```text
 vexter inspect [--json] [--all-candidates] [--ignore-warnings]
-               [--input-format FORMAT] [--pcx-channel-order rgb|bgr] INPUT
+               [--input-format FORMAT] [--pcx-channel-order rgb|bgr]
+               [--ansi-letter-spacing auto|8|9]
+               [--ansi-aspect auto|legacy|square] INPUT
 
 vexter export [--format png|gif|apng|gif-cycled|apng-cycled|bmfont|txt|wav|bin]
               [--resource PATH] [--allow-large-animation]
               [--input-format FORMAT] [-o OUTPUT] [--force]
-              [--ignore-warnings] [--pcx-channel-order rgb|bgr] INPUT
+              [--ignore-warnings] [--pcx-channel-order rgb|bgr]
+              [--ansi-letter-spacing auto|8|9]
+              [--ansi-aspect auto|legacy|square] INPUT
 
 vexter export-all [--format png|gif|apng|gif-cycled|apng-cycled|bmfont|txt|wav|bin]
                   [--resource PATH-PATTERN]... [--input-format FORMAT]
                   -o DIRECTORY [--force] [--ignore-warnings]
                   [--pcx-channel-order rgb|bgr] [--allow-large-animation]
+                  [--ansi-letter-spacing auto|8|9]
+                  [--ansi-aspect auto|legacy|square]
                   INPUT
 ```
 
@@ -173,6 +180,9 @@ identifiers are `vdcCertain`; current ZX Spectrum detectors are `vdcProbable`.
 Matching case-insensitive extensions add supporting evidence.
 
 `src/vexterlib/containers/` contains source/container rules:
+
+- `ansi_art.nim` validates presentation-affecting ANSI control streams and
+  optional trailing SAUCE records and comment blocks;
 
 - `amiga_workbench_icon.nim` validates classic big-endian Workbench
   DiskObjects, their serialized planar images, counted strings, and tool

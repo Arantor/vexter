@@ -7,7 +7,7 @@
 import ./containers/[amiga_8svx, amiga_16sv, amiga_acbm, amiga_adf, amiga_anim,
   amiga_diskfont, amiga_dms, amiga_hunk_executable, amiga_iff, amiga_ilbm, amiga_lha_sfx,
   amiga_workbench_icon, amos_bank,
-  amos_bank_set, amos_program, amos_sprite_icon_bank, bmp, flic, gif_container,
+  amos_bank_set, amos_program, amos_sprite_icon_bank, ansi_art, bmp, flic, gif_container,
   bmfont, fzx, lha_archive, netpbm, pcx, png_container, powerpacker, qoi, tga, wav, windows_icon, zip_archive,
   zx_spectrum_screen_dump, zx_spectrum_snapshot, zx_spectrum_tap, xpk_shri]
 import ./containers/amiga_pbm
@@ -52,6 +52,7 @@ type
     vhkZxSpectrumScreen
     vhkZxSpectrumSnapshot
     vhkZxSpectrumTap
+    vhkAnsiArt
 
   VextFormatHandler* = object
     typeId*: string
@@ -116,7 +117,8 @@ const FormatHandlers* = [
     kind: vhkZxSpectrumScreen),
   VextFormatHandler(typeId: ZxSpectrumSnapshotTypeId,
     kind: vhkZxSpectrumSnapshot),
-  VextFormatHandler(typeId: ZxSpectrumTapTypeId, kind: vhkZxSpectrumTap)
+  VextFormatHandler(typeId: ZxSpectrumTapTypeId, kind: vhkZxSpectrumTap),
+  VextFormatHandler(typeId: AnsiArtTypeId, kind: vhkAnsiArt)
 ]
 
 proc formatHandler*(typeId: string): ptr VextFormatHandler =
@@ -203,6 +205,7 @@ proc parse*(handler: VextFormatHandler,
       raise newException(ValueError, "invalid ZX Spectrum TAP container")
     result = parsed(VextParsedZxTap(screens: parseZxSpectrumTapScreens(data),
       listings: parseZxSpectrumTapBasic(data)))
+  of vhkAnsiArt: result = parsed(parseAnsiArt(data))
 
 proc tryParse*(handler: VextFormatHandler,
     data: openArray[byte]): VextParsedContainer =

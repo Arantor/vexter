@@ -12,13 +12,13 @@ import ./handler_registry
 import ./exporters/[bmfont, gif, html_report, metadata_json, png, raw, wav]
 import ./resource_tree
 import ./containers/[amiga_8svx, amiga_16sv, amiga_acbm, amiga_adf, amiga_anim, amiga_diskfont, amiga_dms, amiga_hunk_executable, amiga_iff, amiga_ilbm, amiga_lha_sfx, amiga_pbm, amiga_workbench_icon, amos_bank, amos_bank_set, amos_packed_picture, amos_program,
-  amos_sprite_icon_bank, bmfont, bmp, flic, fzx, gif_container, netpbm, pcx, png_container,
+  amos_sprite_icon_bank, ansi_art, bmfont, bmp, flic, fzx, gif_container, netpbm, pcx, png_container,
   qoi, tga, wav, windows_icon, zip_archive, lha_archive, zx_spectrum_snapshot, zx_spectrum_tap]
 import ./containers/xpk_shri
 import ./containers/powerpacker
 import ./metadata
 import ./resources/[amiga_anim_image, amiga_diskfont_font, amiga_ilbm_image, amiga_pbm_image, amiga_workbench_icon_image, amos_listing, amos_packed_picture_image, amos_planar_image, bmp_image, flic_animation, gif_image, netpbm_image, png_image, zx_spectrum_basic,
-  bmfont_font, fzx_font, pcx_image, qoi_image, tga_image, windows_icon_image, zx_spectrum_screen]
+  ansi_art_image, bmfont_font, fzx_font, pcx_image, qoi_image, tga_image, windows_icon_image, zx_spectrum_screen]
 
 type
   VextOperationCancelledError* = object of CatchableError
@@ -324,7 +324,8 @@ proc amosBankSetGroup(bankSet: AmosBankSet): VextResourceNode =
 
 proc inspectSourceDepth(filename: string, data: openArray[byte],
     inputFormat: string, depth: int, ignoreWarnings: bool,
-    pcxChannelOrder: PcxChannelOrder,
+    pcxChannelOrder: PcxChannelOrder, ansiLetterSpacing: AnsiLetterSpacing,
+    ansiAspect: AnsiPresentationAspect,
     companionResolver: VextCompanionResolver): VextInspection
 
 proc rebaseNode(node: VextResourceNode, prefix: string) =
@@ -349,7 +350,7 @@ proc containedFileNode(path, filename, fallbackType: string,
   var nested: VextInspection
   try:
     nested = inspectSourceDepth(filename, data, "", depth + 1, ignoreWarnings,
-      pcxChannelOrder, nil)
+      pcxChannelOrder, alsAuto, apaAuto, nil)
   except ValueError as error:
     if ignoreWarnings:
       warnings.add VextInspectionWarning(
@@ -535,7 +536,8 @@ proc trueColourPage(raster: VextRaster): VextTrueColourImage =
 
 proc inspectSourceDepth(filename: string, data: openArray[byte],
     inputFormat: string, depth: int, ignoreWarnings: bool,
-    pcxChannelOrder: PcxChannelOrder,
+    pcxChannelOrder: PcxChannelOrder, ansiLetterSpacing: AnsiLetterSpacing,
+    ansiAspect: AnsiPresentationAspect,
     companionResolver: VextCompanionResolver): VextInspection =
   let detected = detectParsedFormats(filename, data)
   for item in detected:
@@ -556,6 +558,29 @@ proc inspectSourceDepth(filename: string, data: openArray[byte],
     raise newException(ValueError,
       "unsupported input format: " & result.selectedFormat.typeId)
   case selectedHandler.kind
+  of vhkAnsiArt:
+    let source = parsedValue[AnsiArtSource](selectedParsed, vhkAnsiArt)
+    var metadata = @[
+      integerMetadata("ansi.columns", if source.sauce.present and source.sauce.info1 > 0: int(source.sauce.info1) else: 80),
+      integerMetadata("ansi.control-sequences", source.meaningfulSequences),
+      integerMetadata("ansi.glyph-width", source.ansiGlyphWidth(ansiLetterSpacing)),
+      stringMetadata("ansi.aspect", if source.ansiLegacyAspect(ansiAspect): "legacy" else: "square"),
+      integerMetadata("sauce.present", int(source.sauce.present))]
+    if source.sauce.present:
+      metadata.add stringMetadata("sauce.title", source.sauce.title)
+      metadata.add stringMetadata("sauce.author", source.sauce.author)
+      metadata.add stringMetadata("sauce.group", source.sauce.group)
+      metadata.add stringMetadata("sauce.date", source.sauce.date)
+      metadata.add stringMetadata("sauce.font", source.sauce.fontName)
+      metadata.add integerMetadata("sauce.flags", int(source.sauce.flags))
+      metadata.add integerMetadata("sauce.declared-lines", int(source.sauce.info2))
+      for index, line in source.sauce.commentLines:
+        metadata.add stringMetadata("sauce.comment." & $index, line)
+    result.resources.roots.add VextResourceNode(path: AnsiImageResourcePath,
+      typeId: AnsiImageTypeId, kind: vrnkRaster,
+      raster: VextRaster(kind: vrkIndexedImage,
+        image: renderAnsiArt(source, ansiLetterSpacing, ansiAspect)),
+      metadata: metadata)
   of vhkAmigaDiskfontIndex:
     let index = parsedValue[AmigaDiskfontIndex](selectedParsed,
       vhkAmigaDiskfontIndex)
@@ -1301,13 +1326,15 @@ proc inspectSourceDepth(filename: string, data: openArray[byte],
 proc inspectSource*(filename: string, data: openArray[byte],
     inputFormat = "", ignoreWarnings = false,
     pcxChannelOrder = pcoRgb,
+    ansiLetterSpacing = alsAuto,
+    ansiAspect = apaAuto,
     progress: VextProgressCallback = nil,
     companionResolver: VextCompanionResolver = nil): VextInspection =
   reportProgress(progress, vppDetecting, filename, "Detecting input format")
   reportProgress(progress, vppInspecting, filename, "Inspecting container")
   reportProgress(progress, vppDecoding, filename, "Decoding resources")
   result = inspectSourceDepth(filename, data, inputFormat, 0, ignoreWarnings,
-    pcxChannelOrder, companionResolver)
+    pcxChannelOrder, ansiLetterSpacing, ansiAspect, companionResolver)
   reportProgress(progress, vppTraversing, filename,
     "Resource tree complete", result.resources.leafResources.len,
     result.resources.leafResources.len)

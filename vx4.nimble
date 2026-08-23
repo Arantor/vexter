@@ -44,6 +44,7 @@ task test, "Run the test suite":
   exec "nim c -r --path:src tests/test_netpbm.nim"
   exec "nim c -r --path:src tests/test_tga.nim"
   exec "nim c -r --path:src tests/test_flic.nim"
+  exec "nim c -r --path:src tests/test_ansi_art.nim"
   exec "nim c -r --path:src tests/test_zx_spectrum_screen.nim"
   exec "nim c -r --path:src tests/test_zx_spectrum_snapshot.nim"
   exec "nim c -r --path:src tests/test_zx_spectrum_basic.nim"

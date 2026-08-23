@@ -1403,6 +1403,58 @@ largest-image selection. Unsupported entry payloads remain identified opaque
 BIN-exportable resources rather than causing an otherwise valid collection to
 disappear.
 
+## DOS ANSI art and SAUCE
+
+Static DOS ANSI art is detected as `ansi.art` and rendered as an indexed
+`ansi.image` resource at `/image`. A completely parsed stream with meaningful
+presentation controls is probable; a valid trailing SAUCE record classifying
+the payload as Character/ANSI makes it certain. `.ans`, `.art`, `.ice`, and
+`.nfo` extensions add supporting evidence only. Plain text is not claimed as
+ANSI merely because of its name.
+
+The bounded terminal emulator implements CP437 text, CR/LF, tab, backspace,
+cursor positioning and relative movement, erase-in-display/line, cursor
+save/restore, wrapping, and the static 16-colour SGR subset. Device reports,
+keyboard redefinition, and other interactive operations are never executed.
+ANSiMation is recognized by SAUCE as part of the same static parser but is not
+yet emitted as a timed animation.
+
+SAUCE title, author, group, date, comments, declared dimensions, flags, and
+font name are retained as metadata. The declared line count remains advisory,
+as required by SAUCE 00.5. Letter-spacing flags select eight- or nine-pixel
+rendering; otherwise legacy artwork defaults to the supplied pre-2000
+16colo.rs convention. Rendering uses VileR's base CP437 IBM VGA 9x16 bitmap
+from the CC BY-SA 4.0 Ultimate Oldschool PC Font Pack and applies legacy DOS
+presentation aspect correction, matching the explicitly aspect-corrected
+16colo.rs reference renderings.
+
+The temporary `BC-DEEP4.ART`, `HX-ICE.ICE`, `FLC0995.ANS`, `SL-INC2.ANS`, and
+`SK-BLUE.ANS` controls and their 16colo.rs PNG renderings establish non-SAUCE
+and SAUCE detection, 80-column nine-pixel layout, cursor overdraw, colour use,
+terminal end conditions, and both ordinary and very tall artwork. They are
+not repository fixtures; provenance and hashes are in `THIRD_PARTY.md`.
+
+The later non-SAUCE `us-arts.ans` control has an 80-column, 640-pixel-wide
+reference rendering and therefore requires eight-pixel spacing. Because
+earlier non-SAUCE controls require nine pixels, the payload alone cannot select
+spacing reliably. Its 2,784-pixel height also uses the natural 16-pixel font
+rows without legacy aspect correction. SAUCE remains authoritative when
+present in `auto` mode. `--ansi-letter-spacing auto|8|9` and
+`--ansi-aspect auto|legacy|square` resolve ambiguous non-SAUCE input and permit
+an explicit override. Selecting eight-pixel spacing and square presentation
+reproduces the `us-arts.ans` reference canvas at 640 by 2,784 pixels.
+
+The temporary `2E_gs.nfo` control contains plain 72-column CP437 art without
+ANSI controls or SAUCE. Its `.nfo` extension is intentionally insufficient to
+select `ansi.art`: it remains an unrecognized negative detection control until
+plain DOS character art is introduced as a distinct input type.
+
+Conversely, `FILE_ID.DIZ` contains meaningful ANSI controls and is detected as
+probable `ansi.art` without relying on its extension. Its reference uses a
+tight 37-column, 8x16 square-pixel canvas; cursor interpretation independently
+reaches the same maximum written column. Vexter currently retains the default
+80-column canvas pending an explicit or safely constrained width policy.
+
 ## Amiga Workbench icons
 
 Classic Workbench `.info` DiskObjects are detected and inspected. Their

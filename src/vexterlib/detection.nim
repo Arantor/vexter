@@ -3,7 +3,7 @@
 import std/[os, strutils]
 import ./handler_registry
 import ./containers/[amiga_8svx, amiga_16sv, amiga_acbm, amiga_adf, amiga_anim, amiga_diskfont, amiga_dms, amiga_hunk_executable, amiga_iff, amiga_ilbm, amiga_lha_sfx, amiga_pbm, amiga_workbench_icon, amos_bank, amos_bank_set, amos_program,
-  amos_sprite_icon_bank, bmfont, bmp, flic, fzx, gif_container, netpbm, pcx, png_container, qoi, tga,
+  amos_sprite_icon_bank, ansi_art, bmfont, bmp, flic, fzx, gif_container, netpbm, pcx, png_container, qoi, tga,
   wav, windows_icon, zip_archive, lha_archive, zx_spectrum_screen_dump, zx_spectrum_snapshot, zx_spectrum_tap]
 import ./containers/xpk_shri
 import ./containers/powerpacker
@@ -416,6 +416,21 @@ proc detectFormats*(filename: string, data: openArray[byte]):
     result.add VextDetectionCandidate(
       typeId: bank.amosSpriteIconBankTypeId,
       confidence: vdcCertain,
+      evidence: evidence)
+
+  if isAnsiArt(data):
+    let source = parseAnsiArt(data)
+    var evidence = @[VextDetectionEvidence(description:
+      "file contains " & $source.meaningfulSequences &
+      " presentation-affecting ANSI control sequence(s)")]
+    if source.sauce.present:
+      evidence.add VextDetectionEvidence(description:
+        "valid SAUCE record classifies the payload as Character/ANSI")
+    if hasAnsiArtExtension(filename):
+      evidence.add VextDetectionEvidence(description:
+        "file extension is associated with ANSI or character art")
+    result.add VextDetectionCandidate(typeId: AnsiArtTypeId,
+      confidence: if source.sauce.present: vdcCertain else: vdcProbable,
       evidence: evidence)
 
   if isZxSpectrumScreenDump(data):

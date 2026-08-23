@@ -16,22 +16,30 @@ type
     outputFormat: string
     resources: seq[string]
     pcxChannelOrder: PcxChannelOrder
+    ansiLetterSpacing: AnsiLetterSpacing
+    ansiAspect: AnsiPresentationAspect
     output: string
     input: string
 
 proc usage(): string =
   """Usage:
   vexter inspect [--json] [--all-candidates] [--ignore-warnings]
-                 [--input-format FORMAT] [--pcx-channel-order rgb|bgr] INPUT
+                 [--input-format FORMAT] [--pcx-channel-order rgb|bgr]
+                 [--ansi-letter-spacing auto|8|9]
+                 [--ansi-aspect auto|legacy|square] INPUT
   vexter export [--format png|gif|apng|gif-cycled|apng-cycled|bmfont|html-report|metadata-json|txt|wav|bin]
                 [--resource PATH] [--allow-large-animation]
                 [--input-format FORMAT] [-o OUTPUT] [--force]
-                [--ignore-warnings] [--pcx-channel-order rgb|bgr] INPUT
+                [--ignore-warnings] [--pcx-channel-order rgb|bgr]
+                [--ansi-letter-spacing auto|8|9]
+                [--ansi-aspect auto|legacy|square] INPUT
   vexter export-all [--format png|gif|apng|gif-cycled|apng-cycled|bmfont|html-report|metadata-json|txt|wav|bin]
                     [--resource PATH-PATTERN]... [--input-format FORMAT]
                     -o DIRECTORY [--force] [--ignore-warnings]
                     [--allow-large-animation]
-                    [--pcx-channel-order rgb|bgr] INPUT"""
+                    [--pcx-channel-order rgb|bgr]
+                    [--ansi-letter-spacing auto|8|9]
+                    [--ansi-aspect auto|legacy|square] INPUT"""
 
 proc readBytes(path: string): seq[byte] {.gcsafe.} =
   let contents = readFile(path)
@@ -73,7 +81,8 @@ proc parseOptions(arguments: seq[string]): CliOptions =
       result.allowLargeAnimation = true
     of "--ignore-warnings":
       result.ignoreWarnings = true
-    of "--input-format", "--format", "--resource", "--pcx-channel-order", "-o":
+    of "--input-format", "--format", "--resource", "--pcx-channel-order",
+        "--ansi-letter-spacing", "--ansi-aspect", "-o":
       inc index
       if index >= arguments.len:
         raise newException(CliError, "missing value for " & argument)
@@ -87,6 +96,20 @@ proc parseOptions(arguments: seq[string]): CliOptions =
         of "bgr": result.pcxChannelOrder = pcoBgr
         else: raise newException(CliError,
           "invalid PCX channel order: " & arguments[index])
+      of "--ansi-letter-spacing":
+        case arguments[index].toLowerAscii
+        of "auto": result.ansiLetterSpacing = alsAuto
+        of "8": result.ansiLetterSpacing = alsEight
+        of "9": result.ansiLetterSpacing = alsNine
+        else: raise newException(CliError,
+          "invalid ANSI letter spacing: " & arguments[index])
+      of "--ansi-aspect":
+        case arguments[index].toLowerAscii
+        of "auto": result.ansiAspect = apaAuto
+        of "legacy": result.ansiAspect = apaLegacy
+        of "square": result.ansiAspect = apaSquare
+        else: raise newException(CliError,
+          "invalid ANSI aspect: " & arguments[index])
       of "-o": result.output = arguments[index]
       else: discard
     else:
@@ -104,6 +127,7 @@ proc inspect(options: CliOptions) =
   let data = readBytes(options.input)
   let inspection = inspectSource(options.input, data, options.inputFormat,
     options.ignoreWarnings, options.pcxChannelOrder,
+    options.ansiLetterSpacing, options.ansiAspect,
     companionResolver = companionResolverFor(options.input))
   let resources = inspection.resources.leafResources
 
@@ -249,6 +273,7 @@ proc exportResource(options: CliOptions) =
   let data = readBytes(options.input)
   let inspection = inspectSource(options.input, data, options.inputFormat,
     options.ignoreWarnings, options.pcxChannelOrder,
+    options.ansiLetterSpacing, options.ansiAspect,
     companionResolver = companionResolverFor(options.input))
   for warning in inspection.warnings:
     stderr.writeLine(&"vexter: warning: {warning.path} " &
@@ -307,6 +332,7 @@ proc exportAllResources(options: CliOptions) =
   let data = readBytes(options.input)
   let inspection = inspectSource(options.input, data, options.inputFormat,
     options.ignoreWarnings, options.pcxChannelOrder,
+    options.ansiLetterSpacing, options.ansiAspect,
     companionResolver = companionResolverFor(options.input))
   for warning in inspection.warnings:
     stderr.writeLine(&"vexter: warning: {warning.path} " &

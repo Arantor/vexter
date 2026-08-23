@@ -45,6 +45,7 @@ import vexterlib/containers/amos_sprite_icon_bank
 import vexterlib/containers/zx_spectrum_screen_dump
 import vexterlib/containers/zx_spectrum_snapshot
 import vexterlib/containers/zx_spectrum_tap
+import vexterlib/containers/ansi_art
 import vexterlib/resources/amos_planar_image
 import vexterlib/resources/amos_packed_picture_image
 import vexterlib/resources/amiga_ilbm_image
@@ -66,6 +67,7 @@ import vexterlib/resources/tga_image
 import vexterlib/resources/flic_animation
 import vexterlib/resources/fzx_font
 import vexterlib/resources/bmfont_font
+import vexterlib/resources/ansi_art_image
 import vexterlib/detection
 import vexterlib/handler_registry
 import vexterlib/metadata
@@ -82,6 +84,8 @@ export colour_cycle
 export palette_swatch
 export font_preview
 export artifacts
+export ansi_art
+export ansi_art_image
 export amos_bank
 export amiga_adf
 export amiga_dms
