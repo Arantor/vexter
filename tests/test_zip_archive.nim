@@ -89,6 +89,31 @@ suite "ZIP archives":
     check parseZipArchive(archive).entries[0].data ==
       @[byte('h'), byte('e'), byte('l'), byte('l'), byte('o')]
 
+  test "a contained decoder failure does not invalidate its ZIP carrier":
+    var brokenPcx = newSeq[byte](128)
+    brokenPcx[0] = 0x0a
+    brokenPcx[1] = 5
+    brokenPcx[2] = 1
+    brokenPcx[3] = 8
+    brokenPcx[65] = 1
+    brokenPcx[66] = 2
+    brokenPcx[68] = 1
+    let archive = zipFixture([
+      FixtureEntry(name: "broken.pcx", data: brokenPcx),
+      FixtureEntry(name: "readme.txt", data: @[byte('o'), byte('k')])])
+    let inspection = inspectSource("mixed.zip", archive)
+    check inspection.selectedFormat.typeId == ZipArchiveTypeId
+    check inspection.warnings.len == 1
+    check inspection.warnings[0].path == "/archive/broken.pcx"
+    check inspection.warnings[0].format == PcxTypeId
+    let failed = inspection.resources.leafResources[0]
+    check failed.path == "/archive/broken.pcx"
+    check failed.kind == vrnkOpaque
+    check failed.failureFormat == PcxTypeId
+    check "truncated PCX image data" in failed.failureMessage
+    check failed.rawDataAvailable
+    check inspection.resources.leafResources[1].path == "/archive/readme.txt"
+
   test "unsafe, duplicate, and overlong paths are rejected":
     expect ValueError:
       discard parseZipArchive(zipFixture([

@@ -33,6 +33,10 @@ type
     palette*: VextPalette
     data*: seq[byte]
     rawDataAvailable*: bool
+    ## Populated when a contained file was identified but could not be decoded.
+    ## The original bytes remain available independently of this presentation.
+    failureFormat*: string
+    failureMessage*: string
     metadata*: seq[VextMetadataEntry]
     children*: seq[VextResourceNode]
     defaultExportPriority*: int

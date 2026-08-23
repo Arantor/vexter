@@ -83,7 +83,12 @@ proc exportHtmlReport*(resource: VextResourceNode,
     if resource.children.len == 0: body.add "<li>None</li>"
     body.add "</ul></section>"
   of vrnkOpaque:
-    body.add "<section><h2>Opaque resource</h2><p>"
+    if resource.failureMessage.len > 0:
+      body.add "<section><h2>Decode failure</h2><p>Suspected format: <code>" &
+        resource.failureFormat.escaped & "</code></p><pre>" &
+        resource.failureMessage.escaped & "</pre><p>"
+    else:
+      body.add "<section><h2>Opaque resource</h2><p>"
     if resource.rawDataAvailable:
       body.add $resource.data.len & " retained byte(s)."
     else:

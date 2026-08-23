@@ -125,6 +125,11 @@ proc exportMetadataJson*(resource: VextResourceNode,
   var document = %*{"schema": "vexter.resource-metadata.v1",
     "path": resource.path, "type": resource.typeId, "kind": kind,
     "metadata": metadataNode(resource.metadata)}
+  if resource.failureMessage.len > 0:
+    document["failure"] = %*{
+      "format": resource.failureFormat,
+      "message": resource.failureMessage
+    }
   var children = newJArray()
   for child in resource.children: children.add %child.path
   document["children"] = children

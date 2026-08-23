@@ -416,6 +416,13 @@ Both slash forms are treated as separators. Absolute paths, empty components,
 Unicode characters are rejected. This prevents recursive/ambiguous path loops
 without attempting to materialize archive names on the host filesystem.
 
+A structurally valid ZIP remains inspectable when an individual recognized
+member fails during format-specific decoding. That member becomes an opaque,
+raw-exportable resource retaining the suspected format and exact decoder error;
+inspection also reports a warning at its archive path. Other members continue
+to decode normally. Only faults in ZIP framing, member expansion, checksums,
+paths, or other archive-level invariants reject the parent archive.
+
 `normalizedZipExportName` and bulk-export naming replace host-sensitive control
 and punctuation characters, trim trailing dots/spaces, and protect Windows
 device names. `export-all` preserves the normalized resource hierarchy and

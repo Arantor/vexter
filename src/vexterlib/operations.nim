@@ -327,13 +327,25 @@ proc rebaseNode(node: VextResourceNode, prefix: string) =
 proc containedFileNode(path, filename, fallbackType: string,
     data: openArray[byte], metadata: seq[VextMetadataEntry], depth: int,
     ignoreWarnings: bool, pcxChannelOrder: PcxChannelOrder,
-    warnings: var seq[VextInspectionWarning]): VextResourceNode =
+    warnings: var seq[VextInspectionWarning], isolateFailure = false):
+    VextResourceNode =
   var retainedMetadata = metadata
   if depth >= 8:
     return VextResourceNode(path: path, typeId: fallbackType,
       kind: vrnkOpaque, data: @data, rawDataAvailable: true,
       metadata: retainedMetadata)
-  let candidates = detectFormats(filename, data)
+  var candidates: seq[VextDetectionCandidate]
+  try:
+    candidates = detectFormats(filename, data)
+  except CatchableError as error:
+    if not isolateFailure: raise
+    warnings.add VextInspectionWarning(path: path, format: fallbackType,
+      message: error.msg)
+    retainedMetadata.add stringMetadata("decode.warning", error.msg)
+    return VextResourceNode(path: path, typeId: fallbackType,
+      kind: vrnkOpaque, data: @data, rawDataAvailable: true,
+      failureFormat: "recognized contained format",
+      failureMessage: error.msg, metadata: retainedMetadata)
   if candidates.len == 0:
     return VextResourceNode(path: path, typeId: fallbackType,
       kind: vrnkOpaque, data: @data, rawDataAvailable: true,
@@ -342,15 +354,16 @@ proc containedFileNode(path, filename, fallbackType: string,
   try:
     nested = inspectSourceDepth(filename, data, "", depth + 1, ignoreWarnings,
       pcxChannelOrder, alsAuto, apaAuto, nil)
-  except ValueError as error:
-    if ignoreWarnings:
+  except CatchableError as error:
+    if ignoreWarnings or isolateFailure:
       warnings.add VextInspectionWarning(
         path: path, format: candidates[0].typeId, message: error.msg)
       retainedMetadata.add stringMetadata("decode.format", candidates[0].typeId)
       retainedMetadata.add stringMetadata("decode.warning", error.msg)
       return VextResourceNode(path: path, typeId: fallbackType,
         kind: vrnkOpaque, data: @data, rawDataAvailable: true,
-        metadata: retainedMetadata)
+        failureFormat: candidates[0].typeId,
+        failureMessage: error.msg, metadata: retainedMetadata)
     raise newException(ValueError,
       "while inspecting nested resource " & path & ": " & error.msg)
   for warning in nested.warnings:
@@ -412,7 +425,8 @@ proc addZipEntry(root: VextResourceNode, entry: ZipEntry, depth: int,
         integerMetadata("compressed.length", entry.compressedSize),
         integerMetadata("data.length", entry.uncompressedSize)]
       parent.children.add containedFileNode(path, segment, ZipFileTypeId,
-        entry.data, metadata, depth, ignoreWarnings, pcxChannelOrder, warnings)
+        entry.data, metadata, depth, ignoreWarnings, pcxChannelOrder, warnings,
+        isolateFailure = true)
     else:
       if existing.isNil:
         existing = VextResourceNode(path: path, typeId: ZipDirectoryTypeId,

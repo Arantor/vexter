@@ -192,6 +192,11 @@ proc inspect(options: CliOptions) =
         resource["archetype"] = %"VextPalette"
         resource["colours"] = %item.palette.colours.len
         resource["colourCycleRanges"] = %item.palette.colourCycles.len
+      if item.failureMessage.len > 0:
+        resource["failure"] = %*{
+          "format": item.failureFormat,
+          "message": item.failureMessage
+        }
       if item.metadata.len > 0:
         var metadata = newJObject()
         for entry in item.metadata:

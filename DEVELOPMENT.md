@@ -782,8 +782,8 @@ The routine suites are:
 - `tests/test_amiga_adf.nim`: synthetic FFS directory traversal, OFS and FFS
   file reconstruction, nested format decoding, and structural corruption;
 - `tests/test_zip_archive.nim`: stored/DEFLATE expansion, hierarchy and nested
-  decoding, unsafe/duplicate/overlong path rejection, and portable export-name
-  normalization;
+  decoding, per-member decoder-failure isolation, unsafe/duplicate/overlong
+  path rejection, and portable export-name normalization;
 - `tests/test_openraster.nim`: synthetic ZIP-profile refinement, required MIME
   placement and members, layer-stack metadata and raster exposure, derivation
   reporting, and forced generic-carrier inspection;

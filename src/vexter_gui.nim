@@ -278,6 +278,12 @@ proc metadataString(node: VextResourceNode): string =
       of vmvkString: entry.value.stringValue
     result.add &"{entry.key}: {value}\r\n"
 
+proc failureString(node: VextResourceNode): string =
+  &"This contained file could not be decoded.\r\n\r\n" &
+    &"Path: {node.path}\r\n" &
+    &"Suspected format: {node.failureFormat}\r\n\r\n" &
+    &"Decoder error:\r\n{node.failureMessage}\r\n"
+
 proc stopAudio() =
   if waveHandle != nil:
     discard waveOutReset(waveHandle)
@@ -393,7 +399,8 @@ proc previewProc(hwnd: HWND, msg: UINT, wp: WPARAM, lp: LPARAM): LRESULT {.stdca
   DefWindowProcW(hwnd, msg, wp, lp)
 
 proc addTreeNode(node: VextResourceNode, parent: HTREEITEM): HTREEITEM =
-  let label = if node.path.len == 0: node.typeId else: node.path.split('/')[^1]
+  var label = if node.path.len == 0: node.typeId else: node.path.split('/')[^1]
+  if node.failureMessage.len > 0: label = "[!] " & label
   let labelWide = w(label)
   let binding = TreeBinding(node: node)
   bindings.add binding
@@ -403,7 +410,8 @@ proc addTreeNode(node: VextResourceNode, parent: HTREEITEM): HTREEITEM =
   result = cast[HTREEITEM](SendMessageW(treeView, TVM_INSERTITEMW, 0,
     cast[LPARAM](addr insert)))
   if firstPreviewItem == nil and node.kind in
-      {vrnkRaster, vrnkPalette, vrnkFont, vrnkAudio, vrnkText}:
+      {vrnkRaster, vrnkPalette, vrnkFont, vrnkAudio, vrnkText} or
+      node.failureMessage.len > 0:
     firstPreviewItem = result
   for child in node.children:
     discard addTreeNode(child, result)
@@ -534,6 +542,9 @@ proc selectBinding(binding: TreeBinding) =
   elif binding.metadataText.len > 0:
     currentView = vkText
     discard SetWindowTextW(textView, w(binding.metadataText))
+  elif binding.node.failureMessage.len > 0:
+    currentView = vkText
+    discard SetWindowTextW(textView, w(failureString(binding.node)))
   elif binding.node.kind == vrnkText:
     currentView = vkText
     discard SetWindowTextW(textView, w(binding.node.text))
