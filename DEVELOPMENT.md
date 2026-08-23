@@ -77,6 +77,10 @@ sampled audio, and exports
 through the library's discoverable per-resource format list. It targets the
 Windows 7 API baseline and cross-compiles from Linux with MinGW-w64:
 
+Contained resources carrying decode failures use the standard Windows warning
+icon in the TreeView. Their ancestor groups expand automatically, and selecting
+one shows its suspected format and decoder message in the text view.
+
 ```sh
 nice -n 15 nimble gui
 ```

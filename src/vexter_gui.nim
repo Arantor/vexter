@@ -21,6 +21,8 @@ type
   HMENU = pointer
   HDC = pointer
   HBRUSH = pointer
+  HICON = pointer
+  HIMAGELIST = pointer
   HTREEITEM = pointer
   HWAVEOUT = pointer
   UINT = uint32
@@ -160,10 +162,17 @@ const
   TVM_DELETEITEM = 0x1101'u32
   TVM_EXPAND = 0x1102'u32
   TVM_SELECTITEM = 0x110B'u32
+  TVM_SETIMAGELIST = 0x1109'u32
   TVE_EXPAND = 0x0002
   TVGN_CARET = 0x0009
   TVIF_TEXT = 0x0001'u32
+  TVIF_IMAGE = 0x0002'u32
   TVIF_PARAM = 0x0004'u32
+  TVIF_SELECTEDIMAGE = 0x0020'u32
+  TVSIL_NORMAL = 0
+  I_IMAGENONE = -2
+  ILC_MASK = 0x0001'u32
+  ILC_COLOR32 = 0x0020'u32
   TVI_ROOT = cast[HTREEITEM](-0x10000)
   TVI_LAST = cast[HTREEITEM](-0x0FFFE)
   TVN_SELCHANGEDW = cast[UINT](-451'i32)
@@ -174,6 +183,7 @@ const
   COLOR_WINDOW = 5
   COLOR_BTNFACE = 15
   IDC_ARROW = 32512
+  IDI_WARNING = 32515
   DIB_RGB_COLORS = 0'u32
   SRCCOPY = 0x00CC0020'u32
   COLORONCOLOR = 3
@@ -207,6 +217,13 @@ proc EndPaint(hwnd: HWND, ps: ptr PAINTSTRUCT): BOOL {.stdcall, importc, header:
 proc FillRect(dc: HDC, rect: ptr RECT, brush: HBRUSH): int32 {.stdcall, importc, header: "<windows.h>".}
 proc GetSysColorBrush(index: int32): HBRUSH {.stdcall, importc, header: "<windows.h>".}
 proc LoadCursorW(instance: HINSTANCE, name: int): pointer {.stdcall, importc, header: "<windows.h>".}
+proc LoadIconW(instance: HINSTANCE, name: int): HICON {.stdcall, importc, header: "<windows.h>".}
+proc ImageList_Create(width, height: int32, flags: UINT, initial,
+    grow: int32): HIMAGELIST {.stdcall, importc, header: "<commctrl.h>".}
+proc ImageList_ReplaceIcon(images: HIMAGELIST, index: int32,
+    icon: HICON): int32 {.stdcall, importc, header: "<commctrl.h>".}
+proc ImageList_Destroy(images: HIMAGELIST): BOOL
+    {.stdcall, importc, header: "<commctrl.h>".}
 proc InvalidateRect(hwnd: HWND, rect: ptr RECT, erase: BOOL): BOOL {.stdcall, importc, header: "<windows.h>".}
 proc SetStretchBltMode(dc: HDC, mode: int32): int32 {.stdcall, importc, header: "<windows.h>".}
 proc StretchDIBits(dc: HDC, x, y, dw, dh, sx, sy, sw, sh: int32,
@@ -252,6 +269,8 @@ var
   waveHeader: WAVEHDR
   waveData: seq[int16]
   firstPreviewItem: HTREEITEM
+  treeImages: HIMAGELIST
+  failureImageIndex = -1'i32
   loadThread: Thread[LoadJob]
 
 proc lowWord(value: WPARAM): int = int(value and 0xffff)
@@ -398,14 +417,24 @@ proc previewProc(hwnd: HWND, msg: UINT, wp: WPARAM, lp: LPARAM): LRESULT {.stdca
     return 0
   DefWindowProcW(hwnd, msg, wp, lp)
 
+proc containsFailure(node: VextResourceNode): bool =
+  if node.failureMessage.len > 0: return true
+  for child in node.children:
+    if child.containsFailure: return true
+
 proc addTreeNode(node: VextResourceNode, parent: HTREEITEM): HTREEITEM =
   var label = if node.path.len == 0: node.typeId else: node.path.split('/')[^1]
-  if node.failureMessage.len > 0: label = "[!] " & label
+  if node.failureMessage.len > 0 and failureImageIndex < 0:
+    label = "[!] " & label
   let labelWide = w(label)
   let binding = TreeBinding(node: node)
   bindings.add binding
+  let imageIndex = if node.failureMessage.len > 0:
+      failureImageIndex else: I_IMAGENONE
   var insert = TVINSERTSTRUCTW(hParent: parent, hInsertAfter: TVI_LAST,
-    item: TVITEMW(mask: TVIF_TEXT or TVIF_PARAM, pszText: labelWide,
+    item: TVITEMW(mask: TVIF_TEXT or TVIF_PARAM or TVIF_IMAGE or
+      TVIF_SELECTEDIMAGE, pszText: labelWide, iImage: imageIndex,
+      iSelectedImage: imageIndex,
       lParam: cast[LPARAM](binding)))
   result = cast[HTREEITEM](SendMessageW(treeView, TVM_INSERTITEMW, 0,
     cast[LPARAM](addr insert)))
@@ -424,6 +453,9 @@ proc addTreeNode(node: VextResourceNode, parent: HTREEITEM): HTREEITEM =
         lParam: cast[LPARAM](metadata)))
     discard SendMessageW(treeView, TVM_INSERTITEMW, 0,
       cast[LPARAM](addr metadataInsert))
+  if node.children.len > 0 and node.containsFailure:
+    discard SendMessageW(treeView, TVM_EXPAND, TVE_EXPAND,
+      cast[LPARAM](result))
 
 proc rebuildTree() =
   discard SendMessageW(treeView, TVM_DELETEITEM, 0, cast[LPARAM](TVI_ROOT))
@@ -807,6 +839,14 @@ proc mainProc(hwnd: HWND, msg: UINT, wp: WPARAM, lp: LPARAM): LRESULT {.stdcall.
     treeView = CreateWindowExW(0, w("SysTreeView32"), w(""), WS_CHILD or WS_VISIBLE or
       WS_BORDER or TVS_HASBUTTONS or TVS_HASLINES or TVS_LINESATROOT,
       0, 0, 0, 0, hwnd, cast[HMENU](1002), instance, nil)
+    treeImages = ImageList_Create(16, 16, ILC_COLOR32 or ILC_MASK, 1, 1)
+    if treeImages != nil:
+      let warningIcon = LoadIconW(nil, IDI_WARNING)
+      if warningIcon != nil:
+        failureImageIndex = ImageList_ReplaceIcon(treeImages, -1, warningIcon)
+      if failureImageIndex >= 0:
+        discard SendMessageW(treeView, TVM_SETIMAGELIST, TVSIL_NORMAL,
+          cast[LPARAM](treeImages))
     preview = CreateWindowExW(0, w("VexterPreview"), w(""), WS_CHILD or WS_VISIBLE or WS_BORDER,
       0, 0, 0, 0, hwnd, cast[HMENU](1003), instance, nil)
     textView = CreateWindowExW(0, w("EDIT"), w(""), WS_CHILD or WS_BORDER or WS_VSCROLL or
@@ -912,6 +952,10 @@ proc mainProc(hwnd: HWND, msg: UINT, wp: WPARAM, lp: LPARAM): LRESULT {.stdcall.
   of WM_CLOSE:
     stopAudio()
   of WM_DESTROY:
+    if treeImages != nil:
+      discard SendMessageW(treeView, TVM_SETIMAGELIST, TVSIL_NORMAL, 0)
+      discard ImageList_Destroy(treeImages)
+      treeImages = nil
     PostQuitMessage(0)
     return 0
   else: discard
