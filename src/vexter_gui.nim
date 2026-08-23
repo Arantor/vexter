@@ -449,8 +449,9 @@ proc addTreeNode(node: VextResourceNode, parent: HTREEITEM): HTREEITEM =
     let metadataLabel = w("Metadata")
     bindings.add metadata
     var metadataInsert = TVINSERTSTRUCTW(hParent: result, hInsertAfter: TVI_LAST,
-      item: TVITEMW(mask: TVIF_TEXT or TVIF_PARAM, pszText: metadataLabel,
-        lParam: cast[LPARAM](metadata)))
+      item: TVITEMW(mask: TVIF_TEXT or TVIF_PARAM or TVIF_IMAGE or
+        TVIF_SELECTEDIMAGE, pszText: metadataLabel, iImage: I_IMAGENONE,
+        iSelectedImage: I_IMAGENONE, lParam: cast[LPARAM](metadata)))
     discard SendMessageW(treeView, TVM_INSERTITEMW, 0,
       cast[LPARAM](addr metadataInsert))
   if node.children.len > 0 and node.containsFailure:
