@@ -20,6 +20,23 @@ proc detectBaseFormats(filename: string, data: openArray[byte]):
     seq[VextDetectionCandidate] =
   ## Returns every format candidate recognized from currently available
   ## evidence, ordered from strongest to weakest.
+  # A structurally valid disc image is a terminal physical carrier. Recognize
+  # it before running probes designed for much smaller standalone files; some
+  # of those parsers necessarily allocate candidate output proportional to the
+  # input before rejecting it.
+  try:
+    let image = probeIso9660(data)
+    var evidence = @[VextDetectionEvidence(description:
+      "file has a valid ISO 9660 primary volume descriptor, root directory, " &
+      "and descriptor terminator in " & image.layout.iso9660LayoutName)]
+    if hasIso9660Extension(filename):
+      evidence.add VextDetectionEvidence(description: "file extension is .iso")
+    return @[VextDetectionCandidate(typeId: Iso9660TypeId,
+      confidence: vdcCertain, evidence: evidence,
+      derivation: baseDerivation(Iso9660TypeId))]
+  except ValueError:
+    discard
+
   if isAmigaDiskfontIndex(data):
     let index = parseAmigaDiskfontIndex(data)
     var evidence = @[VextDetectionEvidence(description:
@@ -230,16 +247,6 @@ proc detectBaseFormats(filename: string, data: openArray[byte]):
       typeId: ZipArchiveTypeId,
       confidence: vdcCertain,
       evidence: evidence)
-
-  if isIso9660(data):
-    let image = probeIso9660(data)
-    var evidence = @[VextDetectionEvidence(description:
-      "file has a valid ISO 9660 primary volume descriptor, root directory, " &
-      "and descriptor terminator in " & image.layout.iso9660LayoutName)]
-    if hasIso9660Extension(filename):
-      evidence.add VextDetectionEvidence(description: "file extension is .iso")
-    result.add VextDetectionCandidate(typeId: Iso9660TypeId,
-      confidence: vdcCertain, evidence: evidence)
 
   if isLhaArchiveStructure(data):
     var evidence = @[VextDetectionEvidence(

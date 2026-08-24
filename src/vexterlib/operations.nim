@@ -60,6 +60,12 @@ type
     resources*: VextResourceTree
     warnings*: seq[VextInspectionWarning]
 
+  VextDemandDecodeResult* = enum
+    vddNotApplicable
+    vddUnrecognized
+    vddDecoded
+    vddFailed
+
   VextExportRequest* = object
     resourcePath*: string
     outputFormat*: string
@@ -317,7 +323,8 @@ proc inspectSourceDepth(filename: string, data: openArray[byte],
     inputFormat: string, depth: int, ignoreWarnings: bool,
     pcxChannelOrder: PcxChannelOrder, ansiLetterSpacing: AnsiLetterSpacing,
     ansiAspect: AnsiPresentationAspect,
-    companionResolver: VextCompanionResolver): VextInspection
+    companionResolver: VextCompanionResolver,
+    backingSource: VextPayloadSource = nil): VextInspection
 
 proc rebaseNode(node: VextResourceNode, prefix: string) =
   node.path = prefix & node.path
@@ -407,15 +414,46 @@ proc childNamed(parent: VextResourceNode, path: string): VextResourceNode =
     if child.path == path:
       return child
 
-proc addZipEntry(root: VextResourceNode, entry: ZipEntry, depth: int,
-    ignoreWarnings: bool, pcxChannelOrder: PcxChannelOrder,
-    warnings: var seq[VextInspectionWarning]) =
+proc iso9660Payload(entry: Iso9660Entry, layout: Iso9660Layout,
+    source: VextPayloadSource): VextPayloadRef =
+  result.source = source
+  result.length = entry.dataLength
+  if layout == ilCooked2048:
+    if entry.dataLength > 0:
+      result.spans = @[VextPayloadSpan(
+        offset: entry.extentBlock * Iso9660LogicalBlockSize,
+        length: entry.dataLength)]
+    return
+  result.spans = newSeqOfCap[VextPayloadSpan](
+    (entry.dataLength + Iso9660LogicalBlockSize - 1) div
+      Iso9660LogicalBlockSize)
+  var logicalOffset = entry.extentBlock * Iso9660LogicalBlockSize
+  var remaining = entry.dataLength
+  while remaining > 0:
+    let sector = logicalOffset div Iso9660LogicalBlockSize
+    let within = logicalOffset mod Iso9660LogicalBlockSize
+    let amount = min(remaining, Iso9660LogicalBlockSize - within)
+    let physicalOffset = sector * 2352 + 16 + within
+    result.spans.add VextPayloadSpan(offset: physicalOffset, length: amount)
+    logicalOffset += amount
+    remaining -= amount
+
+proc zipPayload(entry: ZipEntry,
+    source: VextPayloadSource): VextPayloadRef =
+  let capturedEntry = entry
+  result = VextPayloadRef(source: source, length: entry.uncompressedSize,
+    materializer: proc(): seq[byte] =
+      extractZipEntry(source.data, capturedEntry))
+
+proc addZipEntry(root: VextResourceNode, entry: ZipEntry,
+    source: VextPayloadSource,
+    directories: var Table[string, VextResourceNode]) =
   var parent = root
   var path = root.path
   for index, segment in entry.segments:
     path.add "/" & segment
     let last = index == entry.segments.high
-    var existing = childNamed(parent, path)
+    var existing = directories.getOrDefault(path)
     if last and not entry.isDirectory:
       if not existing.isNil:
         raise newException(ValueError, "conflicting ZIP entry path: " & entry.name)
@@ -424,20 +462,22 @@ proc addZipEntry(root: VextResourceNode, entry: ZipEntry, depth: int,
         integerMetadata("compression.method", entry.compressionMethod),
         integerMetadata("compressed.length", entry.compressedSize),
         integerMetadata("data.length", entry.uncompressedSize)]
-      parent.children.add containedFileNode(path, segment, ZipFileTypeId,
-        entry.data, metadata, depth, ignoreWarnings, pcxChannelOrder, warnings,
-        isolateFailure = true)
+      parent.children.add VextResourceNode(path: path, typeId: ZipFileTypeId,
+        kind: vrnkOpaque, lazyPayload: zipPayload(entry, source),
+        rawDataAvailable: true, metadata: metadata)
     else:
       if existing.isNil:
         existing = VextResourceNode(path: path, typeId: ZipDirectoryTypeId,
           kind: vrnkGroup)
         parent.children.add existing
+        directories[path] = existing
       elif existing.kind != vrnkGroup or existing.typeId != ZipDirectoryTypeId:
         raise newException(ValueError, "conflicting ZIP entry path: " & entry.name)
       parent = existing
 
 proc addIso9660Entry(root: VextResourceNode, entry: var Iso9660Entry,
-    source: openArray[byte], image: Iso9660Image, depth: int,
+    source: openArray[byte], backingSource: VextPayloadSource,
+    image: ptr Iso9660Image, depth: int,
     ignoreWarnings: bool, pcxChannelOrder: PcxChannelOrder,
     warnings: var seq[VextInspectionWarning],
     directories: var Table[string, VextResourceNode],
@@ -452,7 +492,6 @@ proc addIso9660Entry(root: VextResourceNode, entry: var Iso9660Entry,
       if not existing.isNil:
         raise newException(ValueError,
           "conflicting ISO 9660 entry path: " & entry.name)
-      entry.data = extractIso9660Entry(source, image, entry)
       let metadata = @[
         stringMetadata("iso9660.name", entry.name),
         integerMetadata("iso9660.extent-block", entry.extentBlock),
@@ -463,17 +502,20 @@ proc addIso9660Entry(root: VextResourceNode, entry: var Iso9660Entry,
         integerMetadata("iso9660.system-use-bytes", entry.systemUseBytes),
         stringMetadata("iso9660.recording-time", entry.recordingTime)]
       var retainedMetadata = metadata
-      let inspectContained = entry.data.len <= Iso9660RecursiveInspectionLimit and
+      let lazyPayload = iso9660Payload(entry, image[].layout, backingSource)
+      let inspectContained = entry.dataLength <= Iso9660RecursiveInspectionLimit and
         inspectionFiles < 512 and
-        inspectionBytes <= 128 * 1024 * 1024 - entry.data.len
+        inspectionBytes <= 128 * 1024 * 1024 - entry.dataLength
       if not inspectContained:
         parent.children.add VextResourceNode(path: path,
           typeId: Iso9660FileTypeId, kind: vrnkOpaque,
-          data: move(entry.data), rawDataAvailable: true,
+          lazyPayload: lazyPayload, rawDataAvailable: true,
           metadata: retainedMetadata)
         return
       inc inspectionFiles
-      inspectionBytes += entry.data.len
+      inspectionBytes += entry.dataLength
+      entry.data = extractIso9660Entry(source, image[], entry)
+      defer: entry.data.setLen(0)
       var candidates: seq[VextDetectionCandidate]
       try:
         candidates = detectFormats(segment, entry.data)
@@ -483,14 +525,14 @@ proc addIso9660Entry(root: VextResourceNode, entry: var Iso9660Entry,
         retainedMetadata.add stringMetadata("decode.warning", error.msg)
         parent.children.add VextResourceNode(path: path,
           typeId: Iso9660FileTypeId, kind: vrnkOpaque,
-          data: move(entry.data), rawDataAvailable: true,
+          lazyPayload: lazyPayload, rawDataAvailable: true,
           failureFormat: "recognized contained format",
           failureMessage: error.msg, metadata: retainedMetadata)
         return
       if candidates.len == 0 or depth >= 8:
         parent.children.add VextResourceNode(path: path,
           typeId: Iso9660FileTypeId, kind: vrnkOpaque,
-          data: move(entry.data), rawDataAvailable: true,
+          lazyPayload: lazyPayload, rawDataAvailable: true,
           metadata: retainedMetadata)
         return
       var nested: VextInspection
@@ -504,7 +546,7 @@ proc addIso9660Entry(root: VextResourceNode, entry: var Iso9660Entry,
         retainedMetadata.add stringMetadata("decode.warning", error.msg)
         parent.children.add VextResourceNode(path: path,
           typeId: Iso9660FileTypeId, kind: vrnkOpaque,
-          data: move(entry.data), rawDataAvailable: true,
+          lazyPayload: lazyPayload, rawDataAvailable: true,
           failureFormat: candidates[0].typeId,
           failureMessage: error.msg, metadata: retainedMetadata)
         return
@@ -677,7 +719,8 @@ proc inspectSourceDepth(filename: string, data: openArray[byte],
     inputFormat: string, depth: int, ignoreWarnings: bool,
     pcxChannelOrder: PcxChannelOrder, ansiLetterSpacing: AnsiLetterSpacing,
     ansiAspect: AnsiPresentationAspect,
-    companionResolver: VextCompanionResolver): VextInspection =
+    companionResolver: VextCompanionResolver,
+    backingSource: VextPayloadSource): VextInspection =
   let detected = detectParsedFormats(filename, data)
   for item in detected:
     result.candidates.add item.candidate
@@ -1131,16 +1174,24 @@ proc inspectSourceDepth(filename: string, data: openArray[byte],
       metadata: metadata)
   of vhkZip:
     let archive = parsedValue[ZipArchive](selectedParsed, vhkZip)
+    let zipSource = if backingSource.isNil:
+        VextPayloadSource(data: @data)
+      else:
+        backingSource
     let root = VextResourceNode(path: "/archive", typeId: ZipArchiveTypeId,
       kind: vrnkGroup, metadata: @[
         integerMetadata("entries", archive.entries.len),
         stringMetadata("comment", archive.comment)])
+    var directories = {root.path: root}.toTable
     for entry in archive.entries:
-      addZipEntry(root, entry, depth, ignoreWarnings, pcxChannelOrder,
-        result.warnings)
+      addZipEntry(root, entry, zipSource, directories)
     result.resources.roots.add root
   of vhkIso9660:
     let image = parsedValueRef[Iso9660Image](selectedParsed, vhkIso9660)
+    let isoSource = if backingSource.isNil:
+        VextPayloadSource(data: @data)
+      else:
+        backingSource
     var metadata = @[
       stringMetadata("layout", image[].layout.iso9660LayoutName),
       stringMetadata("volume.identifier", image[].volumeIdentifier),
@@ -1163,8 +1214,15 @@ proc inspectSourceDepth(filename: string, data: openArray[byte],
       kind: vrnkGroup, metadata: metadata)
     var directories = {root.path: root}.toTable
     var inspectionFiles, inspectionBytes: int
+    # Large filesystems are presented structurally first. Eagerly decoding even
+    # a bounded prefix can expand compressed images and archives far beyond the
+    # source size; demand-driven nested decoding is the next layer above these
+    # lazy payload references.
+    if image[].entries.len > 512:
+      inspectionFiles = 512
     for entry in image[].entries.mitems:
-      addIso9660Entry(root, entry, data, image[], depth, ignoreWarnings, pcxChannelOrder,
+      addIso9660Entry(root, entry, data, isoSource, image, depth,
+        ignoreWarnings, pcxChannelOrder,
         result.warnings, directories, inspectionFiles, inspectionBytes)
     result.resources.roots.add root
   of vhkOpenRaster:
@@ -1547,11 +1605,78 @@ proc inspectSource*(filename: string, data: openArray[byte],
   reportProgress(progress, vppInspecting, filename, "Inspecting container")
   reportProgress(progress, vppDecoding, filename, "Decoding resources")
   result = inspectSourceDepth(filename, data, inputFormat, 0, ignoreWarnings,
-    pcxChannelOrder, ansiLetterSpacing, ansiAspect, companionResolver)
+    pcxChannelOrder, ansiLetterSpacing, ansiAspect, companionResolver, nil)
   reportProgress(progress, vppTraversing, filename,
     "Resource tree complete", result.resources.leafResources.len,
     result.resources.leafResources.len)
   reportProgress(progress, vppComplete, filename, "Inspection complete", 1, 1)
+
+proc inspectOwnedSource*(filename: string, ownedData: sink seq[byte],
+    inputFormat = "", ignoreWarnings = false,
+    pcxChannelOrder = pcoRgb,
+    ansiLetterSpacing = alsAuto,
+    ansiAspect = apaAuto,
+    progress: VextProgressCallback = nil,
+    companionResolver: VextCompanionResolver = nil): VextInspection =
+  ## Ownership-preserving inspection for frontends loading large containers.
+  ## Lazy resources keep this one shared source alive without copying it.
+  let source = VextPayloadSource(data: move(ownedData))
+  reportProgress(progress, vppDetecting, filename, "Detecting input format")
+  reportProgress(progress, vppInspecting, filename, "Inspecting container")
+  reportProgress(progress, vppDecoding, filename, "Decoding resources")
+  result = inspectSourceDepth(filename, source.data, inputFormat, 0,
+    ignoreWarnings, pcxChannelOrder, ansiLetterSpacing, ansiAspect,
+    companionResolver, source)
+  let leaves = result.resources.leafResources.len
+  reportProgress(progress, vppTraversing, filename,
+    "Resource tree complete", leaves, leaves)
+  reportProgress(progress, vppComplete, filename, "Inspection complete", 1, 1)
+
+proc decodeResourceOnDemand*(node: VextResourceNode,
+    ignoreWarnings = true, pcxChannelOrder = pcoRgb): VextDemandDecodeResult =
+  ## Probes and decodes one lazy opaque resource. This mutates the stable node
+  ## in place so frontends can retain their existing selection binding.
+  if node.isNil or node.kind != vrnkOpaque or
+      node.lazyPayload.source.isNil or node.nestedInspectionAttempted:
+    return vddNotApplicable
+  node.nestedInspectionAttempted = true
+  let filename = node.path.split('/')[^1]
+  var data: seq[byte]
+  try:
+    data = node.resourceBytes
+  except CatchableError as error:
+    node.failureFormat = node.typeId
+    node.failureMessage = error.msg
+    node.metadata.add stringMetadata("decode.warning", error.msg)
+    return vddFailed
+  var candidates: seq[VextDetectionCandidate]
+  try:
+    candidates = detectFormats(filename, data)
+  except CatchableError as error:
+    node.failureFormat = "recognized contained format"
+    node.failureMessage = error.msg
+    node.metadata.add stringMetadata("decode.warning", error.msg)
+    return vddFailed
+  if candidates.len == 0:
+    node.metadata.add stringMetadata("decode.status", "format not recognized")
+    return vddUnrecognized
+  try:
+    let nested = inspectSourceDepth(filename, data, "", 1, ignoreWarnings,
+      pcxChannelOrder, alsAuto, apaAuto, nil)
+    node.typeId = nested.selectedFormat.typeId
+    node.kind = vrnkGroup
+    node.metadata.add stringMetadata("decode.format", node.typeId)
+    node.metadata.add stringMetadata("decode.status", "decoded on demand")
+    for root in nested.resources.roots:
+      rebaseNode(root, node.path)
+      node.children.add root
+    result = vddDecoded
+  except CatchableError as error:
+    node.failureFormat = candidates[0].typeId
+    node.failureMessage = error.msg
+    node.metadata.add stringMetadata("decode.format", candidates[0].typeId)
+    node.metadata.add stringMetadata("decode.warning", error.msg)
+    result = vddFailed
 
 proc exportResource*(tree: VextResourceTree,
     request: VextExportRequest): VextExportResult =
@@ -1637,7 +1762,7 @@ proc exportResource*(tree: VextResourceTree,
     if result.outputFormat != "bin":
       raise newException(ValueError,
         "unsupported output format: " & result.outputFormat)
-    result.artifacts = exportRaw(resource.data,
+    result.artifacts = exportRaw(resource.resourceBytes,
       request.suggestedName & ".bin")
   of vrnkText:
     if result.outputFormat != "txt":

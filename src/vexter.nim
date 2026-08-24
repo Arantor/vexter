@@ -42,10 +42,17 @@ proc usage(): string =
                     [--ansi-aspect auto|legacy|square] INPUT"""
 
 proc readBytes(path: string): seq[byte] {.gcsafe.} =
-  let contents = readFile(path)
-  result = newSeq[byte](contents.len)
-  for index, value in contents:
-    result[index] = byte(value)
+  let length = int(path.getFileSize)
+  result = newSeq[byte](length)
+  if length == 0: return
+  let input = open(path, fmRead)
+  defer: input.close()
+  var offset = 0
+  while offset < length:
+    let amount = input.readBuffer(addr result[offset], length - offset)
+    if amount <= 0:
+      raise newException(IOError, "short read from " & path)
+    offset += amount
 
 proc companionResolverFor(path: string): VextCompanionResolver =
   let directory = path.parentDir
@@ -124,8 +131,8 @@ proc parseOptions(arguments: seq[string]): CliOptions =
     raise newException(CliError, "no input was provided")
 
 proc inspect(options: CliOptions) =
-  let data = readBytes(options.input)
-  let inspection = inspectSource(options.input, data, options.inputFormat,
+  var data = readBytes(options.input)
+  let inspection = inspectOwnedSource(options.input, move(data), options.inputFormat,
     options.ignoreWarnings, options.pcxChannelOrder,
     options.ansiLetterSpacing, options.ansiAspect,
     companionResolver = companionResolverFor(options.input))
@@ -284,8 +291,8 @@ proc exportResource(options: CliOptions) =
   if options.resources.len > 1:
     raise newException(CliError,
       "--resource may be repeated only with export-all")
-  let data = readBytes(options.input)
-  let inspection = inspectSource(options.input, data, options.inputFormat,
+  var data = readBytes(options.input)
+  let inspection = inspectOwnedSource(options.input, move(data), options.inputFormat,
     options.ignoreWarnings, options.pcxChannelOrder,
     options.ansiLetterSpacing, options.ansiAspect,
     companionResolver = companionResolverFor(options.input))
@@ -343,8 +350,8 @@ proc exportAllResources(options: CliOptions) =
     raise newException(CliError,
       "export-all output is not a directory: " & options.output)
 
-  let data = readBytes(options.input)
-  let inspection = inspectSource(options.input, data, options.inputFormat,
+  var data = readBytes(options.input)
+  let inspection = inspectOwnedSource(options.input, move(data), options.inputFormat,
     options.ignoreWarnings, options.pcxChannelOrder,
     options.ansiLetterSpacing, options.ansiAspect,
     companionResolver = companionResolverFor(options.input))

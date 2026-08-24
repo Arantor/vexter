@@ -163,6 +163,7 @@ const
   TVM_EXPAND = 0x1102'u32
   TVM_SELECTITEM = 0x110B'u32
   TVM_SETIMAGELIST = 0x1109'u32
+  TVM_SETITEMW = 0x113F'u32
   TVE_EXPAND = 0x0002
   TVGN_CARET = 0x0009
   TVIF_TEXT = 0x0001'u32
@@ -622,6 +623,33 @@ proc selectBinding(binding: TreeBinding) =
     layout(mainWindow)
     discard InvalidateRect(preview, nil, 1)
 
+proc decodeBindingOnDemand(binding: TreeBinding, item: HTREEITEM) =
+  if binding.isNil or binding.metadataText.len > 0 or binding.node.isNil or
+      binding.node.kind != vrnkOpaque or
+      binding.node.lazyPayload.source.isNil or
+      binding.node.nestedInspectionAttempted:
+    return
+  discard ShowWindow(progressBar, SW_SHOW)
+  discard SendMessageW(progressBar, PBM_SETMARQUEE, 1, 30)
+  let decoded = decodeResourceOnDemand(binding.node)
+  discard SendMessageW(progressBar, PBM_SETMARQUEE, 0, 0)
+  discard ShowWindow(progressBar, 0)
+  case decoded
+  of vddDecoded:
+    for child in binding.node.children:
+      discard addTreeNode(child, item)
+    discard SendMessageW(treeView, TVM_EXPAND, TVE_EXPAND,
+      cast[LPARAM](item))
+  of vddFailed:
+    if failureImageIndex >= 0:
+      var treeItem = TVITEMW(mask: TVIF_IMAGE or TVIF_SELECTEDIMAGE,
+        hItem: item, iImage: failureImageIndex,
+        iSelectedImage: failureImageIndex)
+      discard SendMessageW(treeView, TVM_SETITEMW, 0,
+        cast[LPARAM](addr treeItem))
+  else:
+    discard
+
 proc selectedFrameDuration(): int =
   if selected.isNil or selected.node.kind != vrnkRaster: return 0
   case selected.node.raster.kind
@@ -706,11 +734,19 @@ proc chooseFile(save: bool, extension = "", filter = "All files\0*.*\0\0"): stri
 proc loadWorker(job: LoadJob) {.thread.} =
   var loaded = LoadResult(filename: job.filename)
   try:
-    let contents = readFile(job.filename)
-    var data = newSeq[byte](contents.len)
-    for i, value in contents: data[i] = byte(value)
+    let length = int(job.filename.getFileSize)
+    var data = newSeq[byte](length)
+    if length > 0:
+      let input = open(job.filename, fmRead)
+      defer: input.close()
+      var offset = 0
+      while offset < length:
+        let amount = input.readBuffer(addr data[offset], length - offset)
+        if amount <= 0:
+          raise newException(IOError, "short read from " & job.filename)
+        offset += amount
     {.cast(gcsafe).}:
-      loaded.inspection = inspectSource(job.filename, data, progress =
+      loaded.inspection = inspectOwnedSource(job.filename, move(data), progress =
         proc(event: VextProgressEvent): bool = true,
         companionResolver = proc(relativePath: string): seq[byte] {.gcsafe.} =
           let companionPath = job.filename.parentDir / relativePath
@@ -931,7 +967,9 @@ proc mainProc(hwnd: HWND, msg: UINT, wp: WPARAM, lp: LPARAM): LRESULT {.stdcall.
     let notification = cast[ptr NMTREEVIEWW](lp)
     if notification != nil and notification.hdr.hwndFrom == treeView and
         notification.hdr.code == TVN_SELCHANGEDW:
-      selectBinding(cast[TreeBinding](notification.itemNew.lParam))
+      let binding = cast[TreeBinding](notification.itemNew.lParam)
+      decodeBindingOnDemand(binding, notification.itemNew.hItem)
+      selectBinding(binding)
     return 0
   of WM_TIMER:
     if wp == 1 and animationPlaying and frameCount() > 1:

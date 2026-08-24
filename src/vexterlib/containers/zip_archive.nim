@@ -15,10 +15,11 @@ type
     isDirectory*: bool
     compressionMethod*: int
     localHeaderOffset*: int
+    payloadOffset*: int
     utf8Name*: bool
     compressedSize*: int
     uncompressedSize*: int
-    data*: seq[byte]
+    expectedCrc*: uint32
 
   ZipArchive* = object
     comment*: string
@@ -214,30 +215,42 @@ proc parseZipArchive*(data: openArray[byte]): ZipArchive =
     for nameIndex in 0 ..< nameLength:
       if data[localOffset + 30 + nameIndex] != rawName[nameIndex]:
         raise newException(ValueError, "ZIP local and central names disagree")
-    var payload: seq[byte]
-    if not directory:
-      var compressed: seq[byte]
-      if compressedSize > 0:
-        compressed.add data.toOpenArray(payloadOffset,
-          payloadOffset + compressedSize - 1)
-      if compression == 0:
-        payload.add compressed
-        if payload.len != uncompressedSize:
-          raise newException(ValueError, "invalid stored ZIP entry size")
-      else:
-        payload = rawInflate(compressed, uncompressedSize)
-      if crc32(payload) != expectedCrc:
-        raise newException(ValueError, "ZIP entry CRC-32 does not match: " & canonical)
-    elif compressedSize != 0 or uncompressedSize != 0:
+    if directory and (compressedSize != 0 or uncompressedSize != 0):
       raise newException(ValueError, "ZIP directory entry contains file data")
+    if not directory and compression == 0 and compressedSize != uncompressedSize:
+      raise newException(ValueError, "invalid stored ZIP entry size")
     result.entries.add ZipEntry(name: canonical, segments: segments,
       isDirectory: directory, compressionMethod: compression,
-      localHeaderOffset: localOffset, utf8Name: (flags and 0x800) != 0,
+      localHeaderOffset: localOffset, payloadOffset: payloadOffset,
+      utf8Name: (flags and 0x800) != 0, expectedCrc: expectedCrc,
       compressedSize: compressedSize, uncompressedSize: uncompressedSize,
-      data: payload)
+    )
     offset = nextOffset
   if offset != eocd:
     raise newException(ValueError, "ZIP central-directory size does not match its entries")
+
+proc extractZipEntry*(data: openArray[byte], entry: ZipEntry): seq[byte] =
+  ## Expands and verifies one already structurally indexed member.
+  if entry.isDirectory:
+    raise newException(ValueError, "cannot extract a ZIP directory")
+  if entry.payloadOffset < 0 or entry.compressedSize < 0 or
+      entry.payloadOffset > data.len - entry.compressedSize:
+    raise newException(ValueError, "ZIP entry data is outside its source")
+  if entry.compressionMethod == 0:
+    result = newSeq[byte](entry.uncompressedSize)
+    for index in 0 ..< result.len:
+      result[index] = data[entry.payloadOffset + index]
+  elif entry.compressionMethod == 8:
+    if entry.compressedSize == 0:
+      result = rawInflate([], entry.uncompressedSize)
+    else:
+      result = rawInflate(data.toOpenArray(entry.payloadOffset,
+        entry.payloadOffset + entry.compressedSize - 1), entry.uncompressedSize)
+  else:
+    raise newException(ValueError,
+      "unsupported ZIP compression method: " & $entry.compressionMethod)
+  if crc32(result) != entry.expectedCrc:
+    raise newException(ValueError, "ZIP entry CRC-32 does not match: " & entry.name)
 
 proc isZipArchive*(data: openArray[byte]): bool =
   try:

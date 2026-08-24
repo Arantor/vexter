@@ -399,15 +399,17 @@ registered ZIP package profile.
 
 Vexter supports ordinary single-volume ZIP archives containing stored or raw
 DEFLATE-compressed members. It validates the end record, central directory,
-local header and data bounds, declared expanded sizes, and each file's CRC-32.
+local header and data bounds and declared expanded sizes. A member's DEFLATE
+stream and CRC-32 are validated when that member is materialized.
 ZIP64, encryption, unsupported compression methods, and classic multi-volume
 archives are reported as unsupported rather than partially interpreted.
 
 The archive appears as `/archive`; directories become
 `archive.zip-directory` groups and unrecognized files become
-`archive.zip-file` opaque nodes retaining their expanded bytes. Recognized
-members open recursively like ADF files. Recursion remains bounded to eight
-container layers.
+`archive.zip-file` opaque nodes containing lazy extraction recipes. Stored and
+DEFLATE members share the archive's single backing source and are expanded only
+for export or first GUI selection. Recognized selected members open recursively;
+recursion remains bounded to eight container layers.
 
 Archive names are logical names, independent of the machine opening them.
 Names marked as UTF-8 are validated and legacy names are decoded as CP437.
@@ -416,12 +418,11 @@ Both slash forms are treated as separators. Absolute paths, empty components,
 Unicode characters are rejected. This prevents recursive/ambiguous path loops
 without attempting to materialize archive names on the host filesystem.
 
-A structurally valid ZIP remains inspectable when an individual recognized
-member fails during format-specific decoding. That member becomes an opaque,
-raw-exportable resource retaining the suspected format and exact decoder error;
-inspection also reports a warning at its archive path. Other members continue
-to decode normally. Only faults in ZIP framing, member expansion, checksums,
-paths, or other archive-level invariants reject the parent archive.
+A structurally valid ZIP remains inspectable when an individual member has a
+bad compressed stream, checksum, or recognized-format decode failure. First
+selection marks that member with its exact error while other members remain
+available. Only faults in ZIP framing, indexing, paths, or other archive-level
+invariants reject the parent archive.
 
 `normalizedZipExportName` and bulk-export naming replace host-sensitive control
 and punctuation characters, trim trailing dots/spaces, and protect Windows
@@ -442,10 +443,13 @@ little/big-endian numeric fields, root and child directory records, file
 extents, raw-sector framing, cycles, duplicate paths, and bounded traversal.
 File version suffixes such as `;1` are removed for presentation. Contained files
 are detected recursively and failures are isolated to their individual tree
-nodes. Payloads are extracted on demand. Per disc, recursive probing is bounded
-to 512 files and 128 MiB in total, and an individual file over 64 MiB remains
-opaque. Files beyond those probing limits are still listed and available for raw
-export.
+nodes. File nodes reference extents in one shared source image and materialize
+their bytes only when probed or exported. Discs above 512 entries are presented
+structurally without eager nested decoding. Smaller discs bound recursive
+probing to 512 files and 128 MiB in total, while an individual file over 64 MiB
+remains opaque. Selecting an unprobed file in the GUI materializes and probes
+that file once; decoded children are added beneath the same node and failures
+remain local to it. Every lazy file remains available for raw export.
 
 This initial subset does not interpret Joliet, SUSP/Rock Ridge alternate names,
 multi-extent files, path tables, boot catalogues, or raw-sector EDC/ECC. The

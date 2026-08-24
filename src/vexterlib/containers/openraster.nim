@@ -87,7 +87,7 @@ proc safeRelativePath(path: string): bool =
     if segment.len == 0 or segment in [".", ".."]: return false
   true
 
-proc parseElement(node: XmlNode, archive: ZipArchive,
+proc parseElement(node: XmlNode, archive: ZipArchive, archiveData: openArray[byte],
     depth = 0): OpenRasterElement =
   if depth >= 64:
     raise newException(ValueError,
@@ -104,7 +104,7 @@ proc parseElement(node: XmlNode, archive: ZipArchive,
       if child.tag notin ["stack", "layer"]:
         raise newException(ValueError,
           "unsupported OpenRaster stack element: " & child.tag)
-      result.children.add parseElement(child, archive, depth + 1)
+      result.children.add parseElement(child, archive, archiveData, depth + 1)
     if result.children.len == 0:
       raise newException(ValueError, "OpenRaster stack is empty")
   of "layer":
@@ -120,9 +120,9 @@ proc parseElement(node: XmlNode, archive: ZipArchive,
     if entry.isNil:
       raise newException(ValueError,
         "OpenRaster layer source is missing: " & result.sourcePath)
-    result.sourceData = entry[].data
+    result.sourceData = extractZipEntry(archiveData, entry[])
     if result.sourcePath.toLowerAscii.endsWith(".png"):
-      result.image = parsePng(entry[].data)
+      result.image = parsePng(result.sourceData)
       result.pngSource = true
     let selected = node.attr("selected")
     if selected.len > 0 and selected notin ["true", "false"]:
@@ -132,14 +132,20 @@ proc parseElement(node: XmlNode, archive: ZipArchive,
     raise newException(ValueError,
       "unsupported OpenRaster layer-stack element: " & node.tag)
 
-proc hasOpenRasterMimeMarker*(archive: ZipArchive): bool =
+proc hasOpenRasterMimeMarker*(archive: ZipArchive,
+    archiveData: openArray[byte]): bool =
   let marker = archive.entryNamed("mimetype")
-  not marker.isNil and marker[].localHeaderOffset == 0 and
-    marker[].compressionMethod == 0 and
-    marker[].data.bytesText == OpenRasterMimeType
+  if marker.isNil or marker[].localHeaderOffset != 0 or
+      marker[].compressionMethod != 0:
+    return false
+  try:
+    extractZipEntry(archiveData, marker[]).bytesText == OpenRasterMimeType
+  except ValueError:
+    false
 
-proc parseOpenRaster*(archive: ZipArchive): OpenRasterDocument =
-  if not archive.hasOpenRasterMimeMarker:
+proc parseOpenRaster*(archive: ZipArchive,
+    archiveData: openArray[byte]): OpenRasterDocument =
+  if not archive.hasOpenRasterMimeMarker(archiveData):
     raise newException(ValueError, "invalid OpenRaster MIME marker")
   for entry in archive.entries:
     if validateUtf8(entry.name) != -1:
@@ -157,9 +163,10 @@ proc parseOpenRaster*(archive: ZipArchive): OpenRasterDocument =
   if stackEntry.isNil or mergedEntry.isNil or thumbnailEntry.isNil:
     raise newException(ValueError, "OpenRaster package is missing a required file")
 
+  let stackData = extractZipEntry(archiveData, stackEntry[])
   var root: XmlNode
   try:
-    root = parseXml(stackEntry[].data.bytesText, {})
+    root = parseXml(stackData.bytesText, {})
   except CatchableError as error:
     raise newException(ValueError, "invalid OpenRaster stack.xml: " & error.msg)
   if root.kind != xnElement or root.tag != "image":
@@ -181,12 +188,12 @@ proc parseOpenRaster*(archive: ZipArchive): OpenRasterDocument =
       raise newException(ValueError,
         "unsupported OpenRaster image element: " & child.tag)
     inc stacks
-    result.stack = parseElement(child, archive)
+    result.stack = parseElement(child, archive, archiveData)
   if stacks != 1:
     raise newException(ValueError, "OpenRaster image must contain one root stack")
 
-  result.mergedImage = parsePng(mergedEntry[].data)
-  result.thumbnail = parsePng(thumbnailEntry[].data)
+  result.mergedImage = parsePng(extractZipEntry(archiveData, mergedEntry[]))
+  result.thumbnail = parsePng(extractZipEntry(archiveData, thumbnailEntry[]))
   if result.mergedImage.width != result.width or
       result.mergedImage.height != result.height:
     raise newException(ValueError,

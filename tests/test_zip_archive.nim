@@ -77,16 +77,22 @@ suite "ZIP archives":
     check candidates[0].confidence == vdcCertain
     check leaves.len == 2
     check leaves[0].path == "/archive/docs/readme.txt"
-    check leaves[0].data == @[byte('h'), byte('i')]
-    check leaves[1].path == "/archive/images/display.scr/screen"
-    check leaves[1].kind == vrnkRaster
+    check leaves[0].data.len == 0
+    check leaves[0].resourceBytes == @[byte('h'), byte('i')]
+    check leaves[1].path == "/archive/images/display.scr"
+    check leaves[1].kind == vrnkOpaque
+    check decodeResourceOnDemand(leaves[1]) == vddDecoded
+    check leaves[1].children[0].path ==
+      "/archive/images/display.scr/screen"
+    check leaves[1].children[0].kind == vrnkRaster
 
   test "DEFLATE entries are expanded and checked":
     # Raw DEFLATE for "hello" (generated locally with zlib).
     let archive = zipFixture([FixtureEntry(name: "hello.txt",
       data: @[byte('h'), byte('e'), byte('l'), byte('l'), byte('o')],
       compression: 8, compressed: @[0xcb'u8, 0x48, 0xcd, 0xc9, 0xc9, 0x07, 0x00])])
-    check parseZipArchive(archive).entries[0].data ==
+    let parsed = parseZipArchive(archive)
+    check extractZipEntry(archive, parsed.entries[0]) ==
       @[byte('h'), byte('e'), byte('l'), byte('l'), byte('o')]
 
   test "a contained decoder failure does not invalidate its ZIP carrier":
@@ -103,16 +109,27 @@ suite "ZIP archives":
       FixtureEntry(name: "readme.txt", data: @[byte('o'), byte('k')])])
     let inspection = inspectSource("mixed.zip", archive)
     check inspection.selectedFormat.typeId == ZipArchiveTypeId
-    check inspection.warnings.len == 1
-    check inspection.warnings[0].path == "/archive/broken.pcx"
-    check inspection.warnings[0].format == PcxTypeId
+    check inspection.warnings.len == 0
     let failed = inspection.resources.leafResources[0]
     check failed.path == "/archive/broken.pcx"
     check failed.kind == vrnkOpaque
+    check decodeResourceOnDemand(failed) == vddFailed
     check failed.failureFormat == PcxTypeId
     check "truncated PCX image data" in failed.failureMessage
     check failed.rawDataAvailable
     check inspection.resources.leafResources[1].path == "/archive/readme.txt"
+
+  test "member checksum damage is isolated until materialization":
+    var archive = zipFixture([
+      FixtureEntry(name: "bad.bin", data: @[1'u8, 2, 3])])
+    archive[30 + "bad.bin".len] = 9
+    let parsed = parseZipArchive(archive)
+    check parsed.entries.len == 1
+    let inspection = inspectSource("damaged.zip", archive)
+    let member = inspection.resources.leafResources[0]
+    check member.failureMessage.len == 0
+    check decodeResourceOnDemand(member) == vddFailed
+    check "CRC-32" in member.failureMessage
 
   test "unsafe, duplicate, and overlong paths are rejected":
     expect ValueError:

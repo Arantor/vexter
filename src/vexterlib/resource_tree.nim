@@ -7,6 +7,21 @@ import ./archetypes/palette
 import ./metadata
 
 type
+  VextPayloadMaterializer* = proc(): seq[byte] {.closure.}
+
+  VextPayloadSource* = ref object
+    ## Shared immutable bytes retained once for lazy container members.
+    data*: seq[byte]
+
+  VextPayloadSpan* = object
+    offset*, length*: int
+
+  VextPayloadRef* = object
+    source*: VextPayloadSource
+    spans*: seq[VextPayloadSpan]
+    length*: int
+    materializer*: VextPayloadMaterializer
+
   VextResourceNodeKind* = enum
     vrnkGroup
     vrnkRaster
@@ -32,6 +47,8 @@ type
     font*: VextBitmapFont
     palette*: VextPalette
     data*: seq[byte]
+    lazyPayload*: VextPayloadRef
+    nestedInspectionAttempted*: bool
     rawDataAvailable*: bool
     ## Populated when a contained file was identified but could not be decoded.
     ## The original bytes remain available independently of this presentation.
@@ -43,6 +60,42 @@ type
 
   VextResourceTree* = object
     roots*: seq[VextResourceNode]
+
+proc payloadBytes*(payload: VextPayloadRef): seq[byte] =
+  if payload.materializer != nil:
+    result = payload.materializer()
+    if result.len != payload.length:
+      raise newException(ValueError,
+        "lazy payload materializer returned an unexpected length")
+    return
+  if payload.source.isNil:
+    return
+  if payload.length < 0:
+    raise newException(ValueError, "invalid lazy payload length")
+  result = newSeq[byte](payload.length)
+  var target = 0
+  for span in payload.spans:
+    if span.offset < 0 or span.length < 0 or
+        span.offset > payload.source.data.len - span.length or
+        target > result.len - span.length:
+      raise newException(ValueError, "lazy payload span is outside its source")
+    for index in 0 ..< span.length:
+      result[target + index] = payload.source.data[span.offset + index]
+    target += span.length
+  if target != result.len:
+    raise newException(ValueError, "lazy payload spans do not match their length")
+
+proc resourceBytes*(node: VextResourceNode): seq[byte] =
+  if node.isNil:
+    raise newException(ValueError, "cannot read a missing resource")
+  if not node.lazyPayload.source.isNil:
+    return node.lazyPayload.payloadBytes
+  node.data
+
+proc retainedByteLength*(node: VextResourceNode): int =
+  if node.isNil: 0
+  elif not node.lazyPayload.source.isNil: node.lazyPayload.length
+  else: node.data.len
 
 proc audioSound*(node: VextResourceNode): VextSound =
   ## Returns the playable sound carried by either audio resource archetype.

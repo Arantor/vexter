@@ -218,8 +218,8 @@ Matching case-insensitive extensions add supporting evidence.
   tables, decodes their backwards literal/LZ bitstream, and exposes recognized
   unpacked content through bounded recursive inspection;
 - `zip_archive.nim` validates single-volume ZIP central/local records, expands
-  stored and raw-DEFLATE members, and retains physical member offsets needed by
-  package-profile refiners;
+  stored and raw-DEFLATE members on demand, and retains physical member offsets
+  needed by package-profile refiners;
 - `iso9660.nim` validates ISO 9660 primary volume descriptors and directory
   records in cooked 2048-byte images and raw Mode 1/2352 tracks. File extents
   are extracted on demand so parsing does not duplicate an entire disc image;
@@ -687,10 +687,10 @@ paths rather than host paths: slash and backslash separators are canonicalized,
 absolute, empty, dot, parent, duplicate, and file/directory-conflicting paths
 are rejected, and complete entry names are capped at 255 Unicode characters.
 Legacy names use ZIP's CP437 mapping and names marked UTF-8 are validated.
-Stored and DEFLATE entries are supported with size and CRC-32 checks. Encrypted,
+Stored and DEFLATE entries are supported with lazy size and CRC-32 checks. Encrypted,
 ZIP64, unsupported-compression, and classic multi-volume archives are rejected.
-Recognized files open recursively using the same eight-layer bound and warning
-behavior as ADF files. Bulk export applies conservative cross-platform
+Recognized files open recursively on first GUI selection using the same
+eight-layer bound and isolated warning behavior as ISO files. Bulk export applies conservative cross-platform
 normalization to every resource-path segment and gives normalized collisions
 deterministic `-2`, `-3`, and subsequent suffixes.
 
@@ -942,17 +942,20 @@ names there when adding suites, or direct their output into `/tmp`.
   deliberate compatibility change is agreed.
 - Prefer generic resource/archetype operations over format-specific branches
   in frontends and exporters.
-- Resource nodes currently carry already-decoded raster values; opaque ADF and
-  ZIP file leaves additionally retain their reconstructed bytes. Lazy decoding,
-  alternate representations, structured metadata, and handler registration
-  are not implemented yet.
+- Resource nodes carry already-decoded archetype values, inline opaque bytes,
+  or lazy shared-source payload recipes. ISO and ZIP use lazy payloads;
+  alternate representations and true lazy directory enumeration are not yet
+  implemented.
 - Single-resource compound export requires a directory destination at the CLI
   boundary. Bulk collision resolution renames compound artifact stems as a
   unit so descriptor references remain synchronized with companion files.
 - Recursive decoding is shared by ADF, ZIP, LHA, PowerPacker, and XPK through the
   registered detection, parsed-container, and inspection path, with a fixed
   eight-layer bound.
-- ISO 9660 tree construction uses indexed directory lookup and bounds recursive
-  contained-format probing to 512 files/128 MiB per disc. The resource model
-  still retains extracted file bytes for later raw export, so large full discs
-  can require substantially more memory than their source image.
+- ISO 9660 tree construction uses indexed directory lookup. File nodes retain
+  logical references into one shared source image and materialize bytes only
+  for bounded nested inspection, GUI selection, or export. Filesystems above
+  512 entries are presented structurally without eager nested decoding;
+  selecting a lazy file probes it once and inserts successfully decoded
+  descendants beneath the existing tree node. Smaller discs retain the
+  512-file/128 MiB eager probing bounds.

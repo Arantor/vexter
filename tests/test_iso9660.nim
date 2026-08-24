@@ -135,6 +135,14 @@ suite "ISO 9660 filesystems":
     let leaves = inspection.resources.leafResources
     check leaves[0].path == "/disc/DOCS/NOTE.TXT"
     check leaves[0].rawDataAvailable
+    check leaves[0].data.len == 0
+    check leaves[0].resourceBytes ==
+      @['h'.byte, 'e'.byte, 'l'.byte, 'l'.byte, 'o'.byte]
+    let exported = exportResource(inspection.resources, VextExportRequest(
+      resourcePath: leaves[0].path, outputFormat: "bin",
+      suggestedName: "note"))
+    check exported.artifacts.artifacts[0].data ==
+      @['h'.byte, 'e'.byte, 'l'.byte, 'l'.byte, 'o'.byte]
 
   test "raw Mode 1/2352 images use the same filesystem pathway":
     let raw = rawMode1(isoFixture())
@@ -146,6 +154,10 @@ suite "ISO 9660 filesystems":
     check inspection.selectedFormat.typeId == Iso9660TypeId
     check inspection.resources.findRasterResource(
       "/disc/IMAGE.SCR/screen") != nil
+    let note = inspection.resources.leafResources[0]
+    check note.data.len == 0
+    check note.resourceBytes ==
+      @['h'.byte, 'e'.byte, 'l'.byte, 'l'.byte, 'o'.byte]
 
   test "descriptor, both-byte, extent, and raw-sector damage is rejected":
     var missingTerminator = isoFixture()
@@ -163,3 +175,25 @@ suite "ISO 9660 filesystems":
     var raw = rawMode1(isoFixture())
     raw[20 * 2352 + 1] = 0
     expect ValueError: discard parseIso9660(raw)
+
+  test "zero-length root identifiers used by compatible masters are accepted":
+    var data = isoFixture()
+    data[16 * Iso9660LogicalBlockSize + 156 + 32] = 0
+    check parseIso9660(data).entries.len == 3
+
+  test "lazy contained resources decode once while retaining raw bytes":
+    var screen = newSeq[byte](ZxSpectrumScreenSize)
+    for index in 0 ..< screen.len: screen[index] = byte(index)
+    let source = VextPayloadSource(data: screen)
+    let node = VextResourceNode(path: "/disc/IMAGE.SCR",
+      typeId: Iso9660FileTypeId, kind: vrnkOpaque,
+      lazyPayload: VextPayloadRef(source: source,
+        spans: @[VextPayloadSpan(offset: 0, length: screen.len)],
+        length: screen.len), rawDataAvailable: true)
+    check decodeResourceOnDemand(node) == vddDecoded
+    check node.kind == vrnkGroup
+    check node.typeId == ZxSpectrumScreenTypeId
+    check node.children.len == 1
+    check node.children[0].path == "/disc/IMAGE.SCR/screen"
+    check node.resourceBytes == screen
+    check decodeResourceOnDemand(node) == vddNotApplicable

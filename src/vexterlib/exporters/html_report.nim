@@ -90,7 +90,7 @@ proc exportHtmlReport*(resource: VextResourceNode,
     else:
       body.add "<section><h2>Opaque resource</h2><p>"
     if resource.rawDataAvailable:
-      body.add $resource.data.len & " retained byte(s)."
+      body.add $resource.retainedByteLength & " retained byte(s)."
     else:
       body.add "No retained byte payload is available."
     body.add "</p></section>"

@@ -158,7 +158,14 @@ proc descriptor(data: openArray[byte], layout: Iso9660Layout,
 
 proc validateRootRecord(record: openArray[byte], volumeBlocks: int): tuple[
     extent, length: int] =
-  if record.len < 34 or record[0] < 34 or record[32] != 1 or record[33] != 0 or
+  if record.len < 34:
+    raise newException(ValueError, "invalid ISO 9660 root directory record")
+  # Some mastered discs leave the root identifier length as zero. The root
+  # extent and directory flag still identify the record unambiguously, and
+  # DOS/CD implementations commonly accept this compatibility defect.
+  let rootIdentifierValid = record[32] == 0 or
+    (record[32] == 1 and record[33] == 0)
+  if record[0] < 34 or not rootIdentifierValid or
       (record[25] and 2) == 0:
     raise newException(ValueError, "invalid ISO 9660 root directory record")
   result.extent = record.bothDword(2, "root extent")

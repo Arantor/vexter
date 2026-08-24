@@ -199,3 +199,7 @@ behavior and evidence remain in [`formats.md`](formats.md).
     path-table cross-checking, and broader descriptor semantics.
   - Consider Mode 2 and other CD-sector layouts plus EDC/ECC verification;
     audio tracks and other Rainbow Book filesystems remain outside this base.
+  - Demand decoding currently occurs synchronously on first GUI selection.
+    Move expensive selected members to a cancellable background job and add
+    true directory/container expansion providers when traversal itself becomes
+    lazy.

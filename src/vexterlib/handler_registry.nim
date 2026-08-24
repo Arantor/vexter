@@ -177,8 +177,8 @@ proc formatRefiners*(): seq[VextFormatRefiner] =
     probe: proc(filename: string, data: openArray[byte],
         carrier: VextParsedContainer): VextRefinementMatch =
       let archive = parsedValue[ZipArchive](carrier, vhkZip)
-      if not archive.hasOpenRasterMimeMarker: return
-      let document = parseOpenRaster(archive)
+      if not archive.hasOpenRasterMimeMarker(data): return
+      let document = parseOpenRaster(archive, data)
       result = VextRefinementMatch(confidence: vdcCertain,
         evidence: @[VextDetectionEvidence(description:
           "ZIP begins with the stored image/openraster MIME marker and " &
