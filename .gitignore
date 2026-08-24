@@ -7,6 +7,7 @@
 /tests/test_amiga_pbm
 /tests/test_amiga_adf
 /tests/test_zip_archive
+/tests/test_iso9660
 /tests/test_pcx
 /tests/test_bmp
 /tests/test_png

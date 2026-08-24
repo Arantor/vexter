@@ -194,3 +194,8 @@ behavior and evidence remain in [`formats.md`](formats.md).
   - Chained classic icon images are unsupported.
   - Broader authentic controls for classic, NewIcons, and GlowIcons variants
     remain desirable.
+- **ISO 9660**
+  - Add Joliet and SUSP/Rock Ridge naming and metadata, multi-extent files,
+    path-table cross-checking, and broader descriptor semantics.
+  - Consider Mode 2 and other CD-sector layouts plus EDC/ECC verification;
+    audio tracks and other Rainbow Book filesystems remain outside this base.

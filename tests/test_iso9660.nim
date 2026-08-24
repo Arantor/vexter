@@ -1,0 +1,165 @@
+import std/unittest
+import vexterlib
+
+proc putWord(data: var seq[byte], offset, value: int, big = false) =
+  if big:
+    data[offset] = byte(value shr 8); data[offset + 1] = byte(value)
+  else:
+    data[offset] = byte(value); data[offset + 1] = byte(value shr 8)
+
+proc putDword(data: var seq[byte], offset, value: int, big = false) =
+  if big:
+    data[offset] = byte(value shr 24); data[offset + 1] = byte(value shr 16)
+    data[offset + 2] = byte(value shr 8); data[offset + 3] = byte(value)
+  else:
+    data[offset] = byte(value); data[offset + 1] = byte(value shr 8)
+    data[offset + 2] = byte(value shr 16); data[offset + 3] = byte(value shr 24)
+
+proc putBothWord(data: var seq[byte], offset, value: int) =
+  data.putWord(offset, value); data.putWord(offset + 2, value, true)
+
+proc putBothDword(data: var seq[byte], offset, value: int) =
+  data.putDword(offset, value); data.putDword(offset + 4, value, true)
+
+proc directoryRecord(extent, length: int, identifier: seq[byte],
+    directory = false, systemUse: seq[byte] = @[]): seq[byte] =
+  let padding = if identifier.len mod 2 == 0: 1 else: 0
+  result = newSeq[byte](33 + identifier.len + padding + systemUse.len)
+  result[0] = byte(result.len)
+  result.putBothDword(2, extent)
+  result.putBothDword(10, length)
+  result[18] = 126 # 2026
+  result[19] = 8; result[20] = 24; result[21] = 21
+  result[22] = 30; result[23] = 15
+  if directory: result[25] = 2
+  result.putBothWord(28, 1)
+  result[32] = byte(identifier.len)
+  for index, value in identifier: result[33 + index] = value
+  for index, value in systemUse:
+    result[33 + identifier.len + padding + index] = value
+
+proc appendRecord(directory: var seq[byte], record: seq[byte]) =
+  var offset = 0
+  while offset < directory.len and directory[offset] != 0:
+    offset += int(directory[offset])
+  check offset + record.len <= directory.len
+  for index, value in record: directory[offset + index] = value
+
+proc putSector(image: var seq[byte], sector: int, content: seq[byte]) =
+  for index, value in content:
+    image[sector * Iso9660LogicalBlockSize + index] = value
+
+proc isoFixture(): seq[byte] =
+  const sectors = 32
+  result = newSeq[byte](sectors * Iso9660LogicalBlockSize)
+  var primary = newSeq[byte](Iso9660LogicalBlockSize)
+  primary[0] = 1
+  for index, value in "CD001": primary[1 + index] = byte(value)
+  primary[6] = 1
+  for index, value in "VEXTER": primary[8 + index] = byte(value)
+  for index, value in "SYNTHETIC": primary[40 + index] = byte(value)
+  primary.putBothDword(80, sectors)
+  primary.putBothWord(120, 1); primary.putBothWord(124, 1)
+  primary.putBothWord(128, Iso9660LogicalBlockSize)
+  let root = directoryRecord(20, Iso9660LogicalBlockSize, @[0'u8], true)
+  for index, value in root: primary[156 + index] = value
+  for index, value in "VEXTER TESTS": primary[574 + index] = byte(value)
+  primary[881] = 1
+  result.putSector(16, primary)
+  var terminator = newSeq[byte](Iso9660LogicalBlockSize)
+  terminator[0] = 255
+  for index, value in "CD001": terminator[1 + index] = byte(value)
+  terminator[6] = 1
+  result.putSector(17, terminator)
+
+  var rootDirectory = newSeq[byte](Iso9660LogicalBlockSize)
+  rootDirectory.appendRecord(directoryRecord(20, Iso9660LogicalBlockSize,
+    @[0'u8], true))
+  rootDirectory.appendRecord(directoryRecord(20, Iso9660LogicalBlockSize,
+    @[1'u8], true))
+  rootDirectory.appendRecord(directoryRecord(26, Iso9660LogicalBlockSize,
+    @['D'.byte, 'O'.byte, 'C'.byte, 'S'.byte], true,
+    @['S'.byte, 'P'.byte, 7'u8, 1, 0xbe, 0xef, 0]))
+  rootDirectory.appendRecord(directoryRecord(22, ZxSpectrumScreenSize,
+    @['I'.byte, 'M'.byte, 'A'.byte, 'G'.byte, 'E'.byte, '.'.byte,
+      'S'.byte, 'C'.byte, 'R'.byte, ';'.byte, '1'.byte]))
+  result.putSector(20, rootDirectory)
+
+  var subdirectory = newSeq[byte](Iso9660LogicalBlockSize)
+  subdirectory.appendRecord(directoryRecord(26, Iso9660LogicalBlockSize,
+    @[0'u8], true))
+  subdirectory.appendRecord(directoryRecord(20, Iso9660LogicalBlockSize,
+    @[1'u8], true))
+  subdirectory.appendRecord(directoryRecord(27, 5,
+    @['N'.byte, 'O'.byte, 'T'.byte, 'E'.byte, '.'.byte, 'T'.byte,
+      'X'.byte, 'T'.byte, ';'.byte, '1'.byte]))
+  result.putSector(26, subdirectory)
+  for index in 0 ..< ZxSpectrumScreenSize:
+    result[22 * Iso9660LogicalBlockSize + index] = byte(index)
+  for index, value in "hello":
+    result[27 * Iso9660LogicalBlockSize + index] = byte(value)
+
+proc rawMode1(cooked: seq[byte]): seq[byte] =
+  let sectors = cooked.len div Iso9660LogicalBlockSize
+  result = newSeq[byte](sectors * 2352)
+  for sector in 0 ..< sectors:
+    let target = sector * 2352
+    for index in 1 .. 10: result[target + index] = 0xff
+    result[target + 15] = 1
+    for index in 0 ..< Iso9660LogicalBlockSize:
+      result[target + 16 + index] =
+        cooked[sector * Iso9660LogicalBlockSize + index]
+
+suite "ISO 9660 filesystems":
+  test "cooked images expose hierarchy and recursively decoded files":
+    let data = isoFixture()
+    let parsed = parseIso9660(data)
+    check parsed.layout == ilCooked2048
+    check parsed.volumeIdentifier == "SYNTHETIC"
+    check parsed.entries.len == 3
+    check parsed.entries[0].name == "DOCS"
+    check parsed.entries[0].systemUseBytes == 7
+    check parsed.entries[1].name == "DOCS/NOTE.TXT"
+    check extractIso9660Entry(data, parsed, parsed.entries[1]) ==
+      @['h'.byte, 'e'.byte, 'l'.byte, 'l'.byte, 'o'.byte]
+    check parsed.entries[2].name == "IMAGE.SCR"
+    check parsed.entries[2].fileVersion == 1
+
+    let candidates = detectFormats("disc.bin", data)
+    check candidates[0].typeId == Iso9660TypeId
+    check candidates[0].confidence == vdcCertain
+    let inspection = inspectSource("disc.bin", data)
+    check inspection.resources.roots[0].path == "/disc"
+    check inspection.resources.findRasterResource(
+      "/disc/IMAGE.SCR/screen") != nil
+    let leaves = inspection.resources.leafResources
+    check leaves[0].path == "/disc/DOCS/NOTE.TXT"
+    check leaves[0].rawDataAvailable
+
+  test "raw Mode 1/2352 images use the same filesystem pathway":
+    let raw = rawMode1(isoFixture())
+    let parsed = parseIso9660(raw)
+    check parsed.layout == ilRawMode1_2352
+    check extractIso9660Entry(raw, parsed, parsed.entries[1]) ==
+      @['h'.byte, 'e'.byte, 'l'.byte, 'l'.byte, 'o'.byte]
+    let inspection = inspectSource("track.dat", raw)
+    check inspection.selectedFormat.typeId == Iso9660TypeId
+    check inspection.resources.findRasterResource(
+      "/disc/IMAGE.SCR/screen") != nil
+
+  test "descriptor, both-byte, extent, and raw-sector damage is rejected":
+    var missingTerminator = isoFixture()
+    missingTerminator[17 * Iso9660LogicalBlockSize] = 0
+    expect ValueError: discard parseIso9660(missingTerminator)
+
+    var endianMismatch = isoFixture()
+    endianMismatch[16 * Iso9660LogicalBlockSize + 87] = 31
+    expect ValueError: discard parseIso9660(endianMismatch)
+
+    var badExtent = isoFixture()
+    badExtent[20 * Iso9660LogicalBlockSize + 2] = 40
+    expect ValueError: discard parseIso9660(badExtent)
+
+    var raw = rawMode1(isoFixture())
+    raw[20 * 2352 + 1] = 0
+    expect ValueError: discard parseIso9660(raw)

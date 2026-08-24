@@ -23,7 +23,7 @@ client, and a dependency-free native Windows GUI. It supports:
   OpenRaster layered documents, Windows ICO/CUR collections (including PNG and DIB entries), QOI,
   Netpbm P1–P7, GIF87a/GIF89a, and FLI/FLC-family animations,
   AmigaDOS ADF filesystems, DMS disk archives, PowerPacker and XPK/SHRI
-  wrappers, ZIP archives, level-0/1 LHA/LZH archives using LH0 or LH5,
+  wrappers, ZIP archives, ISO 9660 data-CD filesystems, level-0/1 LHA/LZH archives using LH0 or LH5,
   minimally structured Amiga Hunk executables and LHA self-extractors,
   ZX Spectrum raw screen dumps, SNA snapshots,
   TAP containers, tokenised BASIC resources, BMFont text descriptors, FZX and Amiga bitmap diskfonts
@@ -220,6 +220,9 @@ Matching case-insensitive extensions add supporting evidence.
 - `zip_archive.nim` validates single-volume ZIP central/local records, expands
   stored and raw-DEFLATE members, and retains physical member offsets needed by
   package-profile refiners;
+- `iso9660.nim` validates ISO 9660 primary volume descriptors and directory
+  records in cooked 2048-byte images and raw Mode 1/2352 tracks. File extents
+  are extracted on demand so parsing does not duplicate an entire disc image;
 - `openraster.nim` refines a parsed ZIP carrier through the baseline MIME and
   required-member rules, parses its layer-stack XML, and validates referenced
   PNG layers, canonical merged image, and thumbnail;
@@ -949,3 +952,7 @@ names there when adding suites, or direct their output into `/tmp`.
 - Recursive decoding is shared by ADF, ZIP, LHA, PowerPacker, and XPK through the
   registered detection, parsed-container, and inspection path, with a fixed
   eight-layer bound.
+- ISO 9660 tree construction uses indexed directory lookup and bounds recursive
+  contained-format probing to 512 files/128 MiB per disc. The resource model
+  still retains extracted file bytes for later raw export, so large full discs
+  can require substantially more memory than their source image.

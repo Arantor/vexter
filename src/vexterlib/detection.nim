@@ -5,7 +5,7 @@ import ./handler_registry
 import ./format_detection_types
 export format_detection_types
 import ./containers/[amiga_8svx, amiga_16sv, amiga_acbm, amiga_adf, amiga_anim, amiga_diskfont, amiga_dms, amiga_hunk_executable, amiga_iff, amiga_ilbm, amiga_lha_sfx, amiga_pbm, amiga_workbench_icon, amos_bank, amos_bank_set, amos_program,
-  amos_sprite_icon_bank, ansi_art, bmfont, bmp, flic, fzx, gif_container, jpeg, netpbm, pcx, png_container, qoi, tga,
+  amos_sprite_icon_bank, ansi_art, bmfont, bmp, flic, fzx, gif_container, iso9660, jpeg, netpbm, pcx, png_container, qoi, tga,
   wav, windows_icon, zip_archive, lha_archive, zx_spectrum_screen_dump, zx_spectrum_snapshot, zx_spectrum_tap]
 import ./containers/xpk_shri
 import ./containers/powerpacker
@@ -230,6 +230,16 @@ proc detectBaseFormats(filename: string, data: openArray[byte]):
       typeId: ZipArchiveTypeId,
       confidence: vdcCertain,
       evidence: evidence)
+
+  if isIso9660(data):
+    let image = probeIso9660(data)
+    var evidence = @[VextDetectionEvidence(description:
+      "file has a valid ISO 9660 primary volume descriptor, root directory, " &
+      "and descriptor terminator in " & image.layout.iso9660LayoutName)]
+    if hasIso9660Extension(filename):
+      evidence.add VextDetectionEvidence(description: "file extension is .iso")
+    result.add VextDetectionCandidate(typeId: Iso9660TypeId,
+      confidence: vdcCertain, evidence: evidence)
 
   if isLhaArchiveStructure(data):
     var evidence = @[VextDetectionEvidence(

@@ -8,7 +8,7 @@ import ./containers/[amiga_8svx, amiga_16sv, amiga_acbm, amiga_adf, amiga_anim,
   amiga_diskfont, amiga_dms, amiga_hunk_executable, amiga_iff, amiga_ilbm, amiga_lha_sfx,
   amiga_workbench_icon, amos_bank,
   amos_bank_set, amos_program, amos_sprite_icon_bank, ansi_art, bmp, flic, gif_container,
-  bmfont, fzx, jpeg, lha_archive, netpbm, openraster, pcx, png_container, powerpacker, qoi, tga, wav, windows_icon, zip_archive,
+  bmfont, fzx, iso9660, jpeg, lha_archive, netpbm, openraster, pcx, png_container, powerpacker, qoi, tga, wav, windows_icon, zip_archive,
   zx_spectrum_screen_dump, zx_spectrum_snapshot, zx_spectrum_tap, xpk_shri]
 import ./containers/amiga_pbm
 import ./format_detection_types
@@ -45,6 +45,7 @@ type
     vhkTga
     vhkWav
     vhkZip
+    vhkIso9660
     vhkOpenRaster
     vhkLha
     vhkAmosProgram
@@ -128,6 +129,7 @@ const FormatHandlers* = [
   VextFormatHandler(typeId: TgaTypeId, kind: vhkTga),
   VextFormatHandler(typeId: WavTypeId, kind: vhkWav),
   VextFormatHandler(typeId: ZipArchiveTypeId, kind: vhkZip),
+  VextFormatHandler(typeId: Iso9660TypeId, kind: vhkIso9660),
   VextFormatHandler(typeId: OpenRasterTypeId, kind: vhkOpenRaster,
     carrierTypeId: ZipArchiveTypeId),
   VextFormatHandler(typeId: LhaArchiveTypeId, kind: vhkLha),
@@ -158,6 +160,15 @@ proc parsedValue*[T](parsed: VextParsedContainer,
     raise newException(Defect, "parsed container does not match its handler")
   VextParsedValue[T](parsed).value
 
+proc parsedValueRef*[T](parsed: VextParsedContainer,
+    expectedKind: VextHandlerKind): ptr T =
+  ## Provides mutable access for large parsed containers whose owned payloads
+  ## must be moved into the final resource tree without deep sequence copies.
+  if parsed.isNil or parsed.kind != expectedKind or
+      not (parsed of VextParsedValue[T]):
+    raise newException(Defect, "parsed container does not match its handler")
+  addr VextParsedValue[T](parsed).value
+
 proc formatRefiners*(): seq[VextFormatRefiner] =
   ## Authoritative semantic refiners. Format modules add entries here without
   ## teaching their physical carrier about package profiles.
@@ -183,9 +194,9 @@ proc parse*(handler: VextFormatHandler,
       "semantic format handlers must be parsed through their carrier refiner")
   template parsed(parsedInput: untyped): VextParsedContainer =
     block:
-      let typedValue = parsedInput
+      var typedValue = parsedInput
       VextParsedValue[type(typedValue)](
-        kind: handler.kind, value: typedValue)
+        kind: handler.kind, value: move(typedValue))
   case handler.kind
   of vhkAmigaDiskfontIndex: result = parsed(parseAmigaDiskfontIndex(data))
   of vhkAmigaDiskfont: result = parsed(parseAmigaDiskfont(data))
@@ -224,6 +235,7 @@ proc parse*(handler: VextFormatHandler,
   of vhkTga: result = parsed(parseTga(data))
   of vhkWav: result = parsed(parseWav(data))
   of vhkZip: result = parsed(parseZipArchive(data))
+  of vhkIso9660: result = parsed(parseIso9660(data))
   of vhkOpenRaster:
     raise newException(Defect,
       "OpenRaster must be parsed through its ZIP carrier refiner")

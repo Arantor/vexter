@@ -428,6 +428,30 @@ and punctuation characters, trim trailing dots/spaces, and protect Windows
 device names. `export-all` preserves the normalized resource hierarchy and
 adds deterministic suffixes when distinct logical names normalize identically.
 
+## ISO 9660 data-CD filesystems
+
+ISO 9660 is identified structurally as `filesystem.iso9660`; `.iso` is only
+supporting filename evidence. Vexter accepts cooked images with 2048-byte
+logical sectors and raw Mode 1 tracks with 2352-byte physical sectors, including
+files such as `.dat` tracks. Both layouts expose the filesystem beneath `/disc`.
+Directories use `filesystem.iso9660-directory` and files use
+`filesystem.iso9660-file`.
+
+The base reader validates the primary volume descriptor sequence, duplicated
+little/big-endian numeric fields, root and child directory records, file
+extents, raw-sector framing, cycles, duplicate paths, and bounded traversal.
+File version suffixes such as `;1` are removed for presentation. Contained files
+are detected recursively and failures are isolated to their individual tree
+nodes. Payloads are extracted on demand. Per disc, recursive probing is bounded
+to 512 files and 128 MiB in total, and an individual file over 64 MiB remains
+opaque. Files beyond those probing limits are still listed and available for raw
+export.
+
+This initial subset does not interpret Joliet, SUSP/Rock Ridge alternate names,
+multi-extent files, path tables, boot catalogues, or raw-sector EDC/ECC. The
+locally supplied ISO images, including `TREK.dat`, are compatibility controls
+only and are intentionally neither fixtures nor catalogued test subjects.
+
 ## OpenRaster layered images
 
 Container type identifier: `image.openraster`

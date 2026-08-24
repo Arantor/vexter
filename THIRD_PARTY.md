@@ -1,5 +1,21 @@
 # Third-party material
 
+## ISO 9660 reference
+
+The developer supplied a local copy of Wikipedia's
+[ISO 9660 article](https://en.wikipedia.org/wiki/ISO_9660) on 2026-08-24. It
+is the initial reference for ISO 9660 volume descriptors, both-byte integer
+fields, path tables, directory records, filename levels, and the relationships
+to SUSP, Rock Ridge, Joliet, and raw CD-ROM data sectors. The downloaded page
+identifies revision `1367156854` and links its text under CC BY-SA 4.0.
+
+The accompanying `iso9660/` disc images are temporary compatibility inputs and
+are deliberately neither catalogued nor committed. The reference-page hash is:
+
+```text
+a8573c6bc3939821513b0c7059bdf852b69502e432d7dd411d379299129ab1df  ISO 9660 - Wikipedia.html
+```
+
 ## IFFSpecs bundle Hunk reference
 
 The developer-supplied `IFFSpecs.lzh` bundle from Aminet is documented with

@@ -1,6 +1,6 @@
 ## High-level inspection and export operations shared by every frontend.
 
-import std/[os, strutils]
+import std/[os, strutils, tables]
 import ./artifacts
 import ./archetypes/raster
 import ./archetypes/audio
@@ -12,7 +12,7 @@ import ./handler_registry
 import ./exporters/[bmfont, gif, html_report, metadata_json, png, raw, wav]
 import ./resource_tree
 import ./containers/[amiga_8svx, amiga_16sv, amiga_acbm, amiga_adf, amiga_anim, amiga_diskfont, amiga_dms, amiga_hunk_executable, amiga_iff, amiga_ilbm, amiga_lha_sfx, amiga_pbm, amiga_workbench_icon, amos_bank, amos_bank_set, amos_packed_picture, amos_program,
-  amos_sprite_icon_bank, ansi_art, bmfont, bmp, flic, fzx, gif_container, jpeg, netpbm, openraster, pcx, png_container,
+  amos_sprite_icon_bank, ansi_art, bmfont, bmp, flic, fzx, gif_container, iso9660, jpeg, netpbm, openraster, pcx, png_container,
   qoi, tga, wav, windows_icon, zip_archive, lha_archive, zx_spectrum_snapshot, zx_spectrum_tap]
 import ./containers/xpk_shri
 import ./containers/powerpacker
@@ -434,6 +434,108 @@ proc addZipEntry(root: VextResourceNode, entry: ZipEntry, depth: int,
         parent.children.add existing
       elif existing.kind != vrnkGroup or existing.typeId != ZipDirectoryTypeId:
         raise newException(ValueError, "conflicting ZIP entry path: " & entry.name)
+      parent = existing
+
+proc addIso9660Entry(root: VextResourceNode, entry: var Iso9660Entry,
+    source: openArray[byte], image: Iso9660Image, depth: int,
+    ignoreWarnings: bool, pcxChannelOrder: PcxChannelOrder,
+    warnings: var seq[VextInspectionWarning],
+    directories: var Table[string, VextResourceNode],
+    inspectionFiles, inspectionBytes: var int) =
+  var parent = root
+  var path = root.path
+  for index, segment in entry.segments:
+    path.add "/" & segment
+    let last = index == entry.segments.high
+    var existing = directories.getOrDefault(path)
+    if last and not entry.isDirectory:
+      if not existing.isNil:
+        raise newException(ValueError,
+          "conflicting ISO 9660 entry path: " & entry.name)
+      entry.data = extractIso9660Entry(source, image, entry)
+      let metadata = @[
+        stringMetadata("iso9660.name", entry.name),
+        integerMetadata("iso9660.extent-block", entry.extentBlock),
+        integerMetadata("data.length", entry.dataLength),
+        integerMetadata("iso9660.file-version", entry.fileVersion),
+        integerMetadata("iso9660.hidden", int(entry.hidden)),
+        integerMetadata("iso9660.associated", int(entry.associated)),
+        integerMetadata("iso9660.system-use-bytes", entry.systemUseBytes),
+        stringMetadata("iso9660.recording-time", entry.recordingTime)]
+      var retainedMetadata = metadata
+      let inspectContained = entry.data.len <= Iso9660RecursiveInspectionLimit and
+        inspectionFiles < 512 and
+        inspectionBytes <= 128 * 1024 * 1024 - entry.data.len
+      if not inspectContained:
+        parent.children.add VextResourceNode(path: path,
+          typeId: Iso9660FileTypeId, kind: vrnkOpaque,
+          data: move(entry.data), rawDataAvailable: true,
+          metadata: retainedMetadata)
+        return
+      inc inspectionFiles
+      inspectionBytes += entry.data.len
+      var candidates: seq[VextDetectionCandidate]
+      try:
+        candidates = detectFormats(segment, entry.data)
+      except CatchableError as error:
+        warnings.add VextInspectionWarning(path: path,
+          format: Iso9660FileTypeId, message: error.msg)
+        retainedMetadata.add stringMetadata("decode.warning", error.msg)
+        parent.children.add VextResourceNode(path: path,
+          typeId: Iso9660FileTypeId, kind: vrnkOpaque,
+          data: move(entry.data), rawDataAvailable: true,
+          failureFormat: "recognized contained format",
+          failureMessage: error.msg, metadata: retainedMetadata)
+        return
+      if candidates.len == 0 or depth >= 8:
+        parent.children.add VextResourceNode(path: path,
+          typeId: Iso9660FileTypeId, kind: vrnkOpaque,
+          data: move(entry.data), rawDataAvailable: true,
+          metadata: retainedMetadata)
+        return
+      var nested: VextInspection
+      try:
+        nested = inspectSourceDepth(segment, entry.data, "", depth + 1,
+          ignoreWarnings, pcxChannelOrder, alsAuto, apaAuto, nil)
+      except CatchableError as error:
+        warnings.add VextInspectionWarning(path: path,
+          format: candidates[0].typeId, message: error.msg)
+        retainedMetadata.add stringMetadata("decode.format", candidates[0].typeId)
+        retainedMetadata.add stringMetadata("decode.warning", error.msg)
+        parent.children.add VextResourceNode(path: path,
+          typeId: Iso9660FileTypeId, kind: vrnkOpaque,
+          data: move(entry.data), rawDataAvailable: true,
+          failureFormat: candidates[0].typeId,
+          failureMessage: error.msg, metadata: retainedMetadata)
+        return
+      for warning in nested.warnings:
+        warnings.add VextInspectionWarning(path: path & warning.path,
+          format: warning.format, message: warning.message)
+      let nestedNode = VextResourceNode(path: path,
+        typeId: nested.selectedFormat.typeId, kind: vrnkGroup,
+        metadata: retainedMetadata)
+      for child in nested.resources.roots:
+        rebaseNode(child, path)
+        nestedNode.children.add child
+      entry.data.setLen(0)
+      parent.children.add nestedNode
+    else:
+      if existing.isNil:
+        existing = VextResourceNode(path: path,
+          typeId: Iso9660DirectoryTypeId, kind: vrnkGroup)
+        parent.children.add existing
+        directories[path] = existing
+      elif existing.kind != vrnkGroup or
+          existing.typeId != Iso9660DirectoryTypeId:
+        raise newException(ValueError,
+          "conflicting ISO 9660 entry path: " & entry.name)
+      if last:
+        existing.metadata = @[
+          integerMetadata("iso9660.extent-block", entry.extentBlock),
+          integerMetadata("data.length", entry.dataLength),
+          integerMetadata("iso9660.hidden", int(entry.hidden)),
+          integerMetadata("iso9660.system-use-bytes", entry.systemUseBytes),
+          stringMetadata("iso9660.recording-time", entry.recordingTime)]
       parent = existing
 
 proc addLhaEntry(root: VextResourceNode, entry: LhaEntry, depth: int,
@@ -1036,6 +1138,34 @@ proc inspectSourceDepth(filename: string, data: openArray[byte],
     for entry in archive.entries:
       addZipEntry(root, entry, depth, ignoreWarnings, pcxChannelOrder,
         result.warnings)
+    result.resources.roots.add root
+  of vhkIso9660:
+    let image = parsedValueRef[Iso9660Image](selectedParsed, vhkIso9660)
+    var metadata = @[
+      stringMetadata("layout", image[].layout.iso9660LayoutName),
+      stringMetadata("volume.identifier", image[].volumeIdentifier),
+      stringMetadata("system.identifier", image[].systemIdentifier),
+      stringMetadata("volume-set.identifier", image[].volumeSetIdentifier),
+      stringMetadata("publisher.identifier", image[].publisherIdentifier),
+      stringMetadata("preparer.identifier", image[].preparerIdentifier),
+      stringMetadata("application.identifier", image[].applicationIdentifier),
+      stringMetadata("volume.created", image[].creationTime),
+      stringMetadata("volume.modified", image[].modificationTime),
+      integerMetadata("logical-block-size", image[].logicalBlockSize),
+      integerMetadata("volume.blocks", image[].volumeBlocks),
+      integerMetadata("entries", image[].entries.len),
+      integerMetadata("descriptors.primary", image[].primaryDescriptorCount),
+      integerMetadata("descriptors.supplementary",
+        image[].supplementaryDescriptorCount),
+      integerMetadata("descriptors.boot", image[].bootDescriptorCount),
+      integerMetadata("descriptors.partition", image[].partitionDescriptorCount)]
+    let root = VextResourceNode(path: "/disc", typeId: Iso9660TypeId,
+      kind: vrnkGroup, metadata: metadata)
+    var directories = {root.path: root}.toTable
+    var inspectionFiles, inspectionBytes: int
+    for entry in image[].entries.mitems:
+      addIso9660Entry(root, entry, data, image[], depth, ignoreWarnings, pcxChannelOrder,
+        result.warnings, directories, inspectionFiles, inspectionBytes)
     result.resources.roots.add root
   of vhkOpenRaster:
     let document = parsedValue[OpenRasterDocument](selectedParsed,
