@@ -5,7 +5,7 @@ import ./handler_registry
 import ./format_detection_types
 export format_detection_types
 import ./containers/[amiga_8svx, amiga_16sv, amiga_acbm, amiga_adf, amiga_anim, amiga_diskfont, amiga_dms, amiga_hunk_executable, amiga_iff, amiga_ilbm, amiga_lha_sfx, amiga_pbm, amiga_workbench_icon, amos_bank, amos_bank_set, amos_program,
-  amos_sprite_icon_bank, ansi_art, bmfont, bmp, flic, fzx, gif_container, iso9660, jpeg, netpbm, pcx, png_container, qoi, tga,
+  amos_sprite_icon_bank, ansi_art, bmfont, bmp, flic, fzx, gif_container, iso9660, jpeg, koala_painter, netpbm, pcx, png_container, qoi, tga,
   wav, windows_icon, zip_archive, lha_archive, zx_spectrum_screen_dump, zx_spectrum_snapshot, zx_spectrum_tap]
 import ./containers/xpk_shri
 import ./containers/powerpacker
@@ -128,6 +128,37 @@ proc detectBaseFormats(filename: string, data: openArray[byte]):
       evidence.add VextDetectionEvidence(description: "file extension is .qoi")
     result.add VextDetectionCandidate(typeId: QoiTypeId,
       confidence: vdcCertain, evidence: evidence)
+
+  let koalaExtension = filename.splitFile.ext.toLowerAscii
+  let koalaExactSize = data.len == KoalaPainterFileSize
+  let koalaLoadAddress = if data.len >= 2:
+      int(data[0]) or (int(data[1]) shl 8)
+    else: -1
+  let koalaCandidate = data.len >= KoalaPainterFileSize and
+    ((koalaExactSize and (koalaLoadAddress == KoalaPainterLoadAddress or
+      koalaExtension in [".koa", ".koala"])) or
+     koalaExtension == ".koala")
+  if koalaCandidate and isKoalaPainter(data):
+    let extension = koalaExtension
+    let exactSize = koalaExactSize
+    let conventionalExtension = hasKoalaPainterExtension(filename)
+    var evidence = @[VextDetectionEvidence(description:
+      "file contains a complete 10003-byte KoalaPainter payload")]
+    if data.len > KoalaPainterFileSize:
+      evidence.add VextDetectionEvidence(description:
+        "file has " & $(data.len - KoalaPainterFileSize) &
+        " trailing byte(s) after the image payload")
+    if conventionalExtension:
+      evidence.add VextDetectionEvidence(description:
+        "filename uses a conventional .kla, .koa, .koala, or .prg extension")
+    let confidence =
+      if exactSize and extension in [".koa", ".koala"]: vdcProbable
+      elif exactSize and conventionalExtension and
+          koalaLoadAddress == KoalaPainterLoadAddress:
+        vdcProbable
+      else: vdcPossible
+    result.add VextDetectionCandidate(typeId: KoalaPainterTypeId,
+      confidence: confidence, evidence: evidence)
 
   if isNetpbm(data):
     let source = parseNetpbm(data)

@@ -8,7 +8,7 @@ import ./containers/[amiga_8svx, amiga_16sv, amiga_acbm, amiga_adf, amiga_anim,
   amiga_diskfont, amiga_dms, amiga_hunk_executable, amiga_iff, amiga_ilbm, amiga_lha_sfx,
   amiga_workbench_icon, amos_bank,
   amos_bank_set, amos_program, amos_sprite_icon_bank, ansi_art, bmp, flic, gif_container,
-  bmfont, fzx, iso9660, jpeg, lha_archive, netpbm, openraster, pcx, png_container, powerpacker, qoi, tga, wav, windows_icon, zip_archive,
+  bmfont, fzx, iso9660, jpeg, koala_painter, lha_archive, netpbm, openraster, pcx, png_container, powerpacker, qoi, tga, wav, windows_icon, zip_archive,
   zx_spectrum_screen_dump, zx_spectrum_snapshot, zx_spectrum_tap, xpk_shri]
 import ./containers/amiga_pbm
 import ./format_detection_types
@@ -36,6 +36,7 @@ type
     vhkPng
     vhkJpeg
     vhkQoi
+    vhkKoalaPainter
     vhkNetpbm
     vhkGif
     vhkFlic
@@ -120,6 +121,7 @@ const FormatHandlers* = [
   VextFormatHandler(typeId: PngTypeId, kind: vhkPng),
   VextFormatHandler(typeId: JpegTypeId, kind: vhkJpeg),
   VextFormatHandler(typeId: QoiTypeId, kind: vhkQoi),
+  VextFormatHandler(typeId: KoalaPainterTypeId, kind: vhkKoalaPainter),
   VextFormatHandler(typeId: NetpbmTypeId, kind: vhkNetpbm),
   VextFormatHandler(typeId: GifTypeId, kind: vhkGif),
   VextFormatHandler(typeId: FlicTypeId, kind: vhkFlic),
@@ -226,6 +228,7 @@ proc parse*(handler: VextFormatHandler,
   of vhkPng: result = parsed(parsePng(data))
   of vhkJpeg: result = parsed(parseJpeg(data))
   of vhkQoi: result = parsed(parseQoi(data))
+  of vhkKoalaPainter: result = parsed(parseKoalaPainter(data))
   of vhkNetpbm: result = parsed(parseNetpbm(data))
   of vhkGif: result = parsed(parseGif(data))
   of vhkFlic: result = parsed(parseFlic(data))

@@ -13,12 +13,12 @@ import ./exporters/[bmfont, gif, html_report, metadata_json, png, raw, wav]
 import ./resource_tree
 import ./containers/[amiga_8svx, amiga_16sv, amiga_acbm, amiga_adf, amiga_anim, amiga_diskfont, amiga_dms, amiga_hunk_executable, amiga_iff, amiga_ilbm, amiga_lha_sfx, amiga_pbm, amiga_workbench_icon, amos_bank, amos_bank_set, amos_packed_picture, amos_program,
   amos_sprite_icon_bank, ansi_art, bmfont, bmp, flic, fzx, gif_container, iso9660, jpeg, netpbm, openraster, pcx, png_container,
-  qoi, tga, wav, windows_icon, zip_archive, lha_archive, zx_spectrum_snapshot, zx_spectrum_tap]
+  koala_painter, qoi, tga, wav, windows_icon, zip_archive, lha_archive, zx_spectrum_snapshot, zx_spectrum_tap]
 import ./containers/xpk_shri
 import ./containers/powerpacker
 import ./metadata
 import ./resources/[amiga_anim_image, amiga_diskfont_font, amiga_ilbm_image, amiga_pbm_image, amiga_workbench_icon_image, amos_listing, amos_packed_picture_image, amos_planar_image, bmp_image, flic_animation, gif_image, netpbm_image, png_image, zx_spectrum_basic,
-  ansi_art_image, bmfont_font, fzx_font, jpeg_image, pcx_image, qoi_image, tga_image, windows_icon_image, zx_spectrum_screen]
+  ansi_art_image, bmfont_font, fzx_font, jpeg_image, koala_painter_image, pcx_image, qoi_image, tga_image, windows_icon_image, zx_spectrum_screen]
 
 type
   VextOperationCancelledError* = object of CatchableError
@@ -1064,6 +1064,17 @@ proc inspectSourceDepth(filename: string, data: openArray[byte],
       raster: decodeQoi(source), metadata: @[
         integerMetadata("channels", source.channels),
         integerMetadata("colour-space", source.colourSpace)])
+  of vhkKoalaPainter:
+    let source = parsedValue[KoalaPainterSource](selectedParsed,
+      vhkKoalaPainter)
+    result.resources.roots.add VextResourceNode(
+      path: KoalaPainterImageResourcePath,
+      typeId: KoalaPainterImageTypeId, kind: vrnkRaster,
+      raster: decodeKoalaPainter(source), metadata: @[
+        integerMetadata("load-address", source.loadAddress),
+        integerMetadata("background-byte", int(source.backgroundByte)),
+        integerMetadata("background-colour", int(source.backgroundColour)),
+        integerMetadata("trailing-bytes", source.trailingByteCount)])
   of vhkNetpbm:
     let source = parsedValue[NetpbmSource](selectedParsed, vhkNetpbm)
     let group = VextResourceNode(path: NetpbmImageResourcePath,

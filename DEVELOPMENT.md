@@ -21,6 +21,7 @@ client, and a dependency-free native Windows GUI. It supports:
   static DOS ANSI art with optional SAUCE metadata,
   PNG, baseline/extended-sequential Huffman JPEG with EXIF orientation,
   OpenRaster layered documents, Windows ICO/CUR collections (including PNG and DIB entries), QOI,
+  Commodore 64 KoalaPainter images,
   Netpbm P1–P7, GIF87a/GIF89a, and FLI/FLC-family animations,
   AmigaDOS ADF filesystems, DMS disk archives, PowerPacker and XPK/SHRI
   wrappers, ZIP archives, ISO 9660 data-CD filesystems, level-0/1 LHA/LZH archives using LH0 or LH5,
@@ -258,6 +259,10 @@ Matching case-insensitive extensions add supporting evidence.
   hotspots plus both directory and payload dimensions;
 - `qoi.nim` validates QOI headers, dimensions, channel and colour-space
   descriptors, chunk framing and pixel coverage, and the exact end marker;
+- `koala_painter.nim` validates the 10,003-byte KoalaPainter payload and
+  bounded component ranges while retaining its little-endian load address,
+  bitmap, screen RAM, colour RAM, global background byte, and tolerated
+  trailing data;
 - `netpbm.nim` validates and extracts plain/raw PBM, PGM, and PPM plus PAM,
   including comments, multi-image raw streams, 16-bit big-endian samples,
   PAM headers, sample bounds, and exact raster sizes;
@@ -362,6 +367,11 @@ linked into Vexter.
 DIFF, LUMA, and RUN operation into a true-colour image with optional alpha,
 including the specified modulo-256 channel arithmetic and 64-entry colour
 index.
+
+`src/vexterlib/resources/koala_painter_image.nim` expands the C64 multicolour
+bitmap's four two-bit selectors per attribute cell into doubled 320×200 indexed
+pixels. It uses Pepto's Colodore RGB values, supplied through the Lospec
+Paint.NET palette and reordered into VIC-II hardware colour-index order.
 
 `src/vexterlib/resources/netpbm_image.nim` maps PBM and defined visual PAM
 tuple types to monochrome, grayscale, RGB, or alpha-bearing rasters. Samples
@@ -850,6 +860,10 @@ The routine suites are:
 - `tests/test_qoi.nim`: every QOI opcode, colour-index hashing, runs,
   modulo-256 channel differences, alpha, metadata, detection, PNG routing,
   declared pixel coverage, exact termination, and malformed input;
+- `tests/test_koala_painter.nim`: fixed-layout validation, extension and size
+  confidence, noncanonical load addresses, tolerated trailing data,
+  multicolour selector ordering, doubled pixels, and the Colodore VIC-II
+  palette mapping;
 - `tests/test_netpbm.nim`: P1–P7 parsing, comments, packed PBM rows, plain
   samples, 16-bit raw samples, exact binary delimiters, concatenated images,
   PAM visual tuple types and alpha, extra planes, and malformed input;
@@ -935,9 +949,9 @@ names there when adding suites, or direct their output into `/tmp`.
 
 - Preserve the clean-room source policy in `PLAN.md`. Do not browse for
   Vexter research or format implementation details.
-- Keep `docs/outstanding.md` synchronized when a known format gap is added,
-  resolved, or deliberately declared out of scope; do not use it as a roadmap
-  for formats Vexter does not yet recognize.
+- Keep `docs/outstanding.md` synchronized when a known implementation or
+  recognized-format gap is added, resolved, or deliberately declared out of
+  scope; do not use it as a roadmap for formats Vexter does not yet recognize.
 - Preserve stable type identifiers and canonical resource paths unless a
   deliberate compatibility change is agreed.
 - Prefer generic resource/archetype operations over format-specific branches
@@ -945,7 +959,10 @@ names there when adding suites, or direct their output into `/tmp`.
 - Resource nodes carry already-decoded archetype values, inline opaque bytes,
   or lazy shared-source payload recipes. ISO and ZIP use lazy payloads;
   alternate representations and true lazy directory enumeration are not yet
-  implemented.
+  implemented. The overall loading policy is intentionally unresolved: large
+  nested collections can make eager probing, first-selection decoding, memory
+  retention, and bulk operations behave poorly. `docs/outstanding.md` records
+  the deferred design questions and a motivating pathological ZIP case.
 - Single-resource compound export requires a directory destination at the CLI
   boundary. Bulk collision resolution renames compound artifact stems as a
   unit so descriptor references remain synchronized with companion files.

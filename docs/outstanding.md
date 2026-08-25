@@ -1,9 +1,24 @@
-# Outstanding format work
+# Outstanding work
 
-This is the single concise index of known gaps in formats Vexter already
-recognizes. It is not a roadmap: an item being listed does not imply priority,
-and unsupported historical or proposed formats are not included. Detailed
-behavior and evidence remain in [`formats.md`](formats.md).
+This is the single concise index of known gaps in Vexter's implemented
+behavior and in formats it already recognizes. It is not a roadmap: an item
+being listed does not imply priority, and unsupported historical or proposed
+formats are not included. Detailed format behavior and evidence remain in
+[`formats.md`](formats.md).
+
+- **Container loading and resource materialization**
+  - The current mixture of eager tree construction, bounded recursive probing,
+    and payload extraction on first selection does not yet form a satisfactory
+    loading model across archives and filesystems.
+  - Pathological but valid inputs can make either eager work or later
+    selection disproportionately expensive. A concrete motivating case is a
+    1.4 GB ZIP containing roughly 1,300 large images.
+  - The unresolved design needs to cover lazy directory enumeration, nested
+    format detection, decoded-resource lifetime and memory pressure,
+    cancellation, progress, caching or eviction, bulk operations, and
+    predictable CLI and GUI behavior. No replacement design has been chosen;
+    this is deliberately deferred rather than treated as an implementation
+    task.
 
 - **DOS ANSI art**
   - ANSiMation currently yields only its final static terminal state; no source
@@ -190,6 +205,10 @@ behavior and evidence remain in [`formats.md`](formats.md).
     be rendered.
   - Automated compatibility coverage is currently synthetic.
 
+- **Commodore 64 KoalaPainter images**
+  - Authentic supplied samples are temporary compatibility controls rather
+    than committed fixtures; routine automated coverage is synthetic.
+
 - **Amiga Workbench icons**
   - Chained classic icon images are unsupported.
   - Broader authentic controls for classic, NewIcons, and GlowIcons variants
@@ -200,6 +219,5 @@ behavior and evidence remain in [`formats.md`](formats.md).
   - Consider Mode 2 and other CD-sector layouts plus EDC/ECC verification;
     audio tracks and other Rainbow Book filesystems remain outside this base.
   - Demand decoding currently occurs synchronously on first GUI selection.
-    Move expensive selected members to a cancellable background job and add
-    true directory/container expansion providers when traversal itself becomes
-    lazy.
+    This is one instance of the unresolved cross-container loading design
+    above; its eventual behavior should not be specified independently here.

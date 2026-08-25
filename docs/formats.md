@@ -1427,6 +1427,44 @@ eight-entry thumbnail IFD, and a two-entry interoperability IFD; it remains an
 uncommitted compatibility control. Attribution and research-source hashes are
 recorded in [`THIRD_PARTY.md`](../THIRD_PARTY.md).
 
+## Commodore 64 KoalaPainter images
+
+Container type identifier: `commodore64.koala-painter`
+
+Resource type identifier: `commodore64.koala-painter-image`
+
+Vexter supports the 10,003-byte KoalaPainter form: a little-endian C64 load
+address, 8,000 bitmap bytes, 1,000 screen-RAM bytes, 1,000 colour-RAM bytes,
+and one global background-colour byte. `$6000` is conventional but not
+required: an authentic supplied file uses `$4400`, another uses `$2000`, and
+the reference datatype leaves its `$6000` check as an unimplemented comment.
+The specification
+says that byte's high nibble is zero, but 8 of the 45 supplied authentic images
+contain nonzero high nibbles. Vexter preserves the byte and uses its low nibble,
+matching the four-bit VIC-II colour index. Because the format has no magic
+signature, exact 10,003-byte files with `.koa` or `.koala` are **probable**.
+Canonical `$6000` files using `.kla` or `.prg` are also **probable**. Other
+complete structural matches are **possible**. In particular, `.koala` files
+may contain trailing bytes: Vexter records their count as metadata and ignores
+them for rendering, but keeps detection at **possible**. The generic
+`.prg` suffix is supporting evidence only.
+
+The image is exposed at `/image` as a 320×200 indexed raster. Each two-bit
+multicolour pixel is expanded horizontally to two output pixels. Selector zero
+uses the global background; selectors one and two use the high and low nibbles
+of the cell's screen-RAM byte; selector three uses the low nibble of its
+colour-RAM byte.
+
+The sixteen output colours are Pepto's Colodore values from the supplied
+Lospec Paint.NET palette. That palette file groups colours visually, so Vexter
+reorders the exact supplied ARGB values into the VIC-II indices established by
+the datatype's named C64 palette and Koala selector semantics. The temporary
+AmigaOS datatype package supplies the format specification, independent
+decoder behavior, and 45 authentic compatibility images across `.kla`, `.koa`,
+`.prg`, and extensionless names. Routine tests use synthetic structures; the
+temporary samples are not committed. Full provenance and selected hashes are
+recorded in [`THIRD_PARTY.md`](../THIRD_PARTY.md).
+
 ## QOI images
 
 Container type identifier: `qoi`
@@ -1601,7 +1639,6 @@ The previous implementation covered formats including:
 
 - IFF ILBM, ACBM, ANIM3, ANIM5, ANIM7, ANIM8, and 8SVX;
 - PCX, QOI, TGA, NetPBM, BMP, ICO, and CUR images;
-- Commodore 64 Koala Painter;
 - AMOS sprite banks, icon banks, bank sets, and programs with paired banks;
 - AmigaDOS `.info` files and diskfonts;
 - Atari DEGAS and NEOchrome;

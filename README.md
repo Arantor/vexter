@@ -17,8 +17,8 @@ sufficiently useful to continue as an ongoing project.
   ILBM/ACBM/PBM, ANIM, 8SVX/16SV audio, monochrome and colour bitmap diskfonts,
   AMOS programs and banks, Hunk
   executables, and LHA self-extractors
-- Images and animations: BMP/DIB, PCX, TGA, PNG/APNG, GIF, QOI, Netpbm, and
-  FLI/FLC-family files
+- Images and animations: BMP/DIB, PCX, TGA, PNG/APNG, GIF, QOI, Netpbm,
+  Commodore 64 KoalaPainter, and FLI/FLC-family files
 - Fonts: BMFont text, XML, and binary-v3 descriptors with PNG pages, FZX, and
   monochrome or colour Amiga bitmap diskfonts
 - Archives and audio: ZIP, level-0/1 LHA/LZH with LH0/LH5 members, and integer
@@ -32,8 +32,8 @@ APNG animations while static and original-animation exports remain available.
 Containers such as ADF, ZIP, LHA, PowerPacker, and XPK are inspected recursively
 when their contents use another supported format. See
 [format documentation](docs/formats.md) for exact coverage and current
-limitations, or the [outstanding-format index](docs/outstanding.md) for a
-concise format-by-format list of known gaps.
+limitations, or the [outstanding-work index](docs/outstanding.md) for a concise
+list of known implementation and recognized-format gaps.
 
 ## Building
 

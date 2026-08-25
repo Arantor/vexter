@@ -37,6 +37,7 @@ import vexterlib/containers/windows_icon
 import vexterlib/containers/gif_container
 import vexterlib/containers/wav as wav_container
 import vexterlib/containers/qoi
+import vexterlib/containers/koala_painter
 import vexterlib/containers/netpbm
 import vexterlib/containers/tga
 import vexterlib/containers/flic
@@ -66,6 +67,7 @@ import vexterlib/resources/jpeg_image
 import vexterlib/resources/windows_icon_image
 import vexterlib/resources/gif_image
 import vexterlib/resources/qoi_image
+import vexterlib/resources/koala_painter_image
 import vexterlib/resources/netpbm_image
 import vexterlib/resources/tga_image
 import vexterlib/resources/flic_animation
@@ -123,6 +125,7 @@ export windows_icon
 export gif_container
 export wav_container
 export qoi
+export koala_painter
 export netpbm
 export tga
 export flic
@@ -146,6 +149,7 @@ export png_image
 export windows_icon_image
 export gif_image
 export qoi_image
+export koala_painter_image
 export netpbm_image
 export tga_image
 export flic_animation

@@ -1,5 +1,41 @@
 # Third-party material
 
+## KoalaPainter specification, samples, and Colodore palette
+
+The developer supplied a temporary unpacked copy of Massimiliano Scarano's
+Koala DataType 39.4 for AmigaOS on 2026-08-25. It was obtained from the Aminet
+package [`util/dtype/Koala_DataType_V39_4`](https://aminet.net/package/util/dtype/Koala_DataType_V39_4).
+The package's AmigaGuide documents the 10,001-byte KoalaPainter payload layout;
+its source establishes the leading two-byte `$6000` C64 load address, complete
+10,003-byte file representation, bitmap traversal, selector meanings, and
+hardware colour indices. Its 45 images are temporary authentic compatibility
+subjects and are not copied into the repository fixture set. The guide states
+that the datatype is E-mailware with no restrictions on distribution or use.
+
+The developer separately supplied `colodore.txt`, a Paint.NET palette
+downloaded from [Lospec's Colodore palette page](https://lospec.com/palette-list/colodore).
+It identifies the palette as Colodore by Pepto and refers to Pepto's
+[VIC-II colour work](https://www.pepto.de/projects/colorvic/). These exact ARGB
+values are Vexter's KoalaPainter rendering palette. Since the Paint.NET file
+groups the colours visually rather than by VIC-II register number, the values
+are reordered into the hardware indices identified by the datatype's named
+palette and decoder. The supplied palette file does not state separate licence
+terms and is retained as temporary research material rather than copied into
+the implementation or fixture tree.
+
+Relevant supplied-file SHA-256 values are:
+
+```text
+7dcd6c9a6227ed110525edf62bf1918690877fe5fe28626e3a765fea9c137007  Koala_DataType.guide
+8b14102cbd90c4b615f25c5d5f1b7c4c9b37e4c11f2108b9d0b932d64cdcb24c  Source/dispatch.c
+83a9b56a7375675393096ff5ef7fde590495259343d311c1c3aa61f5fc4ee5f1  aminet_readme.txt
+70a14461271c9e66b56d8fa5d3c3a240f897641b947ec6ac9d84e60a1fad0897  colodore.txt
+48c4059bf6e6b178dfa46d6a87e684898af79ab2af794997c9ab85ee943ff441  Images/kla/amiga12.kla
+b7e9e23c18a08ef177b6ded86dfeb9b3c44f79e2c25ef2160c335ee49ab7957d  Images/koa/garfield.koa
+309943995ed6147c49a718daccca5b729e4d0fb9792593f9fc2ffb607a92e4e0  Images/no_extension/BUBBLE
+40d96317a68fdf5301412846693cfaf0cdd1c4e3480502ec35633279e2b402ce  Images/prg/r-type.prg
+```
+
 ## ISO 9660 reference
 
 The developer supplied a local copy of Wikipedia's
