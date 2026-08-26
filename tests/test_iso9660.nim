@@ -159,6 +159,31 @@ suite "ISO 9660 filesystems":
     check note.resourceBytes ==
       @['h'.byte, 'e'.byte, 'l'.byte, 'l'.byte, 'o'.byte]
 
+  test "session directory providers visit only expanded ISO extents":
+    let data = isoFixture()
+    let subdirectoryStart = 26 * Iso9660LogicalBlockSize
+    let subdirectoryEnd = subdirectoryStart + Iso9660LogicalBlockSize
+    var subdirectoryRead = false
+    let source = newByteSource(data.len,
+      proc(offset, length: int): seq[byte] =
+        if offset < subdirectoryEnd and offset + length > subdirectoryStart:
+          subdirectoryRead = true
+        result = data[offset ..< offset + length])
+    let session = openInspectionSession("disc.iso",
+      newSourceCollection(source))
+    check session.selectedFormat.typeId == Iso9660TypeId
+    check not subdirectoryRead
+    let rootChildren = session.expandResource(
+      session.rootDescriptors[0].id).children
+    check rootChildren.len == 2
+    check not subdirectoryRead
+    let docs = session.resourceAtPath("/disc/DOCS")
+    let docsChildren = session.expandResource(docs.id).children
+    check subdirectoryRead
+    check docsChildren.len == 1
+    check docsChildren[0].path == "/disc/DOCS/NOTE.TXT"
+    session.close()
+
   test "descriptor, both-byte, extent, and raw-sector damage is rejected":
     var missingTerminator = isoFixture()
     missingTerminator[17 * Iso9660LogicalBlockSize] = 0

@@ -1,6 +1,7 @@
 ## Read-only base ISO 9660 filesystems in cooked or raw Mode 1 CD images.
 
 import std/[sets, strutils]
+import ../byte_sources
 
 const
   Iso9660TypeId* = "filesystem.iso9660"
@@ -42,6 +43,17 @@ type
     volumeIdentifier*: string
     volumeBlocks*: int
     primaryDescriptorCount*, supplementaryDescriptorCount*: int
+
+  Iso9660Index* = object
+    layout*: Iso9660Layout
+    volumeIdentifier*, systemIdentifier*: string
+    volumeSetIdentifier*, publisherIdentifier*: string
+    preparerIdentifier*, applicationIdentifier*: string
+    creationTime*, modificationTime*: string
+    logicalBlockSize*, volumeBlocks*: int
+    primaryDescriptorCount*, supplementaryDescriptorCount*: int
+    bootDescriptorCount*, partitionDescriptorCount*: int
+    rootExtent*, rootLength*: int
 
 proc leWord(data: openArray[byte], offset: int): int {.inline.} =
   int(data[offset]) or (int(data[offset + 1]) shl 8)
@@ -360,3 +372,168 @@ proc iso9660LayoutName*(layout: Iso9660Layout): string =
   case layout
   of ilCooked2048: "cooked 2048-byte sectors"
   of ilRawMode1_2352: "raw Mode 1/2352 sectors"
+
+proc rawSectorValid(source: VextByteSource, sector: int): bool =
+  let offset = sector * 2352
+  if offset < 0 or offset > source.length - 2352: return false
+  let header = source.readAt(offset, 16)
+  if header[0] != 0 or header[11] != 0 or header[15] != 1: return false
+  for index in 1 .. 10:
+    if header[index] != 0xff: return false
+  true
+
+proc detectLayout(source: VextByteSource): Iso9660Layout =
+  if source.length >= 17 * Iso9660LogicalBlockSize:
+    let signature = source.readAt(16 * Iso9660LogicalBlockSize + 1, 5)
+    if signature == @[byte('C'), byte('D'), byte('0'), byte('0'), byte('1')]:
+      return ilCooked2048
+  if source.length mod 2352 == 0 and source.length >= 17 * 2352 and
+      source.rawSectorValid(0) and source.rawSectorValid(16):
+    let signature = source.readAt(16 * 2352 + 17, 5)
+    if signature == @[byte('C'), byte('D'), byte('0'), byte('0'), byte('1')]:
+      return ilRawMode1_2352
+  raise newException(ValueError,
+    "ISO 9660 volume descriptor was not found in a cooked or raw Mode 1 image")
+
+proc physicalSectors(source: VextByteSource, layout: Iso9660Layout): int =
+  if layout == ilCooked2048: source.length div Iso9660LogicalBlockSize
+  else: source.length div 2352
+
+proc readLogical*(source: VextByteSource, layout: Iso9660Layout,
+    logicalOffset, length: int): seq[byte] =
+  if logicalOffset < 0 or length < 0:
+    raise newException(ValueError, "negative ISO 9660 data range")
+  let sectorCount = source.physicalSectors(layout)
+  if logicalOffset > sectorCount * Iso9660LogicalBlockSize - length:
+    raise newException(ValueError, "ISO 9660 extent is outside the image")
+  result = newSeq[byte](length)
+  var sourceOffset = logicalOffset
+  var targetOffset = 0
+  while targetOffset < length:
+    let sector = sourceOffset div Iso9660LogicalBlockSize
+    let within = sourceOffset mod Iso9660LogicalBlockSize
+    let amount = min(length - targetOffset,
+      Iso9660LogicalBlockSize - within)
+    let physical = if layout == ilCooked2048:
+        sector * Iso9660LogicalBlockSize + within
+      else:
+        if not source.rawSectorValid(sector):
+          raise newException(ValueError,
+            "invalid raw Mode 1 sector framing at sector " & $sector)
+        sector * 2352 + 16 + within
+    let part = source.readAt(physical, amount)
+    for index in 0 ..< amount: result[targetOffset + index] = part[index]
+    sourceOffset += amount
+    targetOffset += amount
+
+proc sourceDescriptor(source: VextByteSource, layout: Iso9660Layout,
+    sector: int): seq[byte] =
+  source.readLogical(layout, sector * Iso9660LogicalBlockSize,
+    Iso9660LogicalBlockSize)
+
+proc indexIso9660*(source: VextByteSource): Iso9660Index =
+  ## Validates volume descriptors and the root record without walking any
+  ## descendant directory.
+  result.layout = source.detectLayout()
+  result.logicalBlockSize = Iso9660LogicalBlockSize
+  let sectors = source.physicalSectors(result.layout)
+  var primary: seq[byte]
+  var sawTerminator = false
+  for sector in 16 ..< min(sectors, 16 + 256):
+    let item = source.sourceDescriptor(result.layout, sector)
+    if item.paddedText(1, 5) != "CD001" or item[6] != 1:
+      raise newException(ValueError, "invalid ISO 9660 volume descriptor")
+    case item[0]
+    of 0: inc result.bootDescriptorCount
+    of 1:
+      inc result.primaryDescriptorCount
+      if primary.len == 0:
+        primary = item
+        result.volumeBlocks = item.bothDword(80, "volume space size")
+        if item.bothWord(128, "logical block size") != Iso9660LogicalBlockSize:
+          raise newException(ValueError,
+            "only 2048-byte ISO 9660 logical blocks are supported")
+        if result.volumeBlocks <= 16 or result.volumeBlocks > sectors:
+          raise newException(ValueError,
+            "ISO 9660 declared volume exceeds the image")
+    of 2: inc result.supplementaryDescriptorCount
+    of 3: inc result.partitionDescriptorCount
+    of 255:
+      sawTerminator = true
+      break
+    else: discard
+  if primary.len == 0 or not sawTerminator:
+    raise newException(ValueError,
+      "ISO 9660 primary descriptor or terminator is missing")
+  result.volumeIdentifier = primary.paddedText(40, 32)
+  result.systemIdentifier = primary.paddedText(8, 32)
+  result.volumeSetIdentifier = primary.paddedText(190, 128)
+  result.publisherIdentifier = primary.paddedText(318, 128)
+  result.preparerIdentifier = primary.paddedText(446, 128)
+  result.applicationIdentifier = primary.paddedText(574, 128)
+  result.creationTime = primary.descriptorTime(813)
+  result.modificationTime = primary.descriptorTime(830)
+  let root = validateRootRecord(primary.toOpenArray(156, 189),
+    result.volumeBlocks)
+  result.rootExtent = root.extent
+  result.rootLength = root.length
+
+proc listIso9660Directory*(source: VextByteSource, index: Iso9660Index,
+    extent, length: int, parent: seq[string]): seq[Iso9660Entry] =
+  ## Reads and validates exactly one indexed directory extent.
+  let directory = source.readLogical(index.layout,
+    extent * Iso9660LogicalBlockSize, length)
+  var offset = 0
+  var paths = initHashSet[string]()
+  while offset < directory.len:
+    let withinBlock = offset mod Iso9660LogicalBlockSize
+    let recordLength = int(directory[offset])
+    if recordLength == 0:
+      offset += Iso9660LogicalBlockSize - withinBlock
+      continue
+    if recordLength < 34 or recordLength >
+        Iso9660LogicalBlockSize - withinBlock or
+        offset > directory.len - recordLength:
+      raise newException(ValueError, "invalid ISO 9660 directory record bounds")
+    let record = directory[offset ..< offset + recordLength]
+    let identifierLength = int(record[32])
+    if 33 + identifierLength > recordLength:
+      raise newException(ValueError, "truncated ISO 9660 file identifier")
+    let entryExtent = record.bothDword(2, "entry extent")
+    let entryLength = record.bothDword(10, "entry length")
+    discard record.bothWord(28, "entry volume sequence")
+    if entryExtent < 0 or entryExtent > index.volumeBlocks or entryLength < 0 or
+        entryLength > (index.volumeBlocks - entryExtent) * Iso9660LogicalBlockSize:
+      raise newException(ValueError, "ISO 9660 entry extent is outside the volume")
+    let flags = int(record[25])
+    if (flags and 0x80) != 0:
+      raise newException(ValueError,
+        "multi-extent ISO 9660 files are not supported")
+    let special = identifierLength == 1 and record[33] in [0'u8, 1'u8]
+    if not special:
+      let identifier = decodedIdentifier(record)
+      var segments = parent
+      segments.add identifier.name
+      let canonical = segments.join("/")
+      if canonical in paths:
+        raise newException(ValueError, "duplicate ISO 9660 path: " & canonical)
+      paths.incl canonical
+      let padding = if identifierLength mod 2 == 0: 1 else: 0
+      let systemUseStart = 33 + identifierLength + padding
+      result.add Iso9660Entry(name: canonical, segments: segments,
+        isDirectory: (flags and 2) != 0, hidden: (flags and 1) != 0,
+        associated: (flags and 4) != 0, extentBlock: entryExtent,
+        dataLength: entryLength, recordingTime: record.recordingTime(18),
+        fileVersion: identifier.version,
+        systemUseBytes: max(0, recordLength - systemUseStart))
+    offset += recordLength
+
+proc extractIso9660Entry*(source: VextByteSource, index: Iso9660Index,
+    entry: Iso9660Entry, maximumSize = high(int)): seq[byte] =
+  if entry.isDirectory:
+    raise newException(ValueError, "cannot extract an ISO 9660 directory")
+  if entry.dataLength > maximumSize:
+    raise newException(ValueError,
+      "ISO 9660 member exceeds the permitted materialization size")
+  source.readLogical(index.layout,
+    entry.extentBlock * Iso9660LogicalBlockSize, entry.dataLength)

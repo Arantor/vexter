@@ -57,6 +57,12 @@ type
     lParam: LPARAM
     time: DWORD
     ptX, ptY: int32
+  POINT {.importc: "POINT", header: "<windows.h>".} = object
+    x, y: int32
+  TVHITTESTINFO {.importc: "TVHITTESTINFO", header: "<commctrl.h>".} = object
+    pt: POINT
+    flags: UINT
+    hItem: HTREEITEM
   OPENFILENAMEW {.importc: "OPENFILENAMEW", header: "<commdlg.h>".} = object
     lStructSize: DWORD
     hwndOwner: HWND
@@ -118,12 +124,36 @@ type
   ViewKind = enum vkNone, vkRaster, vkFont, vkAudio, vkText
   TreeBinding = ref object
     node: VextResourceNode
+    descriptor: VextResourceDescriptor
+    loadedTree: VextResourceTree
+    loadedData: seq[byte]
+    childrenLoaded: bool
+    loadPending: bool
+    workingLimitApproved: bool
+    placeholder: bool
     metadataText: string
   LoadResult = object
-    inspection: VextInspection
+    session: VextInspectionSession
     filename: string
     error: string
   LoadJob = tuple[filename: string, result: ptr LoadResult]
+  SessionJobKind = enum sjkExpand, sjkLoad, sjkDecodeLoaded
+  SessionResult = object
+    kind: SessionJobKind
+    binding: TreeBinding
+    item: HTREEITEM
+    delta: VextResourceDelta
+    loaded: VextLoadedResource
+    decodeResult: VextDemandDecodeResult
+    error: string
+  SessionJob = tuple[kind: SessionJobKind, session: VextInspectionSession,
+    binding: TreeBinding, item: HTREEITEM, maximumWorkingBytes: int,
+    result: ptr SessionResult]
+  PendingSessionJob = object
+    kind: SessionJobKind
+    binding: TreeBinding
+    item: HTREEITEM
+    maximumWorkingBytes: int
 
 const
   WS_OVERLAPPEDWINDOW = 0x00CF0000'u32
@@ -153,19 +183,21 @@ const
   WM_NOTIFY = 0x004E'u32
   WM_APP = 0x8000'u32
   WM_LOAD_DONE = WM_APP + 1
+  WM_SESSION_DONE = WM_APP + 2
+  WM_SESSION_PROGRESS = WM_APP + 3
   CB_ADDSTRING = 0x0143'u32
   CB_RESETCONTENT = 0x014B'u32
   CB_SETCURSEL = 0x014E'u32
   CB_GETCURSEL = 0x0147'u32
-  PBM_SETMARQUEE = WM_APP + 10
+  PBM_SETMARQUEE = 0x040A'u32 # PBM_SETMARQUEE is WM_USER + 10.
+  PBM_SETPOS = 0x0402'u32
   TVM_INSERTITEMW = 0x1132'u32
   TVM_DELETEITEM = 0x1101'u32
-  TVM_EXPAND = 0x1102'u32
-  TVM_SELECTITEM = 0x110B'u32
   TVM_SETIMAGELIST = 0x1109'u32
-  TVM_SETITEMW = 0x113F'u32
-  TVE_EXPAND = 0x0002
-  TVGN_CARET = 0x0009
+  TVM_GETNEXTITEM = 0x110A'u32
+  TVM_GETITEMW = 0x113E'u32
+  TVM_HITTEST = 0x1111'u32
+  TVGN_CHILD = 0x0004
   TVIF_TEXT = 0x0001'u32
   TVIF_IMAGE = 0x0002'u32
   TVIF_PARAM = 0x0004'u32
@@ -177,6 +209,8 @@ const
   TVI_ROOT = cast[HTREEITEM](-0x10000)
   TVI_LAST = cast[HTREEITEM](-0x0FFFE)
   TVN_SELCHANGEDW = cast[UINT](-451'i32)
+  TVN_ITEMEXPANDINGW = cast[UINT](-455'i32)
+  NM_RCLICK = cast[UINT](-5'i32)
   OFN_OVERWRITEPROMPT = 0x00000002'u32
   OFN_FILEMUSTEXIST = 0x00001000'u32
   OFN_PATHMUSTEXIST = 0x00000800'u32
@@ -236,6 +270,15 @@ proc KillTimer(hwnd: HWND, id: uint): BOOL {.stdcall, importc, header: "<windows
 proc GetOpenFileNameW(info: ptr OPENFILENAMEW): BOOL {.stdcall, importc, header: "<commdlg.h>".}
 proc GetSaveFileNameW(info: ptr OPENFILENAMEW): BOOL {.stdcall, importc, header: "<commdlg.h>".}
 proc MessageBoxW(hwnd: HWND, text, caption: WideCString, kind: UINT): int32 {.stdcall, importc, header: "<windows.h>".}
+proc GetCursorPos(point: ptr POINT): BOOL {.stdcall, importc, header: "<windows.h>".}
+proc ScreenToClient(hwnd: HWND, point: ptr POINT): BOOL {.stdcall, importc, header: "<windows.h>".}
+proc CreatePopupMenu(): HMENU {.stdcall, importc, header: "<windows.h>".}
+proc AppendMenuW(menu: HMENU, flags: UINT, id: uint,
+    label: WideCString): BOOL {.stdcall, importc, header: "<windows.h>".}
+proc TrackPopupMenu(menu: HMENU, flags: UINT, x, y: int32,
+    reserved: int32, hwnd: HWND, rect: pointer): int32
+    {.stdcall, importc, header: "<windows.h>".}
+proc DestroyMenu(menu: HMENU): BOOL {.stdcall, importc, header: "<windows.h>".}
 proc InitCommonControls() {.stdcall, importc, header: "<commctrl.h>".}
 proc waveOutOpen(outHandle: ptr HWAVEOUT, device: uint, format: ptr WAVEFORMATEX,
     callback: uint, instance: uint, flags: DWORD): uint32 {.stdcall, importc.}
@@ -254,8 +297,9 @@ var
   playButton, formatCombo, exportButton, progressBar: HWND
   bindings: seq[TreeBinding]
   selected: TreeBinding
+  metadataViewBinding: TreeBinding
   currentFilename: string
-  currentInspection: VextInspection
+  currentSession: VextInspectionSession
   currentView = vkNone
   scaleChoice = 0
   fontGridMode = false
@@ -273,6 +317,9 @@ var
   treeImages: HIMAGELIST
   failureImageIndex = -1'i32
   loadThread: Thread[LoadJob]
+  sessionThread: Thread[SessionJob]
+  sessionJobActive = false
+  sessionQueue: seq[PendingSessionJob]
 
 proc lowWord(value: WPARAM): int = int(value and 0xffff)
 proc highWord(value: WPARAM): int = int((value shr 16) and 0xffff)
@@ -288,7 +335,19 @@ proc windowText(hwnd: HWND): string =
 proc showError(message: string) =
   discard MessageBoxW(mainWindow, w(message), w("Vexter"), 0x10)
 
+proc byteSize(value: int): string =
+  const units = ["bytes", "KiB", "MiB", "GiB", "TiB"]
+  var amount = float(value)
+  var unit = 0
+  while amount >= 1024.0 and unit < units.high:
+    amount /= 1024.0
+    inc unit
+  if unit == 0: &"{value} {units[unit]}"
+  else: &"{amount:.1f} {units[unit]}"
+
 proc layout(hwnd: HWND)
+proc stopAudio()
+proc selectBinding(binding: TreeBinding)
 
 proc metadataString(node: VextResourceNode): string =
   result = &"Path: {node.path}\r\nType: {node.typeId}\r\n"
@@ -297,6 +356,59 @@ proc metadataString(node: VextResourceNode): string =
       of vmvkInteger: $entry.value.integerValue
       of vmvkString: entry.value.stringValue
     result.add &"{entry.key}: {value}\r\n"
+
+proc metadataString(item: VextResourceDescriptor): string =
+  result = &"Path: {item.path}\r\nType: {item.typeId}\r\n"
+  for entry in item.metadata:
+    let value = case entry.value.kind
+      of vmvkInteger: $entry.value.integerValue
+      of vmvkString: entry.value.stringValue
+    result.add &"{entry.key}: {value}\r\n"
+
+proc showTreeMetadataMenu() =
+  var cursor: POINT
+  if GetCursorPos(addr cursor) == 0: return
+  var hit = TVHITTESTINFO(pt: cursor)
+  discard ScreenToClient(treeView, addr hit.pt)
+  discard SendMessageW(treeView, TVM_HITTEST, 0, cast[LPARAM](addr hit))
+  if hit.hItem == nil: return
+  var treeItem = TVITEMW(mask: TVIF_PARAM, hItem: hit.hItem)
+  if SendMessageW(treeView, TVM_GETITEMW, 0,
+      cast[LPARAM](addr treeItem)) == 0:
+    return
+  let binding = cast[TreeBinding](treeItem.lParam)
+  if binding.isNil or binding.placeholder: return
+  let menu = CreatePopupMenu()
+  if menu == nil: return
+  let showingMetadata = metadataViewBinding == binding
+  discard AppendMenuW(menu, 0, 1,
+    w(if showingMetadata and not binding.node.isNil: "Show preview"
+      else: "Show metadata"))
+  var screenPoint: POINT
+  discard GetCursorPos(addr screenPoint)
+  let command = TrackPopupMenu(menu, 0x0102, screenPoint.x, screenPoint.y,
+    0, mainWindow, nil)
+  discard DestroyMenu(menu)
+  if command == 1:
+    if showingMetadata and not binding.node.isNil:
+      selectBinding(binding)
+    else:
+      stopAudio()
+      selected = binding
+      metadataViewBinding = binding
+      currentView = vkText
+      let details = if not binding.node.isNil: metadataString(binding.node)
+        else: metadataString(binding.descriptor)
+      discard SetWindowTextW(textView, w(details))
+      discard ShowWindow(textView, SW_SHOW)
+      discard ShowWindow(preview, 0)
+      discard ShowWindow(fontModeCombo, 0)
+      discard ShowWindow(fontSample, 0)
+      discard ShowWindow(fontGlyphCombo, 0)
+      discard ShowWindow(fontDetails, 0)
+      discard EnableWindow(playButton, 0)
+      discard EnableWindow(exportButton, 0)
+      layout(mainWindow)
 
 proc failureString(node: VextResourceNode): string =
   &"This contained file could not be decoded.\r\n\r\n" &
@@ -418,60 +530,73 @@ proc previewProc(hwnd: HWND, msg: UINT, wp: WPARAM, lp: LPARAM): LRESULT {.stdca
     return 0
   DefWindowProcW(hwnd, msg, wp, lp)
 
-proc containsFailure(node: VextResourceNode): bool =
-  if node.failureMessage.len > 0: return true
-  for child in node.children:
-    if child.containsFailure: return true
+proc addDescriptorNode(item: VextResourceDescriptor,
+    parent: HTREEITEM, rootLabel = ""): HTREEITEM =
+  var label = if rootLabel.len > 0: rootLabel
+    elif item.path.len == 0: item.typeId
+    else: item.path.split('/')[^1]
+  if item.failureMessage.len > 0 and failureImageIndex < 0:
+    label = "[!] " & label
+  let labelWide = w(label)
+  let binding = TreeBinding(descriptor: item)
+  bindings.add binding
+  var insert = TVINSERTSTRUCTW(hParent: parent, hInsertAfter: TVI_LAST,
+    item: TVITEMW(mask: TVIF_TEXT or TVIF_PARAM or TVIF_IMAGE or
+      TVIF_SELECTEDIMAGE, pszText: labelWide,
+      iImage: if item.failureMessage.len > 0: failureImageIndex else: I_IMAGENONE,
+      iSelectedImage: if item.failureMessage.len > 0:
+        failureImageIndex else: I_IMAGENONE, lParam: cast[LPARAM](binding)))
+  result = cast[HTREEITEM](SendMessageW(treeView, TVM_INSERTITEMW, 0,
+    cast[LPARAM](addr insert)))
+  if vrcEnumerateChildren in item.capabilities:
+    let placeholder = TreeBinding(placeholder: true)
+    bindings.add placeholder
+    let placeholderLabel = w("Loading…")
+    var placeholderInsert = TVINSERTSTRUCTW(hParent: result,
+      hInsertAfter: TVI_LAST, item: TVITEMW(mask: TVIF_TEXT or TVIF_PARAM or
+      TVIF_IMAGE or TVIF_SELECTEDIMAGE, pszText: placeholderLabel,
+      iImage: I_IMAGENONE, iSelectedImage: I_IMAGENONE,
+      lParam: cast[LPARAM](placeholder)))
+    discard SendMessageW(treeView, TVM_INSERTITEMW, 0,
+      cast[LPARAM](addr placeholderInsert))
 
-proc addTreeNode(node: VextResourceNode, parent: HTREEITEM): HTREEITEM =
+proc addLoadedNode(node: VextResourceNode, parent: HTREEITEM): HTREEITEM =
   var label = if node.path.len == 0: node.typeId else: node.path.split('/')[^1]
   if node.failureMessage.len > 0 and failureImageIndex < 0:
     label = "[!] " & label
   let labelWide = w(label)
-  let binding = TreeBinding(node: node)
+  let binding = TreeBinding(node: node, childrenLoaded: node.children.len == 0)
   bindings.add binding
-  let imageIndex = if node.failureMessage.len > 0:
-      failureImageIndex else: I_IMAGENONE
   var insert = TVINSERTSTRUCTW(hParent: parent, hInsertAfter: TVI_LAST,
     item: TVITEMW(mask: TVIF_TEXT or TVIF_PARAM or TVIF_IMAGE or
-      TVIF_SELECTEDIMAGE, pszText: labelWide, iImage: imageIndex,
-      iSelectedImage: imageIndex,
-      lParam: cast[LPARAM](binding)))
+      TVIF_SELECTEDIMAGE, pszText: labelWide,
+      iImage: if node.failureMessage.len > 0: failureImageIndex else: I_IMAGENONE,
+      iSelectedImage: if node.failureMessage.len > 0:
+        failureImageIndex else: I_IMAGENONE, lParam: cast[LPARAM](binding)))
   result = cast[HTREEITEM](SendMessageW(treeView, TVM_INSERTITEMW, 0,
     cast[LPARAM](addr insert)))
-  if firstPreviewItem == nil and node.kind in
-      {vrnkRaster, vrnkPalette, vrnkFont, vrnkAudio, vrnkText} or
-      node.failureMessage.len > 0:
-    firstPreviewItem = result
-  for child in node.children:
-    discard addTreeNode(child, result)
-  if node.metadata.len > 0:
-    let metadata = TreeBinding(node: node, metadataText: metadataString(node))
-    let metadataLabel = w("Metadata")
-    bindings.add metadata
-    var metadataInsert = TVINSERTSTRUCTW(hParent: result, hInsertAfter: TVI_LAST,
-      item: TVITEMW(mask: TVIF_TEXT or TVIF_PARAM or TVIF_IMAGE or
-        TVIF_SELECTEDIMAGE, pszText: metadataLabel, iImage: I_IMAGENONE,
-        iSelectedImage: I_IMAGENONE, lParam: cast[LPARAM](metadata)))
+  if node.children.len > 0:
+    let placeholder = TreeBinding(placeholder: true)
+    bindings.add placeholder
+    let placeholderLabel = w("Loading…")
+    var placeholderInsert = TVINSERTSTRUCTW(hParent: result,
+      hInsertAfter: TVI_LAST, item: TVITEMW(mask: TVIF_TEXT or TVIF_PARAM or
+      TVIF_IMAGE or TVIF_SELECTEDIMAGE, pszText: placeholderLabel,
+      iImage: I_IMAGENONE, iSelectedImage: I_IMAGENONE,
+      lParam: cast[LPARAM](placeholder)))
     discard SendMessageW(treeView, TVM_INSERTITEMW, 0,
-      cast[LPARAM](addr metadataInsert))
-  if node.children.len > 0 and node.containsFailure:
-    discard SendMessageW(treeView, TVM_EXPAND, TVE_EXPAND,
-      cast[LPARAM](result))
+      cast[LPARAM](addr placeholderInsert))
 
 proc rebuildTree() =
   discard SendMessageW(treeView, TVM_DELETEITEM, 0, cast[LPARAM](TVI_ROOT))
   bindings.setLen(0)
   firstPreviewItem = nil
-  for root in currentInspection.resources.roots:
-    let item = addTreeNode(root, TVI_ROOT)
-    discard SendMessageW(treeView, TVM_EXPAND, TVE_EXPAND, cast[LPARAM](item))
-  if firstPreviewItem != nil:
-    discard SendMessageW(treeView, TVM_SELECTITEM, TVGN_CARET,
-      cast[LPARAM](firstPreviewItem))
+  for root in currentSession.rootDescriptors:
+    discard addDescriptorNode(root, TVI_ROOT,
+      if currentFilename.len > 0: currentFilename.extractFilename else: "")
 
 proc isPlayable(binding: TreeBinding): bool =
-  if binding.isNil or binding.metadataText.len > 0:
+  if binding.isNil or binding.metadataText.len > 0 or binding.node.isNil:
     return false
   case binding.node.kind
   of vrnkAudio:
@@ -566,6 +691,7 @@ proc populateFontControls(font: VextBitmapFont) =
 proc selectBinding(binding: TreeBinding) =
   stopAudio()
   selected = binding
+  metadataViewBinding = nil
   animationFrame = 0
   colourCycleElapsedMs = 0
   animationPlaying = false
@@ -576,6 +702,13 @@ proc selectBinding(binding: TreeBinding) =
   elif binding.metadataText.len > 0:
     currentView = vkText
     discard SetWindowTextW(textView, w(binding.metadataText))
+  elif binding.loadPending:
+    currentView = vkText
+    discard SetWindowTextW(textView,
+      w("This resource is queued for background loading."))
+  elif binding.node.isNil:
+    currentView = vkText
+    discard SetWindowTextW(textView, w(metadataString(binding.descriptor)))
   elif binding.node.failureMessage.len > 0:
     currentView = vkText
     discard SetWindowTextW(textView, w(failureString(binding.node)))
@@ -605,7 +738,8 @@ proc selectBinding(binding: TreeBinding) =
   let playable = binding.isPlayable
   discard EnableWindow(playButton, if playable: 1 else: 0)
   discard SetWindowTextW(playButton, w("Play"))
-  if not binding.isNil and binding.metadataText.len == 0:
+  if not binding.isNil and binding.metadataText.len == 0 and
+      not binding.node.isNil:
     let formats = binding.node.exportFormatsFor
     var defaultFormatIndex = 0
     for index, format in formats:
@@ -623,32 +757,201 @@ proc selectBinding(binding: TreeBinding) =
     layout(mainWindow)
     discard InvalidateRect(preview, nil, 1)
 
-proc decodeBindingOnDemand(binding: TreeBinding, item: HTREEITEM) =
-  if binding.isNil or binding.metadataText.len > 0 or binding.node.isNil or
-      binding.node.kind != vrnkOpaque or
-      binding.node.lazyPayload.source.isNil or
-      binding.node.nestedInspectionAttempted:
-    return
+proc releaseLoadedBindings(keep: TreeBinding = nil) =
+  for binding in bindings:
+    if binding != keep and not binding.isNil:
+      binding.node = nil
+      binding.loadedTree.roots.setLen(0)
+      binding.loadedData.setLen(0)
+
+proc sessionWorker(job: SessionJob) {.thread.} =
+  var completed = SessionResult(kind: job.kind, binding: job.binding,
+    item: job.item)
+  try:
+    {.cast(gcsafe).}:
+      let progress: VextSessionProgressCallback =
+        proc(event: VextSessionProgressEvent): bool =
+          var position = 0
+          if event.discovered > 0 and event.totalState == vptsFinal and
+              (event.discovered > 1 or event.completed > 0):
+            position = min(100, event.completed * 100 div event.discovered) + 1
+          discard PostMessageW(mainWindow, WM_SESSION_PROGRESS,
+            WPARAM(position), 0)
+          true
+      case job.kind
+      of sjkExpand:
+        completed.delta = job.session.expandResource(
+          job.binding.descriptor.id, progress)
+      of sjkLoad:
+        completed.loaded = job.session.loadResource(
+          job.binding.descriptor.id,
+          progress = progress,
+          maximumWorkingBytes = job.maximumWorkingBytes)
+      of sjkDecodeLoaded:
+        completed.decodeResult = decodeResourceOnDemand(job.binding.node)
+  except CatchableError as error:
+    completed.error = error.msg
+  job.result[] = completed
+  discard PostMessageW(mainWindow, WM_SESSION_DONE, 0,
+    cast[LPARAM](job.result))
+
+proc launchSessionJob(kind: SessionJobKind, binding: TreeBinding,
+    item: HTREEITEM, maximumWorkingBytes: int) =
+  sessionJobActive = true
+  discard EnableWindow(openButton, 0)
   discard ShowWindow(progressBar, SW_SHOW)
+  discard SendMessageW(progressBar, PBM_SETPOS, 0, 0)
   discard SendMessageW(progressBar, PBM_SETMARQUEE, 1, 30)
-  let decoded = decodeResourceOnDemand(binding.node)
-  discard SendMessageW(progressBar, PBM_SETMARQUEE, 0, 0)
-  discard ShowWindow(progressBar, 0)
-  case decoded
-  of vddDecoded:
-    for child in binding.node.children:
-      discard addTreeNode(child, item)
-    discard SendMessageW(treeView, TVM_EXPAND, TVE_EXPAND,
-      cast[LPARAM](item))
-  of vddFailed:
-    if failureImageIndex >= 0:
-      var treeItem = TVITEMW(mask: TVIF_IMAGE or TVIF_SELECTEDIMAGE,
-        hItem: item, iImage: failureImageIndex,
-        iSelectedImage: failureImageIndex)
-      discard SendMessageW(treeView, TVM_SETITEMW, 0,
-        cast[LPARAM](addr treeItem))
+  let completed = cast[ptr SessionResult](allocShared0(sizeof(SessionResult)))
+  createThread(sessionThread, sessionWorker,
+    (kind, currentSession, binding, item, maximumWorkingBytes, completed))
+
+proc startSessionJob(kind: SessionJobKind, binding: TreeBinding,
+    item: HTREEITEM = nil, maximumWorkingBytes = 0): bool =
+  if sessionJobActive:
+    sessionQueue.add PendingSessionJob(kind: kind, binding: binding,
+      item: item, maximumWorkingBytes: maximumWorkingBytes)
   else:
-    discard
+    launchSessionJob(kind, binding, item, maximumWorkingBytes)
+  true
+
+proc startLoadBinding(binding: TreeBinding, item: HTREEITEM): bool =
+  if binding.isNil or binding.placeholder or binding.metadataText.len > 0:
+    return false
+  if binding.loadPending:
+    return true
+  if not binding.node.isNil:
+    if binding.node.kind == vrnkOpaque and
+        not binding.node.lazyPayload.source.isNil and
+        not binding.node.nestedInspectionAttempted:
+      result = startSessionJob(sjkDecodeLoaded, binding, item)
+      if result:
+        binding.loadPending = true
+        selectBinding(binding)
+      return
+    return false
+  if binding.descriptor.kind == vrnkGroup:
+    return false
+  var overrideLimit = 0
+  let limit = currentSession.limits.maximumWorkingBytes
+  if binding.descriptor.estimatedBytes > limit and
+      not binding.workingLimitApproved:
+    let message = "This resource is estimated to require " &
+      byteSize(binding.descriptor.estimatedBytes) &
+      ", above the per-resource working-data limit of " & byteSize(limit) &
+      ".\n\nLoad this member anyway? Other archive members will remain unloaded."
+    if MessageBoxW(mainWindow, w(message), w("Vexter working-data limit"),
+        0x34) != 6:
+      return true
+    binding.workingLimitApproved = true
+  if binding.workingLimitApproved:
+    overrideLimit = binding.descriptor.estimatedBytes
+  result = startSessionJob(sjkLoad, binding, item,
+    maximumWorkingBytes = overrideLimit)
+  if result:
+    binding.loadPending = true
+    selectBinding(binding)
+
+proc startExpandBinding(binding: TreeBinding, item: HTREEITEM): bool =
+  if binding.isNil or binding.placeholder or binding.childrenLoaded:
+    return false
+  if not binding.node.isNil and binding.node.children.len > 0:
+    let placeholder = cast[HTREEITEM](SendMessageW(treeView, TVM_GETNEXTITEM,
+      TVGN_CHILD, cast[LPARAM](item)))
+    if placeholder != nil:
+      discard SendMessageW(treeView, TVM_DELETEITEM, 0,
+        cast[LPARAM](placeholder))
+    for child in binding.node.children:
+      discard addLoadedNode(child, item)
+    binding.childrenLoaded = true
+    return true
+  if vrcEnumerateChildren notin binding.descriptor.capabilities:
+    return false
+  startSessionJob(sjkExpand, binding, item)
+
+proc finishSessionJob(result: ptr SessionResult) =
+  joinThread(sessionThread)
+  let completed = result[]
+  reset(result[])
+  deallocShared(result)
+  sessionJobActive = false
+  if completed.kind in {sjkLoad, sjkDecodeLoaded} and
+      not completed.binding.isNil:
+    completed.binding.loadPending = false
+  if completed.error.len > 0:
+    if completed.kind in {sjkLoad, sjkDecodeLoaded}:
+      completed.binding.metadataText =
+        "Could not load this resource.\r\n\r\n" & completed.error
+      if selected == completed.binding:
+        selectBinding(completed.binding)
+    else:
+      showError(completed.error)
+  else:
+    case completed.kind
+    of sjkExpand:
+      let firstChild = cast[HTREEITEM](SendMessageW(treeView, TVM_GETNEXTITEM,
+        TVGN_CHILD, cast[LPARAM](completed.item)))
+      if firstChild != nil:
+        discard SendMessageW(treeView, TVM_DELETEITEM, 0,
+          cast[LPARAM](firstChild))
+      for child in completed.delta.children:
+        discard addDescriptorNode(child, completed.item)
+      completed.binding.childrenLoaded = true
+    of sjkLoad:
+      completed.binding.releaseLoadedBindings()
+      completed.binding.loadedData = completed.loaded.data
+      completed.binding.loadedTree = completed.loaded.resources
+      if completed.binding.loadedTree.roots.len == 1:
+        completed.binding.node = completed.binding.loadedTree.roots[0]
+      elif completed.binding.loadedTree.roots.len > 1:
+        completed.binding.node = VextResourceNode(
+          path: completed.binding.descriptor.path,
+          typeId: completed.loaded.descriptor.typeId, kind: vrnkGroup,
+          children: completed.binding.loadedTree.roots)
+      if not completed.binding.node.isNil and
+          completed.binding.node.children.len > 0:
+        completed.binding.childrenLoaded = false
+        let placeholder = TreeBinding(placeholder: true)
+        bindings.add placeholder
+        let placeholderLabel = w("Loading…")
+        var placeholderInsert = TVINSERTSTRUCTW(hParent: completed.item,
+          hInsertAfter: TVI_LAST, item: TVITEMW(mask: TVIF_TEXT or TVIF_PARAM or
+          TVIF_IMAGE or TVIF_SELECTEDIMAGE, pszText: placeholderLabel,
+          iImage: I_IMAGENONE, iSelectedImage: I_IMAGENONE,
+          lParam: cast[LPARAM](placeholder)))
+        discard SendMessageW(treeView, TVM_INSERTITEMW, 0,
+          cast[LPARAM](addr placeholderInsert))
+      if selected == completed.binding:
+        selectBinding(completed.binding)
+    of sjkDecodeLoaded:
+      if completed.decodeResult == vddDecoded and
+          completed.binding.node.children.len == 1:
+        completed.binding.node = completed.binding.node.children[0]
+      if completed.decodeResult == vddDecoded and
+          completed.binding.node.kind == vrnkGroup and
+          completed.binding.node.children.len > 0:
+        completed.binding.childrenLoaded = false
+        let placeholder = TreeBinding(placeholder: true)
+        bindings.add placeholder
+        let placeholderLabel = w("Loading…")
+        var placeholderInsert = TVINSERTSTRUCTW(hParent: completed.item,
+          hInsertAfter: TVI_LAST, item: TVITEMW(mask: TVIF_TEXT or TVIF_PARAM or
+          TVIF_IMAGE or TVIF_SELECTEDIMAGE, pszText: placeholderLabel,
+          iImage: I_IMAGENONE, iSelectedImage: I_IMAGENONE,
+          lParam: cast[LPARAM](placeholder)))
+        discard SendMessageW(treeView, TVM_INSERTITEMW, 0,
+          cast[LPARAM](addr placeholderInsert))
+      if selected == completed.binding:
+        selectBinding(completed.binding)
+  if sessionQueue.len > 0:
+    let pending = sessionQueue[0]
+    sessionQueue.delete(0)
+    launchSessionJob(pending.kind, pending.binding, pending.item,
+      pending.maximumWorkingBytes)
+  else:
+    discard SendMessageW(progressBar, PBM_SETMARQUEE, 0, 0)
+    discard ShowWindow(progressBar, 0)
+    discard EnableWindow(openButton, 1)
 
 proc selectedFrameDuration(): int =
   if selected.isNil or selected.node.kind != vrnkRaster: return 0
@@ -731,29 +1034,30 @@ proc chooseFile(save: bool, extension = "", filter = "All files\0*.*\0\0"): stri
   let accepted = if save: GetSaveFileNameW(addr info) else: GetOpenFileNameW(addr info)
   if accepted != 0: $buffer else: ""
 
+proc guiFileSource(path: string): VextByteSource =
+  let length = int(path.getFileSize)
+  var input = open(path, fmRead)
+  newByteSource(length,
+    proc(offset, amount: int): seq[byte] =
+      input.setFilePos(offset)
+      result = newSeq[byte](amount)
+      if amount > 0 and input.readBuffer(addr result[0], amount) != amount:
+        raise newException(IOError, "short read from " & path),
+    path, proc() = input.close())
+
+proc guiCompanionResolver(path: string): VextCompanionSourceResolver =
+  let directory = path.parentDir
+  result = proc(relativePath: string): VextByteSource =
+    let companionPath = directory / relativePath
+    if companionPath.fileExists: guiFileSource(companionPath) else: nil
+
 proc loadWorker(job: LoadJob) {.thread.} =
   var loaded = LoadResult(filename: job.filename)
   try:
-    let length = int(job.filename.getFileSize)
-    var data = newSeq[byte](length)
-    if length > 0:
-      let input = open(job.filename, fmRead)
-      defer: input.close()
-      var offset = 0
-      while offset < length:
-        let amount = input.readBuffer(addr data[offset], length - offset)
-        if amount <= 0:
-          raise newException(IOError, "short read from " & job.filename)
-        offset += amount
     {.cast(gcsafe).}:
-      loaded.inspection = inspectOwnedSource(job.filename, move(data), progress =
-        proc(event: VextProgressEvent): bool = true,
-        companionResolver = proc(relativePath: string): seq[byte] {.gcsafe.} =
-          let companionPath = job.filename.parentDir / relativePath
-          if companionPath.fileExists:
-            let companion = readFile(companionPath)
-            result = newSeq[byte](companion.len)
-            for index, value in companion: result[index] = byte(value))
+      loaded.session = openInspectionSession(job.filename,
+        newSourceCollection(guiFileSource(job.filename),
+          guiCompanionResolver(job.filename)))
   except CatchableError as error:
     loaded.error = error.msg
   job.result[] = loaded
@@ -778,9 +1082,10 @@ proc finishLoad(result: ptr LoadResult) =
     showError(loaded.error)
   else:
     stopAudio()
+    if not currentSession.isNil: currentSession.close()
     selected = nil
     currentFilename = loaded.filename
-    currentInspection = loaded.inspection
+    currentSession = loaded.session
     rebuildTree()
     discard SetWindowTextW(mainWindow, w("Vexter - " & loaded.filename.extractFilename))
 
@@ -798,7 +1103,7 @@ proc doExport() =
     var exported: VextExportResult
     while true:
       try:
-        exported = exportResource(currentInspection.resources,
+        exported = exportResource(selected.loadedTree,
           VextExportRequest(resourcePath: selected.node.path,
             outputFormat: format.id,
             suggestedName: destination.splitFile.name,
@@ -968,8 +1273,15 @@ proc mainProc(hwnd: HWND, msg: UINT, wp: WPARAM, lp: LPARAM): LRESULT {.stdcall.
     if notification != nil and notification.hdr.hwndFrom == treeView and
         notification.hdr.code == TVN_SELCHANGEDW:
       let binding = cast[TreeBinding](notification.itemNew.lParam)
-      decodeBindingOnDemand(binding, notification.itemNew.hItem)
-      selectBinding(binding)
+      if not startLoadBinding(binding, notification.itemNew.hItem):
+        selectBinding(binding)
+    elif notification != nil and notification.hdr.hwndFrom == treeView and
+        notification.hdr.code == TVN_ITEMEXPANDINGW:
+      let binding = cast[TreeBinding](notification.itemNew.lParam)
+      discard startExpandBinding(binding, notification.itemNew.hItem)
+    elif notification != nil and notification.hdr.hwndFrom == treeView and
+        notification.hdr.code == NM_RCLICK:
+      showTreeMetadataMenu()
     return 0
   of WM_TIMER:
     if wp == 1 and animationPlaying and frameCount() > 1:
@@ -988,9 +1300,21 @@ proc mainProc(hwnd: HWND, msg: UINT, wp: WPARAM, lp: LPARAM): LRESULT {.stdcall.
   of WM_LOAD_DONE:
     finishLoad(cast[ptr LoadResult](lp))
     return 0
+  of WM_SESSION_DONE:
+    finishSessionJob(cast[ptr SessionResult](lp))
+    return 0
+  of WM_SESSION_PROGRESS:
+    if sessionJobActive:
+      if wp == 0:
+        discard SendMessageW(progressBar, PBM_SETMARQUEE, 1, 30)
+      else:
+        discard SendMessageW(progressBar, PBM_SETMARQUEE, 0, 0)
+        discard SendMessageW(progressBar, PBM_SETPOS, wp - 1, 0)
+    return 0
   of WM_CLOSE:
     stopAudio()
   of WM_DESTROY:
+    if not currentSession.isNil: currentSession.close()
     if treeImages != nil:
       discard SendMessageW(treeView, TVM_SETIMAGELIST, TVSIL_NORMAL, 0)
       discard ImageList_Destroy(treeImages)

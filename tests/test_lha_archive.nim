@@ -100,6 +100,28 @@ suite "LHA archives":
     check parsed.entries[0].name == "level-one.txt"
     check parsed.entries[0].data == @[byte('o'), byte('k')]
 
+  test "session indexing skips LHA payloads until materialization":
+    let raw = newSeq[byte](100_000)
+    var archive = levelZero("-lh0-", "large.bin", raw, raw)
+    archive.add 0
+    let payloadStart = 24 + "large.bin".len
+    var payloadRead = false
+    let source = newByteSource(archive.len,
+      proc(offset, length: int): seq[byte] =
+        if offset < payloadStart + raw.len and offset + length > payloadStart:
+          payloadRead = true
+        result = archive[offset ..< offset + length])
+    let session = openInspectionSession("large.lha",
+      newSourceCollection(source))
+    check session.selectedFormat.typeId == LhaArchiveTypeId
+    check not payloadRead
+    let child = session.expandResource(session.rootDescriptors[0].id).
+      children[0]
+    check not payloadRead
+    discard session.loadResource(child.id)
+    check payloadRead
+    session.close()
+
   test "checksums, traversal, unsupported methods, and truncation fail":
     var valid = levelZero("-lh0-", "safe", @[1'u8], @[1'u8])
     valid.add 0

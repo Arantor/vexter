@@ -3,6 +3,7 @@
 import std/[parseutils, strutils, unicode, xmlparser, xmltree]
 import ./png_container
 import ./zip_archive
+import ../byte_sources
 
 const
   OpenRasterTypeId* = "image.openraster"
@@ -40,6 +41,19 @@ type
     stack*: OpenRasterElement
     mergedImage*: PngImageSource
     thumbnail*: PngImageSource
+
+  OpenRasterManifestElement* = ref object
+    kind*: OpenRasterElementKind
+    name*: string
+    sourcePath*: string
+    children*: seq[OpenRasterManifestElement]
+
+  OpenRasterManifest* = object
+    version*: string
+    name*: string
+    width*, height*: int
+    xResolution*, yResolution*: int
+    stack*: OpenRasterManifestElement
 
 proc entryNamed(archive: ZipArchive, name: string): ptr ZipEntry =
   for index in 0 .. archive.entries.high:
@@ -142,6 +156,100 @@ proc hasOpenRasterMimeMarker*(archive: ZipArchive,
     extractZipEntry(archiveData, marker[]).bytesText == OpenRasterMimeType
   except ValueError:
     false
+
+proc hasOpenRasterMimeMarker*(archive: ZipArchive,
+    source: VextByteSource): bool =
+  let marker = archive.entryNamed("mimetype")
+  if marker.isNil or marker[].localHeaderOffset != 0 or
+      marker[].compressionMethod != 0:
+    return false
+  try:
+    extractZipEntry(source, marker[], 1024).bytesText == OpenRasterMimeType
+  except ValueError:
+    false
+
+proc manifestElement(node: XmlNode, archive: ZipArchive,
+    depth = 0): OpenRasterManifestElement =
+  if depth >= 64:
+    raise newException(ValueError,
+      "OpenRaster layer stack exceeds the maximum nesting depth")
+  case node.tag
+  of "stack":
+    result = OpenRasterManifestElement(kind: orekStack,
+      name: node.attr("name"))
+    for child in node:
+      if child.kind != xnElement: continue
+      if child.tag notin ["stack", "layer"]:
+        raise newException(ValueError,
+          "unsupported OpenRaster stack element: " & child.tag)
+      result.children.add manifestElement(child, archive, depth + 1)
+    if result.children.len == 0:
+      raise newException(ValueError, "OpenRaster stack is empty")
+  of "layer":
+    let sourcePath = node.attr("src")
+    if not safeRelativePath(sourcePath):
+      raise newException(ValueError, "unsafe OpenRaster layer source path")
+    if sourcePath in ["mimetype", "stack.xml", "mergedimage.png",
+        "Thumbnails/thumbnail.png"]:
+      raise newException(ValueError,
+        "OpenRaster layer references a reserved package member")
+    if archive.entryNamed(sourcePath).isNil:
+      raise newException(ValueError,
+        "OpenRaster layer source is missing: " & sourcePath)
+    result = OpenRasterManifestElement(kind: orekLayer,
+      name: node.attr("name"), sourcePath: sourcePath)
+  else:
+    raise newException(ValueError,
+      "unsupported OpenRaster layer-stack element: " & node.tag)
+
+proc parseOpenRasterManifest*(archive: ZipArchive, source: VextByteSource,
+    maximumManifestBytes = 64 * 1024 * 1024): OpenRasterManifest =
+  ## Validates package identity and its manifest without opening referenced
+  ## layer imagery. Payload CRC and PNG validation remain demand operations.
+  if not archive.hasOpenRasterMimeMarker(source):
+    raise newException(ValueError, "invalid OpenRaster MIME marker")
+  for entry in archive.entries:
+    if validateUtf8(entry.name) != -1:
+      raise newException(ValueError, "invalid OpenRaster member name")
+    var nonAscii = false
+    for character in entry.name:
+      if ord(character) >= 0x80: nonAscii = true
+    if nonAscii and not entry.utf8Name:
+      raise newException(ValueError,
+        "non-ASCII OpenRaster member name lacks the ZIP UTF-8 flag")
+  let stackEntry = archive.entryNamed("stack.xml")
+  if stackEntry.isNil or archive.entryNamed("mergedimage.png").isNil or
+      archive.entryNamed("Thumbnails/thumbnail.png").isNil:
+    raise newException(ValueError,
+      "OpenRaster package is missing a required file")
+  let stackData = extractZipEntry(source, stackEntry[], maximumManifestBytes)
+  var root: XmlNode
+  try:
+    root = parseXml(stackData.bytesText, {})
+  except CatchableError as error:
+    raise newException(ValueError, "invalid OpenRaster stack.xml: " & error.msg)
+  if root.kind != xnElement or root.tag != "image":
+    raise newException(ValueError, "OpenRaster XML root element is not image")
+  result.version = root.attr("version")
+  result.name = root.attr("name")
+  result.width = root.integerAttribute("w", true)
+  result.height = root.integerAttribute("h", true)
+  result.xResolution = root.integerAttribute("xres")
+  result.yResolution = root.integerAttribute("yres")
+  if result.version.len == 0 or result.width <= 0 or result.height <= 0 or
+      result.xResolution < 0 or result.yResolution < 0:
+    raise newException(ValueError, "OpenRaster image metadata is invalid")
+  var stacks = 0
+  for child in root:
+    if child.kind != xnElement: continue
+    if child.tag != "stack":
+      raise newException(ValueError,
+        "unsupported OpenRaster image element: " & child.tag)
+    inc stacks
+    result.stack = manifestElement(child, archive)
+  if stacks != 1:
+    raise newException(ValueError,
+      "OpenRaster image must contain one root stack")
 
 proc parseOpenRaster*(archive: ZipArchive,
     archiveData: openArray[byte]): OpenRasterDocument =

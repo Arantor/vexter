@@ -170,6 +170,25 @@ be used for that transfer.
   of resource patterns, assigns safe hierarchical names, resolves normalized
   filename collisions deterministically, and returns all artifacts in memory.
 
+`src/vexterlib/byte_sources.nim` defines bounded random-access byte sources and
+source collections. A collection owns its primary source and any companions
+opened through its resolver, so an inspection session has one explicit
+lifetime without requiring the complete input to be retained in memory.
+
+`src/vexterlib/inspection_sessions.nim` is the incremental container API. It
+separates stable resource descriptors from payload materialization, exposes
+independent child enumeration and load operations, applies depth/resource/
+manifest/working-memory limits, and reports progress whose total is explicitly
+unknown, growing, or final. ZIP/OpenRaster, ISO 9660, LHA, and ADF use indexed
+random-access providers: opening validates only the carrier or manifest,
+expanding reads one directory, and loading reads one member. Packed wrappers
+defer their unpacking until their synthetic content root is expanded or loaded.
+Callers own each loaded result and may discard it independently of the session.
+
+The CLI uses a session walk for inspection. The Windows GUI retains the session
+for the open document, adds descriptor children on demand, and performs expand
+and load requests on a worker thread so message processing is not blocked.
+
 `src/vexterlib/transformations/colour_cycle.nim` combines up to six effective
 palette ranges with a still image or source animation timeline. It uses the
 least common multiple of the source and range periods, emits only at actual

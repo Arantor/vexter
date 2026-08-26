@@ -143,6 +143,50 @@ suite "ZIP archives":
       discard parseZipArchive(zipFixture([
         FixtureEntry(name: repeat('x', 256), data: @[1'u8])]))
 
+  test "random-access sessions index and enumerate without reading payloads":
+    let archive = zipFixture([FixtureEntry(name: "large.bin",
+      data: newSeq[byte](100_000))])
+    let payloadStart = 30 + "large.bin".len
+    var payloadRead = false
+    let source = newByteSource(archive.len,
+      proc(offset, length: int): seq[byte] =
+        if offset < payloadStart + 100_000 and offset + length > payloadStart:
+          payloadRead = true
+        result = archive[offset ..< offset + length])
+    let session = openInspectionSession("large.zip",
+      newSourceCollection(source))
+    check session.selectedFormat.typeId == ZipArchiveTypeId
+    check not payloadRead
+    let roots = session.rootDescriptors
+    check roots.len == 1
+    let children = session.expandResource(roots[0].id).children
+    check children.len == 1
+    check children[0].path == "/archive/large.bin"
+    check not payloadRead
+    discard session.loadResource(children[0].id)
+    check payloadRead
+    session.close()
+
+  test "a caller can override the working limit for one materialization":
+    let archive = zipFixture([FixtureEntry(name: "large.bin",
+      data: newSeq[byte](100_000))])
+    var limits = defaultWorkLimits()
+    limits.maximumWorkingBytes = 50_000
+    let session = openInspectionSession("large.zip",
+      newSourceCollection(memoryByteSource(archive)), limits = limits)
+    let member = session.expandResource(session.rootDescriptors[0].id).children[0]
+    var message = ""
+    try:
+      discard session.loadResource(member.id)
+    except VextWorkLimitError as error:
+      message = error.msg
+    check "100000 bytes" in message
+    check "50000 bytes" in message
+    let loaded = session.loadResource(member.id,
+      maximumWorkingBytes = member.estimatedBytes)
+    check loaded.data.len == 100_000
+    session.close()
+
   test "export names are host-independent":
     check normalizedZipExportName("report:2026?.txt") == "report_2026_.txt"
     check normalizedZipExportName("CON") == "_CON"

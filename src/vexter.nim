@@ -1,6 +1,6 @@
 ## Command-line client for vexterlib.
 
-import std/[json, os, strformat, strutils]
+import std/[json, os, strformat, strutils, terminal]
 import vexterlib
 
 type
@@ -53,6 +53,37 @@ proc readBytes(path: string): seq[byte] {.gcsafe.} =
     if amount <= 0:
       raise newException(IOError, "short read from " & path)
     offset += amount
+
+proc fileByteSource(path: string): VextByteSource =
+  let length = int(path.getFileSize)
+  var input = open(path, fmRead)
+  result = newByteSource(length,
+    proc(offset, amount: int): seq[byte] =
+      input.setFilePos(offset)
+      result = newSeq[byte](amount)
+      if amount > 0 and input.readBuffer(addr result[0], amount) != amount:
+        raise newException(IOError, "short read from " & path),
+    path,
+    proc() = input.close())
+
+proc companionSourceResolverFor(path: string): VextCompanionSourceResolver =
+  let directory = path.parentDir
+  result = proc(relativePath: string): VextByteSource =
+    var candidate = directory
+    for segment in relativePath.split('/'):
+      let exact = candidate / segment
+      if exact.fileExists or exact.dirExists:
+        candidate = exact
+        continue
+      var match = ""
+      if candidate.dirExists:
+        for kind, item in candidate.walkDir:
+          if item.extractFilename.cmpIgnoreCase(segment) == 0:
+            if match.len > 0: return nil
+            match = item
+      if match.len == 0: return nil
+      candidate = match
+    if candidate.fileExists: fileByteSource(candidate) else: nil
 
 proc companionResolverFor(path: string): VextCompanionResolver =
   let directory = path.parentDir
@@ -130,20 +161,44 @@ proc parseOptions(arguments: seq[string]): CliOptions =
   if result.input.len == 0:
     raise newException(CliError, "no input was provided")
 
+proc descriptorKind(item: VextResourceDescriptor): string =
+  case item.kind
+  of vrnkGroup: "group"
+  of vrnkRaster: "raster"
+  of vrnkText: "text"
+  of vrnkAudio: "audio"
+  of vrnkFont: "font"
+  of vrnkPalette: "palette"
+  of vrnkOpaque: "opaque"
+
 proc inspect(options: CliOptions) =
-  var data = readBytes(options.input)
-  let inspection = inspectOwnedSource(options.input, move(data), options.inputFormat,
-    options.ignoreWarnings, options.pcxChannelOrder,
-    options.ansiLetterSpacing, options.ansiAspect,
-    companionResolver = companionResolverFor(options.input))
-  let resources = inspection.resources.leafResources
+  let sources = newSourceCollection(fileByteSource(options.input),
+    companionSourceResolverFor(options.input))
+  let progress: VextSessionProgressCallback =
+    if stderr.isatty:
+      proc(event: VextSessionProgressEvent): bool =
+        let status = if event.discovered > 0:
+            &"{event.completed}/{event.discovered}, {event.pending} pending"
+          else: event.message
+        stderr.write("\rVexter: " & status & "                    ")
+        if event.phase == vsppComplete: stderr.write("\r" & repeat(' ', 72) & "\r")
+        true
+    else: nil
+  let session = openInspectionSession(options.input, sources,
+    options.inputFormat, options.ignoreWarnings, options.pcxChannelOrder,
+    options.ansiLetterSpacing, options.ansiAspect, progress = progress)
+  defer: session.close()
+  var resources: seq[VextResourceDescriptor]
+  session.walkTopology(proc(item: VextResourceDescriptor): bool =
+    if item.kind != vrnkGroup: resources.add item
+    true, progress)
 
   if options.json:
     var candidateNodes = newJArray()
     let shownCandidates =
       if options.allCandidates and options.inputFormat.len == 0:
-        inspection.candidates
-      else: @[inspection.selectedFormat]
+        session.candidates
+      else: @[session.selectedFormat]
     for candidate in shownCandidates:
       var evidence = newJArray()
       for item in candidate.evidence:
@@ -162,43 +217,29 @@ proc inspect(options: CliOptions) =
       var resource = %*{
         "path": item.path,
         "type": item.typeId,
-        "kind": (case item.kind
-          of vrnkRaster: "raster"
-          of vrnkText: "text"
-          of vrnkAudio: "audio"
-          of vrnkFont: "font"
-          of vrnkPalette: "palette"
-          else: "opaque")
+        "kind": item.descriptorKind
       }
-      if item.kind == vrnkRaster:
-        let raster = item.raster
-        resource["archetype"] = %raster.archetypeName
-        resource["width"] = %raster.width
-        resource["height"] = %raster.height
-        case raster.kind
-        of vrkIndexedAnimation:
-          resource["frames"] = %raster.animation.frames.len
-        of vrkTrueColourAnimation:
-          resource["frames"] = %raster.trueColourAnimation.frames.len
-        else: discard
+      if item.kind == vrnkRaster and item.archetype.len > 0:
+        resource["archetype"] = %item.archetype
+        resource["width"] = %item.width
+        resource["height"] = %item.height
+        if item.frames > 0: resource["frames"] = %item.frames
       elif item.kind == vrnkAudio:
-        let sound = item.audioSound
-        resource["archetype"] = %(if item.audioKind == varkSound: "sound"
-          else: "sampled-instrument")
-        resource["channels"] = %sound.buffer.channels.len
-        resource["bitsPerSample"] = %sound.buffer.bitsPerSample
-        resource["sampleRate"] = %sound.sampleRate
-        resource["samples"] = %sound.buffer.sampleCount
+        resource["archetype"] = %item.archetype
+        resource["channels"] = %item.channels
+        resource["bitsPerSample"] = %item.bitsPerSample
+        resource["sampleRate"] = %item.sampleRate
+        resource["samples"] = %item.samples
       elif item.kind == vrnkFont:
         resource["archetype"] = %"VextBitmapFont"
-        resource["glyphs"] = %item.font.glyphs.len
-        resource["characters"] = %item.font.mappings.len
-        resource["lineHeight"] = %item.font.lineHeight
-        resource["baseline"] = %item.font.baseline
+        resource["glyphs"] = %item.glyphs
+        resource["characters"] = %item.characters
+        resource["lineHeight"] = %item.lineHeight
+        resource["baseline"] = %item.baseline
       elif item.kind == vrnkPalette:
         resource["archetype"] = %"VextPalette"
-        resource["colours"] = %item.palette.colours.len
-        resource["colourCycleRanges"] = %item.palette.colourCycles.len
+        resource["colours"] = %item.colours
+        resource["colourCycleRanges"] = %item.colourCycleRanges
       if item.failureMessage.len > 0:
         resource["failure"] = %*{
           "format": item.failureFormat,
@@ -214,13 +255,13 @@ proc inspect(options: CliOptions) =
       resourceNodes.add resource
     let document = %*{
       "input": options.input,
-      "selectedFormat": inspection.selectedFormat.typeId,
+      "selectedFormat": session.selectedFormat.typeId,
       "candidates": candidateNodes,
       "resources": resourceNodes
     }
-    if inspection.warnings.len > 0:
+    if session.warnings.len > 0:
       var warningNodes = newJArray()
-      for warning in inspection.warnings:
+      for warning in session.warnings:
         warningNodes.add %*{
           "path": warning.path,
           "format": warning.format,
@@ -230,45 +271,33 @@ proc inspect(options: CliOptions) =
     echo document.pretty
   else:
     echo options.input
-    echo &"Format: {inspection.selectedFormat.typeId} " &
-      &"({inspection.selectedFormat.confidence})"
-    if inspection.selectedFormat.derivation.stages.len > 1:
+    echo &"Format: {session.selectedFormat.typeId} " &
+      &"({session.selectedFormat.confidence})"
+    if session.selectedFormat.derivation.stages.len > 1:
       var stages: seq[string]
-      for stage in inspection.selectedFormat.derivation.stages:
+      for stage in session.selectedFormat.derivation.stages:
         stages.add stage.typeId
       echo "Derivation: " & stages.join(" -> ")
-    for item in inspection.selectedFormat.evidence:
+    for item in session.selectedFormat.evidence:
       echo "  Evidence: " & item.description
     echo "Resources:"
     for item in resources:
       var description = &"  {item.path}  {item.typeId}"
-      if item.kind == vrnkRaster:
-        let raster = item.raster
-        description.add &" -> {raster.archetypeName} " &
-          &"{raster.width}x{raster.height}"
-        case raster.kind
-        of vrkIndexedAnimation:
-          description.add &", {raster.animation.frames.len} frame(s)"
-        of vrkTrueColourAnimation:
-          description.add &", {raster.trueColourAnimation.frames.len} frame(s)"
-        else: discard
+      if item.kind == vrnkRaster and item.archetype.len > 0:
+        description.add &" -> {item.archetype} {item.width}x{item.height}"
+        if item.frames > 0: description.add &", {item.frames} frame(s)"
       elif item.kind == vrnkText:
         description.add " (text)"
       elif item.kind == vrnkAudio:
-        let sound = item.audioSound
-        let archetype = if item.audioKind == varkSound: "sound"
-          else: "sampled-instrument"
-        description.add &" -> {archetype} " &
-          &"{sound.buffer.channels.len} channel(s), " &
-          &"{sound.buffer.bitsPerSample}-bit, " &
-          &"{sound.sampleRate} Hz"
+        description.add &" -> {item.archetype} {item.channels} channel(s), " &
+          &"{item.bitsPerSample}-bit, {item.sampleRate} Hz"
       elif item.kind == vrnkFont:
-        description.add &" -> VextBitmapFont {item.font.glyphs.len} glyph(s), " &
-          &"{item.font.mappings.len} character mapping(s), " &
-          &"line height {item.font.lineHeight}, baseline {item.font.baseline}"
+        description.add &" -> VextBitmapFont {item.glyphs} glyph(s), " &
+          &"{item.characters} character mapping(s), " &
+          &"line height {item.lineHeight}, baseline {item.baseline}"
       elif item.kind == vrnkPalette:
-        description.add &" -> VextPalette {item.palette.colours.len} colour(s), " &
-          &"{item.palette.colourCycles.len} cycling range(s)"
+        description.add &" -> VextPalette {item.colours} colour(s), " &
+          &"{item.colourCycleRanges} cycling range(s)"
       else:
         description.add " (opaque)"
       echo description
@@ -277,9 +306,9 @@ proc inspect(options: CliOptions) =
           of vmvkInteger: $entry.value.integerValue
           of vmvkString: entry.value.stringValue
         echo &"    {entry.key}: {value}"
-    if inspection.warnings.len > 0:
+    if session.warnings.len > 0:
       echo "Warnings:"
-      for warning in inspection.warnings:
+      for warning in session.warnings:
         echo &"  {warning.path} ({warning.format}): {warning.message}"
 
 proc bytesToString(data: openArray[byte]): string =

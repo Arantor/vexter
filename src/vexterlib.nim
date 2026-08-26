@@ -80,6 +80,8 @@ import vexterlib/handler_registry
 import vexterlib/metadata
 import vexterlib/operations
 import vexterlib/resource_tree
+import vexterlib/byte_sources
+import vexterlib/inspection_sessions
 import vexterlib/exporters/[gif, html_report, metadata_json, png, raw, wav]
 import vexterlib/exporters/bmfont
 
@@ -158,6 +160,8 @@ export bmfont_font
 export zx_spectrum_snapshot
 export zx_spectrum_tap
 export detection
+export byte_sources
+export inspection_sessions
 export format_detection_types
 export handler_registry
 export bmfont

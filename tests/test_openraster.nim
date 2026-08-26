@@ -108,3 +108,24 @@ suite "OpenRaster packages":
       discard inspectSource("painting.ora", reordered, OpenRasterTypeId)
     expect ValueError:
       discard detectFormats("painting.ora", openRasterFixture(includeStack = false))
+
+  test "session refinement validates only the manifest before media demand":
+    var data = openRasterFixture()
+    let png = imagePng()
+    var pngOffset = -1
+    for offset in 0 .. data.len - png.len:
+      var matches = true
+      for index in 0 ..< png.len:
+        if data[offset + index] != png[index]: matches = false
+      if matches:
+        pngOffset = offset
+        break
+    check pngOffset >= 0
+    data[pngOffset + png.high] = data[pngOffset + png.high] xor 1
+    let session = openInspectionSession("damaged-layer.ora",
+      newSourceCollection(memoryByteSource(move(data))))
+    check session.selectedFormat.typeId == OpenRasterTypeId
+    let layer = session.resourceAtPath("/layers/0")
+    expect ValueError:
+      discard session.loadResource(layer.id)
+    session.close()

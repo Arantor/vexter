@@ -121,6 +121,17 @@ suite "Amiga DMS disk archives":
     check inspection.resources.roots[0].typeId == AmigaDmsTypeId
     check inspection.resources.roots[0].children.len == 0
 
+  test "session defers DMS disk reconstruction until expansion":
+    var data = dmsFixture()
+    let session = openInspectionSession("empty.dms",
+      newSourceCollection(memoryByteSource(move(data))))
+    check session.selectedFormat.typeId == AmigaDmsTypeId
+    let roots = session.rootDescriptors
+    check roots.len == 1
+    check roots[0].path == "/disk"
+    check session.expandResource(roots[0].id).children.len == 0
+    session.close()
+
   test "the optional header word may be zero as in authentic disk archives":
     var data = dmsFixture()
     for index in 4 .. 7: data[index] = 0

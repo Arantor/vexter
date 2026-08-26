@@ -132,6 +132,22 @@ suite "Amiga ADF filesystems":
     check rasters[0].raster.width == 256
     check rasters[0].raster.height == 192
 
+  test "session providers enumerate ADF directories before reconstructing files":
+    var data = ffsFixture()
+    let session = openInspectionSession("disk.adf",
+      newSourceCollection(memoryByteSource(move(data))))
+    check session.selectedFormat.typeId == AmigaAdfTypeId
+    let roots = session.rootDescriptors
+    check roots.len == 1
+    let children = session.expandResource(roots[0].id).children
+    check children.len == 3
+    let pictures = session.resourceAtPath("/disk/Pictures")
+    let note = session.expandResource(pictures.id).children[0]
+    check note.path == "/disk/Pictures/note"
+    let loaded = session.loadResource(note.id)
+    check loaded.data == @[byte('o'), byte('k')]
+    session.close()
+
   test "OFS data headers are removed during file reconstruction":
     var data = newSeq[byte](AmigaAdfDdSize)
     let payload = @[1'u8, 2, 3, 4]

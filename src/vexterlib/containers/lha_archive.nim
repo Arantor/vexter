@@ -1,6 +1,7 @@
 ## Level-0 LHA/LZH archive parsing and LH0/LH5 expansion.
 
 import std/[strutils, unicode]
+import ../byte_sources
 
 const
   LhaArchiveTypeId* = "archive.lha"
@@ -16,6 +17,8 @@ type
     compressionMethod*: string
     compressedSize*: int
     uncompressedSize*: int
+    payloadOffset*: int
+    expectedCrc*: uint16
     data*: seq[byte]
 
   LhaArchive* = object
@@ -388,3 +391,120 @@ proc isLhaArchive*(data: openArray[byte]): bool =
 proc hasLhaExtension*(filename: string): bool =
   let lower = filename.toLowerAscii
   lower.endsWith(".lha") or lower.endsWith(".lzh")
+
+proc indexLhaArchive*(source: VextByteSource): LhaArchive =
+  ## Scans sequential LHA headers and retains member offsets without reading or
+  ## decompressing their payloads.
+  if source.isNil or source.length < 2:
+    raise newException(ValueError, "LHA archive is too short")
+  var offset = 0
+  var names: seq[string]
+  while offset < source.length:
+    let first = source.readAt(offset, 1)[0]
+    if first == 0: break
+    let headerSize = int(first)
+    if headerSize < 22 or offset + headerSize + 2 > source.length:
+      raise newException(ValueError, "invalid LHA level-0 header length")
+    let header = source.readAt(offset, headerSize + 2)
+    let level = int(header[20])
+    if level notin [0, 1]:
+      raise newException(ValueError, "unsupported LHA header level")
+    var checksum = 0
+    for index in 2 .. headerSize + 1:
+      checksum = (checksum + int(header[index])) and 0xff
+    if checksum != int(header[1]):
+      raise newException(ValueError, "LHA header checksum does not match")
+    var compressionMethod: string
+    for index in 2 .. 6: compressionMethod.add char(header[index])
+    if compressionMethod notin ["-lh0-", "-lh5-", "-lhd-"]:
+      raise newException(ValueError,
+        "unsupported LHA compression method: " & compressionMethod)
+    let declaredSize64 = uint64(leDword(header, 7))
+    let uncompressedSize64 = uint64(leDword(header, 11))
+    if declaredSize64 > uint64(high(int)) or
+        uncompressedSize64 > uint64(high(int)):
+      raise newException(ValueError, "LHA member is too large")
+    var compressedSize = int(declaredSize64)
+    let uncompressedSize = int(uncompressedSize64)
+    let nameLength = int(header[21])
+    if (level == 0 and nameLength == 0) or 24 + nameLength > header.len:
+      raise newException(ValueError, "invalid LHA level-0 filename length")
+    var name: string
+    for index in 0 ..< nameLength:
+      let value = header[22 + index]
+      if value == 0: raise newException(ValueError, "NUL in LHA entry name")
+      name.add char(value)
+    var payloadOffset = offset + headerSize + 2
+    if level == 1:
+      var extensionSize = int(leWord(header, headerSize))
+      var directoryPrefix = ""
+      while extensionSize != 0:
+        if extensionSize < 3 or extensionSize > source.length - payloadOffset or
+            extensionSize > compressedSize:
+          raise newException(ValueError, "invalid LHA level-1 extended header")
+        let extension = source.readAt(payloadOffset, extensionSize)
+        let extensionType = extension[0]
+        let fieldLength = extensionSize - 3
+        if extensionType in [1'u8, 2'u8]:
+          var field = ""
+          for index in 0 ..< fieldLength:
+            let value = extension[1 + index]
+            if value == 0: field.add '/' else: field.add char(value)
+          if extensionType == 1: name = field else: directoryPrefix = field
+        extensionSize = int(leWord(extension, extension.len - 2))
+        compressedSize -= extension.len
+        payloadOffset += extension.len
+      if directoryPrefix.len > 0: name = directoryPrefix & name
+    if name.len == 0:
+      raise newException(ValueError, "empty LHA entry name")
+    if runeLen(name) > LhaMaximumNameCharacters:
+      raise newException(ValueError, "LHA entry name exceeds 255 characters")
+    let directory = compressionMethod == "-lhd-" or
+      name.endsWith("/") or name.endsWith("\\")
+    let segments = validatedSegments(name, directory)
+    let canonical = segments.join("/")
+    if canonical in names:
+      raise newException(ValueError, "duplicate LHA entry path: " & canonical)
+    names.add canonical
+    if compressedSize > source.length - payloadOffset:
+      raise newException(ValueError, "truncated LHA member data")
+    if directory and (compressedSize != 0 or uncompressedSize != 0):
+      raise newException(ValueError, "LHA directory entry contains file data")
+    result.entries.add LhaEntry(name: canonical, segments: segments,
+      isDirectory: directory, compressionMethod: compressionMethod,
+      compressedSize: compressedSize, uncompressedSize: uncompressedSize,
+      payloadOffset: payloadOffset,
+      expectedCrc: leWord(header, 22 + nameLength))
+    offset = payloadOffset + compressedSize
+  if offset >= source.length or source.readAt(offset, 1)[0] != 0:
+    raise newException(ValueError, "LHA end marker was not found")
+  inc offset
+  while offset < source.length:
+    let amount = min(64 * 1024, source.length - offset)
+    for value in source.readAt(offset, amount):
+      if value != 0:
+        raise newException(ValueError, "trailing data after LHA end marker")
+    offset += amount
+  if result.entries.len == 0:
+    raise newException(ValueError, "LHA archive contains no entries")
+
+proc extractLhaEntry*(source: VextByteSource, entry: LhaEntry,
+    maximumSize = high(int)): seq[byte] =
+  if entry.isDirectory:
+    raise newException(ValueError, "cannot extract an LHA directory")
+  if entry.uncompressedSize > maximumSize:
+    raise newException(ValueError,
+      "LHA member exceeds the permitted materialization size: " & entry.name)
+  let packed = source.readAt(entry.payloadOffset, entry.compressedSize)
+  if entry.compressionMethod == "-lh0-":
+    result = packed
+    if result.len != entry.uncompressedSize:
+      raise newException(ValueError, "invalid stored LHA entry size")
+  elif entry.compressionMethod == "-lh5-":
+    result = decodeLh5(packed, entry.uncompressedSize)
+  else:
+    raise newException(ValueError,
+      "unsupported LHA compression method: " & entry.compressionMethod)
+  if crc16(result) != entry.expectedCrc:
+    raise newException(ValueError,
+      "LHA entry CRC-16 does not match: " & entry.name)

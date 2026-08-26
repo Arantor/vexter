@@ -1,6 +1,7 @@
 ## Read-only parsing for single-volume ZIP archives.
 
 import std/[strutils, unicode]
+import ../byte_sources
 
 const
   ZipArchiveTypeId* = "archive.zip"
@@ -229,6 +230,125 @@ proc parseZipArchive*(data: openArray[byte]): ZipArchive =
   if offset != eocd:
     raise newException(ValueError, "ZIP central-directory size does not match its entries")
 
+proc parseZipArchive*(source: VextByteSource): ZipArchive =
+  ## Indexes a ZIP through bounded random-access reads. Only the EOCD, central
+  ## records, and the corresponding local headers/names are materialized;
+  ## member payload bytes are untouched until `extractZipEntry` is called.
+  if source.isNil or source.length < 22:
+    raise newException(ValueError, "ZIP archive is too short")
+  var tailOffset = source.length - 22
+  var tail = source.readAt(tailOffset, 22)
+  var eocdInTail = -1
+  if leDword(tail, 0) == 0x06054b50'u32 and leWord(tail, 20) == 0:
+    eocdInTail = 0
+  else:
+    tailOffset = max(0, source.length - 22 - 65535)
+    tail = source.readAt(tailOffset, source.length - tailOffset)
+    for offset in countdown(tail.len - 22, 0):
+      if leDword(tail, offset) == 0x06054b50'u32 and
+          tailOffset + offset + 22 + int(leWord(tail, offset + 20)) ==
+            source.length:
+        eocdInTail = offset
+        break
+  if eocdInTail < 0:
+    raise newException(ValueError,
+      "ZIP end-of-central-directory record was not found")
+  let eocd = tailOffset + eocdInTail
+  let footer = tail[eocdInTail .. ^1]
+  if leWord(footer, 4) != 0 or leWord(footer, 6) != 0 or
+      leWord(footer, 8) != leWord(footer, 10):
+    raise newException(ValueError, "multi-volume ZIP archives are not supported")
+  let entryCount = int(leWord(footer, 10))
+  let centralSize = int(leDword(footer, 12))
+  let centralOffset = int(leDword(footer, 16))
+  if entryCount == 0xffff or centralSize == int(0xffffffff'u32) or
+      centralOffset == int(0xffffffff'u32):
+    raise newException(ValueError, "ZIP64 archives are not supported")
+  if centralOffset < 0 or centralSize < 0 or centralOffset + centralSize != eocd:
+    raise newException(ValueError, "invalid ZIP central-directory bounds")
+  let commentLength = int(leWord(footer, 20))
+  if commentLength > 0:
+    result.comment = decodeName(footer.toOpenArray(22, 21 + commentLength))
+
+  var offset = centralOffset
+  var names: seq[string]
+  result.entries = newSeqOfCap[ZipEntry](entryCount)
+  for unused in 0 ..< entryCount:
+    let fixed = source.readAt(offset, 46)
+    if leDword(fixed, 0) != 0x02014b50'u32:
+      raise newException(ValueError, "invalid ZIP central-directory entry")
+    let flags = int(leWord(fixed, 8))
+    let compression = int(leWord(fixed, 10))
+    let expectedCrc = leDword(fixed, 16)
+    let compressedSize = int(leDword(fixed, 20))
+    let uncompressedSize = int(leDword(fixed, 24))
+    let nameLength = int(leWord(fixed, 28))
+    let extraLength = int(leWord(fixed, 30))
+    let entryCommentLength = int(leWord(fixed, 32))
+    let disk = leWord(fixed, 34)
+    let localOffset = int(leDword(fixed, 42))
+    let nextOffset = offset + 46 + nameLength + extraLength + entryCommentLength
+    if nameLength == 0 or nextOffset > eocd:
+      raise newException(ValueError, "invalid ZIP central-directory entry length")
+    if disk != 0:
+      raise newException(ValueError, "multi-volume ZIP archives are not supported")
+    if compressedSize == int(0xffffffff'u32) or
+        uncompressedSize == int(0xffffffff'u32) or
+        localOffset == int(0xffffffff'u32):
+      raise newException(ValueError, "ZIP64 entries are not supported")
+    if (flags and 1) != 0:
+      raise newException(ValueError, "encrypted ZIP entries are not supported")
+    if compression notin [0, 8]:
+      raise newException(ValueError,
+        "unsupported ZIP compression method: " & $compression)
+    let rawName = source.readAt(offset + 46, nameLength)
+    var name: string
+    if (flags and 0x800) != 0:
+      for value in rawName: name.add char(value)
+      if validateUtf8(name) != -1:
+        raise newException(ValueError, "invalid UTF-8 ZIP entry name")
+    else:
+      name = decodeName(rawName)
+    if runeLen(name) > ZipMaximumNameCharacters:
+      raise newException(ValueError, "ZIP entry name exceeds 255 characters")
+    let directory = name.endsWith('/') or name.endsWith('\\')
+    let segments = validatedSegments(name, directory)
+    let canonical = segments.join("/")
+    if canonical in names:
+      raise newException(ValueError, "duplicate ZIP entry path: " & canonical)
+    names.add canonical
+
+    if localOffset < 0 or localOffset + 30 > centralOffset:
+      raise newException(ValueError, "invalid ZIP local-file header")
+    let local = source.readAt(localOffset, 30 + nameLength)
+    if leDword(local, 0) != 0x04034b50'u32 or
+        int(leWord(local, 6)) != flags or int(leWord(local, 8)) != compression:
+      raise newException(ValueError, "ZIP local and central headers disagree")
+    let localNameLength = int(leWord(local, 26))
+    let localExtraLength = int(leWord(local, 28))
+    if localNameLength != nameLength:
+      raise newException(ValueError, "ZIP local and central names disagree")
+    for index in 0 ..< nameLength:
+      if local[30 + index] != rawName[index]:
+        raise newException(ValueError, "ZIP local and central names disagree")
+    let payloadOffset = localOffset + 30 + localNameLength + localExtraLength
+    if payloadOffset < 0 or compressedSize < 0 or
+        payloadOffset > centralOffset - compressedSize:
+      raise newException(ValueError, "invalid ZIP entry data bounds")
+    if directory and (compressedSize != 0 or uncompressedSize != 0):
+      raise newException(ValueError, "ZIP directory entry contains file data")
+    if not directory and compression == 0 and compressedSize != uncompressedSize:
+      raise newException(ValueError, "invalid stored ZIP entry size")
+    result.entries.add ZipEntry(name: canonical, segments: segments,
+      isDirectory: directory, compressionMethod: compression,
+      localHeaderOffset: localOffset, payloadOffset: payloadOffset,
+      utf8Name: (flags and 0x800) != 0, expectedCrc: expectedCrc,
+      compressedSize: compressedSize, uncompressedSize: uncompressedSize)
+    offset = nextOffset
+  if offset != eocd:
+    raise newException(ValueError,
+      "ZIP central-directory size does not match its entries")
+
 proc extractZipEntry*(data: openArray[byte], entry: ZipEntry): seq[byte] =
   ## Expands and verifies one already structurally indexed member.
   if entry.isDirectory:
@@ -246,6 +366,27 @@ proc extractZipEntry*(data: openArray[byte], entry: ZipEntry): seq[byte] =
     else:
       result = rawInflate(data.toOpenArray(entry.payloadOffset,
         entry.payloadOffset + entry.compressedSize - 1), entry.uncompressedSize)
+  else:
+    raise newException(ValueError,
+      "unsupported ZIP compression method: " & $entry.compressionMethod)
+  if crc32(result) != entry.expectedCrc:
+    raise newException(ValueError, "ZIP entry CRC-32 does not match: " & entry.name)
+
+proc extractZipEntry*(source: VextByteSource, entry: ZipEntry,
+    maximumSize = high(int)): seq[byte] =
+  ## Materializes one indexed member without retaining the archive itself.
+  if entry.isDirectory:
+    raise newException(ValueError, "cannot extract a ZIP directory")
+  if entry.uncompressedSize > maximumSize:
+    raise newException(ValueError,
+      "ZIP member exceeds the permitted materialization size: " & entry.name)
+  let packed = source.readAt(entry.payloadOffset, entry.compressedSize)
+  if entry.compressionMethod == 0:
+    result = packed
+    if result.len != entry.uncompressedSize:
+      raise newException(ValueError, "invalid stored ZIP entry size")
+  elif entry.compressionMethod == 8:
+    result = rawInflate(packed, entry.uncompressedSize)
   else:
     raise newException(ValueError,
       "unsupported ZIP compression method: " & $entry.compressionMethod)

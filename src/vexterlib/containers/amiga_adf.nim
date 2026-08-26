@@ -1,6 +1,7 @@
 ## Read-only parsing for classic AmigaDOS OFS/FFS floppy images.
 
 import std/[algorithm, os, strutils]
+import ../byte_sources
 
 const
   AmigaAdfTypeId* = "amiga.adf"
@@ -33,6 +34,13 @@ type
     flags*: int
     rootBlock*: int
     entries*: seq[AmigaAdfEntry]
+
+  AmigaAdfIndex* = object
+    name*: string
+    filesystem*: string
+    flags*: int
+    rootBlock*: int
+    blockCount*: int
 
 proc beDword(data: openArray[byte], offset: int): uint32 {.inline.} =
   (uint32(data[offset]) shl 24) or (uint32(data[offset + 1]) shl 16) or
@@ -191,3 +199,122 @@ proc isAmigaAdf*(data: openArray[byte]): bool =
 
 proc hasAmigaAdfExtension*(filename: string): bool =
   filename.splitFile.ext.toLowerAscii == ".adf"
+
+proc sourceBlock(source: VextByteSource, sector, blockCount: int): seq[byte] =
+  if sector <= 1 or sector >= blockCount:
+    raise newException(ValueError, "ADF block pointer is out of range")
+  source.readAt(sector * AmigaAdfBlockSize, AmigaAdfBlockSize)
+
+proc sourceChecksum(blockData: openArray[byte]): bool =
+  var sum = 0'u32
+  for position in countup(0, AmigaAdfBlockSize - 4, 4):
+    sum += beDword(blockData, position)
+  sum == 0
+
+proc indexAmigaAdf*(source: VextByteSource): AmigaAdfIndex =
+  if source.isNil or source.length notin [AmigaAdfDdSize, AmigaAdfHdSize] or
+      source.length mod AmigaAdfBlockSize != 0:
+    raise newException(ValueError, "unsupported AmigaDOS floppy image size")
+  let boot = source.readAt(0, 4)
+  if boot[0] != byte('D') or boot[1] != byte('O') or
+      boot[2] != byte('S') or boot[3] > 5:
+    raise newException(ValueError, "invalid AmigaDOS ADF boot signature")
+  result.flags = int(boot[3])
+  result.filesystem = if (result.flags and 1) != 0: "FFS" else: "OFS"
+  result.blockCount = source.length div AmigaAdfBlockSize
+  result.rootBlock = result.blockCount div 2
+  let root = source.sourceBlock(result.rootBlock, result.blockCount)
+  if beDword(root, 0) != 2 or beDword(root, 12) != 72 or
+      signedDword(root, 508) != 1 or not root.sourceChecksum:
+    raise newException(ValueError, "invalid AmigaDOS ADF root block")
+  result.name = amigaString(root, 432, 30)
+
+proc listAmigaAdfDirectory*(source: VextByteSource, index: AmigaAdfIndex,
+    sector: int): seq[AmigaAdfEntry] =
+  ## Enumerates one hash table without reconstructing file payloads or
+  ## descending into child directories.
+  let directory = source.sourceBlock(sector, index.blockCount)
+  if beDword(directory, 0) != 2 or not directory.sourceChecksum:
+    raise newException(ValueError, "invalid ADF directory block")
+  for bucket in 0 ..< AdfHashEntries:
+    var childSector = int(beDword(directory, 24 + bucket * 4))
+    var chainSeen = newSeq[bool](index.blockCount)
+    while childSector != 0:
+      let entryBlock = source.sourceBlock(childSector, index.blockCount)
+      if chainSeen[childSector]:
+        raise newException(ValueError, "cyclic ADF directory hash chain")
+      chainSeen[childSector] = true
+      if beDword(entryBlock, 0) != 2 or not entryBlock.sourceChecksum:
+        raise newException(ValueError, "invalid ADF directory entry block")
+      let secondaryType = signedDword(entryBlock, 508)
+      let name = amigaString(entryBlock, 432, 30)
+      if name.len == 0 or '/' in name or ':' in name:
+        raise newException(ValueError, "invalid ADF entry name")
+      let comment = amigaString(entryBlock, 328, 79)
+      case secondaryType
+      of -3:
+        result.add AmigaAdfEntry(name: name, sector: childSector,
+          kind: aaekFile, size: int(beDword(entryBlock, 324)), comment: comment)
+      of 2:
+        if childSector != sector:
+          result.add AmigaAdfEntry(name: name, sector: childSector,
+            kind: aaekDirectory, comment: comment)
+        else:
+          break
+      of -4, 3, 4:
+        result.add AmigaAdfEntry(name: name, sector: childSector,
+          kind: aaekLink, comment: comment)
+      else:
+        raise newException(ValueError, "unsupported ADF directory entry type")
+      childSector = int(beDword(entryBlock, 496))
+  result.sort(proc(left, right: AmigaAdfEntry): int =
+    cmp(left.name.toLowerAscii, right.name.toLowerAscii))
+
+proc extractAmigaAdfFile*(source: VextByteSource, index: AmigaAdfIndex,
+    entry: AmigaAdfEntry, maximumSize = high(int)): seq[byte] =
+  if entry.kind != aaekFile:
+    raise newException(ValueError, "cannot extract a non-file ADF entry")
+  if entry.size > maximumSize:
+    raise newException(ValueError,
+      "ADF file exceeds the permitted materialization size")
+  var pointer = source.sourceBlock(entry.sector, index.blockCount)
+  let fileSize = int(beDword(pointer, 324))
+  if fileSize < 0 or fileSize != entry.size:
+    raise newException(ValueError, "invalid ADF file size")
+  var remaining = fileSize
+  var visited = newSeq[bool](index.blockCount)
+  visited[entry.sector] = true
+  while remaining > 0:
+    if not pointer.sourceChecksum:
+      raise newException(ValueError, "invalid ADF file-header checksum")
+    let highSequence = int(beDword(pointer, 8))
+    if highSequence < 0 or highSequence > AdfHashEntries:
+      raise newException(ValueError, "invalid ADF data-block count")
+    for item in 0 ..< highSequence:
+      let sector = int(beDword(pointer, 308 - item * 4))
+      if sector <= 1 or sector >= index.blockCount:
+        raise newException(ValueError, "invalid ADF file data pointer")
+      if visited[sector]:
+        raise newException(ValueError, "cyclic ADF file data pointers")
+      visited[sector] = true
+      let dataBlock = source.sourceBlock(sector, index.blockCount)
+      if (index.flags and 1) != 0:
+        let amount = min(remaining, AmigaAdfBlockSize)
+        result.add dataBlock.toOpenArray(0, amount - 1)
+        remaining -= amount
+      else:
+        if beDword(dataBlock, 0) != 8 or not dataBlock.sourceChecksum:
+          raise newException(ValueError, "invalid OFS data block")
+        let amount = int(beDword(dataBlock, 12))
+        if amount < 0 or amount > 488 or amount > remaining:
+          raise newException(ValueError, "invalid OFS data-block size")
+        if amount > 0: result.add dataBlock.toOpenArray(24, 23 + amount)
+        remaining -= amount
+    if remaining == 0: break
+    let extension = int(beDword(pointer, 504))
+    if extension == 0 or visited[extension]:
+      raise newException(ValueError, "truncated or cyclic ADF file extension chain")
+    visited[extension] = true
+    pointer = source.sourceBlock(extension, index.blockCount)
+    if beDword(pointer, 0) != 16 or signedDword(pointer, 508) != -3:
+      raise newException(ValueError, "invalid ADF file extension block")
