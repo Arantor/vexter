@@ -109,6 +109,11 @@ type
   BITMAPINFO {.importc: "BITMAPINFO", header: "<windows.h>".} = object
     bmiHeader: BITMAPINFOHEADER
     bmiColors: array[1, uint32]
+  SCROLLINFO {.importc: "SCROLLINFO", header: "<windows.h>".} = object
+    cbSize, fMask: UINT
+    nMin, nMax: int32
+    nPage: UINT
+    nPos, nTrackPos: int32
   WAVEFORMATEX = object
     wFormatTag, nChannels: WORD
     nSamplesPerSec, nAvgBytesPerSec: DWORD
@@ -162,6 +167,7 @@ const
   WS_CLIPCHILDREN = 0x02000000'u32
   WS_BORDER = 0x00800000'u32
   WS_VSCROLL = 0x00200000'u32
+  WS_HSCROLL = 0x00100000'u32
   ES_MULTILINE = 0x0004'u32
   ES_AUTOVSCROLL = 0x0040'u32
   ES_READONLY = 0x0800'u32
@@ -177,6 +183,8 @@ const
   WM_DESTROY = 0x0002'u32
   WM_SIZE = 0x0005'u32
   WM_PAINT = 0x000F'u32
+  WM_HSCROLL = 0x0114'u32
+  WM_VSCROLL = 0x0115'u32
   WM_CLOSE = 0x0010'u32
   WM_COMMAND = 0x0111'u32
   WM_TIMER = 0x0113'u32
@@ -222,6 +230,23 @@ const
   DIB_RGB_COLORS = 0'u32
   SRCCOPY = 0x00CC0020'u32
   COLORONCOLOR = 3
+  SB_HORZ = 0
+  SB_VERT = 1
+  SB_BOTH = 3
+  SB_LINEUP = 0
+  SB_LINEDOWN = 1
+  SB_PAGEUP = 2
+  SB_PAGEDOWN = 3
+  SB_THUMBTRACK = 5
+  SB_TOP = 6
+  SB_BOTTOM = 7
+  SIF_RANGE = 0x0001'u32
+  SIF_PAGE = 0x0002'u32
+  SIF_POS = 0x0004'u32
+  SIF_TRACKPOS = 0x0010'u32
+  SIF_ALL = SIF_RANGE or SIF_PAGE or SIF_POS or SIF_TRACKPOS
+  SM_CXVSCROLL = 2
+  SM_CYHSCROLL = 3
   CS_VREDRAW = 0x0001'u32
   CS_HREDRAW = 0x0002'u32
   WAVE_FORMAT_PCM = 1'u16
@@ -260,6 +285,10 @@ proc ImageList_ReplaceIcon(images: HIMAGELIST, index: int32,
 proc ImageList_Destroy(images: HIMAGELIST): BOOL
     {.stdcall, importc, header: "<commctrl.h>".}
 proc InvalidateRect(hwnd: HWND, rect: ptr RECT, erase: BOOL): BOOL {.stdcall, importc, header: "<windows.h>".}
+proc GetSystemMetrics(index: int32): int32 {.stdcall, importc, header: "<windows.h>".}
+proc ShowScrollBar(hwnd: HWND, bar: int32, show: BOOL): BOOL {.stdcall, importc, header: "<windows.h>".}
+proc GetScrollInfo(hwnd: HWND, bar: int32, info: ptr SCROLLINFO): BOOL {.stdcall, importc, header: "<windows.h>".}
+proc SetScrollInfo(hwnd: HWND, bar: int32, info: ptr SCROLLINFO, redraw: BOOL): int32 {.stdcall, importc, header: "<windows.h>".}
 proc SetStretchBltMode(dc: HDC, mode: int32): int32 {.stdcall, importc, header: "<windows.h>".}
 proc StretchDIBits(dc: HDC, x, y, dw, dh, sx, sy, sw, sh: int32,
     bits: pointer, info: ptr BITMAPINFO, usage, rop: DWORD): int32 {.stdcall, importc, header: "<windows.h>".}
@@ -302,6 +331,8 @@ var
   currentSession: VextInspectionSession
   currentView = vkNone
   scaleChoice = 0
+  previewHScroll = false
+  previewVScroll = false
   fontGridMode = false
   fontSelectedGlyph = 0
   fontPreviewText: string
@@ -348,6 +379,12 @@ proc byteSize(value: int): string =
 proc layout(hwnd: HWND)
 proc stopAudio()
 proc selectBinding(binding: TreeBinding)
+
+proc resetPreviewScrollPosition() =
+  if preview == nil: return
+  var info = SCROLLINFO(cbSize: UINT(sizeof(SCROLLINFO)), fMask: SIF_POS)
+  discard SetScrollInfo(preview, SB_HORZ, addr info, 0)
+  discard SetScrollInfo(preview, SB_VERT, addr info, 0)
 
 proc metadataString(node: VextResourceNode): string =
   result = &"Path: {node.path}\r\nType: {node.typeId}\r\n"
@@ -466,9 +503,14 @@ proc paintPreview(hwnd: HWND) =
   var area: RECT
   discard GetClientRect(hwnd, addr area)
   discard FillRect(dc, addr area, GetSysColorBrush(COLOR_WINDOW))
+  if currentView notin {vkRaster, vkFont} and
+      (previewHScroll or previewVScroll):
+    discard ShowScrollBar(hwnd, SB_BOTH, 0)
+    previewHScroll = false
+    previewVScroll = false
   if currentView in {vkRaster, vkFont}:
-    let availableW = int(area.right - area.left)
-    let availableH = int(area.bottom - area.top)
+    var availableW = int(area.right - area.left)
+    var availableH = int(area.bottom - area.top)
     let previewScale = if scaleChoice == 0: 1 else: scaleChoice
     let image = currentRasterImage(max(1, availableW div previewScale))
     if image.width > 0 and image.height > 0:
@@ -497,11 +539,56 @@ proc paintPreview(hwnd: HWND) =
       else:
         dw = image.width * scaleChoice
         dh = image.height * scaleChoice
+      var scrollX, scrollY = 0
+      if scaleChoice == 0:
+        discard ShowScrollBar(hwnd, SB_BOTH, 0)
+        previewHScroll = false
+        previewVScroll = false
+      else:
+        # Recover the unobstructed viewport before deciding whether either bar
+        # is needed, so growing the window can remove an existing scrollbar.
+        let scrollWidth = int(GetSystemMetrics(SM_CXVSCROLL))
+        let scrollHeight = int(GetSystemMetrics(SM_CYHSCROLL))
+        let fullW = availableW + (if previewVScroll: scrollWidth else: 0)
+        let fullH = availableH + (if previewHScroll: scrollHeight else: 0)
+        var needH = dw > fullW
+        var needV = dh > fullH
+        if needV: needH = dw > fullW - scrollWidth
+        if needH: needV = dh > fullH - scrollHeight
+        discard ShowScrollBar(hwnd, SB_HORZ, if needH: 1 else: 0)
+        discard ShowScrollBar(hwnd, SB_VERT, if needV: 1 else: 0)
+        previewHScroll = needH
+        previewVScroll = needV
+        var viewport: RECT
+        discard GetClientRect(hwnd, addr viewport)
+        let viewportW = max(1, int(viewport.right - viewport.left))
+        let viewportH = max(1, int(viewport.bottom - viewport.top))
+        availableW = viewportW
+        availableH = viewportH
+        var horizontal = SCROLLINFO(cbSize: UINT(sizeof(SCROLLINFO)),
+          fMask: SIF_RANGE or SIF_PAGE, nMax: int32(max(0, dw - 1)),
+          nPage: UINT(viewportW))
+        var vertical = SCROLLINFO(cbSize: UINT(sizeof(SCROLLINFO)),
+          fMask: SIF_RANGE or SIF_PAGE, nMax: int32(max(0, dh - 1)),
+          nPage: UINT(viewportH))
+        discard SetScrollInfo(hwnd, SB_HORZ, addr horizontal, 1)
+        discard SetScrollInfo(hwnd, SB_VERT, addr vertical, 1)
+        horizontal.fMask = SIF_POS
+        vertical.fMask = SIF_POS
+        discard GetScrollInfo(hwnd, SB_HORZ, addr horizontal)
+        discard GetScrollInfo(hwnd, SB_VERT, addr vertical)
+        scrollX = int(horizontal.nPos)
+        scrollY = int(vertical.nPos)
       discard SetStretchBltMode(dc, COLORONCOLOR)
-      discard StretchDIBits(dc, int32((availableW-dw) div 2),
-        int32((availableH-dh) div 2), int32(dw), int32(dh), 0, 0,
+      let drawX = if dw <= availableW: (availableW-dw) div 2 else: -scrollX
+      let drawY = if dh <= availableH: (availableH-dh) div 2 else: -scrollY
+      discard StretchDIBits(dc, int32(drawX), int32(drawY), int32(dw), int32(dh), 0, 0,
         int32(image.width), int32(image.height), addr pixels[0], addr info,
         DIB_RGB_COLORS, SRCCOPY)
+    elif previewHScroll or previewVScroll:
+      discard ShowScrollBar(hwnd, SB_BOTH, 0)
+      previewHScroll = false
+      previewVScroll = false
   elif currentView == vkAudio and not selected.isNil:
     let sound = selected.node.audioSound
     let channels = sound.buffer.channels
@@ -527,6 +614,25 @@ proc paintPreview(hwnd: HWND) =
 proc previewProc(hwnd: HWND, msg: UINT, wp: WPARAM, lp: LPARAM): LRESULT {.stdcall.} =
   if msg == WM_PAINT:
     paintPreview(hwnd)
+    return 0
+  if msg == WM_HSCROLL or msg == WM_VSCROLL:
+    let bar = int32(if msg == WM_HSCROLL: SB_HORZ else: SB_VERT)
+    var info = SCROLLINFO(cbSize: UINT(sizeof(SCROLLINFO)), fMask: SIF_ALL)
+    if GetScrollInfo(hwnd, bar, addr info) != 0:
+      var position = info.nPos
+      case lowWord(wp)
+      of SB_LINEUP: position -= 16
+      of SB_LINEDOWN: position += 16
+      of SB_PAGEUP: position -= int32(info.nPage)
+      of SB_PAGEDOWN: position += int32(info.nPage)
+      of SB_THUMBTRACK: position = info.nTrackPos
+      of SB_TOP: position = info.nMin
+      of SB_BOTTOM: position = info.nMax
+      else: discard
+      info.fMask = SIF_POS
+      info.nPos = position
+      discard SetScrollInfo(hwnd, bar, addr info, 1)
+      discard InvalidateRect(hwnd, nil, 0)
     return 0
   DefWindowProcW(hwnd, msg, wp, lp)
 
@@ -690,6 +796,7 @@ proc populateFontControls(font: VextBitmapFont) =
 
 proc selectBinding(binding: TreeBinding) =
   stopAudio()
+  resetPreviewScrollPosition()
   selected = binding
   metadataViewBinding = nil
   animationFrame = 0
@@ -1189,8 +1296,10 @@ proc mainProc(hwnd: HWND, msg: UINT, wp: WPARAM, lp: LPARAM): LRESULT {.stdcall.
       if failureImageIndex >= 0:
         discard SendMessageW(treeView, TVM_SETIMAGELIST, TVSIL_NORMAL,
           cast[LPARAM](treeImages))
-    preview = CreateWindowExW(0, w("VexterPreview"), w(""), WS_CHILD or WS_VISIBLE or WS_BORDER,
+    preview = CreateWindowExW(0, w("VexterPreview"), w(""), WS_CHILD or WS_VISIBLE or WS_BORDER or
+      WS_HSCROLL or WS_VSCROLL,
       0, 0, 0, 0, hwnd, cast[HMENU](1003), instance, nil)
+    discard ShowScrollBar(preview, SB_BOTH, 0)
     textView = CreateWindowExW(0, w("EDIT"), w(""), WS_CHILD or WS_BORDER or WS_VSCROLL or
       ES_MULTILINE or ES_AUTOVSCROLL or ES_READONLY, 0, 0, 0, 0, hwnd,
       cast[HMENU](1004), instance, nil)
@@ -1240,6 +1349,7 @@ proc mainProc(hwnd: HWND, msg: UINT, wp: WPARAM, lp: LPARAM): LRESULT {.stdcall.
     of 1005:
       if highWord(wp) == 1:
         scaleChoice = int(SendMessageW(scaleCombo, CB_GETCURSEL, 0, 0))
+        resetPreviewScrollPosition()
         discard InvalidateRect(preview, nil, 1)
     of 1006: togglePlayback()
     of 1008: doExport()
