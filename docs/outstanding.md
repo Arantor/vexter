@@ -42,6 +42,20 @@ formats are not included. Detailed format behavior and evidence remain in
     `auto|N` width interpretation option with carefully bounded extent
     inference; do not infer width from `.DIZ` or other filenames.
 
+- **Classic DOOM WAD resources**
+  - Compose wall textures from `PNAMES` and `TEXTURE1`/`TEXTURE2`, retaining
+    patch placement metadata and unresolved PWAD dependencies explicitly.
+  - Add sprite-family grouping, mirrored rotations, and an explicit animation
+    timing policy before offering coalesced GIF/APNG export.
+  - Decode sound-card `DS*` lumps to generic sampled audio. PC-speaker `DP*`
+    synthesis, MUS event streams, `GENMIDI`, and `DMXGUS` need separate format
+    and representation decisions.
+  - Parse map lump sequences and provide a bounded, deterministic automap-style
+    raster preview. Preserve the underlying map structures as metadata or
+    opaque resources until a generic geometry archetype is justified.
+  - Design an explicit base-IWAD companion mechanism for partial PWADs rather
+    than searching for or silently assuming game data.
+
 - **OpenRaster**
   - The canonical `mergedimage.png` is exposed directly; Vexter does not yet
     recomposite the layer stack or compare its rendering with that image.

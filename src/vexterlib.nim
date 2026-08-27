@@ -50,6 +50,7 @@ import vexterlib/containers/zx_spectrum_screen_dump
 import vexterlib/containers/zx_spectrum_snapshot
 import vexterlib/containers/zx_spectrum_tap
 import vexterlib/containers/ansi_art
+import vexterlib/containers/doom_wad
 import vexterlib/resources/amos_planar_image
 import vexterlib/resources/amos_packed_picture_image
 import vexterlib/resources/amiga_ilbm_image
@@ -97,6 +98,7 @@ export openraster
 export jpeg
 export jpeg_image
 export ansi_art
+export doom_wad
 export ansi_art_image
 export amos_bank
 export amiga_adf

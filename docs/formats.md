@@ -1633,6 +1633,39 @@ The locally supplied `Amiga Icon Formats - www.evillabs.net.html` wiki capture
 provided documentary details for the NewIcons and OS 3.5 codecs. The capture
 itself is research material and is not part of the repository fixtures.
 
+## Classic DOOM WAD resources
+
+Container type identifier: `doom.wad`
+
+Resource type identifiers: `doom.palette`, `doom.flat`, `doom.patch`, and
+`doom.lump`
+
+Classic `IWAD` and `PWAD` files are detected by a structurally validated
+12-byte header and complete 16-byte directory. Every lump offset and length
+must remain inside the source. Directory order and duplicate eight-byte ASCII
+names are preserved under `/wad/lumps` using paths of the form
+`/wad/lumps/INDEX-NAME`; the index makes every physical entry independently
+addressable.
+
+A valid `PLAYPAL` lump exposes all fourteen 256-colour RGB palettes. Palette
+zero supplies colours for images in this initial implementation. Lumps between
+`F_START` and `F_END` decode as 64-by-64 indexed flats when they contain exactly
+4,096 pixels. Other eligible lumps with a complete patch header, column table,
+bounded post streams, and column terminators decode as indexed patch graphics.
+Undrawn patch pixels are transparent, and signed left/top placement offsets
+are retained as metadata. Decoded palettes and images use the generic palette
+and raster exporters, including PNG export.
+
+Known non-picture control, map, sound, and music lumps are not probed as patch
+graphics. Unrecognized lumps remain ordered, named opaque resources with BIN
+export. A standalone WAD must contain a valid `PLAYPAL` for its flats and
+patches to be rendered; resolving a PWAD against a base IWAD is not yet
+implemented.
+
+Implementation follows the locally supplied *Unofficial DOOM Specs v1.666*,
+with provenance recorded in `THIRD_PARTY.md`. Routine coverage uses compact
+synthetic WADs rather than redistributing game data.
+
 ## Historical implementation coverage
 
 The previous implementation covered formats including:

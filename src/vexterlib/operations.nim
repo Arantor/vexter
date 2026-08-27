@@ -12,7 +12,7 @@ import ./handler_registry
 import ./exporters/[bmfont, gif, html_report, metadata_json, png, raw, wav]
 import ./resource_tree
 import ./containers/[amiga_8svx, amiga_16sv, amiga_acbm, amiga_adf, amiga_anim, amiga_diskfont, amiga_dms, amiga_hunk_executable, amiga_iff, amiga_ilbm, amiga_lha_sfx, amiga_pbm, amiga_workbench_icon, amos_bank, amos_bank_set, amos_packed_picture, amos_program,
-  amos_sprite_icon_bank, ansi_art, bmfont, bmp, flic, fzx, gif_container, iso9660, jpeg, netpbm, openraster, pcx, png_container,
+  amos_sprite_icon_bank, ansi_art, bmfont, bmp, doom_wad, flic, fzx, gif_container, iso9660, jpeg, netpbm, openraster, pcx, png_container,
   koala_painter, qoi, tga, wav, windows_icon, zip_archive, lha_archive, zx_spectrum_snapshot, zx_spectrum_tap]
 import ./containers/xpk_shri
 import ./containers/powerpacker
@@ -1183,6 +1183,99 @@ proc inspectSourceDepth(filename: string, data: openArray[byte],
       path: WavSoundResourcePath, typeId: WavSoundTypeId,
       kind: vrnkAudio, audioKind: varkSound, sound: decodeWav(source),
       metadata: metadata)
+  of vhkDoomWad:
+    let wad = parsedValue[DoomWad](selectedParsed, vhkDoomWad)
+    let root = VextResourceNode(path: "/wad", typeId: DoomWadTypeId,
+      kind: vrnkGroup, metadata: @[
+        stringMetadata("wad.kind", wad.kind.doomWadKindName),
+        integerMetadata("wad.entries", wad.entries.len),
+        integerMetadata("wad.directory-offset", wad.directoryOffset)])
+    let lumps = VextResourceNode(path: "/wad/lumps", typeId: DoomWadTypeId,
+      kind: vrnkGroup)
+    root.children.add lumps
+
+    var paletteZero: seq[VextRgb]
+    for entry in wad.entries:
+      if entry.name == "PLAYPAL":
+        try:
+          let palettes = decodeDoomPalettes(entry.entryBytes(data))
+          paletteZero = palettes[0].colours
+          break
+        except ValueError:
+          discard
+
+    var inFlats = false
+    const nonPictureNames = ["COLORMAP", "ENDOOM", "TEXTURE1", "TEXTURE2",
+      "PNAMES", "GENMIDI", "DMXGUS", "THINGS", "LINEDEFS", "SIDEDEFS",
+      "VERTEXES", "SEGS", "SSECTORS", "NODES", "SECTORS", "REJECT",
+      "BLOCKMAP", "BEHAVIOR"]
+    for index, entry in wad.entries:
+      let safeName = entry.name.replace("/", "_").replace("\\", "_")
+      let path = "/wad/lumps/" & $index & "-" & safeName
+      let lumpData = entry.entryBytes(data)
+      let commonMetadata = @[
+        integerMetadata("wad.index", index),
+        stringMetadata("wad.name", entry.name),
+        integerMetadata("wad.offset", entry.offset),
+        integerMetadata("wad.size", entry.size)]
+      if entry.name == "F_START":
+        inFlats = true
+      elif entry.name == "F_END":
+        inFlats = false
+
+      if entry.name == "PLAYPAL":
+        try:
+          let palettes = decodeDoomPalettes(lumpData)
+          let group = VextResourceNode(path: path,
+            typeId: DoomWadPaletteTypeId, kind: vrnkGroup,
+            metadata: commonMetadata)
+          for paletteIndex, palette in palettes:
+            group.children.add VextResourceNode(
+              path: path & "/palette-" & $paletteIndex,
+              typeId: DoomWadPaletteTypeId, kind: vrnkPalette,
+              palette: palette, metadata: @[
+                integerMetadata("wad.palette-index", paletteIndex)])
+          lumps.children.add group
+        except ValueError as error:
+          lumps.children.add VextResourceNode(path: path,
+            typeId: DoomWadLumpTypeId, kind: vrnkOpaque, data: lumpData,
+            rawDataAvailable: true, failureFormat: DoomWadPaletteTypeId,
+            failureMessage: error.msg, metadata: commonMetadata)
+          result.warnings.add VextInspectionWarning(path: path,
+            format: DoomWadPaletteTypeId, message: error.msg)
+      elif inFlats and entry.name != "F_START" and entry.name != "F_END" and
+          paletteZero.len == DoomPaletteColours:
+        try:
+          lumps.children.add VextResourceNode(path: path,
+            typeId: DoomWadFlatTypeId, kind: vrnkRaster,
+            raster: VextRaster(kind: vrkIndexedImage,
+              image: decodeDoomFlat(lumpData, paletteZero)),
+            metadata: commonMetadata)
+        except ValueError as error:
+          lumps.children.add VextResourceNode(path: path,
+            typeId: DoomWadLumpTypeId, kind: vrnkOpaque, data: lumpData,
+            rawDataAvailable: true, failureFormat: DoomWadFlatTypeId,
+            failureMessage: error.msg, metadata: commonMetadata)
+          result.warnings.add VextInspectionWarning(path: path,
+            format: DoomWadFlatTypeId, message: error.msg)
+      elif paletteZero.len == DoomPaletteColours and entry.size > 0 and
+          entry.name notin nonPictureNames and
+          not entry.name.startsWith("DS") and not entry.name.startsWith("DP") and
+          not entry.name.startsWith("D_") and
+          not entry.name.startsWith("DEMO") and isDoomPatch(lumpData):
+        let patch = parseDoomPatch(lumpData)
+        lumps.children.add VextResourceNode(path: path,
+          typeId: DoomWadPatchTypeId, kind: vrnkRaster,
+          raster: VextRaster(kind: vrkIndexedImage,
+            image: decodeDoomPatch(patch, paletteZero)),
+          metadata: commonMetadata & @[
+            integerMetadata("position.left-offset", patch.leftOffset),
+            integerMetadata("position.top-offset", patch.topOffset)])
+      else:
+        lumps.children.add VextResourceNode(path: path,
+          typeId: DoomWadLumpTypeId, kind: vrnkOpaque, data: lumpData,
+          rawDataAvailable: true, metadata: commonMetadata)
+    result.resources.roots.add root
   of vhkZip:
     let archive = parsedValue[ZipArchive](selectedParsed, vhkZip)
     let zipSource = if backingSource.isNil:

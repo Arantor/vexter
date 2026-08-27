@@ -1,5 +1,22 @@
 # Third-party material
 
+## Unofficial DOOM Specs v1.666
+
+The developer supplied `The Unofficial Doom Specs v1.666.html` on 27 August
+2026 from [gamers.org](https://www.gamers.org/dhs/helpdocs/dmsp1666.html).
+Matthew S. Fell's 15 December 1994 document is the format authority for the
+classic IWAD/PWAD header and directory, PLAYPAL palettes, flat namespaces, and
+column/post picture encoding used by the initial DOOM support. Its SHA-256 is:
+
+```text
+3a74e6ef7abd706d76cf47562eae11d17b8bf78bced033ee85dd5801bc424b9d  The Unofficial Doom Specs v1.666.html
+```
+
+The supplied HTML retains the document's copyright notice and restricted
+redistribution terms. It is temporary research material and is not copied into
+the repository. Routine tests construct small synthetic WADs and contain no
+id Software game data.
+
 ## KoalaPainter specification, samples, and Colodore palette
 
 The developer supplied a temporary unpacked copy of Massimiliano Scarano's

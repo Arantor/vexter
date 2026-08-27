@@ -24,6 +24,8 @@ sufficiently useful to continue as an ongoing project.
 - Archives and audio: ZIP, level-0/1 LHA/LZH with LH0/LH5 members, and integer
   PCM WAV
 - ZX Spectrum: screen dumps, SNA snapshots, TAP files, and tokenised BASIC
+- Game data: classic DOOM IWAD/PWAD directories, palettes, flats, sprites,
+  patches, and other patch-format graphics
 
 Decoded resources can be exported as PNG, GIF, APNG, BMFont text plus PNG
 atlases, self-contained HTML reports, metadata JSON, WAV, text, or raw binary.

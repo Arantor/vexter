@@ -5,7 +5,7 @@ import ./handler_registry
 import ./format_detection_types
 export format_detection_types
 import ./containers/[amiga_8svx, amiga_16sv, amiga_acbm, amiga_adf, amiga_anim, amiga_diskfont, amiga_dms, amiga_hunk_executable, amiga_iff, amiga_ilbm, amiga_lha_sfx, amiga_pbm, amiga_workbench_icon, amos_bank, amos_bank_set, amos_program,
-  amos_sprite_icon_bank, ansi_art, bmfont, bmp, flic, fzx, gif_container, iso9660, jpeg, koala_painter, netpbm, pcx, png_container, qoi, tga,
+  amos_sprite_icon_bank, ansi_art, bmfont, bmp, doom_wad, flic, fzx, gif_container, iso9660, jpeg, koala_painter, netpbm, pcx, png_container, qoi, tga,
   wav, windows_icon, zip_archive, lha_archive, zx_spectrum_screen_dump, zx_spectrum_snapshot, zx_spectrum_tap]
 import ./containers/xpk_shri
 import ./containers/powerpacker
@@ -36,6 +36,16 @@ proc detectBaseFormats(filename: string, data: openArray[byte]):
       derivation: baseDerivation(Iso9660TypeId))]
   except ValueError:
     discard
+
+  if isDoomWad(data):
+    let wad = parseDoomWad(data)
+    var evidence = @[VextDetectionEvidence(description:
+      "file has a valid " & wad.kind.doomWadKindName & " header and " &
+      $wad.entries.len & " bounded directory entries")]
+    if hasDoomWadExtension(filename):
+      evidence.add VextDetectionEvidence(description: "file extension is .wad")
+    result.add VextDetectionCandidate(typeId: DoomWadTypeId,
+      confidence: vdcCertain, evidence: evidence)
 
   if isAmigaDiskfontIndex(data):
     let index = parseAmigaDiskfontIndex(data)

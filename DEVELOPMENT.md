@@ -19,6 +19,8 @@ client, and a dependency-free native Windows GUI. It supports:
   animations, IFF 8SVX and 16SV sampled audio,
   integer PCM WAV sounds, PCX, TGA, BMP/DIB,
   static DOS ANSI art with optional SAUCE metadata,
+  classic DOOM IWAD/PWAD containers with palettes, flats, sprites, patches,
+  and other patch-format graphics,
   PNG, baseline/extended-sequential Huffman JPEG with EXIF orientation,
   OpenRaster layered documents, Windows ICO/CUR collections (including PNG and DIB entries), QOI,
   Commodore 64 KoalaPainter images,
@@ -237,6 +239,9 @@ Matching case-insensitive extensions add supporting evidence.
 - `powerpacker.nim` validates standalone PP11/PP20 headers and efficiency
   tables, decodes their backwards literal/LZ bitstream, and exposes recognized
   unpacked content through bounded recursive inspection;
+- `doom_wad.nim` validates classic IWAD/PWAD headers, bounded ordered lump
+  directories, PLAYPAL palettes, flat namespaces, and column/post patch
+  graphics with transparent gaps and signed placement offsets;
 - `zip_archive.nim` validates single-volume ZIP central/local records, expands
   stored and raw-DEFLATE members on demand, and retains physical member offsets
   needed by package-profile refiners;
@@ -610,6 +615,11 @@ gif
 gif.image
 wav
 wav.sound
+doom.wad
+doom.palette
+doom.flat
+doom.patch
+doom.lump
 amiga.iff
 amiga.acbm
 amiga.pbm
@@ -906,6 +916,9 @@ The routine suites are:
   widths, channel interleaving, chunk ordering/padding/metadata, plain-sound
   routing, export, and structural validation. Authentic compatibility fixtures
   remain pending user-supplied samples;
+- `tests/test_doom_wad.nim`: synthetic IWAD/PWAD directory ordering and bounds,
+  duplicate names, PLAYPAL palettes, flat namespaces, patch posts,
+  transparency, signed offsets, malformed resources, and PNG eligibility;
 - `tests/test_amiga_acbm.nim`: ACBM detection, plane-contiguous raw and
   ByteRun1 ABIT decoding, and structural failure modes;
 - `tests/test_amiga_pbm.nim`: provisional packed eight-bit rows, word
