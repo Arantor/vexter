@@ -205,7 +205,9 @@ const
   TVM_GETNEXTITEM = 0x110A'u32
   TVM_GETITEMW = 0x113E'u32
   TVM_HITTEST = 0x1111'u32
+  TVM_EXPAND = 0x1102'u32
   TVGN_CHILD = 0x0004
+  TVE_EXPAND = 0x0002
   TVIF_TEXT = 0x0001'u32
   TVIF_IMAGE = 0x0002'u32
   TVIF_PARAM = 0x0004'u32
@@ -697,9 +699,33 @@ proc rebuildTree() =
   discard SendMessageW(treeView, TVM_DELETEITEM, 0, cast[LPARAM](TVI_ROOT))
   bindings.setLen(0)
   firstPreviewItem = nil
-  for root in currentSession.rootDescriptors:
-    discard addDescriptorNode(root, TVI_ROOT,
-      if currentFilename.len > 0: currentFilename.extractFilename else: "")
+  let roots = currentSession.rootDescriptors
+  let filename = if currentFilename.len > 0:
+      currentFilename.extractFilename
+    else: currentSession.filename.extractFilename
+  if roots.len == 1 and roots[0].kind == vrnkGroup:
+    # Structural container roots already represent the opened file. Reusing
+    # one avoids an unhelpful `archive -> archive -> members` hierarchy.
+    discard addDescriptorNode(roots[0], TVI_ROOT, filename)
+  else:
+    # Legacy decoders may expose one or more payload roots directly. Give the
+    # physical file its own stable tree node rather than applying its filename
+    # as the label of every payload resource.
+    let binding = TreeBinding(childrenLoaded: true,
+      metadataText: "File: " & filename & "\r\nFormat: " &
+        currentSession.selectedFormat.typeId & "\r\n")
+    bindings.add binding
+    let wide = w(filename)
+    var insert = TVINSERTSTRUCTW(hParent: TVI_ROOT, hInsertAfter: TVI_LAST,
+      item: TVITEMW(mask: TVIF_TEXT or TVIF_PARAM or TVIF_IMAGE or
+        TVIF_SELECTEDIMAGE, pszText: wide, iImage: I_IMAGENONE,
+        iSelectedImage: I_IMAGENONE, lParam: cast[LPARAM](binding)))
+    let fileItem = cast[HTREEITEM](SendMessageW(treeView, TVM_INSERTITEMW, 0,
+      cast[LPARAM](addr insert)))
+    for root in roots:
+      discard addDescriptorNode(root, fileItem)
+    discard SendMessageW(treeView, TVM_EXPAND, TVE_EXPAND,
+      cast[LPARAM](fileItem))
 
 proc isPlayable(binding: TreeBinding): bool =
   if binding.isNil or binding.metadataText.len > 0 or binding.node.isNil:
