@@ -119,6 +119,30 @@ suite "ZIP archives":
     check failed.rawDataAvailable
     check inspection.resources.leafResources[1].path == "/archive/readme.txt"
 
+  test "session materialization retains a suspected nested format failure":
+    var brokenPcx = newSeq[byte](128)
+    brokenPcx[0] = 0x0a
+    brokenPcx[1] = 5
+    brokenPcx[2] = 1
+    brokenPcx[3] = 8
+    brokenPcx[65] = 1
+    brokenPcx[66] = 2
+    brokenPcx[68] = 1
+    let archive = zipFixture([
+      FixtureEntry(name: "broken.pcx", data: brokenPcx)])
+    let session = openInspectionSession("mixed.zip",
+      newSourceCollection(memoryByteSource(archive)))
+    let member = session.expandResource(session.rootDescriptors[0].id).
+      children[0]
+    let loaded = session.loadResource(member.id)
+    check loaded.descriptor.failureFormat == PcxTypeId
+    check "truncated PCX image data" in loaded.descriptor.failureMessage
+    check loaded.resources.roots.len == 1
+    check loaded.resources.roots[0].failureFormat == PcxTypeId
+    check "truncated PCX image data" in
+      loaded.resources.roots[0].failureMessage
+    session.close()
+
   test "member checksum damage is isolated until materialization":
     var archive = zipFixture([
       FixtureEntry(name: "bad.bin", data: @[1'u8, 2, 3])])

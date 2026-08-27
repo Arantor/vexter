@@ -828,16 +828,44 @@ proc loadResource*(session: VextInspectionSession, id: VextResourceId,
     result.resources = VextResourceTree(roots: @[node])
     return
   let leafName = result.descriptor.path.split('/')[^1]
+  var candidates: seq[VextDetectionCandidate]
   try:
-    let inspection = inspectSource(leafName, result.data)
-    result.resources = inspection.resources
-    result.warnings = inspection.warnings
-    result.descriptor.validatedThrough = vvlRepresentation
-  except ValueError:
+    candidates = detectFormats(leafName, result.data)
+  except CatchableError as error:
     result.resources = VextResourceTree(roots: @[VextResourceNode(
       path: result.descriptor.path, typeId: result.descriptor.typeId,
-      kind: vrnkOpaque, data: result.data, rawDataAvailable: true)])
+      kind: vrnkOpaque, data: result.data, rawDataAvailable: true,
+      failureFormat: "recognized contained format",
+      failureMessage: error.msg,
+      metadata: @[stringMetadata("decode.warning", error.msg)])])
+    result.descriptor.failureFormat = "recognized contained format"
+    result.descriptor.failureMessage = error.msg
     result.descriptor.validatedThrough = vvlPayload
+  if result.resources.roots.len == 0:
+    if candidates.len == 0:
+      result.resources = VextResourceTree(roots: @[VextResourceNode(
+        path: result.descriptor.path, typeId: result.descriptor.typeId,
+        kind: vrnkOpaque, data: result.data, rawDataAvailable: true,
+        metadata: @[stringMetadata("decode.status", "format not recognized")])])
+      result.descriptor.validatedThrough = vvlPayload
+    else:
+      try:
+        let inspection = inspectSource(leafName, result.data)
+        result.resources = inspection.resources
+        result.warnings = inspection.warnings
+        result.descriptor.validatedThrough = vvlRepresentation
+      except CatchableError as error:
+        result.resources = VextResourceTree(roots: @[VextResourceNode(
+          path: result.descriptor.path, typeId: result.descriptor.typeId,
+          kind: vrnkOpaque, data: result.data, rawDataAvailable: true,
+          failureFormat: candidates[0].typeId,
+          failureMessage: error.msg,
+          metadata: @[
+            stringMetadata("decode.format", candidates[0].typeId),
+            stringMetadata("decode.warning", error.msg)])])
+        result.descriptor.failureFormat = candidates[0].typeId
+        result.descriptor.failureMessage = error.msg
+        result.descriptor.validatedThrough = vvlPayload
   progress.report(VextSessionProgressEvent(phase: vsppComplete,
     path: result.descriptor.path, completed: 1, discovered: 1,
     totalState: vptsFinal, message: "Resource loaded"))

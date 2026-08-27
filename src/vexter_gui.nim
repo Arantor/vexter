@@ -204,6 +204,7 @@ const
   TVM_SETIMAGELIST = 0x1109'u32
   TVM_GETNEXTITEM = 0x110A'u32
   TVM_GETITEMW = 0x113E'u32
+  TVM_SETITEMW = 0x113F'u32
   TVM_HITTEST = 0x1111'u32
   TVM_EXPAND = 0x1102'u32
   TVGN_CHILD = 0x0004
@@ -695,6 +696,14 @@ proc addLoadedNode(node: VextResourceNode, parent: HTREEITEM): HTREEITEM =
     discard SendMessageW(treeView, TVM_INSERTITEMW, 0,
       cast[LPARAM](addr placeholderInsert))
 
+proc showTreeItemFailure(item: HTREEITEM) =
+  if item == nil or failureImageIndex < 0: return
+  var treeItem = TVITEMW(mask: TVIF_IMAGE or TVIF_SELECTEDIMAGE,
+    hItem: item, iImage: failureImageIndex,
+    iSelectedImage: failureImageIndex)
+  discard SendMessageW(treeView, TVM_SETITEMW, 0,
+    cast[LPARAM](addr treeItem))
+
 proc rebuildTree() =
   discard SendMessageW(treeView, TVM_DELETEITEM, 0, cast[LPARAM](TVI_ROOT))
   bindings.setLen(0)
@@ -1042,6 +1051,9 @@ proc finishSessionJob(result: ptr SessionResult) =
           typeId: completed.loaded.descriptor.typeId, kind: vrnkGroup,
           children: completed.binding.loadedTree.roots)
       if not completed.binding.node.isNil and
+          completed.binding.node.failureMessage.len > 0:
+        showTreeItemFailure(completed.item)
+      if not completed.binding.node.isNil and
           completed.binding.node.children.len > 0:
         completed.binding.childrenLoaded = false
         let placeholder = TreeBinding(placeholder: true)
@@ -1074,6 +1086,8 @@ proc finishSessionJob(result: ptr SessionResult) =
           lParam: cast[LPARAM](placeholder)))
         discard SendMessageW(treeView, TVM_INSERTITEMW, 0,
           cast[LPARAM](addr placeholderInsert))
+      if completed.decodeResult == vddFailed:
+        showTreeItemFailure(completed.item)
       if selected == completed.binding:
         selectBinding(completed.binding)
   if sessionQueue.len > 0:
