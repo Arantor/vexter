@@ -20,6 +20,33 @@ formats are not included. Detailed format behavior and evidence remain in
     this is deliberately deferred rather than treated as an implementation
     task.
 
+- **GUI regression coverage for incremental inspection**
+  - Define a regression matrix for transitions where a session initially
+    exposes a generic descriptor and materialization later changes what the
+    GUI knows about the resource. Cover decoded media and text, nested
+    containers or groups, suspected-format decode failures, lazily enumerated
+    children, single and multiple decoded roots, working-limit decisions,
+    repeated selection or expansion, and replacing or closing a session while
+    work is pending.
+  - Extract the platform-neutral presentation decisions from the Win32 client
+    so automated tests can verify the resulting label, warning state,
+    metadata, expandability, preview kind, and available/default export
+    formats without driving native controls.
+  - Keep small deterministic synthetic fixtures in the repository for state
+    transitions and boundary cases. Large archive and filesystem scenarios
+    must not require multi-gigabyte fixtures in Git; investigate sparse or
+    generated inputs, fixture recipes, and separately acquired CI artifacts
+    when a CI environment is designed.
+  - A private compatibility corpus may eventually be exercised by an optional
+    local or protected-CI harness, but it is not a prerequisite for the
+    checked-in suite and its acquisition, provenance, and automation are a
+    separate piece of work.
+  - Retain a short native-Windows pre-release smoke test for message-loop,
+    worker-thread, common-control, visual, scrolling, progress, error-dialog,
+    and export integration that cannot be established by the platform-neutral
+    suite. Document its representative inputs and expected observations once
+    suitable resources are available.
+
 - **DOS ANSI art**
   - ANSiMation currently yields only its final static terminal state; no source
     timing convention has yet been supplied.
