@@ -11,12 +11,15 @@ const
   DoomWadTextureDirectoryTypeId* = "doom.texture-directory"
   DoomWadTextureTypeId* = "doom.wall-texture"
   DoomWadSoundTypeId* = "doom.sound"
+  DoomWadAutomapTypeId* = "doom.automap"
   DoomWadLumpTypeId* = "doom.lump"
   DoomPaletteColours* = 256
   DoomPaletteBytes* = DoomPaletteColours * 3
   DoomPaletteCount* = 14
   DoomFlatSize* = 64 * 64
   MaximumDoomPatchPixels* = 64 * 1024 * 1024
+  MaximumDoomMapElements* = 100_000
+  MaximumDoomAutomapDimension* = 1024
 
 type
   DoomWadKind* = enum
@@ -64,6 +67,26 @@ type
     declaredSamples*: int
     reserved*: int
     samples*: seq[byte]
+
+  DoomMapVertex* = object
+    x*, y*: int
+
+  DoomMapLine* = object
+    startVertex*, endVertex*: int
+    flags*, lineType*, tag*: int
+    rightSide*, leftSide*: int
+
+  DoomMapSide* = object
+    sector*: int
+
+  DoomMapSector* = object
+    floorHeight*, ceilingHeight*: int
+
+  DoomAutomapSource* = object
+    vertices*: seq[DoomMapVertex]
+    lines*: seq[DoomMapLine]
+    sides*: seq[DoomMapSide]
+    sectors*: seq[DoomMapSector]
 
 proc littleWord(data: openArray[byte], offset: int): int {.inline.} =
   int(data[offset]) or (int(data[offset + 1]) shl 8)
@@ -183,6 +206,140 @@ proc decodeDoomSound*(source: DoomSoundSource): VextSound =
   result = VextSound(buffer: VextAudioBuffer(bitsPerSample: 8,
     channels: @[samples]), sampleRate: source.sampleRate)
   result.buffer.validate
+
+proc isDoomMapMarker*(name: string): bool =
+  let upper = name.toUpperAscii
+  (upper.len == 4 and upper[0] == 'E' and upper[1] in {'0' .. '9'} and
+    upper[2] == 'M' and upper[3] in {'0' .. '9'}) or
+  (upper.len == 5 and upper.startsWith("MAP") and
+    upper[3] in {'0' .. '9'} and upper[4] in {'0' .. '9'})
+
+proc isDoomMapLumpName*(name: string): bool =
+  name.toUpperAscii in ["THINGS", "LINEDEFS", "SIDEDEFS", "VERTEXES",
+    "SEGS", "SSECTORS", "NODES", "SECTORS", "REJECT", "BLOCKMAP"]
+
+proc checkedRecordCount*(data: openArray[byte], recordSize: int,
+    label: string): int =
+  if data.len mod recordSize != 0:
+    raise newException(ValueError, label & " lump has a partial record")
+  result = data.len div recordSize
+  if result > MaximumDoomMapElements:
+    raise newException(ValueError, label & " record count exceeds the safety limit")
+
+proc parseDoomMapVertices*(data: openArray[byte]): seq[DoomMapVertex] =
+  let count = checkedRecordCount(data, 4, "VERTEXES")
+  for index in 0 ..< count:
+    let offset = index * 4
+    result.add DoomMapVertex(x: signedLittleWord(data, offset),
+      y: signedLittleWord(data, offset + 2))
+
+proc parseDoomMapLines*(data: openArray[byte],
+    vertexCount: int): seq[DoomMapLine] =
+  let count = checkedRecordCount(data, 14, "LINEDEFS")
+  for index in 0 ..< count:
+    let offset = index * 14
+    let line = DoomMapLine(startVertex: littleWord(data, offset),
+      endVertex: littleWord(data, offset + 2),
+      flags: littleWord(data, offset + 4),
+      lineType: littleWord(data, offset + 6),
+      tag: littleWord(data, offset + 8),
+      rightSide: signedLittleWord(data, offset + 10),
+      leftSide: signedLittleWord(data, offset + 12))
+    if line.startVertex >= vertexCount or line.endVertex >= vertexCount:
+      raise newException(ValueError, "LINEDEFS references a missing vertex")
+    if line.rightSide < 0:
+      raise newException(ValueError, "LINEDEFS line has no right SIDEDEF")
+    result.add line
+
+proc parseDoomMapSides*(data: openArray[byte]): seq[DoomMapSide] =
+  let count = checkedRecordCount(data, 30, "SIDEDEFS")
+  for index in 0 ..< count:
+    result.add DoomMapSide(sector: littleWord(data, index * 30 + 28))
+
+proc parseDoomMapSectors*(data: openArray[byte]): seq[DoomMapSector] =
+  let count = checkedRecordCount(data, 26, "SECTORS")
+  for index in 0 ..< count:
+    let offset = index * 26
+    result.add DoomMapSector(floorHeight: signedLittleWord(data, offset),
+      ceilingHeight: signedLittleWord(data, offset + 2))
+
+proc validateDoomMapReferences*(source: DoomAutomapSource) =
+  for line in source.lines:
+    if line.rightSide >= source.sides.len or line.leftSide >= source.sides.len:
+      raise newException(ValueError, "LINEDEFS references a missing SIDEDEF")
+  for side in source.sides:
+    if side.sector >= source.sectors.len:
+      raise newException(ValueError, "SIDEDEFS references a missing SECTOR")
+
+proc renderDoomAutomap*(source: DoomAutomapSource): VextTrueColourImage =
+  if source.vertices.len == 0:
+    raise newException(ValueError, "automap requires at least one vertex")
+  if source.lines.len == 0:
+    raise newException(ValueError, "automap requires at least one linedef")
+  var minX = source.vertices[0].x
+  var maxX = minX
+  var minY = source.vertices[0].y
+  var maxY = minY
+  for vertex in source.vertices:
+    minX = min(minX, vertex.x)
+    maxX = max(maxX, vertex.x)
+    minY = min(minY, vertex.y)
+    maxY = max(maxY, vertex.y)
+  let spanX = max(1, maxX - minX)
+  let spanY = max(1, maxY - minY)
+  const margin = 8
+  let available = MaximumDoomAutomapDimension - margin * 2
+  let scale = min(1.0, min(float(available) / float(spanX),
+    float(available) / float(spanY)))
+  let width = max(margin * 2 + 1,
+    int(float(spanX) * scale) + margin * 2 + 1)
+  let height = max(margin * 2 + 1,
+    int(float(spanY) * scale) + margin * 2 + 1)
+  var pixels = newSeq[VextRgb](width * height)
+
+  proc plot(x, y: int, colour: VextRgb) =
+    if x >= 0 and x < width and y >= 0 and y < height:
+      pixels[y * width + x] = colour
+
+  proc drawLine(x0, y0, x1, y1: int, colour: VextRgb) =
+    var x = x0
+    var y = y0
+    let dx = abs(x1 - x0)
+    let sx = if x0 < x1: 1 else: -1
+    let dy = -abs(y1 - y0)
+    let sy = if y0 < y1: 1 else: -1
+    var error = dx + dy
+    while true:
+      plot(x, y, colour)
+      if x == x1 and y == y1: break
+      let twice = error * 2
+      if twice >= dy:
+        error += dy
+        x += sx
+      if twice <= dx:
+        error += dx
+        y += sy
+
+  for line in source.lines:
+    if (line.flags and (1 shl 7)) != 0: continue
+    var colour = VextRgb(r: 128, g: 128, b: 128)
+    if line.leftSide < 0 or (line.flags and (1 shl 5)) != 0:
+      colour = VextRgb(r: 255, g: 0, b: 0)
+    elif source.sides.len > 0 and source.sectors.len > 0:
+      let right = source.sectors[source.sides[line.rightSide].sector]
+      let left = source.sectors[source.sides[line.leftSide].sector]
+      if right.ceilingHeight != left.ceilingHeight:
+        colour = VextRgb(r: 255, g: 255, b: 0)
+      elif right.floorHeight != left.floorHeight:
+        colour = VextRgb(r: 160, g: 80, b: 0)
+    let start = source.vertices[line.startVertex]
+    let finish = source.vertices[line.endVertex]
+    let x0 = margin + int(float(start.x - minX) * scale)
+    let y0 = height - margin - 1 - int(float(start.y - minY) * scale)
+    let x1 = margin + int(float(finish.x - minX) * scale)
+    let y1 = height - margin - 1 - int(float(finish.y - minY) * scale)
+    drawLine(x0, y0, x1, y1, colour)
+  result = VextTrueColourImage(width: width, height: height, pixels: pixels)
 
 proc parseDoomPatchNames*(data: openArray[byte]): seq[string] =
   if data.len < 4:

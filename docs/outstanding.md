@@ -47,9 +47,6 @@ formats are not included. Detailed format behavior and evidence remain in
     timing policy before offering coalesced GIF/APNG export.
   - PC-speaker `DP*` synthesis, MUS event streams, `GENMIDI`, and `DMXGUS` need
     separate transformation, format, and representation decisions.
-  - Parse map lump sequences and provide a bounded, deterministic automap-style
-    raster preview. Preserve the underlying map structures as metadata or
-    opaque resources until a generic geometry archetype is justified.
   - Design an explicit base-IWAD companion mechanism for partial PWADs rather
     than searching for or silently assuming game data.
 

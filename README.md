@@ -25,8 +25,8 @@ sufficiently useful to continue as an ongoing project.
   PCM WAV
 - ZX Spectrum: screen dumps, SNA snapshots, TAP files, and tokenised BASIC
 - Game data: classic DOOM IWAD/PWAD directories, palettes, flats, sprites,
-  patches, composited wall textures, sound effects, and other patch-format
-  graphics
+  patches, composited wall textures, sound effects, automap-style map previews,
+  and other patch-format graphics
 
 Decoded resources can be exported as PNG, GIF, APNG, BMFont text plus PNG
 atlases, self-contained HTML reports, metadata JSON, WAV, text, or raw binary.

@@ -7,7 +7,8 @@ The developer supplied `The Unofficial Doom Specs v1.666.html` on 27 August
 Matthew S. Fell's 15 December 1994 document is the format authority for the
 classic IWAD/PWAD header and directory, PLAYPAL palettes, flat namespaces, and
 column/post picture encoding, texture composition, and sampled sound-card
-effects used by the current DOOM support. Its SHA-256 is:
+effects, classic map records, and automap line semantics used by the current
+DOOM support. Its SHA-256 is:
 
 ```text
 3a74e6ef7abd706d76cf47562eae11d17b8bf78bced033ee85dd5801bc424b9d  The Unofficial Doom Specs v1.666.html

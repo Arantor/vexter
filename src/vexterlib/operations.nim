@@ -1407,6 +1407,100 @@ proc inspectSourceDepth(filename: string, data: openArray[byte],
           rawDataAvailable: true, metadata: commonMetadata)
     if textures.children.len > 0:
       root.children.add textures
+
+    let maps = VextResourceNode(path: "/wad/maps",
+      typeId: DoomWadAutomapTypeId, kind: vrnkGroup)
+    for markerIndex, marker in wad.entries:
+      if marker.size != 0 or not marker.name.isDoomMapMarker: continue
+      var mapLumps = initTable[string, int]()
+      var scan = markerIndex + 1
+      while scan < wad.entries.len and wad.entries[scan].name.isDoomMapLumpName:
+        mapLumps[wad.entries[scan].name.toUpperAscii] = scan
+        inc scan
+      let mapPath = "/wad/maps/" & $markerIndex & "-" &
+        marker.name.replace("/", "_").replace("\\", "_")
+      var metadata = @[
+        stringMetadata("map.name", marker.name),
+        integerMetadata("map.marker-index", markerIndex),
+        integerMetadata("map.lumps", mapLumps.len)]
+      const mapRecordSizes = [
+        (name: "THINGS", size: 10), (name: "LINEDEFS", size: 14),
+        (name: "SIDEDEFS", size: 30), (name: "VERTEXES", size: 4),
+        (name: "SEGS", size: 12), (name: "SSECTORS", size: 4),
+        (name: "NODES", size: 28), (name: "SECTORS", size: 26)]
+      for item in mapRecordSizes:
+        if mapLumps.hasKey(item.name):
+          let entry = wad.entries[mapLumps[item.name]]
+          let key = "map.lump." & item.name.toLowerAscii
+          metadata.add integerMetadata(key & ".index", mapLumps[item.name])
+          metadata.add integerMetadata(key & ".bytes", entry.size)
+          if entry.size mod item.size == 0:
+            metadata.add integerMetadata(key & ".records", entry.size div item.size)
+      for name in ["REJECT", "BLOCKMAP"]:
+        if mapLumps.hasKey(name):
+          let entry = wad.entries[mapLumps[name]]
+          let key = "map.lump." & name.toLowerAscii
+          metadata.add integerMetadata(key & ".index", mapLumps[name])
+          metadata.add integerMetadata(key & ".bytes", entry.size)
+
+      let mapGroup = VextResourceNode(path: mapPath,
+        typeId: DoomWadAutomapTypeId, kind: vrnkGroup, metadata: metadata)
+      let previewPath = mapPath & "/automap"
+      try:
+        if not mapLumps.hasKey("VERTEXES") or
+            not mapLumps.hasKey("LINEDEFS"):
+          raise newException(ValueError,
+            "automap requires VERTEXES and LINEDEFS lumps")
+        var source = DoomAutomapSource()
+        source.vertices = parseDoomMapVertices(
+          wad.entries[mapLumps["VERTEXES"]].entryBytes(data))
+        source.lines = parseDoomMapLines(
+          wad.entries[mapLumps["LINEDEFS"]].entryBytes(data),
+          source.vertices.len)
+        if source.vertices.len == 0:
+          raise newException(ValueError,
+            "automap requires at least one vertex")
+        if source.lines.len == 0:
+          raise newException(ValueError,
+            "automap requires at least one linedef")
+        if mapLumps.hasKey("SIDEDEFS") and mapLumps.hasKey("SECTORS"):
+          source.sides = parseDoomMapSides(
+            wad.entries[mapLumps["SIDEDEFS"]].entryBytes(data))
+          source.sectors = parseDoomMapSectors(
+            wad.entries[mapLumps["SECTORS"]].entryBytes(data))
+          source.validateDoomMapReferences()
+        var minX = source.vertices[0].x
+        var maxX = minX
+        var minY = source.vertices[0].y
+        var maxY = minY
+        for vertex in source.vertices:
+          minX = min(minX, vertex.x)
+          maxX = max(maxX, vertex.x)
+          minY = min(minY, vertex.y)
+          maxY = max(maxY, vertex.y)
+        metadata.add integerMetadata("map.bounds.minimum-x", minX)
+        metadata.add integerMetadata("map.bounds.maximum-x", maxX)
+        metadata.add integerMetadata("map.bounds.minimum-y", minY)
+        metadata.add integerMetadata("map.bounds.maximum-y", maxY)
+        var hiddenLines = 0
+        for line in source.lines:
+          if (line.flags and (1 shl 7)) != 0: inc hiddenLines
+        metadata.add integerMetadata("map.hidden-linedefs", hiddenLines)
+        mapGroup.metadata = metadata
+        mapGroup.children.add VextResourceNode(path: previewPath,
+          typeId: DoomWadAutomapTypeId, kind: vrnkRaster,
+          raster: VextRaster(kind: vrkTrueColourImage,
+            trueColourImage: renderDoomAutomap(source)), metadata: metadata)
+      except ValueError as error:
+        mapGroup.children.add VextResourceNode(path: previewPath,
+          typeId: DoomWadAutomapTypeId, kind: vrnkOpaque,
+          failureFormat: DoomWadAutomapTypeId,
+          failureMessage: error.msg, metadata: metadata)
+        result.warnings.add VextInspectionWarning(path: previewPath,
+          format: DoomWadAutomapTypeId, message: error.msg)
+      maps.children.add mapGroup
+    if maps.children.len > 0:
+      root.children.add maps
     result.resources.roots.add root
   of vhkZip:
     let archive = parsedValue[ZipArchive](selectedParsed, vhkZip)

@@ -71,6 +71,36 @@ proc makeSound(sampleRate: int, samples: openArray[byte]): seq[byte] =
   result.addWord(0)
   result.add samples
 
+proc makeVertices(vertices: openArray[tuple[x, y: int]]): seq[byte] =
+  for vertex in vertices:
+    result.addWord(vertex.x)
+    result.addWord(vertex.y)
+
+proc makeLine(startVertex, endVertex, flags, rightSide,
+    leftSide: int): seq[byte] =
+  result.addWord(startVertex)
+  result.addWord(endVertex)
+  result.addWord(flags)
+  result.addWord(0) # Type.
+  result.addWord(0) # Tag.
+  result.addWord(rightSide)
+  result.addWord(leftSide)
+
+proc makeSide(sector: int): seq[byte] =
+  result = newSeq[byte](28)
+  result.addWord(sector)
+
+proc makeSector(floorHeight, ceilingHeight: int): seq[byte] =
+  result.addWord(floorHeight)
+  result.addWord(ceilingHeight)
+  result.setLen(26)
+
+proc metadataInteger(node: VextResourceNode, key: string): int =
+  for entry in node.metadata:
+    if entry.key == key:
+      return entry.value.integerValue
+  raise newException(ValueError, "metadata key was not found: " & key)
+
 proc makeWad(lumps: openArray[tuple[name: string, data: seq[byte]]],
     kind = "PWAD"): seq[byte] =
   for value in kind: result.add byte(value)
@@ -306,3 +336,76 @@ suite "DOOM WAD":
     var badPnames = makePnames(["ONE"])
     badPnames.add 1
     expect ValueError: discard parseDoomPatchNames(badPnames)
+
+  test "classic map lumps render an all-map-style overhead preview":
+    let vertices = makeVertices([
+      (x: 0, y: 0), (x: 100, y: 0),
+      (x: 0, y: 10), (x: 100, y: 10),
+      (x: 0, y: 20), (x: 100, y: 20),
+      (x: 0, y: 30), (x: 100, y: 30),
+      (x: 0, y: 40), (x: 100, y: 40),
+      (x: 0, y: 50), (x: 100, y: 50)])
+    var lines: seq[byte]
+    lines.add makeLine(0, 1, 0, 0, -1) # One-sided: red.
+    lines.add makeLine(2, 3, 1 shl 5, 0, 1) # Secret: red.
+    lines.add makeLine(4, 5, 0, 0, 1) # Floor change: brown.
+    lines.add makeLine(6, 7, 0, 0, 2) # Ceiling change: yellow.
+    lines.add makeLine(8, 9, 1 shl 7, 0, 3) # Not on map: omitted.
+    lines.add makeLine(10, 11, 0, 0, 3) # Equal heights: gray.
+    var sides: seq[byte]
+    for sector in 0 .. 3: sides.add makeSide(sector)
+    var sectors: seq[byte]
+    sectors.add makeSector(0, 128)
+    sectors.add makeSector(64, 128)
+    sectors.add makeSector(0, 192)
+    sectors.add makeSector(0, 128)
+    let data = makeWad([
+      (name: "E1M1", data: newSeq[byte]()),
+      (name: "THINGS", data: newSeq[byte]()),
+      (name: "LINEDEFS", data: lines),
+      (name: "SIDEDEFS", data: sides),
+      (name: "VERTEXES", data: vertices),
+      (name: "SEGS", data: newSeq[byte]()),
+      (name: "SSECTORS", data: newSeq[byte]()),
+      (name: "NODES", data: newSeq[byte]()),
+      (name: "SECTORS", data: sectors),
+      (name: "REJECT", data: newSeq[byte]()),
+      (name: "BLOCKMAP", data: newSeq[byte]())])
+    let inspection = inspectSource("map.wad", data)
+    check inspection.warnings.len == 0
+    let automap = inspection.resources.findRasterResource(
+      "/wad/maps/0-E1M1/automap")
+    check not automap.isNil
+    check automap.typeId == DoomWadAutomapTypeId
+    check automap.raster.kind == vrkTrueColourImage
+    let image = automap.raster.trueColourImage
+    check image.width == 117
+    check image.height == 67
+    check image.colourAt(58, 58) == VextRgb(r: 255, g: 0, b: 0)
+    check image.colourAt(58, 48) == VextRgb(r: 255, g: 0, b: 0)
+    check image.colourAt(58, 38) == VextRgb(r: 160, g: 80, b: 0)
+    check image.colourAt(58, 28) == VextRgb(r: 255, g: 255, b: 0)
+    check image.colourAt(58, 18) == VextRgb(r: 0, g: 0, b: 0)
+    check image.colourAt(58, 8) == VextRgb(r: 128, g: 128, b: 128)
+    check automap.metadataInteger("map.lump.linedefs.records") == 6
+    check automap.metadataInteger("map.lump.nodes.records") == 0
+    check automap.metadataInteger("map.bounds.maximum-x") == 100
+    check automap.metadataInteger("map.hidden-linedefs") == 1
+    let exported = exportResource(inspection.resources, VextExportRequest(
+      resourcePath: automap.path, suggestedName: "E1M1"))
+    check exported.outputFormat == "png"
+
+  test "partial or invalid map geometry remains an inspectable failure":
+    var badLines = makeLine(0, 2, 0, 0, -1)
+    let data = makeWad([
+      (name: "MAP01", data: newSeq[byte]()),
+      (name: "LINEDEFS", data: badLines),
+      (name: "VERTEXES", data: makeVertices([(x: 0, y: 0)])),
+      (name: "TEXTURE1", data: @[0'u8, 0, 0, 0])])
+    let inspection = inspectSource("bad-map.wad", data)
+    check inspection.warnings.len == 1
+    let failed = inspection.resources.roots[0].children[^1].children[0].children[0]
+    check failed.path == "/wad/maps/0-MAP01/automap"
+    check failed.kind == vrnkOpaque
+    check failed.failureFormat == DoomWadAutomapTypeId
+    check "missing vertex" in failed.failureMessage

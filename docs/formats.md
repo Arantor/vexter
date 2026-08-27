@@ -1638,7 +1638,8 @@ itself is research material and is not part of the repository fixtures.
 Container type identifier: `doom.wad`
 
 Resource type identifiers: `doom.palette`, `doom.flat`, `doom.patch`,
-`doom.texture-directory`, `doom.wall-texture`, `doom.sound`, and `doom.lump`
+`doom.texture-directory`, `doom.wall-texture`, `doom.sound`, `doom.automap`,
+and `doom.lump`
 
 Classic `IWAD` and `PWAD` files are detected by a structurally validated
 12-byte header and complete 16-byte directory. Every lump offset and length
@@ -1676,6 +1677,19 @@ are biased to signed eight-bit PCM, making the resources playable in the GUI
 and naturally exportable as WAV. Header values, sample count, and duration are
 retained as metadata. A malformed known sound remains raw-BIN-exportable with
 an attached decoder warning.
+
+Classic `E#M#` and `MAP##` marker sequences expose a derived true-colour
+preview at `/wad/maps/INDEX-NAME/automap`. The preview is an all-map-style
+overhead rendering on black: one-sided and secret lines are red, floor-height
+transitions brown, ceiling-height transitions yellow, and other two-sided
+lines gray; lines marked not-on-map are omitted. Coordinates are fitted without
+enlargement into a maximum 1024-by-1024 image with a fixed margin and the map's
+positive Y axis pointing upward. Parsing is limited to the VERTEXES, LINEDEFS,
+SIDEDEFS, and SECTORS records needed for that view. Counts, bounds, hidden-line
+count, and physical lump sizes remain available as metadata; THINGS, BSP data,
+REJECT, BLOCKMAP, and every original map lump remain independently inspectable
+as opaque resources. Broken record sizes or references produce an inspectable
+warning node instead of a misleading partial image.
 
 Known non-picture control, map, PC-speaker, and music lumps are not probed as
 patch graphics. Unrecognized lumps remain ordered, named opaque resources with
