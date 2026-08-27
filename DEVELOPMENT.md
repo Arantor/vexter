@@ -82,6 +82,11 @@ sampled audio, and exports
 through the library's discoverable per-resource format list. It targets the
 Windows 7 API baseline and cross-compiles from Linux with MinGW-w64:
 
+Audio playback polls the prepared `waveOut` header for natural completion,
+then releases the device and restores the Play state so the same resource can
+be replayed. The resource TreeView uses persistent inactive selection so the
+current item remains visible while a playback or export control has focus.
+
 Contained resources carrying decode failures use the standard Windows warning
 icon in the TreeView. Their ancestor groups expand automatically, and selecting
 one shows its suspected format and decoder message in the text view.

@@ -176,6 +176,7 @@ const
   TVS_HASBUTTONS = 0x0001'u32
   TVS_HASLINES = 0x0002'u32
   TVS_LINESATROOT = 0x0004'u32
+  TVS_SHOWSELALWAYS = 0x0020'u32
   PBST_MARQUEE = 0x0008'u32
   CW_USEDEFAULT = low(int32)
   SW_SHOW = 5
@@ -233,6 +234,7 @@ const
   DIB_RGB_COLORS = 0'u32
   SRCCOPY = 0x00CC0020'u32
   COLORONCOLOR = 3
+  WHDR_DONE = 0x00000001'u32
   SB_HORZ = 0
   SB_VERT = 1
   SB_BOTH = 3
@@ -457,6 +459,8 @@ proc failureString(node: VextResourceNode): string =
     &"Decoder error:\r\n{node.failureMessage}\r\n"
 
 proc stopAudio() =
+  if mainWindow != nil:
+    discard KillTimer(mainWindow, 2)
   if waveHandle != nil:
     discard waveOutReset(waveHandle)
     discard waveOutUnprepareHeader(waveHandle, addr waveHeader, UINT(sizeof(WAVEHDR)))
@@ -465,6 +469,8 @@ proc stopAudio() =
   waveData.setLen(0)
   audioPlaying = false
   audioPaused = false
+  if playButton != nil:
+    discard SetWindowTextW(playButton, w("Play"))
 
 proc currentRasterImage(maximumWidth = 0): VextTrueColourImage =
   if not selected.isNil and not selected.node.isNil and
@@ -1162,9 +1168,14 @@ proc togglePlayback() =
       waveHeader = WAVEHDR(lpData: cast[cstring](addr waveData[0]),
         dwBufferLength: DWORD(waveData.len*2))
       if waveOutPrepareHeader(waveHandle, addr waveHeader, UINT(sizeof(WAVEHDR))) == 0:
-        discard waveOutWrite(waveHandle, addr waveHeader, UINT(sizeof(WAVEHDR)))
-        audioPlaying = true
-        discard SetWindowTextW(playButton, w("Pause"))
+        if waveOutWrite(waveHandle, addr waveHeader, UINT(sizeof(WAVEHDR))) == 0:
+          audioPlaying = true
+          discard SetWindowTextW(playButton, w("Pause"))
+          discard SetTimer(mainWindow, 2, 50, nil)
+        else:
+          stopAudio()
+      else:
+        stopAudio()
 
 proc chooseFile(save: bool, extension = "", filter = "All files\0*.*\0\0"): string =
   var buffer = newWideCString("", 32768)
@@ -1326,7 +1337,8 @@ proc mainProc(hwnd: HWND, msg: UINT, wp: WPARAM, lp: LPARAM): LRESULT {.stdcall.
     openButton = CreateWindowExW(0, w("BUTTON"), w("Open..."), WS_CHILD or WS_VISIBLE,
       0, 0, 0, 0, hwnd, cast[HMENU](1001), instance, nil)
     treeView = CreateWindowExW(0, w("SysTreeView32"), w(""), WS_CHILD or WS_VISIBLE or
-      WS_BORDER or TVS_HASBUTTONS or TVS_HASLINES or TVS_LINESATROOT,
+      WS_BORDER or TVS_HASBUTTONS or TVS_HASLINES or TVS_LINESATROOT or
+      TVS_SHOWSELALWAYS,
       0, 0, 0, 0, hwnd, cast[HMENU](1002), instance, nil)
     treeImages = ImageList_Create(16, 16, ILC_COLOR32 or ILC_MASK, 1, 1)
     if treeImages != nil:
@@ -1434,6 +1446,10 @@ proc mainProc(hwnd: HWND, msg: UINT, wp: WPARAM, lp: LPARAM): LRESULT {.stdcall.
       showTreeMetadataMenu()
     return 0
   of WM_TIMER:
+    if wp == 2:
+      if audioPlaying and (waveHeader.dwFlags and WHDR_DONE) != 0:
+        stopAudio()
+      return 0
     if wp == 1 and animationPlaying and frameCount() > 1:
       if selected.node.raster.kind == vrkIndexedImage:
         let
