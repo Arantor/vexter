@@ -1,7 +1,7 @@
 ## Structural validation and image extraction for classic DOOM IWAD/PWAD files.
 
 import std/[os, strutils]
-import ../archetypes/[palette, raster]
+import ../archetypes/[audio, palette, raster]
 
 const
   DoomWadTypeId* = "doom.wad"
@@ -10,6 +10,7 @@ const
   DoomWadPatchTypeId* = "doom.patch"
   DoomWadTextureDirectoryTypeId* = "doom.texture-directory"
   DoomWadTextureTypeId* = "doom.wall-texture"
+  DoomWadSoundTypeId* = "doom.sound"
   DoomWadLumpTypeId* = "doom.lump"
   DoomPaletteColours* = 256
   DoomPaletteBytes* = DoomPaletteColours * 3
@@ -56,6 +57,13 @@ type
 
   DoomTextureDirectory* = object
     textures*: seq[DoomTexture]
+
+  DoomSoundSource* = object
+    format*: int
+    sampleRate*: int
+    declaredSamples*: int
+    reserved*: int
+    samples*: seq[byte]
 
 proc littleWord(data: openArray[byte], offset: int): int {.inline.} =
   int(data[offset]) or (int(data[offset + 1]) shl 8)
@@ -149,6 +157,32 @@ proc decodeDoomPalettes*(data: openArray[byte]): seq[VextPalette] =
       palette.add VextRgb(r: data[offset], g: data[offset + 1],
         b: data[offset + 2])
     result.add VextPalette(colours: palette)
+
+proc parseDoomSound*(data: openArray[byte]): DoomSoundSource =
+  if data.len < 8:
+    raise newException(ValueError, "truncated DOOM sound header")
+  result = DoomSoundSource(format: littleWord(data, 0),
+    sampleRate: littleWord(data, 2),
+    declaredSamples: littleWord(data, 4),
+    reserved: littleWord(data, 6))
+  if result.format != 3:
+    raise newException(ValueError, "DOOM sound format must be 3")
+  if result.sampleRate <= 0:
+    raise newException(ValueError, "DOOM sound sample rate must be positive")
+  if result.reserved != 0:
+    raise newException(ValueError, "DOOM sound reserved header field must be zero")
+  if data.len != 8 + result.declaredSamples:
+    raise newException(ValueError,
+      "DOOM sound sample count does not match its lump length")
+  result.samples = @data[8 ..< data.len]
+
+proc decodeDoomSound*(source: DoomSoundSource): VextSound =
+  var samples = newSeq[VextAudioSample](source.samples.len)
+  for index, sample in source.samples:
+    samples[index] = int32(sample) - 128
+  result = VextSound(buffer: VextAudioBuffer(bitsPerSample: 8,
+    channels: @[samples]), sampleRate: source.sampleRate)
+  result.buffer.validate
 
 proc parseDoomPatchNames*(data: openArray[byte]): seq[string] =
   if data.len < 4:

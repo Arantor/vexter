@@ -1228,6 +1228,7 @@ proc inspectSourceDepth(filename: string, data: openArray[byte],
       let safeName = entry.name.replace("/", "_").replace("\\", "_")
       let path = "/wad/lumps/" & $index & "-" & safeName
       let lumpData = entry.entryBytes(data)
+      let upperName = entry.name.toUpperAscii
       let commonMetadata = @[
         integerMetadata("wad.index", index),
         stringMetadata("wad.name", entry.name),
@@ -1265,6 +1266,26 @@ proc inspectSourceDepth(filename: string, data: openArray[byte],
           failureMessage: patchNamesError, metadata: commonMetadata)
         result.warnings.add VextInspectionWarning(path: path,
           format: DoomWadTextureDirectoryTypeId, message: patchNamesError)
+      elif upperName.startsWith("DS") and upperName.len > 2:
+        try:
+          let sound = parseDoomSound(lumpData)
+          lumps.children.add VextResourceNode(path: path,
+            typeId: DoomWadSoundTypeId, kind: vrnkAudio,
+            audioKind: varkSound, sound: decodeDoomSound(sound),
+            metadata: commonMetadata & @[
+              integerMetadata("sound.format", sound.format),
+              integerMetadata("sound.sample-rate", sound.sampleRate),
+              integerMetadata("sound.samples", sound.declaredSamples),
+              integerMetadata("sound.reserved", sound.reserved),
+              integerMetadata("sound.duration-ms",
+                sound.declaredSamples * 1000 div sound.sampleRate)])
+        except ValueError as error:
+          lumps.children.add VextResourceNode(path: path,
+            typeId: DoomWadLumpTypeId, kind: vrnkOpaque, data: lumpData,
+            rawDataAvailable: true, failureFormat: DoomWadSoundTypeId,
+            failureMessage: error.msg, metadata: commonMetadata)
+          result.warnings.add VextInspectionWarning(path: path,
+            format: DoomWadSoundTypeId, message: error.msg)
       elif entry.name in ["TEXTURE1", "TEXTURE2"]:
         try:
           let directory = parseDoomTextureDirectory(lumpData)

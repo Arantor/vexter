@@ -45,9 +45,8 @@ formats are not included. Detailed format behavior and evidence remain in
 - **Classic DOOM WAD resources**
   - Add sprite-family grouping, mirrored rotations, and an explicit animation
     timing policy before offering coalesced GIF/APNG export.
-  - Decode sound-card `DS*` lumps to generic sampled audio. PC-speaker `DP*`
-    synthesis, MUS event streams, `GENMIDI`, and `DMXGUS` need separate format
-    and representation decisions.
+  - PC-speaker `DP*` synthesis, MUS event streams, `GENMIDI`, and `DMXGUS` need
+    separate transformation, format, and representation decisions.
   - Parse map lump sequences and provide a bounded, deterministic automap-style
     raster preview. Preserve the underlying map structures as metadata or
     opaque resources until a generic geometry archetype is justified.

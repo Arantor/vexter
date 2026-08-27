@@ -1638,7 +1638,7 @@ itself is research material and is not part of the repository fixtures.
 Container type identifier: `doom.wad`
 
 Resource type identifiers: `doom.palette`, `doom.flat`, `doom.patch`,
-`doom.texture-directory`, `doom.wall-texture`, and `doom.lump`
+`doom.texture-directory`, `doom.wall-texture`, `doom.sound`, and `doom.lump`
 
 Classic `IWAD` and `PWAD` files are detected by a structurally validated
 12-byte header and complete 16-byte directory. Every lump offset and length
@@ -1669,9 +1669,17 @@ map as metadata. Missing names, invalid patch data, or an absent palette leave
 an inspectable failed texture recipe and warning rather than discarding the
 directory.
 
-Known non-picture control, map, sound, and music lumps are not probed as patch
-graphics. Unrecognized lumps remain ordered, named opaque resources with BIN
-export. A standalone WAD must contain a valid `PLAYPAL` for its flats and
+Sound-card lumps whose names begin with `DS` decode their format-3 header,
+positive sample rate, declared sample count, zero reserved field, and complete
+unsigned eight-bit mono payload into a generic `VextSound`. The source bytes
+are biased to signed eight-bit PCM, making the resources playable in the GUI
+and naturally exportable as WAV. Header values, sample count, and duration are
+retained as metadata. A malformed known sound remains raw-BIN-exportable with
+an attached decoder warning.
+
+Known non-picture control, map, PC-speaker, and music lumps are not probed as
+patch graphics. Unrecognized lumps remain ordered, named opaque resources with
+BIN export. A standalone WAD must contain a valid `PLAYPAL` for its flats and
 patches or composed textures to be rendered; resolving a PWAD against a base
 IWAD is not yet implemented.
 

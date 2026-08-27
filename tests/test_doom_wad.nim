@@ -64,6 +64,13 @@ proc makePalettes(): seq[byte] =
       result.add byte(palette)
       result.add byte(255 - colour)
 
+proc makeSound(sampleRate: int, samples: openArray[byte]): seq[byte] =
+  result.addWord(3)
+  result.addWord(sampleRate)
+  result.addWord(samples.len)
+  result.addWord(0)
+  result.add samples
+
 proc makeWad(lumps: openArray[tuple[name: string, data: seq[byte]]],
     kind = "PWAD"): seq[byte] =
   for value in kind: result.add byte(value)
@@ -184,6 +191,53 @@ suite "DOOM WAD":
     var patch = makePatch()
     patch[16] = 2
     expect ValueError: discard parseDoomPatch(patch)
+
+  test "DS lumps expose generic sounds and export as WAV":
+    let data = makeWad([
+      (name: "DSPISTOL", data: makeSound(11025,
+        @[0'u8, 127, 128, 255])),
+      (name: "dsdoor", data: makeSound(8000, @[128'u8, 129]))])
+    let inspection = inspectSource("sounds.wad", data)
+    check inspection.warnings.len == 0
+    let pistol = inspection.resources.roots[0].children[0].children[0]
+    check pistol.path == "/wad/lumps/0-DSPISTOL"
+    check pistol.typeId == DoomWadSoundTypeId
+    check pistol.kind == vrnkAudio
+    check pistol.audioKind == varkSound
+    check pistol.sound.sampleRate == 11025
+    check pistol.sound.buffer.bitsPerSample == 8
+    check pistol.sound.buffer.channels == @[@[-128'i32, -1, 0, 127]]
+    check pistol.metadata[4].value.integerValue == 3
+    check pistol.metadata[5].value.integerValue == 11025
+    check pistol.metadata[6].value.integerValue == 4
+    check pistol.exportFormatsFor[0].id == "wav"
+    let exported = exportResource(inspection.resources, VextExportRequest(
+      resourcePath: pistol.path, suggestedName: "pistol"))
+    check exported.outputFormat == "wav"
+    check exported.artifacts.artifacts[0].suggestedFilename == "pistol.wav"
+    check decodeWav(parseWav(exported.artifacts.artifacts[0].data)) ==
+      pistol.sound
+    let door = inspection.resources.roots[0].children[0].children[1]
+    check door.kind == vrnkAudio
+    check door.sound.sampleRate == 8000
+
+  test "malformed DS lumps remain raw with decoder warnings":
+    var wrongFormat = makeSound(11025, @[128'u8])
+    wrongFormat[0] = 2
+    var badCount = makeSound(11025, @[128'u8])
+    badCount[4] = 2
+    var reserved = makeSound(11025, @[128'u8])
+    reserved[6] = 1
+    let data = makeWad([
+      (name: "DSFORMAT", data: wrongFormat),
+      (name: "DSCOUNT", data: badCount),
+      (name: "DSRESERV", data: reserved)])
+    let inspection = inspectSource("bad-sounds.wad", data)
+    check inspection.warnings.len == 3
+    for node in inspection.resources.roots[0].children[0].children:
+      check node.kind == vrnkOpaque
+      check node.rawDataAvailable
+      check node.failureFormat == DoomWadSoundTypeId
 
   test "PNAMES and both texture directories produce composited rasters":
     let texture1 = makeTextureDirectory("WALLONE", 3, 3, [
