@@ -250,6 +250,13 @@ suite "DOOM WAD":
     let door = inspection.resources.roots[0].children[0].children[1]
     check door.kind == vrnkAudio
     check door.sound.sampleRate == 8000
+    let sounds = inspection.resources.roots[0].children[1]
+    check sounds.path == "/wad/sounds"
+    check sounds.children.len == 2
+    check sounds.children[0].path == "/wad/sounds/0-DSPISTOL"
+    check sounds.children[0].sound == pistol.sound
+    check sounds.children[1].path == "/wad/sounds/1-dsdoor"
+    check sounds.children[1].sound.sampleRate == 8000
 
   test "malformed DS lumps remain raw with decoder warnings":
     var wrongFormat = makeSound(11025, @[128'u8])
@@ -268,6 +275,36 @@ suite "DOOM WAD":
       check node.kind == vrnkOpaque
       check node.rawDataAvailable
       check node.failureFormat == DoomWadSoundTypeId
+    let sounds = inspection.resources.roots[0].children[1]
+    check sounds.path == "/wad/sounds"
+    check sounds.children.len == 3
+    for node in sounds.children:
+      check node.kind == vrnkOpaque
+      check node.failureFormat == DoomWadSoundTypeId
+
+  test "sprite namespaces expose an ordered derived sprite collection":
+    let data = makeWad([
+      (name: "PLAYPAL", data: makePalettes()),
+      (name: "S_START", data: newSeq[byte]()),
+      (name: "TROOA0", data: makePatch(1)),
+      (name: "TROOA0", data: makePatch(10)),
+      (name: "BROKEN", data: @[1'u8]),
+      (name: "S_END", data: newSeq[byte]()),
+      (name: "OUTSIDE", data: makePatch(20))])
+    let inspection = inspectSource("sprites.wad", data)
+    check inspection.warnings.len == 1
+    let sprites = inspection.resources.roots[0].children[1]
+    check sprites.path == "/wad/sprites"
+    check sprites.children.len == 3
+    check sprites.children[0].path == "/wad/sprites/2-TROOA0"
+    check sprites.children[1].path == "/wad/sprites/3-TROOA0"
+    check sprites.children[0].raster.image.pixelAt(0, 0) == 1
+    check sprites.children[1].raster.image.pixelAt(0, 0) == 10
+    check sprites.children[2].path == "/wad/sprites/4-BROKEN"
+    check sprites.children[2].kind == vrnkOpaque
+    check sprites.children[2].failureFormat == DoomWadPatchTypeId
+    check inspection.resources.findRasterResource(
+      "/wad/lumps/6-OUTSIDE").raster.image.pixelAt(0, 0) == 20
 
   test "PNAMES and both texture directories produce composited rasters":
     let texture1 = makeTextureDirectory("WALLONE", 3, 3, [

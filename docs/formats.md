@@ -1676,7 +1676,19 @@ unsigned eight-bit mono payload into a generic `VextSound`. The source bytes
 are biased to signed eight-bit PCM, making the resources playable in the GUI
 and naturally exportable as WAV. Header values, sample count, and duration are
 retained as metadata. A malformed known sound remains raw-BIN-exportable with
-an attached decoder warning.
+an attached decoder warning. Every `DS*` entry also receives an ordered,
+index-prefixed semantic view under `/wad/sounds`, including duplicate names and
+inspectable failures, while its original directory entry remains under
+`/wad/lumps`.
+
+Patch-format entries between `S_START`/`S_END` or `SS_START`/`SS_END` markers
+receive corresponding ordered views under `/wad/sprites`. These retain the WAD
+index, name, offsets, and other lump metadata and are directly PNG-exportable.
+Marker names provide the classification boundary: patch-shaped graphics
+outside a sprite namespace remain decoded under `/wad/lumps` but are not
+guessed to be sprites. Duplicate sprite names remain distinct through their
+index-prefixed paths, and malformed namespace entries become inspectable
+warning nodes. The original lump entries remain available in directory order.
 
 Classic `E#M#` and `MAP##` marker sequences expose a derived true-colour
 preview at `/wad/maps/INDEX-NAME/automap`. The preview is an all-map-style

@@ -1196,6 +1196,10 @@ proc inspectSourceDepth(filename: string, data: openArray[byte],
 
     let textures = VextResourceNode(path: "/wad/textures",
       typeId: DoomWadTextureDirectoryTypeId, kind: vrnkGroup)
+    let sounds = VextResourceNode(path: "/wad/sounds",
+      typeId: DoomWadSoundTypeId, kind: vrnkGroup)
+    let sprites = VextResourceNode(path: "/wad/sprites",
+      typeId: DoomWadPatchTypeId, kind: vrnkGroup)
 
     var patchNames: seq[string]
     var patchNamesEntry = -1
@@ -1220,6 +1224,7 @@ proc inspectSourceDepth(filename: string, data: openArray[byte],
           discard
 
     var inFlats = false
+    var inSprites = false
     const nonPictureNames = ["COLORMAP", "ENDOOM", "TEXTURE1", "TEXTURE2",
       "PNAMES", "GENMIDI", "DMXGUS", "THINGS", "LINEDEFS", "SIDEDEFS",
       "VERTEXES", "SEGS", "SSECTORS", "NODES", "SECTORS", "REJECT",
@@ -1238,6 +1243,10 @@ proc inspectSourceDepth(filename: string, data: openArray[byte],
         inFlats = true
       elif entry.name == "F_END":
         inFlats = false
+      if upperName in ["S_START", "SS_START"]:
+        inSprites = true
+      elif upperName in ["S_END", "SS_END"]:
+        inSprites = false
 
       if entry.name == "PLAYPAL":
         try:
@@ -1267,22 +1276,31 @@ proc inspectSourceDepth(filename: string, data: openArray[byte],
         result.warnings.add VextInspectionWarning(path: path,
           format: DoomWadTextureDirectoryTypeId, message: patchNamesError)
       elif upperName.startsWith("DS") and upperName.len > 2:
+        let soundPath = "/wad/sounds/" & $index & "-" & safeName
         try:
           let sound = parseDoomSound(lumpData)
+          let soundMetadata = commonMetadata & @[
+            integerMetadata("sound.format", sound.format),
+            integerMetadata("sound.sample-rate", sound.sampleRate),
+            integerMetadata("sound.samples", sound.declaredSamples),
+            integerMetadata("sound.reserved", sound.reserved),
+            integerMetadata("sound.duration-ms",
+              sound.declaredSamples * 1000 div sound.sampleRate)]
+          let decoded = decodeDoomSound(sound)
           lumps.children.add VextResourceNode(path: path,
             typeId: DoomWadSoundTypeId, kind: vrnkAudio,
-            audioKind: varkSound, sound: decodeDoomSound(sound),
-            metadata: commonMetadata & @[
-              integerMetadata("sound.format", sound.format),
-              integerMetadata("sound.sample-rate", sound.sampleRate),
-              integerMetadata("sound.samples", sound.declaredSamples),
-              integerMetadata("sound.reserved", sound.reserved),
-              integerMetadata("sound.duration-ms",
-                sound.declaredSamples * 1000 div sound.sampleRate)])
+            audioKind: varkSound, sound: decoded, metadata: soundMetadata)
+          sounds.children.add VextResourceNode(path: soundPath,
+            typeId: DoomWadSoundTypeId, kind: vrnkAudio,
+            audioKind: varkSound, sound: decoded, metadata: soundMetadata)
         except ValueError as error:
           lumps.children.add VextResourceNode(path: path,
             typeId: DoomWadLumpTypeId, kind: vrnkOpaque, data: lumpData,
             rawDataAvailable: true, failureFormat: DoomWadSoundTypeId,
+            failureMessage: error.msg, metadata: commonMetadata)
+          sounds.children.add VextResourceNode(path: soundPath,
+            typeId: DoomWadSoundTypeId, kind: vrnkOpaque,
+            failureFormat: DoomWadSoundTypeId,
             failureMessage: error.msg, metadata: commonMetadata)
           result.warnings.add VextInspectionWarning(path: path,
             format: DoomWadSoundTypeId, message: error.msg)
@@ -1388,6 +1406,37 @@ proc inspectSourceDepth(filename: string, data: openArray[byte],
             failureMessage: error.msg, metadata: commonMetadata)
           result.warnings.add VextInspectionWarning(path: path,
             format: DoomWadFlatTypeId, message: error.msg)
+      elif inSprites and upperName notin ["S_START", "SS_START",
+          "S_END", "SS_END"]:
+        let spritePath = "/wad/sprites/" & $index & "-" & safeName
+        try:
+          if paletteZero.len != DoomPaletteColours:
+            raise newException(ValueError,
+              "sprite cannot render without a valid PLAYPAL")
+          let patch = parseDoomPatch(lumpData)
+          let spriteMetadata = commonMetadata & @[
+            integerMetadata("position.left-offset", patch.leftOffset),
+            integerMetadata("position.top-offset", patch.topOffset)]
+          let decoded = decodeDoomPatch(patch, paletteZero)
+          lumps.children.add VextResourceNode(path: path,
+            typeId: DoomWadPatchTypeId, kind: vrnkRaster,
+            raster: VextRaster(kind: vrkIndexedImage, image: decoded),
+            metadata: spriteMetadata)
+          sprites.children.add VextResourceNode(path: spritePath,
+            typeId: DoomWadPatchTypeId, kind: vrnkRaster,
+            raster: VextRaster(kind: vrkIndexedImage, image: decoded),
+            metadata: spriteMetadata)
+        except ValueError as error:
+          lumps.children.add VextResourceNode(path: path,
+            typeId: DoomWadLumpTypeId, kind: vrnkOpaque, data: lumpData,
+            rawDataAvailable: true, failureFormat: DoomWadPatchTypeId,
+            failureMessage: error.msg, metadata: commonMetadata)
+          sprites.children.add VextResourceNode(path: spritePath,
+            typeId: DoomWadPatchTypeId, kind: vrnkOpaque,
+            failureFormat: DoomWadPatchTypeId,
+            failureMessage: error.msg, metadata: commonMetadata)
+          result.warnings.add VextInspectionWarning(path: path,
+            format: DoomWadPatchTypeId, message: error.msg)
       elif paletteZero.len == DoomPaletteColours and entry.size > 0 and
           entry.name notin nonPictureNames and
           not entry.name.startsWith("DS") and not entry.name.startsWith("DP") and
@@ -1407,6 +1456,10 @@ proc inspectSourceDepth(filename: string, data: openArray[byte],
           rawDataAvailable: true, metadata: commonMetadata)
     if textures.children.len > 0:
       root.children.add textures
+    if sounds.children.len > 0:
+      root.children.add sounds
+    if sprites.children.len > 0:
+      root.children.add sprites
 
     let maps = VextResourceNode(path: "/wad/maps",
       typeId: DoomWadAutomapTypeId, kind: vrnkGroup)
