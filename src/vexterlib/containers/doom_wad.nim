@@ -8,6 +8,8 @@ const
   DoomWadPaletteTypeId* = "doom.palette"
   DoomWadFlatTypeId* = "doom.flat"
   DoomWadPatchTypeId* = "doom.patch"
+  DoomWadTextureDirectoryTypeId* = "doom.texture-directory"
+  DoomWadTextureTypeId* = "doom.wall-texture"
   DoomWadLumpTypeId* = "doom.lump"
   DoomPaletteColours* = 256
   DoomPaletteBytes* = DoomPaletteColours * 3
@@ -40,6 +42,20 @@ type
     width*, height*: int
     leftOffset*, topOffset*: int
     columns*: seq[DoomPatchColumn]
+
+  DoomTexturePatch* = object
+    originX*, originY*: int
+    patchIndex*: int
+    stepDirection*, colourMap*: int
+
+  DoomTexture* = object
+    name*: string
+    masked*, columnDirectory*: uint64
+    width*, height*: int
+    patches*: seq[DoomTexturePatch]
+
+  DoomTextureDirectory* = object
+    textures*: seq[DoomTexture]
 
 proc littleWord(data: openArray[byte], offset: int): int {.inline.} =
   int(data[offset]) or (int(data[offset + 1]) shl 8)
@@ -134,6 +150,57 @@ proc decodeDoomPalettes*(data: openArray[byte]): seq[VextPalette] =
         b: data[offset + 2])
     result.add VextPalette(colours: palette)
 
+proc parseDoomPatchNames*(data: openArray[byte]): seq[string] =
+  if data.len < 4:
+    raise newException(ValueError, "truncated PNAMES header")
+  let count64 = littleLong(data, 0)
+  if count64 > uint64(high(int)):
+    raise newException(ValueError, "PNAMES count exceeds host limits")
+  let count = int(count64)
+  if count > (data.len - 4) div 8 or data.len != 4 + count * 8:
+    raise newException(ValueError, "PNAMES name table has an invalid length")
+  for index in 0 ..< count:
+    result.add lumpName(data, 4 + index * 8)
+
+proc parseDoomTextureDirectory*(data: openArray[byte]): DoomTextureDirectory =
+  if data.len < 4:
+    raise newException(ValueError, "truncated DOOM texture-directory header")
+  let count64 = littleLong(data, 0)
+  if count64 > uint64(high(int)):
+    raise newException(ValueError, "DOOM texture count exceeds host limits")
+  let count = int(count64)
+  if count > (data.len - 4) div 4:
+    raise newException(ValueError, "truncated DOOM texture offset table")
+  let definitionsStart = 4 + count * 4
+  for index in 0 ..< count:
+    let offset64 = littleLong(data, 4 + index * 4)
+    if offset64 > uint64(high(int)):
+      raise newException(ValueError, "DOOM texture offset exceeds host limits")
+    let offset = int(offset64)
+    if offset < definitionsStart or offset > data.len - 22:
+      raise newException(ValueError, "DOOM texture definition is outside its lump")
+    var texture = DoomTexture(name: lumpName(data, offset),
+      masked: littleLong(data, offset + 8),
+      width: littleWord(data, offset + 12),
+      height: littleWord(data, offset + 14),
+      columnDirectory: littleLong(data, offset + 16))
+    if texture.width <= 0 or texture.height <= 0:
+      raise newException(ValueError, "DOOM texture dimensions must be positive")
+    if texture.width > MaximumDoomPatchPixels div texture.height:
+      raise newException(ValueError, "DOOM texture dimensions exceed the safety limit")
+    let patchCount = littleWord(data, offset + 20)
+    if patchCount > (data.len - offset - 22) div 10:
+      raise newException(ValueError, "truncated DOOM texture patch table")
+    for patchIndex in 0 ..< patchCount:
+      let patchOffset = offset + 22 + patchIndex * 10
+      texture.patches.add DoomTexturePatch(
+        originX: signedLittleWord(data, patchOffset),
+        originY: signedLittleWord(data, patchOffset + 2),
+        patchIndex: littleWord(data, patchOffset + 4),
+        stepDirection: signedLittleWord(data, patchOffset + 6),
+        colourMap: signedLittleWord(data, patchOffset + 8))
+    result.textures.add texture
+
 proc decodeDoomFlat*(data: openArray[byte],
     palette: openArray[VextRgb]): VextIndexedImage =
   if data.len != DoomFlatSize:
@@ -193,6 +260,30 @@ proc decodeDoomPatch*(patch: DoomPatch,
         let target = (post.top + row) * patch.width + x
         result.pixels[target] = pixel
         result.alpha[target] = 255
+
+proc composeDoomTexture*(texture: DoomTexture,
+    patches: openArray[DoomPatch],
+    palette: openArray[VextRgb]): VextIndexedImage =
+  if patches.len != texture.patches.len:
+    raise newException(ValueError,
+      "DOOM texture patch data does not match its composition recipe")
+  if palette.len != DoomPaletteColours:
+    raise newException(ValueError, "DOOM texture requires a 256-colour palette")
+  result = VextIndexedImage(width: texture.width, height: texture.height,
+    palette: @palette, pixels: newSeq[uint8](texture.width * texture.height),
+    alpha: newSeq[uint8](texture.width * texture.height))
+  for placementIndex, patch in patches:
+    let placement = texture.patches[placementIndex]
+    for sourceX, column in patch.columns:
+      let targetX = placement.originX + sourceX
+      if targetX < 0 or targetX >= texture.width: continue
+      for post in column.posts:
+        for row, pixel in post.pixels:
+          let targetY = placement.originY + post.top + row
+          if targetY < 0 or targetY >= texture.height: continue
+          let target = targetY * texture.width + targetX
+          result.pixels[target] = pixel
+          result.alpha[target] = 255
 
 proc isDoomPatch*(data: openArray[byte]): bool =
   try:

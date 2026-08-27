@@ -20,7 +20,7 @@ client, and a dependency-free native Windows GUI. It supports:
   integer PCM WAV sounds, PCX, TGA, BMP/DIB,
   static DOS ANSI art with optional SAUCE metadata,
   classic DOOM IWAD/PWAD containers with palettes, flats, sprites, patches,
-  and other patch-format graphics,
+  composited wall textures, and other patch-format graphics,
   PNG, baseline/extended-sequential Huffman JPEG with EXIF orientation,
   OpenRaster layered documents, Windows ICO/CUR collections (including PNG and DIB entries), QOI,
   Commodore 64 KoalaPainter images,
@@ -241,7 +241,9 @@ Matching case-insensitive extensions add supporting evidence.
   unpacked content through bounded recursive inspection;
 - `doom_wad.nim` validates classic IWAD/PWAD headers, bounded ordered lump
   directories, PLAYPAL palettes, flat namespaces, and column/post patch
-  graphics with transparent gaps and signed placement offsets;
+  graphics with transparent gaps and signed placement offsets. It also parses
+  PNAMES and TEXTURE1/TEXTURE2 recipes and composites clipped transparent wall
+  textures in declared patch order;
 - `zip_archive.nim` validates single-volume ZIP central/local records, expands
   stored and raw-DEFLATE members on demand, and retains physical member offsets
   needed by package-profile refiners;
@@ -619,6 +621,8 @@ doom.wad
 doom.palette
 doom.flat
 doom.patch
+doom.texture-directory
+doom.wall-texture
 doom.lump
 amiga.iff
 amiga.acbm
@@ -918,7 +922,9 @@ The routine suites are:
   remain pending user-supplied samples;
 - `tests/test_doom_wad.nim`: synthetic IWAD/PWAD directory ordering and bounds,
   duplicate names, PLAYPAL palettes, flat namespaces, patch posts,
-  transparency, signed offsets, malformed resources, and PNG eligibility;
+  transparency, signed offsets, PNAMES resolution, TEXTURE1/TEXTURE2
+  composition and clipping, retained recipes, malformed resources, and PNG
+  eligibility;
 - `tests/test_amiga_acbm.nim`: ACBM detection, plane-contiguous raw and
   ByteRun1 ABIT decoding, and structural failure modes;
 - `tests/test_amiga_pbm.nim`: provisional packed eight-bit rows, word

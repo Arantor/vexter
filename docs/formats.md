@@ -1637,8 +1637,8 @@ itself is research material and is not part of the repository fixtures.
 
 Container type identifier: `doom.wad`
 
-Resource type identifiers: `doom.palette`, `doom.flat`, `doom.patch`, and
-`doom.lump`
+Resource type identifiers: `doom.palette`, `doom.flat`, `doom.patch`,
+`doom.texture-directory`, `doom.wall-texture`, and `doom.lump`
 
 Classic `IWAD` and `PWAD` files are detected by a structurally validated
 12-byte header and complete 16-byte directory. Every lump offset and length
@@ -1656,11 +1656,24 @@ Undrawn patch pixels are transparent, and signed left/top placement offsets
 are retained as metadata. Decoded palettes and images use the generic palette
 and raster exporters, including PNG export.
 
+`PNAMES` supplies the case-insensitive patch-name index used by `TEXTURE1` and
+`TEXTURE2`. Each texture directory is structurally validated, and its textures
+are exposed under `/wad/textures/INDEX-TEXTURE1` or `TEXTURE2` in definition
+order. Patch names resolve to the last matching lump in the WAD. Compositing
+uses declared placement order: opaque pixels from later patches replace earlier
+ones, transparent gaps leave earlier pixels intact, and placements are clipped
+to the declared texture canvas. The texture node retains the directory and
+texture indices, name, dimensions, legacy header fields, and every patch's
+origin, PNAMES index and name, resolved lump index, step direction, and colour
+map as metadata. Missing names, invalid patch data, or an absent palette leave
+an inspectable failed texture recipe and warning rather than discarding the
+directory.
+
 Known non-picture control, map, sound, and music lumps are not probed as patch
 graphics. Unrecognized lumps remain ordered, named opaque resources with BIN
 export. A standalone WAD must contain a valid `PLAYPAL` for its flats and
-patches to be rendered; resolving a PWAD against a base IWAD is not yet
-implemented.
+patches or composed textures to be rendered; resolving a PWAD against a base
+IWAD is not yet implemented.
 
 Implementation follows the locally supplied *Unofficial DOOM Specs v1.666*,
 with provenance recorded in `THIRD_PARTY.md`. Routine coverage uses compact

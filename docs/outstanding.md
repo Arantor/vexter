@@ -43,8 +43,6 @@ formats are not included. Detailed format behavior and evidence remain in
     inference; do not infer width from `.DIZ` or other filenames.
 
 - **Classic DOOM WAD resources**
-  - Compose wall textures from `PNAMES` and `TEXTURE1`/`TEXTURE2`, retaining
-    patch placement metadata and unresolved PWAD dependencies explicitly.
   - Add sprite-family grouping, mirrored rotations, and an explicit animation
     timing policy before offering coalesced GIF/APNG export.
   - Decode sound-card `DS*` lumps to generic sampled audio. PC-speaker `DP*`

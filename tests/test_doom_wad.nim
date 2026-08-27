@@ -1,4 +1,4 @@
-import std/unittest
+import std/[strutils, unittest]
 import vexterlib
 
 proc addWord(data: var seq[byte], value: int) =
@@ -24,6 +24,38 @@ proc makePatch(): seq[byte] =
   result.addLong(23)
   result.add @[0'u8, 2, 0, 1, 2, 0, 255]
   result.add @[1'u8, 2, 0, 3, 4, 0, 255]
+
+proc makePatch(base: int): seq[byte] =
+  result = makePatch()
+  result[19] = byte(base)
+  result[20] = byte(base + 1)
+  result[26] = byte(base + 2)
+  result[27] = byte(base + 3)
+
+proc addName(data: var seq[byte], name: string) =
+  for index in 0 ..< 8:
+    data.add if index < name.len: byte(name[index]) else: 0
+
+proc makePnames(names: openArray[string]): seq[byte] =
+  result.addLong(names.len)
+  for name in names: result.addName(name)
+
+proc makeTextureDirectory(name: string, width, height: int,
+    patches: openArray[tuple[x, y, patch, step, colourMap: int]]): seq[byte] =
+  result.addLong(1)
+  result.addLong(8)
+  result.addName(name)
+  result.addLong(0)
+  result.addWord(width)
+  result.addWord(height)
+  result.addLong(0)
+  result.addWord(patches.len)
+  for patch in patches:
+    result.addWord(patch.x)
+    result.addWord(patch.y)
+    result.addWord(patch.patch)
+    result.addWord(patch.step)
+    result.addWord(patch.colourMap)
 
 proc makePalettes(): seq[byte] =
   for palette in 0 ..< DoomPaletteCount:
@@ -152,3 +184,71 @@ suite "DOOM WAD":
     var patch = makePatch()
     patch[16] = 2
     expect ValueError: discard parseDoomPatch(patch)
+
+  test "PNAMES and both texture directories produce composited rasters":
+    let texture1 = makeTextureDirectory("WALLONE", 3, 3, [
+      (x: 0, y: 0, patch: 0, step: 1, colourMap: 0),
+      (x: 1, y: -1, patch: 1, step: 1, colourMap: 0)])
+    let texture2 = makeTextureDirectory("WALLTWO", 2, 3, [
+      (x: 0, y: 0, patch: 0, step: 2, colourMap: 3)])
+    let data = makeWad([
+      (name: "PLAYPAL", data: makePalettes()),
+      (name: "PNAMES", data: makePnames(["patcha", "PATCHB"])),
+      (name: "TEXTURE1", data: texture1),
+      (name: "PATCHA", data: makePatch(1)),
+      (name: "PATCHB", data: makePatch(20)),
+      (name: "PATCHB", data: makePatch(10)),
+      (name: "TEXTURE2", data: texture2)])
+    let inspection = inspectSource("textures.wad", data)
+    check inspection.warnings.len == 0
+
+    let wallOne = inspection.resources.findRasterResource(
+      "/wad/textures/2-TEXTURE1/0-WALLONE")
+    check not wallOne.isNil
+    check wallOne.raster.image.width == 3
+    check wallOne.raster.image.height == 3
+    check wallOne.raster.image.pixelAt(0, 0) == 1
+    check wallOne.raster.image.pixelAt(1, 0) == 11
+    check wallOne.raster.image.pixelAt(2, 0) == 12
+    check wallOne.raster.image.pixelAt(2, 1) == 13
+    check wallOne.raster.image.alphaAt(0, 2) == 0
+    check wallOne.metadata[8].value.integerValue == 0
+    check wallOne.metadata[13].value.stringValue == "patcha"
+    check wallOne.metadata[14].value.integerValue == 3
+    check wallOne.metadata[20].value.stringValue == "PATCHB"
+    check wallOne.metadata[21].value.integerValue == 5
+
+    let wallTwo = inspection.resources.findRasterResource(
+      "/wad/textures/6-TEXTURE2/0-WALLTWO")
+    check not wallTwo.isNil
+    check wallTwo.raster.image.pixelAt(1, 1) == 3
+    check wallTwo.raster.image.pixelAt(1, 2) == 4
+    check wallTwo.metadata[11].value.integerValue == 2
+    check wallTwo.metadata[12].value.integerValue == 3
+
+  test "unresolved texture recipes remain inspectable failures":
+    let texture = makeTextureDirectory("MISSING", 2, 2, [
+      (x: -1, y: 2, patch: 1, step: 1, colourMap: 0)])
+    let data = makeWad([
+      (name: "PLAYPAL", data: makePalettes()),
+      (name: "PNAMES", data: makePnames(["ONLYONE"])),
+      (name: "TEXTURE1", data: texture)])
+    let inspection = inspectSource("missing.wad", data)
+    let failed = inspection.resources.roots[0].children[1].children[0].children[0]
+    check failed.path == "/wad/textures/2-TEXTURE1/0-MISSING"
+    check failed.kind == vrnkOpaque
+    check failed.failureFormat == DoomWadTextureTypeId
+    check "outside PNAMES" in failed.failureMessage
+    check failed.metadata[8].value.integerValue == -1
+    check failed.metadata[9].value.integerValue == 2
+    check inspection.warnings.len == 1
+
+  test "texture directory offsets and patch tables are bounded":
+    var badOffset = makeTextureDirectory("BROKEN", 2, 2,
+      newSeq[tuple[x, y, patch, step, colourMap: int]]())
+    badOffset.setLong(4, badOffset.len)
+    expect ValueError: discard parseDoomTextureDirectory(badOffset)
+
+    var badPnames = makePnames(["ONE"])
+    badPnames.add 1
+    expect ValueError: discard parseDoomPatchNames(badPnames)

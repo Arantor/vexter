@@ -1194,6 +1194,21 @@ proc inspectSourceDepth(filename: string, data: openArray[byte],
       kind: vrnkGroup)
     root.children.add lumps
 
+    let textures = VextResourceNode(path: "/wad/textures",
+      typeId: DoomWadTextureDirectoryTypeId, kind: vrnkGroup)
+
+    var patchNames: seq[string]
+    var patchNamesEntry = -1
+    var patchNamesError = ""
+    for index, entry in wad.entries:
+      if entry.name.toUpperAscii == "PNAMES": patchNamesEntry = index
+    if patchNamesEntry >= 0:
+      try:
+        patchNames = parseDoomPatchNames(
+          wad.entries[patchNamesEntry].entryBytes(data))
+      except ValueError as error:
+        patchNamesError = error.msg
+
     var paletteZero: seq[VextRgb]
     for entry in wad.entries:
       if entry.name == "PLAYPAL":
@@ -1243,6 +1258,100 @@ proc inspectSourceDepth(filename: string, data: openArray[byte],
             failureMessage: error.msg, metadata: commonMetadata)
           result.warnings.add VextInspectionWarning(path: path,
             format: DoomWadPaletteTypeId, message: error.msg)
+      elif index == patchNamesEntry and patchNamesError.len > 0:
+        lumps.children.add VextResourceNode(path: path,
+          typeId: DoomWadLumpTypeId, kind: vrnkOpaque, data: lumpData,
+          rawDataAvailable: true, failureFormat: DoomWadTextureDirectoryTypeId,
+          failureMessage: patchNamesError, metadata: commonMetadata)
+        result.warnings.add VextInspectionWarning(path: path,
+          format: DoomWadTextureDirectoryTypeId, message: patchNamesError)
+      elif entry.name in ["TEXTURE1", "TEXTURE2"]:
+        try:
+          let directory = parseDoomTextureDirectory(lumpData)
+          lumps.children.add VextResourceNode(path: path,
+            typeId: DoomWadLumpTypeId, kind: vrnkOpaque, data: lumpData,
+            rawDataAvailable: true, metadata: commonMetadata & @[
+              integerMetadata("wad.textures", directory.textures.len)])
+          let directoryGroup = VextResourceNode(
+            path: "/wad/textures/" & $index & "-" & entry.name,
+            typeId: DoomWadTextureDirectoryTypeId, kind: vrnkGroup,
+            metadata: commonMetadata)
+          for textureIndex, texture in directory.textures:
+            let texturePath = directoryGroup.path & "/" & $textureIndex &
+              "-" & texture.name.replace("/", "_").replace("\\", "_")
+            var metadata = @[
+              stringMetadata("texture.directory", entry.name),
+              integerMetadata("texture.index", textureIndex),
+              stringMetadata("texture.name", texture.name),
+              integerMetadata("texture.width", texture.width),
+              integerMetadata("texture.height", texture.height),
+              integerMetadata("texture.masked", int(texture.masked)),
+              integerMetadata("texture.column-directory",
+                int(texture.columnDirectory)),
+              integerMetadata("texture.patches", texture.patches.len)]
+            var resolved: seq[DoomPatch]
+            var resolutionError = ""
+            for placementIndex, placement in texture.patches:
+              let key = "texture.patch." & $placementIndex
+              metadata.add integerMetadata(key & ".origin-x", placement.originX)
+              metadata.add integerMetadata(key & ".origin-y", placement.originY)
+              metadata.add integerMetadata(key & ".pname-index",
+                placement.patchIndex)
+              metadata.add integerMetadata(key & ".step-direction",
+                placement.stepDirection)
+              metadata.add integerMetadata(key & ".colour-map",
+                placement.colourMap)
+              if placement.patchIndex < 0 or
+                  placement.patchIndex >= patchNames.len:
+                if resolutionError.len == 0:
+                  resolutionError = "texture patch index " &
+                    $placement.patchIndex & " is outside PNAMES"
+                continue
+              let patchName = patchNames[placement.patchIndex]
+              metadata.add stringMetadata(key & ".name", patchName)
+              var lumpIndex = -1
+              for candidateIndex in countdown(wad.entries.high, 0):
+                if wad.entries[candidateIndex].name.toUpperAscii ==
+                    patchName.toUpperAscii:
+                  lumpIndex = candidateIndex
+                  break
+              if lumpIndex < 0:
+                if resolutionError.len == 0:
+                  resolutionError = "texture patch lump is missing: " & patchName
+                continue
+              metadata.add integerMetadata(key & ".lump-index", lumpIndex)
+              try:
+                resolved.add parseDoomPatch(wad.entries[lumpIndex].entryBytes(data))
+              except ValueError as error:
+                if resolutionError.len == 0:
+                  resolutionError = "invalid texture patch " & patchName &
+                    ": " & error.msg
+            if paletteZero.len != DoomPaletteColours and resolutionError.len == 0:
+              resolutionError = "texture cannot render without a valid PLAYPAL"
+            if resolved.len != texture.patches.len and resolutionError.len == 0:
+              resolutionError = "one or more texture patches could not be resolved"
+            if resolutionError.len > 0:
+              directoryGroup.children.add VextResourceNode(path: texturePath,
+                typeId: DoomWadTextureTypeId, kind: vrnkOpaque,
+                failureFormat: DoomWadTextureTypeId,
+                failureMessage: resolutionError, metadata: metadata)
+              result.warnings.add VextInspectionWarning(path: texturePath,
+                format: DoomWadTextureTypeId, message: resolutionError)
+            else:
+              directoryGroup.children.add VextResourceNode(path: texturePath,
+                typeId: DoomWadTextureTypeId, kind: vrnkRaster,
+                raster: VextRaster(kind: vrkIndexedImage,
+                  image: composeDoomTexture(texture, resolved, paletteZero)),
+                metadata: metadata)
+          textures.children.add directoryGroup
+        except ValueError as error:
+          lumps.children.add VextResourceNode(path: path,
+            typeId: DoomWadLumpTypeId, kind: vrnkOpaque, data: lumpData,
+            rawDataAvailable: true,
+            failureFormat: DoomWadTextureDirectoryTypeId,
+            failureMessage: error.msg, metadata: commonMetadata)
+          result.warnings.add VextInspectionWarning(path: path,
+            format: DoomWadTextureDirectoryTypeId, message: error.msg)
       elif inFlats and entry.name != "F_START" and entry.name != "F_END" and
           paletteZero.len == DoomPaletteColours:
         try:
@@ -1275,6 +1384,8 @@ proc inspectSourceDepth(filename: string, data: openArray[byte],
         lumps.children.add VextResourceNode(path: path,
           typeId: DoomWadLumpTypeId, kind: vrnkOpaque, data: lumpData,
           rawDataAvailable: true, metadata: commonMetadata)
+    if textures.children.len > 0:
+      root.children.add textures
     result.resources.roots.add root
   of vhkZip:
     let archive = parsedValue[ZipArchive](selectedParsed, vhkZip)
