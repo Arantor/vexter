@@ -5,7 +5,7 @@ import ./handler_registry
 import ./format_detection_types
 export format_detection_types
 import ./containers/[amiga_8svx, amiga_16sv, amiga_acbm, amiga_adf, amiga_anim, amiga_diskfont, amiga_dms, amiga_hunk_executable, amiga_iff, amiga_ilbm, amiga_lha_sfx, amiga_pbm, amiga_workbench_icon, amos_bank, amos_bank_set, amos_program,
-  amos_sprite_icon_bank, ansi_art, bmfont, bmp, creative_voice, doom_wad, flic, fzx, gif_container, iso9660, jpeg, koala_painter, netpbm, pcx, png_container, qoi, tga,
+  amos_sprite_icon_bank, ansi_art, bmfont, bmp, creative_voice, doom_wad, flic, fzx, gif_container, iso9660, jpeg, koala_painter, netpbm, paint_net_palette, pcx, png_container, qoi, tga,
   wav, windows_icon, zip_archive, lha_archive, zx_spectrum_screen_dump, zx_spectrum_snapshot, zx_spectrum_tap]
 import ./containers/xpk_shri
 import ./containers/powerpacker
@@ -285,6 +285,16 @@ proc detectBaseFormats(filename: string, data: openArray[byte]):
     if hasCreativeVoiceExtension(filename):
       evidence.add VextDetectionEvidence(description: "file extension is .voc")
     result.add VextDetectionCandidate(typeId: CreativeVoiceTypeId,
+      confidence: vdcCertain, evidence: evidence)
+
+  if isPaintNetPalette(data):
+    let source = parsePaintNetPalette(data)
+    var evidence = @[VextDetectionEvidence(description:
+      "file begins with the Paint.NET palette magic comment and contains " &
+      $source.palette.colours.len & " valid ARGB colour entries")]
+    if hasPaintNetPaletteExtension(filename):
+      evidence.add VextDetectionEvidence(description: "file extension is .txt")
+    result.add VextDetectionCandidate(typeId: PaintNetPaletteTypeId,
       confidence: vdcCertain, evidence: evidence)
 
   if isZipArchive(data):

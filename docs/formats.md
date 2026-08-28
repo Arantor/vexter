@@ -633,6 +633,32 @@ Synthetic tests establish the maintained behavior;
 `COMPA180.VOC` is used only for temporary ad-hoc compatibility testing and is
 not part of the formal fixture corpus.
 
+## Paint.NET palette files
+
+Paint.NET text palettes are identified by the exact opening line
+`;paint.net Palette File`; their generic `.txt` extension is supporting
+evidence only. Blank lines and all lines beginning with a semicolon are
+ignored as comments after the opening identifier. Non-comment lines must each
+contain exactly eight case-insensitive hexadecimal digits in 32-bit ARGB
+order. At least one colour is required, and palettes are bounded to 65,536
+entries.
+
+Common `Palette Name:` and `Description:` comments become metadata when their
+trimmed values are non-empty. A numeric `Colors:` comment is retained as the
+declared colour count, but it is advisory and does not constrain or override
+the number of parsed entries. Other comments, including generic download
+URLs, are not interpreted as metadata.
+
+The ordered colours use the generic palette archetype. Per-entry alpha is
+retained when any entry is not opaque, appears in metadata JSON, and is
+preserved by the PNG swatch used for natural export and GUI preview. Existing
+opaque palettes use the same optional-alpha representation without acquiring
+redundant alpha data.
+
+Type identifier: `paint-net.palette`
+
+Resource path: `/palette`
+
 ## Amiga IFF, ILBM, ACBM, and PBM
 
 An ILBM or ACBM containing a `CMAP` but no bitmap `BODY`/`ABIT` is treated as
@@ -640,7 +666,7 @@ an ordered palette resource; `BMHD` is optional when there is no bitmap data.
 Its `CRNG` and `CCRT` ranges are retained. Palette resources naturally export
 as a PNG swatch, with 16×16-pixel tiles in palette order. Indexed images and
 animations offer the same swatch as an additional export. Metadata JSON
-contains the exact RGB entries and range timing. Cycling colours are not
+contains the exact opaque RGBA entries and range timing. Cycling colours are not
 marked inside the main palette grid. Instead, each range appears below it as
 an explicitly captioned row in its natural forward or reverse sequence, with
 its palette indices and step timing. Standalone palettes are not limited to

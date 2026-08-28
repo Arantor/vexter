@@ -1,5 +1,26 @@
 # Third-party material
 
+## Lospec Paint.NET palette samples
+
+The developer supplied `general.txt` and `resurrect-64.txt` on 28 August 2026.
+Both identify themselves as Paint.NET palette files downloaded from
+`Lospec.com/palette-list`. `general.txt` names the 69-colour General palette
+and carries its author-supplied description; `resurrect-64.txt` names the
+64-colour Resurrect 64 palette and has an empty description. They establish
+case-insensitive ARGB entries, optional descriptive metadata, and real files
+whose declared colour counts match their content.
+
+The files give only the generic Lospec catalogue URL rather than stable
+palette-specific provenance and state no redistribution licence. They remain
+temporary compatibility material in the working directory and are not copied
+into the committed fixture corpus. Routine tests use compact synthetic data.
+Their supplied-file SHA-256 values are:
+
+```text
+55e30c8bfcafe6e14638dad418fbceeb6d6b16f8f52c24b42a7c66e819317b68  general.txt
+cd805eadaaf5ff7f8991bfe57a401e731760958a4ea65dd5c46370b33ec1b606  resurrect-64.txt
+```
+
 ## Creative Voice file Wikipedia capture
 
 The developer supplied `Creative Voice file - Wikipedia.html` on 28 August

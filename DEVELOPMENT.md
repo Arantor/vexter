@@ -24,6 +24,7 @@ client, and a dependency-free native Windows GUI. It supports:
   and other patch-format graphics,
   PNG, baseline/extended-sequential Huffman JPEG with EXIF orientation,
   OpenRaster layered documents, Windows ICO/CUR collections (including PNG and DIB entries), QOI,
+  Paint.NET text palettes,
   Commodore 64 KoalaPainter images,
   Netpbm P1–P7, GIF87a/GIF89a, and FLI/FLC-family animations,
   AmigaDOS ADF filesystems, DMS disk archives, PowerPacker and XPK/SHRI
@@ -230,6 +231,10 @@ Matching case-insensitive extensions add supporting evidence.
 
 - `ansi_art.nim` validates presentation-affecting ANSI control streams and
   optional trailing SAUCE records and comment blocks;
+
+- `paint_net_palette.nim` validates the magic comment and ordered ARGB entries
+  in Paint.NET text palettes, retains optional name and description comments,
+  and treats a declared colour count as advisory;
 
 - `amiga_workbench_icon.nim` validates classic big-endian Workbench
   DiskObjects, their serialized planar images, counted strings, and tool
@@ -955,6 +960,9 @@ The routine suites are:
   widths, channel interleaving, chunk ordering/padding/metadata, plain-sound
   routing, export, and structural validation. Authentic compatibility fixtures
   remain pending user-supplied samples;
+- `tests/test_paint_net_palette.nim`: magic-comment detection, optional comment
+  metadata, advisory colour counts, mixed-case ARGB entries, alpha-bearing
+  swatch and metadata exports, and malformed text palettes;
 - `tests/test_creative_voice.nim`: synthetic version-one and type-8 extended
   mono/stereo PCM, type-9 eight- and sixteen-bit PCM, all three Creative
   eight-bit ADPCM variants, continuation and repeat state, silence, marker,

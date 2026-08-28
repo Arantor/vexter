@@ -35,6 +35,7 @@
 /tests/test_bmfont_import
 /tests/test_wav
 /tests/test_creative_voice
+/tests/test_paint_net_palette
 /tests/test_doom_wad
 /tests/test_amos_bank
 /tests/test_amos_packed_picture
