@@ -8,7 +8,7 @@ import ./containers/[amiga_8svx, amiga_16sv, amiga_acbm, amiga_adf, amiga_anim,
   amiga_diskfont, amiga_dms, amiga_hunk_executable, amiga_iff, amiga_ilbm, amiga_lha_sfx,
   amiga_workbench_icon, amos_bank,
   amos_bank_set, amos_program, amos_sprite_icon_bank, ansi_art, bmp, flic, gif_container,
-  bmfont, doom_wad, fzx, iso9660, jpeg, koala_painter, lha_archive, netpbm, openraster, pcx, png_container, powerpacker, qoi, tga, wav, windows_icon, zip_archive,
+  bmfont, creative_voice, doom_wad, fzx, iso9660, jpeg, koala_painter, lha_archive, netpbm, openraster, pcx, png_container, powerpacker, qoi, tga, wav, windows_icon, zip_archive,
   zx_spectrum_screen_dump, zx_spectrum_snapshot, zx_spectrum_tap, xpk_shri]
 import ./containers/amiga_pbm
 import ./format_detection_types
@@ -45,6 +45,7 @@ type
     vhkPcx
     vhkTga
     vhkWav
+    vhkCreativeVoice
     vhkDoomWad
     vhkZip
     vhkIso9660
@@ -131,6 +132,7 @@ const FormatHandlers* = [
   VextFormatHandler(typeId: PcxTypeId, kind: vhkPcx),
   VextFormatHandler(typeId: TgaTypeId, kind: vhkTga),
   VextFormatHandler(typeId: WavTypeId, kind: vhkWav),
+  VextFormatHandler(typeId: CreativeVoiceTypeId, kind: vhkCreativeVoice),
   VextFormatHandler(typeId: DoomWadTypeId, kind: vhkDoomWad),
   VextFormatHandler(typeId: ZipArchiveTypeId, kind: vhkZip),
   VextFormatHandler(typeId: Iso9660TypeId, kind: vhkIso9660),
@@ -239,6 +241,7 @@ proc parse*(handler: VextFormatHandler,
   of vhkPcx: result = parsed(parsePcx(data))
   of vhkTga: result = parsed(parseTga(data))
   of vhkWav: result = parsed(parseWav(data))
+  of vhkCreativeVoice: result = parsed(parseCreativeVoice(data))
   of vhkDoomWad: result = parsed(parseDoomWad(data))
   of vhkZip: result = parsed(parseZipArchive(data))
   of vhkIso9660: result = parsed(parseIso9660(data))

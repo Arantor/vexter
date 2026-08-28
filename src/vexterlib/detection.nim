@@ -5,7 +5,7 @@ import ./handler_registry
 import ./format_detection_types
 export format_detection_types
 import ./containers/[amiga_8svx, amiga_16sv, amiga_acbm, amiga_adf, amiga_anim, amiga_diskfont, amiga_dms, amiga_hunk_executable, amiga_iff, amiga_ilbm, amiga_lha_sfx, amiga_pbm, amiga_workbench_icon, amos_bank, amos_bank_set, amos_program,
-  amos_sprite_icon_bank, ansi_art, bmfont, bmp, doom_wad, flic, fzx, gif_container, iso9660, jpeg, koala_painter, netpbm, pcx, png_container, qoi, tga,
+  amos_sprite_icon_bank, ansi_art, bmfont, bmp, creative_voice, doom_wad, flic, fzx, gif_container, iso9660, jpeg, koala_painter, netpbm, pcx, png_container, qoi, tga,
   wav, windows_icon, zip_archive, lha_archive, zx_spectrum_screen_dump, zx_spectrum_snapshot, zx_spectrum_tap]
 import ./containers/xpk_shri
 import ./containers/powerpacker
@@ -275,6 +275,16 @@ proc detectBaseFormats(filename: string, data: openArray[byte]):
       evidence.add VextDetectionEvidence(
         description: "file extension is .wav or .wave")
     result.add VextDetectionCandidate(typeId: WavTypeId,
+      confidence: vdcCertain, evidence: evidence)
+
+  if isCreativeVoice(data):
+    let sound = parseCreativeVoice(data)
+    var evidence = @[VextDetectionEvidence(description:
+      "file has a valid Creative Voice header and bounded PCM/ADPCM " &
+      "block stream at " & $sound.sampleRate & " Hz")]
+    if hasCreativeVoiceExtension(filename):
+      evidence.add VextDetectionEvidence(description: "file extension is .voc")
+    result.add VextDetectionCandidate(typeId: CreativeVoiceTypeId,
       confidence: vdcCertain, evidence: evidence)
 
   if isZipArchive(data):

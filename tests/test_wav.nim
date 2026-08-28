@@ -125,6 +125,17 @@ suite "WAV import and export":
       sampleRate: 8000)).artifacts[0].data
     check data[44 .. 49] == @[0'u8, 128, 0, 0, 255, 127]
 
+  test "odd eight-bit data receives RIFF padding outside the chunk size":
+    let data = exportWav(VextSound(
+      buffer: VextAudioBuffer(bitsPerSample: 8,
+        channels: @[@[-128'i32, 0, 127]]),
+      sampleRate: 8000)).artifacts[0].data
+    check le32(data, 4) == 40
+    check le32(data, 40) == 3
+    check data[44 .. 47] == @[0'u8, 128, 255, 0]
+    check decodeWav(parseWav(data)).buffer.channels ==
+      @[@[-128'i32, 0, 127]]
+
   test "invalid buffers and out-of-range samples are rejected":
     expect ValueError:
       discard exportWav(VextSound(buffer: VextAudioBuffer(

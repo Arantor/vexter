@@ -12,7 +12,7 @@ import ./handler_registry
 import ./exporters/[bmfont, gif, html_report, metadata_json, png, raw, wav]
 import ./resource_tree
 import ./containers/[amiga_8svx, amiga_16sv, amiga_acbm, amiga_adf, amiga_anim, amiga_diskfont, amiga_dms, amiga_hunk_executable, amiga_iff, amiga_ilbm, amiga_lha_sfx, amiga_pbm, amiga_workbench_icon, amos_bank, amos_bank_set, amos_packed_picture, amos_program,
-  amos_sprite_icon_bank, ansi_art, bmfont, bmp, doom_wad, flic, fzx, gif_container, iso9660, jpeg, netpbm, openraster, pcx, png_container,
+  amos_sprite_icon_bank, ansi_art, bmfont, bmp, creative_voice, doom_wad, flic, fzx, gif_container, iso9660, jpeg, netpbm, openraster, pcx, png_container,
   koala_painter, qoi, tga, wav, windows_icon, zip_archive, lha_archive, zx_spectrum_snapshot, zx_spectrum_tap]
 import ./containers/xpk_shri
 import ./containers/powerpacker
@@ -1182,6 +1182,36 @@ proc inspectSourceDepth(filename: string, data: openArray[byte],
     result.resources.roots.add VextResourceNode(
       path: WavSoundResourcePath, typeId: WavSoundTypeId,
       kind: vrnkAudio, audioKind: varkSound, sound: decodeWav(source),
+      metadata: metadata)
+  of vhkCreativeVoice:
+    let source = parsedValue[CreativeVoiceSource](selectedParsed,
+      vhkCreativeVoice)
+    var metadata = @[
+      integerMetadata("version.major", (source.version shr 8) and 0xff),
+      integerMetadata("version.minor", source.version and 0xff),
+      integerMetadata("data.offset", source.dataOffset),
+      integerMetadata("blocks", source.blocks.len),
+      integerMetadata("channels", source.channelCount),
+      integerMetadata("codec", source.codec),
+      integerMetadata("sample-rate", source.sampleRate),
+      integerMetadata("bits-per-sample", source.bitsPerSample),
+      integerMetadata("samples", source.channels[0].len),
+      integerMetadata("duration-ms",
+        source.channels[0].len * 1000 div source.sampleRate)]
+    if source.usesExtendedInfo:
+      metadata.add integerMetadata("extended.time-constant",
+        source.extendedTimeConstant)
+      metadata.add integerMetadata("extended.pack-method", source.packMethod)
+      metadata.add integerMetadata("extended.voice-mode", source.voiceMode)
+    for index, voiceBlock in source.blocks:
+      metadata.add integerMetadata("block." & $index & ".type",
+        voiceBlock.blockType)
+      metadata.add integerMetadata("block." & $index & ".size",
+        voiceBlock.size)
+    result.resources.roots.add VextResourceNode(
+      path: CreativeVoiceSoundResourcePath,
+      typeId: CreativeVoiceSoundTypeId, kind: vrnkAudio,
+      audioKind: varkSound, sound: decodeCreativeVoice(source),
       metadata: metadata)
   of vhkDoomWad:
     let wad = parsedValue[DoomWad](selectedParsed, vhkDoomWad)

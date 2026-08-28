@@ -1,5 +1,62 @@
 # Third-party material
 
+## Creative Voice file Wikipedia capture
+
+The developer supplied `Creative Voice file - Wikipedia.html` on 28 August
+2026 from [Wikipedia](https://en.wikipedia.org/wiki/Creative_Voice_file). The
+saved revision describes the 26-byte Creative Voice header, version checkword,
+block framing, version-one PCM rate formula, continuation, silence, metadata,
+and repeat block semantics used by the initial decoder. It does not define the
+codec table or extended-block fields. Its SHA-256 is:
+
+```text
+9e5a2936f1816765c809994413262967ea64b676e4a5b8618b2a06f8c0bf1809  Creative Voice file - Wikipedia.html
+```
+
+The HTML capture is temporary research material and is not copied into routine
+test fixtures. Tests construct compact synthetic Creative Voice streams.
+
+## Creative Voice format notes
+
+The developer supplied `vocform2.pro notes.txt` on 28 August 2026, sourced from
+`http://www.textfiles.com/programming/FORMATS/vocform2.pro`. It records the
+classic block layouts and names Creative's compression method numbers. The
+developer also supplied `extended notes.txt`, sourced from the Internet
+Archive's 20 March 2018 capture of SoX's `AudioFormats-11.html#ss11.5`. It
+defines type-8 extended attributes and describes later type-9 blocks. These
+temporary research files are not formal fixtures. Their SHA-256 values are:
+
+```text
+4a2e2a4be511895274789c5cb0bb1457438f2cc5018a6f506b8b095923249425  vocform2.pro notes.txt
+76297a6033e93becc44f175ba3221f30f65d5b37946df9b35a6a6bfb2df73d05  extended notes.txt
+```
+
+The type-8 mono time-constant formula and pack method zero inform the maintained
+extended PCM decoder. The compressed method names alone do not define their
+ADPCM algorithms.
+
+The developer subsequently supplied four temporary MultimediaWiki captures on
+28 August 2026. `Creative 8 bits ADPCM - MultimediaWiki.html` defines Creative
+codec IDs 1–3, including their predictor, adaptive step, and packed-code
+layouts. `Creative Voice - MultimediaWiki.html` defines the VOC blocks,
+channel-aware type-8 rate formula, type-9 fields, and broader codec ID table.
+The linked `Creative ADPCM - MultimediaWiki.html` and `PCM -
+MultimediaWiki.html` pages document codec `0x0200` and PCM conventions for
+possible later type-9 support. Their SHA-256 values are:
+
+```text
+390b6218e09b4a86ddb34229aaf1b341b6c1ce3751c510b7b15e91ba1e70ef0f  Creative 8 bits ADPCM - MultimediaWiki.html
+decdc086a1e1b2108ae518a6a217d957b6afdee8304305211e312a58e4e81ad0  Creative ADPCM - MultimediaWiki.html
+a5bc62d2de32365f1ab0a91fe6197eb0bbc467c76b45c5758849540f785385c7  Creative Voice - MultimediaWiki.html
+53672ae8c6ebe0d127fd23b07e8f9981bb418cdf6b1fe726eb02fda95d57be2d  PCM - MultimediaWiki.html
+```
+
+The codec IDs 1–3 decoder follows the supplied empirical algorithm as the
+project's current format authority. The type-8 channel formula and type-9
+layout support stereo codec-zero PCM and type-9 codec-zero/code-four PCM.
+Stereo ADPCM and the other linked type-9 codecs remain unimplemented because
+their stream-level rules are not fully established by the supplied captures.
+
 ## Unofficial DOOM Specs v1.666
 
 The developer supplied `The Unofficial Doom Specs v1.666.html` on 27 August

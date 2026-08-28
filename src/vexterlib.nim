@@ -36,6 +36,7 @@ import vexterlib/containers/jpeg
 import vexterlib/containers/windows_icon
 import vexterlib/containers/gif_container
 import vexterlib/containers/wav as wav_container
+import vexterlib/containers/creative_voice
 import vexterlib/containers/qoi
 import vexterlib/containers/koala_painter
 import vexterlib/containers/netpbm
@@ -128,6 +129,7 @@ export png_container
 export windows_icon
 export gif_container
 export wav_container
+export creative_voice
 export qoi
 export koala_painter
 export netpbm

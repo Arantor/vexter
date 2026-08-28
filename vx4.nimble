@@ -22,6 +22,7 @@ task test, "Run the test suite":
   exec "nim c -r --path:src tests/test_amiga_8svx.nim"
   exec "nim c -r --path:src tests/test_amiga_16sv.nim"
   exec "nim c -r --path:src tests/test_wav.nim"
+  exec "nim c -r --path:src tests/test_creative_voice.nim"
   exec "nim c -r --path:src tests/test_doom_wad.nim"
   exec "nim c -r --path:src tests/test_amiga_acbm.nim"
   exec "nim c -r --path:src tests/test_amiga_pbm.nim"

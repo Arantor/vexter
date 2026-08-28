@@ -17,7 +17,7 @@ client, and a dependency-free native Windows GUI. It supports:
 - detection and inspection of generic IFF FORM containers, indexed Amiga ILBM
   and ACBM images, provisional packed-pixel IFF PBM images, IFF ANIM
   animations, IFF 8SVX and 16SV sampled audio,
-  integer PCM WAV sounds, PCX, TGA, BMP/DIB,
+  integer PCM WAV and Creative Voice sounds, PCX, TGA, BMP/DIB,
   static DOS ANSI art with optional SAUCE metadata,
   classic DOOM IWAD/PWAD containers with palettes, flats, sprites, patches,
   composited wall textures, sampled sound effects, automap-style map previews,
@@ -327,6 +327,10 @@ Matching case-insensitive extensions add supporting evidence.
   uncompressed signed 16-bit big-endian sample bodies;
 - `wav.nim` validates RIFF/WAVE chunk framing and decodes 8-, 16-, 24-, and
   32-bit integer PCM into a generic sound;
+- `creative_voice.nim` validates Creative Voice headers and bounded block
+  streams and composes unsigned eight-bit PCM, signed sixteen-bit type-9 PCM,
+  or Creative 4-, 2.6-, and 2-bit ADPCM, continuations, silence, and finite
+  stateful repeats into a generic sound;
 - `amiga_acbm.nim` interprets `FORM ACBM` properties and extracts its
   plane-contiguous `ABIT` image source;
 - `amiga_ilbm.nim` interprets `FORM ILBM` properties and extracts the image
@@ -629,6 +633,8 @@ gif
 gif.image
 wav
 wav.sound
+creative.voice
+creative.voice.sound
 doom.wad
 doom.palette
 doom.flat
@@ -696,6 +702,21 @@ from interleaved WAV storage into Vext's channel-major signed samples, including
 the unsigned-to-signed conversion required for eight-bit PCM. Floating point,
 compressed codecs, RF64, and WAVE_FORMAT_EXTENSIBLE remain unsupported. WAV
 re-export uses the ordinary generic sound exporter.
+
+Creative Voice files expose a plain `VextSound` at `/audio`. The decoder
+validates the signature, first-block offset, version checkword, 24-bit block
+lengths, and complete stream. Codec-zero sound data, continuation, silence,
+marker, text, and bounded finite repeat blocks are supported. Creative
+codec IDs 1, 2, and 3 decode their 4-, 2.6-, and 2-bit ADPCM variants while
+preserving adaptive state across continuation blocks. A type-8 extended
+attribute block can supply the 16-bit time constant and codec for the
+immediately following type-1 block; codec-zero PCM supports mono or interleaved
+stereo, while ADPCM remains mono. Type-9 blocks support mono or stereo unsigned
+eight-bit PCM and signed little-endian sixteen-bit PCM. Repeat expansion replays
+the decoded operations so compressed predictor state evolves on every pass.
+All material must form one fixed-format timeline. Stereo ADPCM, other type-9
+codecs, rate/format changes, infinite repeats, and unknown block types fail
+explicitly. WAV is the natural export format.
 
 ADF volumes expose `/disk`, with filesystem directories represented as nested
 groups. Unrecognized files are opaque leaves retaining their reconstructed
@@ -934,6 +955,11 @@ The routine suites are:
   widths, channel interleaving, chunk ordering/padding/metadata, plain-sound
   routing, export, and structural validation. Authentic compatibility fixtures
   remain pending user-supplied samples;
+- `tests/test_creative_voice.nim`: synthetic version-one and type-8 extended
+  mono/stereo PCM, type-9 eight- and sixteen-bit PCM, all three Creative
+  eight-bit ADPCM variants, continuation and repeat state, silence, marker,
+  text, detection, WAV routing, framing failures, and explicitly unsupported
+  stream variants;
 - `tests/test_doom_wad.nim`: synthetic IWAD/PWAD directory ordering and bounds,
   duplicate names, PLAYPAL palettes, flat namespaces, patch posts,
   transparency, signed offsets, PNAMES resolution, TEXTURE1/TEXTURE2

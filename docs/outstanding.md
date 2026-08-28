@@ -176,6 +176,23 @@ formats are not included. Detailed format behavior and evidence remain in
     unsupported.
   - Authentic compatibility fixtures remain outstanding.
 
+- **Creative Voice audio**
+  - Codec-zero unsigned eight-bit PCM supports version-one mono and type-8
+    mono/stereo streams. Creative codec IDs 1–3 support mono type-1/type-2 and
+    type-8 streams, including finite stateful repeats. Type-9 supports mono or
+    stereo codec-zero eight-bit PCM and codec-four signed sixteen-bit PCM.
+  - Type-8 stereo ADPCM remains unsupported because per-channel predictor
+    initialization, state, and packed-code assignment are not documented.
+  - Type-9 codecs 1–3 remain unsupported because the supplied page does not
+    explicitly establish that their older reference-byte framing carries into
+    new-format blocks. A-law (6) and mu-law (7) lack supplied conversion rules.
+    Creative codec `0x0200` lacks initialization, nibble-order, reset, and
+    multichannel details.
+  - More than two type-9 channels, midstream sample-rate/width/channel changes,
+    and infinite-repeat material need explicit product behavior or broader
+    archetype support rather than further container-field research.
+  - Authentic compatibility fixtures remain outstanding.
+
 - **Amiga IFF PBM images**
   - Support remains provisional pending committed authentic fixtures.
   - Raw, odd-width, and transparent images currently have synthetic coverage

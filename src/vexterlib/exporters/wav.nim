@@ -29,7 +29,8 @@ proc exportWav*(sound: VextSound,
     bytesPerSample = sound.buffer.bitsPerSample div 8
     blockAlign = channelCount * bytesPerSample
     dataLength = sound.buffer.sampleCount * blockAlign
-  if dataLength > int(high(uint32)) - 36:
+    paddingLength = dataLength and 1
+  if dataLength > int(high(uint32)) - 36 - paddingLength:
     raise newException(ValueError, "WAV sample data is too large")
   let byteRate = uint64(sound.sampleRate) * uint64(blockAlign)
   if byteRate > uint64(high(uint32)):
@@ -37,7 +38,7 @@ proc exportWav*(sound: VextSound,
 
   var encoded: seq[byte]
   for value in "RIFF": encoded.add byte(value)
-  encoded.appendU32(uint32(36 + dataLength))
+  encoded.appendU32(uint32(36 + dataLength + paddingLength))
   for value in "WAVEfmt ": encoded.add byte(value)
   encoded.appendU32(16)
   encoded.appendU16(1) # WAVE_FORMAT_PCM
@@ -63,9 +64,10 @@ proc exportWav*(sound: VextSound,
         let bits = cast[uint32](int32(sample))
         for index in 0 ..< bytesPerSample:
           encoded.add byte(bits shr (index * 8))
+  if paddingLength != 0:
+    encoded.add 0
 
   result.artifacts.add VextArtifact(
     suggestedFilename: suggestedFilename,
     mediaType: "audio/wav",
     data: encoded)
-

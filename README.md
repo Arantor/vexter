@@ -21,8 +21,8 @@ sufficiently useful to continue as an ongoing project.
   Commodore 64 KoalaPainter, and FLI/FLC-family files
 - Fonts: BMFont text, XML, and binary-v3 descriptors with PNG pages, FZX, and
   monochrome or colour Amiga bitmap diskfonts
-- Archives and audio: ZIP, level-0/1 LHA/LZH with LH0/LH5 members, and integer
-  PCM WAV
+- Archives and audio: ZIP, level-0/1 LHA/LZH with LH0/LH5 members, Creative
+  Voice PCM audio, and integer PCM WAV
 - ZX Spectrum: screen dumps, SNA snapshots, TAP files, and tokenised BASIC
 - Game data: classic DOOM IWAD/PWAD directories, palettes, flats, sprites,
   patches, composited wall textures, sound effects, automap-style map previews,

@@ -569,11 +569,69 @@ remain pending user-supplied WAV files.
 
 WAV export accepts generic `VextSound` values rather than 8SVX structures. It
 writes a canonical RIFF/WAVE file with a 16-byte PCM format chunk and one data
-chunk. Channels are interleaved frame by frame. Eight-bit signed internal
+chunk, including RIFF padding for odd data lengths. Channels are interleaved
+frame by frame. Eight-bit signed internal
 samples are biased into WAV's unsigned representation; 16-, 24-, and 32-bit
 samples use little-endian two's-complement PCM. Sample range, channel shape,
 sample rate, RIFF size, and byte rate are validated before an artifact with
 the `audio/wav` media type is returned.
+
+## Creative Voice audio
+
+Container type identifier: `creative.voice`
+
+Sound type identifier: `creative.voice.sound`
+
+Creative Voice `.voc` import is an intentionally bounded subset based on the
+locally supplied Wikipedia capture and Creative/SoX-derived format notes. It
+validates the 26-byte signature and header, first-block offset, version
+checkword, little-endian 24-bit block sizes, payload bounds, optional terminator
+placement, and balanced repeat blocks. A structurally and semantically
+supported file is detected as **certain**, with `.voc` adding supporting
+evidence.
+
+Codec-zero type-1 blocks decode as unsigned eight-bit mono PCM using the
+documented time-constant formula. Type-2 continuations, type-3 silence,
+type-4 markers, null-terminated type-5 text, and nested finite type-6/type-7
+repeats form one bounded timeline at `/audio`; block types and sizes, version,
+sample rate, sample count, and duration are retained as metadata. The generic
+sound is playable in the GUI and naturally exportable as WAV.
+
+Codec IDs 1, 2, and 3 decode Creative's eight-bit ADPCM variants. The first
+sound-data byte supplies the unsigned predictor. Subsequent bytes contain two
+four-bit codes, three 3/3/2-bit codes, or four two-bit codes respectively,
+ordered most-significant code first. Each code updates the bounded predictor
+and adaptive step; continuation blocks retain both values. The decoded result
+uses the same signed eight-bit in-memory representation as PCM. Repeat regions
+retain their decoded operations and replay them for each finite iteration, so
+ADPCM predictor and step state evolve as the packed stream is replayed. Nested
+expansion is bounded by both operation and decoded-sample limits.
+
+Type-8 extended attributes must immediately precede their type-1 sound block.
+The supplied 16-bit little-endian time constant and pack method override the
+type-1 values. Pack method zero decodes unsigned eight-bit mono or interleaved
+stereo PCM. The rate is
+`256000000 / (channels * (65536 - timeConstant))`. ADPCM codecs 1–3 remain
+mono because their per-channel predictor framing is not supplied. Type-8 use is
+accepted according to the block structure rather than gated on the declared
+file version because the temporary compatibility sample uses it while declaring
+version 1.10. The extended fields are retained as metadata.
+
+Type-9 new-format blocks carry a direct sample rate, sample width, channel
+count, 16-bit codec ID, four reserved bytes, and audio payload. Codec zero with
+eight-bit unsigned PCM and codec four with sixteen-bit signed little-endian PCM
+decode in mono or interleaved stereo. Payloads must contain complete sample
+frames. The resulting channel-major buffers retain their natural eight- or
+sixteen-bit width and export through the generic WAV path.
+
+The supplied MultimediaWiki captures define the codec algorithms, confirm the
+channel-aware type-8 rate formula, and define type-9 framing. Stereo ADPCM,
+type-9 ADPCM/A-law/mu-law, streams with more than two channels, sample-format
+changes, infinite repeats, unknown block types, and output beyond the
+64-Mi-sample safety limit are rejected explicitly rather than inferred.
+Synthetic tests establish the maintained behavior;
+`COMPA180.VOC` is used only for temporary ad-hoc compatibility testing and is
+not part of the formal fixture corpus.
 
 ## Amiga IFF, ILBM, ACBM, and PBM
 
