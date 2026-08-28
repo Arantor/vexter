@@ -14,6 +14,67 @@ Implemented and historically supported formats are recorded separately in
 This is the fourth major iteration of architecture since the project was
 conceived.
 
+## North star: a digital-archaeology workbench
+
+Vexter's eventual scope is deliberately broad. It is not limited to raster
+images, archives, or the media archetypes currently implemented. Documents,
+outlines, tracker and sequenced music, interactive fiction, game resources,
+vector drawings, CAD and 3D scenes, databases, presentations, hypermedia,
+executables, filesystems, and formats not yet anticipated are all legitimate
+subjects. Format work is selected according to current interest, available
+evidence, and the architectural questions it can answer rather than a fixed
+completion order.
+
+The long-term goal is that an arbitrary legacy file produces something useful
+even when Vexter cannot completely decode it. Understanding is graduated rather
+than binary:
+
+1. **Identify** a likely format, platform, era, encoding, compression, and the
+   confidence and evidence supporting that conclusion.
+2. **Describe** structural fields, offsets, checksums, strings, statistical
+   properties, and anomalies without overstating uncertain interpretations.
+3. **Inventory** members, chunks, tracks, resources, segments, scripts,
+   embedded files, and external dependencies.
+4. **Decode** semantic resources into reusable Vext archetypes.
+5. **Render** useful previews of media, documents, interfaces, maps, scenes, or
+   other representations.
+6. **Export** recoverable content into durable or interoperable modern forms.
+7. **Relate** companions, dependencies, nested containers, executables, and
+   derived resources while retaining provenance.
+
+A format handler need not reach every level before it is valuable. Partial
+support should expose validated structure, retained raw data, and explicit
+limitations so later work can deepen the same interpretation.
+
+### Analysis and observations
+
+Decoded resources are only one product of inspection. Vexter should eventually
+carry structured analysis observations alongside them. An observation records
+what was seen, where it was seen, how it was derived, and whether it is a fact
+or a confidence-rated hypothesis. Candidate observations include:
+
+- byte and value histograms, entropy maps, and repeating structures;
+- strings, probable character encodings, filenames, and path-like values;
+- magic values, embedded-file candidates, and chunk or record boundaries;
+- probable byte order, word size, addresses, offsets, and checksums;
+- compression, encryption, executable, filesystem, and platform indicators;
+- annotated byte ranges and links between observations and resources; and
+- carving suggestions and recoverable raw regions when semantic decoding is
+  unavailable.
+
+These observations should support human-readable and machine-readable reports,
+an annotated hexadecimal or structural view, recursive inspection, and future
+tools for investigating unknown files. Confidence and provenance must remain
+visible: a statistical suggestion is not a detected format, and a carved
+region is not necessarily an independent file.
+
+The aspirational format and capability catalogue is maintained in
+[`docs/candidate-formats.md`](docs/candidate-formats.md). It is a menu for
+choosing interesting work and anticipating archetypes, not a roadmap or claim
+of support. Implemented behavior remains documented in
+[`docs/formats.md`](docs/formats.md), while gaps in already recognized formats
+remain in [`docs/outstanding.md`](docs/outstanding.md).
+
 ## Source and research policy
 
 Do not search the internet for Vexter research or implementation resources.
@@ -244,8 +305,9 @@ of that fixture's contract.
 
 ## Near-term development
 
-Likely next steps are to formalize common request, container, resource-tree, and
-diagnostic types before adding enough formats to make premature abstractions
-visible. Metadata sidecars, transformations, and richer exporter selection can
-then be added against concrete format requirements. Bulk export, segment-based
-wildcard matching, and bounded recursive containers are now implemented.
+Near-term work is chosen from concrete formats and capabilities rather than a
+fixed sequence. Small coverage additions that reuse existing archetypes are
+useful, as are deliberate archetype probes and difficult containers that expose
+architectural pressure. Abstractions should continue to be introduced in
+response to those concrete requirements rather than designed to satisfy the
+entire candidate catalogue in advance.

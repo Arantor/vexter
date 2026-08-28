@@ -36,7 +36,9 @@ Containers such as ADF, ZIP, LHA, PowerPacker, and XPK are inspected recursively
 when their contents use another supported format. See
 [format documentation](docs/formats.md) for exact coverage and current
 limitations, or the [outstanding-work index](docs/outstanding.md) for a concise
-list of known implementation and recognized-format gaps.
+list of known implementation and recognized-format gaps. The broader
+[candidate-format and capability catalogue](docs/candidate-formats.md) records
+non-binding directions for Vexter's eventual digital-archaeology workbench.
 
 ## Building
 
