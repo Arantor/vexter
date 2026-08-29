@@ -659,6 +659,23 @@ Type identifier: `paint-net.palette`
 
 Resource path: `/palette`
 
+## GIMP palette files
+
+GIMP `.gpl` palettes are identified by the exact first line `GIMP Palette`.
+The optional version-2 header supplies a UTF-8 `Name:` and a display column
+count from 0 through 255; without that header the palette is inferred to be
+version 1. The name, inferred version, and column count are retained as
+metadata.
+
+Body comments and empty lines are ignored. Each colour entry supplies decimal
+red, green, and blue components from 0 through 255. Optional colour names are
+validated as part of the UTF-8 document but otherwise ignored. Entries become
+opaque RGBA colours in source order and naturally export as a PNG swatch.
+
+Type identifier: `gimp.palette`
+
+Resource path: `/palette`
+
 ## Amiga IFF, ILBM, ACBM, and PBM
 
 An ILBM or ACBM containing a `CMAP` but no bitmap `BODY`/`ABIT` is treated as

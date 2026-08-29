@@ -13,7 +13,7 @@ import ./exporters/[bmfont, gif, html_report, metadata_json, png, raw, wav]
 import ./resource_tree
 import ./containers/[amiga_8svx, amiga_16sv, amiga_acbm, amiga_adf, amiga_anim, amiga_diskfont, amiga_dms, amiga_hunk_executable, amiga_iff, amiga_ilbm, amiga_lha_sfx, amiga_pbm, amiga_workbench_icon, amos_bank, amos_bank_set, amos_packed_picture, amos_program,
   amos_sprite_icon_bank, ansi_art, bmfont, bmp, creative_voice, doom_wad, flic, fzx, gif_container, iso9660, jpeg, netpbm, openraster, pcx, png_container,
-  koala_painter, paint_net_palette, qoi, tga, wav, windows_icon, zip_archive, lha_archive, zx_spectrum_snapshot, zx_spectrum_tap]
+  gimp_palette, koala_painter, paint_net_palette, qoi, tga, wav, windows_icon, zip_archive, lha_archive, zx_spectrum_snapshot, zx_spectrum_tap]
 import ./containers/xpk_shri
 import ./containers/powerpacker
 import ./metadata
@@ -1227,6 +1227,17 @@ proc inspectSourceDepth(filename: string, data: openArray[byte],
       metadata.add stringMetadata("description", source.description)
     result.resources.roots.add VextResourceNode(
       path: PaintNetPaletteResourcePath, typeId: PaintNetPaletteTypeId,
+      kind: vrnkPalette, palette: source.palette, metadata: metadata)
+  of vhkGimpPalette:
+    let source = parsedValue[GimpPalette](selectedParsed, vhkGimpPalette)
+    var metadata = @[
+      integerMetadata("colours", source.palette.colours.len),
+      integerMetadata("version", source.version),
+      integerMetadata("columns", source.columns)]
+    if source.name.len > 0:
+      metadata.add stringMetadata("name", source.name)
+    result.resources.roots.add VextResourceNode(
+      path: GimpPaletteResourcePath, typeId: GimpPaletteTypeId,
       kind: vrnkPalette, palette: source.palette, metadata: metadata)
   of vhkDoomWad:
     let wad = parsedValue[DoomWad](selectedParsed, vhkDoomWad)

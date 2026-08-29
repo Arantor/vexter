@@ -24,7 +24,7 @@ client, and a dependency-free native Windows GUI. It supports:
   and other patch-format graphics,
   PNG, baseline/extended-sequential Huffman JPEG with EXIF orientation,
   OpenRaster layered documents, Windows ICO/CUR collections (including PNG and DIB entries), QOI,
-  Paint.NET text palettes,
+  Paint.NET and GIMP text palettes,
   Commodore 64 KoalaPainter images,
   Netpbm P1–P7, GIF87a/GIF89a, and FLI/FLC-family animations,
   AmigaDOS ADF filesystems, DMS disk archives, PowerPacker and XPK/SHRI
@@ -237,6 +237,9 @@ Matching case-insensitive extensions add supporting evidence.
 - `paint_net_palette.nim` validates the magic comment and ordered ARGB entries
   in Paint.NET text palettes, retains optional name and description comments,
   and treats a declared colour count as advisory;
+
+- `gimp_palette.nim` validates GIMP Palette headers and ordered RGB entries,
+  infers the format version, and retains optional name and column metadata;
 
 - `amiga_workbench_icon.nim` validates classic big-endian Workbench
   DiskObjects, their serialized planar images, counted strings, and tool

@@ -1,5 +1,25 @@
 # Third-party material
 
+## GIMP palette specification and sample
+
+The developer supplied `gpl.md` and `resurrect-64.gpl` on 29 August 2026.
+`gpl.md` is a Markdown copy of the GIMP team's GPL version 2 specification
+from `developer.gimp.org/core/standards/gpl/`. It defines the magic line,
+version-1/version-2 header distinction, UTF-8 text, optional display columns,
+comments, and decimal RGB colour records used by the implementation.
+
+The Resurrect 64 sample was sourced by the developer from Lospec's palette
+catalogue and is retained as temporary compatibility material rather than
+copied into the committed fixture corpus. Routine tests otherwise use compact
+synthetic data.
+
+Their supplied-file SHA-256 values are:
+
+```text
+653bcba6c1a4ed2c2572eed979b01e07f9bc049f2ce1d8c33320867b795a392b  gpl.md
+793af3d1aa2305aed01faeeacaadbd57d6ebeb8995fe899e12f86f7b1bb39e71  resurrect-64.gpl
+```
+
 ## Lospec Paint.NET palette samples
 
 The developer supplied `general.txt` and `resurrect-64.txt` on 28 August 2026.

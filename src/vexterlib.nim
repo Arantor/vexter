@@ -38,6 +38,7 @@ import vexterlib/containers/gif_container
 import vexterlib/containers/wav as wav_container
 import vexterlib/containers/creative_voice
 import vexterlib/containers/paint_net_palette
+import vexterlib/containers/gimp_palette
 import vexterlib/containers/qoi
 import vexterlib/containers/koala_painter
 import vexterlib/containers/netpbm
@@ -132,6 +133,7 @@ export gif_container
 export wav_container
 export creative_voice
 export paint_net_palette
+export gimp_palette
 export qoi
 export koala_painter
 export netpbm
