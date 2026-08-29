@@ -52,3 +52,5 @@
 /tests/test_zx_spectrum_basic
 /tests/test_zx_spectrum_tap
 /tests/test_format_refinement
+/tests/test_tracker_archetype
+/tests/test_protracker_mod

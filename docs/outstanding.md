@@ -124,6 +124,17 @@ formats are not included. Detailed format behavior and evidence remain in
     interpreted. Their accompanying `CMAP` colours remain available, but the
     additional range definitions require documentation and focused controls.
 
+- **ProTracker-compatible MOD**
+  - Parsed tracker structure and samples do not yet have a replay engine,
+    stereo mixdown, or live playback cursor. The GUI currently shows only the
+    first ordered pattern as a static tracker grid.
+  - The bounded control-flow analysis covers documented ProTracker jumps,
+    breaks, pattern loops, and restart behavior but is not a substitute for
+    full tick-by-tick effect replay.
+  - `MMD1`/OctaMED modules are a separate unsupported family; the supplied
+    Worms module requires authoritative format documentation before work can
+    begin.
+
 - **Aseprite sprites**
   - File, frame, and chunk structure plus old and current palette chunks are
     recognized. Layer/cel compositing, linked and compressed cels, blend modes,

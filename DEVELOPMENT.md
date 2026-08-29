@@ -25,6 +25,7 @@ client, and a dependency-free native Windows GUI. It supports:
   PNG, baseline/extended-sequential Huffman JPEG with EXIF orientation,
   OpenRaster layered documents, Windows ICO/CUR collections (including PNG and DIB entries), QOI,
   Paint.NET and GIMP text palettes, Adobe Swatch Exchange palettes, palettes embedded in Aseprite sprites,
+  15- and 31-instrument ProTracker-compatible MOD tracker modules,
   Commodore 64 KoalaPainter images,
   Netpbm P1–P7, GIF87a/GIF89a, and FLI/FLC-family animations,
   AmigaDOS ADF filesystems, DMS disk archives, PowerPacker and XPK/SHRI
@@ -40,6 +41,9 @@ client, and a dependency-free native Windows GUI. It supports:
   archetypes;
 - an ordered palette archetype whose entries are complete RGBA colours and
   whose optional colour-cycle ranges move those entries as indivisible values;
+- a tracker-module archetype with channel layout and stereo bias, sampled
+  instruments, pattern rows and cells, repeated pattern orders, semantic and
+  raw effects, source pitch retention, timing, and bounded loop-analysis state;
 - a bitmap-font archetype with mono, indexed, or true-colour glyphs, explicit
   Unicode mappings, bearings, advances, line metrics, kerning, substitutions,
   and ligatures;
@@ -50,6 +54,8 @@ client, and a dependency-free native Windows GUI. It supports:
 - animated GIF and APNG export;
 - BMFont text export with one or more PNG atlas pages;
 - metadata JSON export for every resource kind, including groups;
+- complete tracker JSON export for tracker modules and WAV extraction of their
+  sampled instruments;
 - self-contained HTML reports with embedded normalized media and metadata;
 - optional CRNG/CCRT colour-cycle expansion with a 1,000-frame safety limit;
 - byte-identical BIN export for opaque resources that retain raw data; and
@@ -64,7 +70,7 @@ vexter inspect [--json] [--all-candidates] [--ignore-warnings]
                [--ansi-letter-spacing auto|8|9]
                [--ansi-aspect auto|legacy|square] INPUT
 
-vexter export [--format png|gif|apng|gif-cycled|apng-cycled|palette-swatch|gpl|bmfont|txt|wav|bin]
+vexter export [--format png|gif|apng|gif-cycled|apng-cycled|palette-swatch|gpl|bmfont|tracker-json|html-report|metadata-json|txt|wav|bin]
               [--resource PATH] [--allow-large-animation]
               [--input-format FORMAT] [-o OUTPUT] [--force]
               [--ignore-warnings] [--pcx-channel-order rgb|bgr]
@@ -85,7 +91,14 @@ loads files on a worker thread, exposes the complete resource hierarchy and
 metadata leaves, previews raster animations, static-image colour cycling, and
 sampled audio, and exports
 through the library's discoverable per-resource format list. It targets the
-Windows 7 API baseline and cross-compiles from Linux with MinGW-w64:
+Windows 7 API baseline and cross-compiles from Linux with MinGW-w64.
+
+The GUI creates and owns explicit fonts rather than inheriting the legacy
+stock control font: Segoe UI is used for ordinary controls, while Consolas is
+used for textual resources and diagnostic detail panes. The latter keeps
+tracker columns and source listings aligned and supports the block characters
+used by ZX Spectrum BASIC, with normal Windows font linking available for
+additional Unicode annotation glyphs.
 
 Audio playback polls the prepared `waveOut` header for natural completion,
 then releases the device and restores the Play state so the same resource can
@@ -613,6 +626,16 @@ uncompressed 8-, 16-, 24-, or 32-bit integer PCM with interleaved channels.
 Audio resource nodes distinguish a plain `VextSound` from a
 `VextSampledInstrument`; `audioSound` supplies the playable sound uniformly
 without manufacturing instrument properties for ordinary audio files.
+
+`src/vexterlib/archetypes/tracker.nim` defines format-neutral pattern/order
+modules. Patterns remain separate from order positions; cells preserve both
+normalized notes and format-native pitch, optional instrument and volume
+events, and semantic effects alongside their raw command values. Instruments
+own generic sampled-instrument values, channels retain nominal stereo bias,
+and an explicit analysis result distinguishes termination, detected cycles,
+unanalysed control flow, and safety-limit exhaustion. Tracker resources
+naturally export to the stable `vexter.tracker.v1` JSON representation; they
+deliberately have no playback or audio-mixdown representation yet.
 
 The former `containers/zx_spectrum_screen.nim` and top-level
 `vexterlib/resources.nim` screen-dispatch module have been replaced by the

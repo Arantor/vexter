@@ -1,7 +1,7 @@
 ## Machine-readable metadata export for any resource node.
 
 import std/json
-import ../archetypes/[audio, font, palette, raster]
+import ../archetypes/[audio, font, palette, raster, tracker]
 import ../[artifacts, metadata, resource_tree]
 
 proc textBytes(value: string): seq[byte] =
@@ -111,6 +111,57 @@ proc audioNode(resource: VextResourceNode): JsonNode =
     result["volume"] = %resource.instrument.volume
     result["pan"] = %resource.instrument.pan
 
+proc trackerLoopStatusName(status: VextTrackerLoopStatus): string =
+  case status
+  of vtlsNotAnalysed: "not-analysed"
+  of vtlsTerminates: "terminates"
+  of vtlsCycles: "cycles"
+  of vtlsAnalysisLimit: "analysis-limit"
+
+proc trackerNode(module: VextTrackerModule): JsonNode =
+  result = %*{
+    "archetype": "VextTrackerModule",
+    "title": module.title,
+    "channels": module.channels.len,
+    "instruments": module.instruments.len,
+    "patterns": module.patterns.len,
+    "orders": module.orders,
+    "hasRestartOrder": module.hasRestartOrder,
+    "initialSpeed": module.initialSpeed,
+    "initialTempoBpm": module.initialTempoBpm,
+    "rowsPerBeat": module.rowsPerBeat,
+    "loopAnalysis": {
+      "status": module.loopAnalysis.status.trackerLoopStatusName,
+      "transitionsExamined": module.loopAnalysis.transitionsExamined,
+      "loopEntryOrder": module.loopAnalysis.loopEntryOrder,
+      "loopEntryRow": module.loopAnalysis.loopEntryRow,
+      "loopLengthTransitions": module.loopAnalysis.loopLengthTransitions
+    }
+  }
+  if module.hasRestartOrder:
+    result["restartOrder"] = %module.restartOrder
+  var channels = newJArray()
+  for channel in module.channels:
+    channels.add %*{"name": channel.name, "sourceIndex": channel.sourceIndex,
+      "bias": ord(channel.bias), "defaultPan": channel.defaultPan}
+  result["channelLayout"] = channels
+  var instruments = newJArray()
+  for instrument in module.instruments:
+    instruments.add %*{"name": instrument.name,
+      "sourceIndex": instrument.sourceIndex,
+      "referenceNote": instrument.referenceNote,
+      "fineTuneCents": instrument.fineTuneCents,
+      "sampleRate": instrument.sample.sound.sampleRate,
+      "samples": instrument.sample.sound.buffer.sampleCount,
+      "oneShotSamples": instrument.sample.oneShotSamples,
+      "repeatSamples": instrument.sample.repeatSamples}
+  result["instrumentSummaries"] = instruments
+  var patterns = newJArray()
+  for pattern in module.patterns:
+    patterns.add %*{"name": pattern.name, "sourceIndex": pattern.sourceIndex,
+      "rows": pattern.rows.len}
+  result["patternSummaries"] = patterns
+
 proc exportMetadataJson*(resource: VextResourceNode,
     suggestedFilename = "metadata.json"): VextArtifactSet =
   if resource.isNil:
@@ -122,6 +173,7 @@ proc exportMetadataJson*(resource: VextResourceNode,
     of vrnkAudio: "audio"
     of vrnkFont: "font"
     of vrnkPalette: "palette"
+    of vrnkTracker: "tracker"
     of vrnkOpaque: "opaque"
   var document = %*{"schema": "vexter.resource-metadata.v1",
     "path": resource.path, "type": resource.typeId, "kind": kind,
@@ -139,6 +191,7 @@ proc exportMetadataJson*(resource: VextResourceNode,
     of vrnkRaster: rasterNode(resource.raster)
     of vrnkFont: fontNode(resource.font)
     of vrnkPalette: paletteNode(resource.palette)
+    of vrnkTracker: trackerNode(resource.tracker)
     of vrnkAudio: audioNode(resource)
     of vrnkText: %*{"archetype": "text", "utf8Bytes": resource.text.len}
     of vrnkOpaque: %*{"archetype": "opaque",

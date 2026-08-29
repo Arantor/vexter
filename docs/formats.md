@@ -13,7 +13,7 @@ The currently implemented formats use this subset of the intended CLI:
 vexter inspect [--json] [--all-candidates] [--ignore-warnings]
                [--input-format FORMAT] [--pcx-channel-order rgb|bgr] INPUT
 
-vexter export [--format png|gif|apng|gif-cycled|apng-cycled|palette-swatch|gpl|bmfont|html-report|metadata-json|txt|wav|bin]
+vexter export [--format png|gif|apng|gif-cycled|apng-cycled|palette-swatch|gpl|bmfont|tracker-json|html-report|metadata-json|txt|wav|bin]
               [--resource PATH] [--allow-large-animation]
               [--input-format FORMAT] [-o OUTPUT] [--force]
               [--ignore-warnings] [--pcx-channel-order rgb|bgr] INPUT
@@ -30,6 +30,40 @@ two-axis advances and kerning, fallback behavior, substitutions, and ligatures;
 bitmap pixels remain in the natural visual export. Raster documents retain
 dimensions, animation timing and colour-cycle declarations, while audio
 documents retain buffer and sampled-instrument metrics.
+Tracker resources retain module timing, order lists, channel layout,
+instrument and pattern summaries, and bounded loop-analysis status. Dedicated
+`tracker-json` export preserves complete pattern cells and effects rather than
+overloading resource metadata JSON.
+
+## ProTracker-compatible MOD import
+
+Container type identifier: `protracker.mod`
+
+The importer accepts structurally exact unmarked 15-instrument modules and
+31-instrument modules marked `M.K.`, `M!K!`, `FLT4`, `FLT8`, `4CHN`, `6CHN`,
+or `8CHN`. Marked modules are detected with certain confidence; an exact
+unmarked 15-instrument layout is probable. The tracker appears at `/module`,
+with physical patterns beneath `/module/patterns/N` and each sampled instrument
+beneath `/module/samples/N` for WAV extraction. Pattern nodes are independently
+selectable in the GUI and exportable as single-pattern tracker JSON views.
+
+Patterns retain all 64 rows, per-channel notes, source periods, instrument
+events, and both normalized and raw effect values. The generic channel layout
+records the classic Amiga left/right bias. Signed 8-bit mono samples retain
+volume, fine-tune, and repeat regions. A bounded control-flow pass follows
+orders, jumps, pattern breaks, pattern loops, and restart positions to report
+termination or repeated state without risking an infinite importer loop.
+
+The module's natural `tracker-json` export uses schema `vexter.tracker.v1` and
+contains timing, orders, channels, instruments, patterns, cells, effects, and
+sample resource paths. The GUI provides a static module/order summary and a
+tracker-style grid for the first order position. Playback, audio mixdown,
+live row highlighting, and editing are not implemented.
+
+`MMD1` files are OctaMED-family modules rather than this documented classic
+MOD layout. The supplied `Worms - The Director's Cut.MOD` is therefore a useful
+negative control and remains unsupported pending authoritative OctaMED
+documentation.
 
 Metadata JSON is supplementary and never replaces a resource's natural default
 export. It is also available to `export-all`, where groups and leaves receive

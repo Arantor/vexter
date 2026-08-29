@@ -4,6 +4,7 @@ import ./archetypes/raster
 import ./archetypes/audio
 import ./archetypes/font
 import ./archetypes/palette
+import ./archetypes/tracker
 import ./metadata
 
 type
@@ -29,6 +30,7 @@ type
     vrnkAudio
     vrnkFont
     vrnkPalette
+    vrnkTracker
     vrnkOpaque
 
   VextAudioResourceKind* = enum
@@ -46,6 +48,10 @@ type
     instrument*: VextSampledInstrument
     font*: VextBitmapFont
     palette*: VextPalette
+    tracker*: VextTrackerModule
+    ## Base path for sampled-instrument resources referenced by tracker JSON.
+    ## Child pattern views may share the parent module's sample collection.
+    trackerSampleResourcePath*: string
     data*: seq[byte]
     lazyPayload*: VextPayloadRef
     nestedInspectionAttempted*: bool

@@ -72,6 +72,12 @@ proc exportHtmlReport*(resource: VextResourceNode,
     let audio = exportWav(resource.audioSound, "audio.wav").artifacts[0]
     body.add "<section><h2>Audio</h2><audio controls src=\"" &
       audio.dataUrl & "\"></audio></section>"
+  of vrnkTracker:
+    body.add "<section><h2>Tracker module</h2><p>" &
+      $resource.tracker.channels.len & " channel(s), " &
+      $resource.tracker.instruments.len & " instrument(s), " &
+      $resource.tracker.patterns.len & " pattern(s), and " &
+      $resource.tracker.orders.len & " order position(s).</p></section>"
   of vrnkText:
     body.add "<section><h2>Text</h2><pre>" & resource.text.escaped &
       "</pre></section>"

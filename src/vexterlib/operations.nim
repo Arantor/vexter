@@ -5,15 +5,16 @@ import ./artifacts
 import ./archetypes/raster
 import ./archetypes/audio
 import ./archetypes/palette
+import ./archetypes/tracker
 import ./transformations/colour_cycle
 import ./transformations/palette_swatch
 import ./detection
 import ./handler_registry
-import ./exporters/[bmfont, gif, gpl, html_report, metadata_json, png, raw, wav]
+import ./exporters/[bmfont, gif, gpl, html_report, metadata_json, png, raw, tracker_json, wav]
 import ./resource_tree
 import ./containers/[amiga_8svx, amiga_16sv, amiga_acbm, amiga_adf, amiga_anim, amiga_diskfont, amiga_dms, amiga_hunk_executable, amiga_iff, amiga_ilbm, amiga_lha_sfx, amiga_pbm, amiga_workbench_icon, amos_bank, amos_bank_set, amos_packed_picture, amos_program,
   amos_sprite_icon_bank, ansi_art, bmfont, bmp, creative_voice, doom_wad, flic, fzx, gif_container, iso9660, jpeg, netpbm, openraster, pcx, png_container,
-  adobe_swatch_exchange, aseprite, gimp_palette, koala_painter, paint_net_palette, qoi, tga, wav, windows_icon, zip_archive, lha_archive, zx_spectrum_snapshot, zx_spectrum_tap]
+  adobe_swatch_exchange, aseprite, gimp_palette, koala_painter, paint_net_palette, protracker_mod, qoi, tga, wav, windows_icon, zip_archive, lha_archive, zx_spectrum_snapshot, zx_spectrum_tap]
 import ./containers/xpk_shri
 import ./containers/powerpacker
 import ./metadata
@@ -165,6 +166,10 @@ proc exportFormatsFor*(resource: VextResourceNode): seq[VextExportFormat] =
         mediaTypes: @["image/png"], isDefault: true),
       VextExportFormat(id: "gpl", displayName: "GIMP palette (GPL)",
         extensions: @["gpl"], mediaTypes: @["application/x-gimp-palette"])]
+  of vrnkTracker:
+    result = @[VextExportFormat(id: "tracker-json",
+      displayName: "Tracker JSON", extensions: @["json"],
+      mediaTypes: @["application/json"], isDefault: true)]
   of vrnkText:
     result = @[VextExportFormat(id: "txt", displayName: "Plain text",
       extensions: @["txt"], mediaTypes: @["text/plain"], isDefault: true)]
@@ -1294,6 +1299,66 @@ proc inspectSourceDepth(filename: string, data: openArray[byte],
         path: AdobeSwatchExchangeResourcePath,
         typeId: AdobeSwatchExchangeTypeId, kind: vrnkPalette,
         palette: source.palette, metadata: metadata)
+  of vhkProtrackerMod:
+    let source = parsedValue[ProtrackerMod](selectedParsed, vhkProtrackerMod)
+    let module = VextResourceNode(path: ProtrackerModResourcePath,
+      typeId: ProtrackerModTypeId, kind: vrnkTracker,
+      defaultExportPriority: 10,
+      tracker: source.module,
+      trackerSampleResourcePath: ProtrackerModResourcePath & "/samples",
+      metadata: @[
+        stringMetadata("title", source.module.title),
+        stringMetadata("signature", source.signature),
+        integerMetadata("sample-headers", source.sampleCount),
+        integerMetadata("channels", source.module.channels.len),
+        integerMetadata("patterns", source.module.patterns.len),
+        integerMetadata("orders", source.module.orders.len),
+        integerMetadata("instruments", source.module.instruments.len),
+        integerMetadata("loop-analysis", ord(source.module.loopAnalysis.status))])
+    let patterns = VextResourceNode(
+      path: ProtrackerModResourcePath & "/patterns",
+      typeId: "protracker.patterns", kind: vrnkGroup,
+      metadata: @[integerMetadata("patterns", source.module.patterns.len)])
+    for pattern in source.module.patterns:
+      var patternModule = source.module
+      patternModule.title = pattern.name
+      patternModule.patterns = @[pattern]
+      patternModule.orders = @[0]
+      patternModule.hasRestartOrder = false
+      patternModule.restartOrder = 0
+      patternModule.loopAnalysis = VextTrackerLoopAnalysis(
+        status: vtlsNotAnalysed)
+      patterns.children.add VextResourceNode(
+        path: ProtrackerModResourcePath & "/patterns/" &
+          $pattern.sourceIndex,
+        typeId: "protracker.pattern", kind: vrnkTracker,
+        tracker: patternModule,
+        trackerSampleResourcePath: ProtrackerModResourcePath & "/samples",
+        metadata: @[
+          integerMetadata("source-index", pattern.sourceIndex),
+          integerMetadata("rows", pattern.rows.len),
+          integerMetadata("channels", source.module.channels.len)])
+    module.children.add patterns
+    let samples = VextResourceNode(
+      path: ProtrackerModResourcePath & "/samples",
+      typeId: "protracker.samples", kind: vrnkGroup,
+      metadata: @[integerMetadata("samples", source.module.instruments.len)])
+    for index, instrument in source.module.instruments:
+      samples.children.add VextResourceNode(
+        path: ProtrackerModResourcePath & "/samples/" & $(index + 1),
+        typeId: "protracker.sample", kind: vrnkAudio,
+        audioKind: varkSampledInstrument, instrument: instrument.sample,
+        metadata: @[
+          stringMetadata("name", instrument.name),
+          integerMetadata("source-index", instrument.sourceIndex),
+          integerMetadata("reference-note", instrument.referenceNote),
+          integerMetadata("fine-tune-eighth-semitones",
+            int(instrument.fineTuneCents / 12.5)),
+          integerMetadata("samples", instrument.sample.sound.buffer.sampleCount),
+          integerMetadata("one-shot-samples", instrument.sample.oneShotSamples),
+          integerMetadata("repeat-samples", instrument.sample.repeatSamples)])
+    module.children.add samples
+    result.resources.roots.add module
   of vhkDoomWad:
     let wad = parsedValue[DoomWad](selectedParsed, vhkDoomWad)
     let root = VextResourceNode(path: "/wad", typeId: DoomWadTypeId,
@@ -2181,7 +2246,8 @@ proc exportResource*(tree: VextResourceTree,
     available = tree.allResources
   else:
     for item in tree.leafResources:
-      if item.kind in {vrnkRaster, vrnkText, vrnkAudio, vrnkFont, vrnkPalette} or
+      if item.kind in {vrnkRaster, vrnkText, vrnkAudio, vrnkFont, vrnkPalette,
+          vrnkTracker} or
           (item.kind == vrnkOpaque and item.rawDataAvailable):
         available.add item
   var resource: VextResourceNode
@@ -2336,6 +2402,12 @@ proc exportResource*(tree: VextResourceTree,
   of vrnkPalette:
     raise newException(ValueError, "unsupported output format: " &
       result.outputFormat)
+  of vrnkTracker:
+    if result.outputFormat != "tracker-json":
+      raise newException(ValueError, "unsupported output format: " &
+        result.outputFormat)
+    result.artifacts = exportTrackerJson(resource.tracker, resource.path,
+      request.suggestedName & ".json", resource.trackerSampleResourcePath)
   else:
     raise newException(ValueError, "resource is not exportable: " &
       resource.path)
@@ -2352,7 +2424,7 @@ proc exportAllResources*(tree: VextResourceTree,
   for resource in candidates:
     if request.outputFormat notin ["metadata-json", "html-report"] and
         not (resource.kind in {vrnkRaster, vrnkText, vrnkAudio, vrnkFont,
-          vrnkPalette} or
+          vrnkPalette, vrnkTracker} or
         (resource.kind == vrnkOpaque and resource.rawDataAvailable)):
       continue
     if patterns.len == 0:

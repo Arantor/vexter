@@ -1,5 +1,33 @@
 # Third-party material
 
+## ProTracker MOD documentation and compatibility corpus
+
+The developer supplied `mod-form-3rd.txt` and
+`Protracker Module Format - 4th edition.html` on 29 August 2026. The former was
+obtained from `textfiles.com/programming/FORMATS/mod-form.txt`; the latter from
+`aes.id.au/modformat.html`. Together they document the 15- and 31-instrument
+headers, signatures and channel counts, order and pattern layouts, sample
+encoding, periods, effects, timing, stereo placement, and repeat behavior used
+by Vexter. No internet research or third-party implementation code was used.
+
+Source URLs:
+* http://www.textfiles.com/programming/FORMATS/mod-form.txt
+* https://www.aes.id.au/modformat.html
+
+The developer also supplied the files under `mod/` as temporary compatibility
+material. They are not copied into the committed fixture corpus; routine tests
+construct compact synthetic modules from the documented layouts. Seventeen
+files exercise classic `M.K.` modules. `Worms - The Director's Cut.MOD` begins
+with `MMD1` and is retained as a negative, OctaMED-family control rather than
+being interpreted as a classic MOD.
+
+The supplied documentation SHA-256 values are:
+
+```text
+051b9cc04a12a1e850ca86c35de7050e558bc887620d54300658bf8024204733  mod-form-3rd.txt
+315486e2ffb43db7a73b20501e6d1f7fb49842d66bcf283fd7e4be4e489db269  Protracker Module Format - 4th edition.html
+```
+
 ## Adobe Swatch Exchange article and sample
 
 The developer supplied Richard Moss's 16 October 2015 Cyotek article,

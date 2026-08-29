@@ -41,7 +41,8 @@ and the useful understanding levels that can be reached without full decoding.
 
 - Music formats and replay systems associated with David Whittaker, Jason
   Page, and Chris Huelsbeck, including relevant TFMX-family material.
-- SoundTracker, NoiseTracker, ProTracker and other MOD-family formats.
+- Further SoundTracker, NoiseTracker, ProTracker and other MOD-family variants
+  beyond the currently implemented documented 15/31-instrument layouts.
 - MED and OctaMED; AHX and HivelyTracker; Future Composer; SidMon; Delta Music;
   Digital Mugician; SoundMon; Hippel/COSO-family and other custom replay
   formats.

@@ -21,6 +21,7 @@ type
   HMENU = pointer
   HDC = pointer
   HBRUSH = pointer
+  HFONT = pointer
   HICON = pointer
   HIMAGELIST = pointer
   HTREEITEM = pointer
@@ -187,6 +188,7 @@ const
   WM_HSCROLL = 0x0114'u32
   WM_VSCROLL = 0x0115'u32
   WM_CLOSE = 0x0010'u32
+  WM_SETFONT = 0x0030'u32
   WM_COMMAND = 0x0111'u32
   WM_TIMER = 0x0113'u32
   WM_NOTIFY = 0x004E'u32
@@ -313,6 +315,12 @@ proc TrackPopupMenu(menu: HMENU, flags: UINT, x, y: int32,
     reserved: int32, hwnd: HWND, rect: pointer): int32
     {.stdcall, importc, header: "<windows.h>".}
 proc DestroyMenu(menu: HMENU): BOOL {.stdcall, importc, header: "<windows.h>".}
+proc CreateFontW(height, width, escapement, orientation, weight: int32,
+    italic, underline, strikeOut, charSet, outputPrecision, clipPrecision,
+    quality, pitchAndFamily: DWORD, faceName: WideCString): HFONT
+    {.stdcall, importc, header: "<windows.h>".}
+proc DeleteObject(handle: pointer): BOOL
+    {.stdcall, importc, header: "<windows.h>".}
 proc InitCommonControls() {.stdcall, importc, header: "<commctrl.h>".}
 proc waveOutOpen(outHandle: ptr HWAVEOUT, device: uint, format: ptr WAVEFORMATEX,
     callback: uint, instance: uint, flags: DWORD): uint32 {.stdcall, importc.}
@@ -351,6 +359,7 @@ var
   waveData: seq[int16]
   firstPreviewItem: HTREEITEM
   treeImages: HIMAGELIST
+  uiFont, textFont: HFONT
   failureImageIndex = -1'i32
   loadThread: Thread[LoadJob]
   sessionThread: Thread[SessionJob]
@@ -360,6 +369,10 @@ var
 proc lowWord(value: WPARAM): int = int(value and 0xffff)
 proc highWord(value: WPARAM): int = int((value shr 16) and 0xffff)
 proc w(value: string): WideCStringObj = newWideCString(value)
+
+proc setControlFont(control: HWND, font: HFONT) =
+  if control != nil and font != nil:
+    discard SendMessageW(control, WM_SETFONT, cast[WPARAM](font), 1)
 
 proc windowText(hwnd: HWND): string =
   let length = int(GetWindowTextLengthW(hwnd))
@@ -756,6 +769,53 @@ proc isPlayable(binding: TreeBinding): bool =
   else:
     false
 
+proc trackerNoteText(cell: VextTrackerCell): string =
+  case cell.noteKind
+  of vtnkNone: "..."
+  of vtnkRelease: "OFF"
+  of vtnkCut: "CUT"
+  of vtnkTrigger, vtnkTarget:
+    const names = ["C-", "C#", "D-", "D#", "E-", "F-",
+      "F#", "G-", "G#", "A-", "A#", "B-"]
+    let prefix = if cell.noteKind == vtnkTarget: "~" else: ""
+    prefix & names[cell.note mod 12] & $(cell.note div 12 - 1)
+
+proc trackerCellText(cell: VextTrackerCell): string =
+  # Tracker instruments are normalized to zero-based archetype indices, while
+  # tracker UIs conventionally show their one-based source numbers.
+  let instrument =
+    if cell.hasInstrument: (cell.instrument + 1).toHex(2) else: ".."
+  var command = "..."
+  if cell.effects.len > 0:
+    command = cell.effects[0].rawCommand.toHex(1) &
+      cell.effects[0].rawParameter.toHex(2)
+  cell.trackerNoteText.alignLeft(4) & " " & instrument & " " & command
+
+proc trackerDetails(module: VextTrackerModule): string =
+  result = "Tracker: " & module.title & "\r\n" &
+    &"Channels: {module.channels.len}  Instruments: {module.instruments.len}  " &
+    &"Patterns: {module.patterns.len}  Orders: {module.orders.len}\r\n" &
+    &"Initial speed: {module.initialSpeed}  Tempo: {module.initialTempoBpm:g}  " &
+    &"Rows/beat: {module.rowsPerBeat}\r\nOrders: "
+  for index, patternIndex in module.orders:
+    if index > 0: result.add " "
+    result.add patternIndex.toHex(2)
+  result.add "\r\n"
+  if module.orders.len == 0: return
+  let patternIndex = module.orders[0]
+  if patternIndex < 0 or patternIndex >= module.patterns.len: return
+  let pattern = module.patterns[patternIndex]
+  result.add "\r\nFirst order position — pattern " &
+    pattern.sourceIndex.toHex(2) & "\r\nROW"
+  for channel in 0 ..< module.channels.len:
+    result.add " | CH" & ($(channel + 1)).align(2) & "       "
+  result.add "\r\n"
+  for rowIndex, row in pattern.rows:
+    result.add rowIndex.toHex(2)
+    for cell in row.cells:
+      result.add " | " & cell.trackerCellText
+    result.add "\r\n"
+
 proc glyphDetails(font: VextBitmapFont, glyphIndex: int): string =
   result = &"Font: {font.name}\r\nGlyphs: {font.glyphs.len}  " &
     &"Mappings: {font.mappings.len}  Line height: {font.lineHeight}  " &
@@ -863,6 +923,9 @@ proc selectBinding(binding: TreeBinding) =
   elif binding.node.kind == vrnkText:
     currentView = vkText
     discard SetWindowTextW(textView, w(binding.node.text))
+  elif binding.node.kind == vrnkTracker:
+    currentView = vkText
+    discard SetWindowTextW(textView, w(trackerDetails(binding.node.tracker)))
   elif binding.node.kind in {vrnkRaster, vrnkPalette}:
     currentView = vkRaster
   elif binding.node.kind == vrnkFont:
@@ -1391,6 +1454,18 @@ proc mainProc(hwnd: HWND, msg: UINT, wp: WPARAM, lp: LPARAM): LRESULT {.stdcall.
       0, 0, 0, 0, hwnd, cast[HMENU](1008), instance, nil)
     progressBar = CreateWindowExW(0, w("msctls_progress32"), w(""), WS_CHILD or PBST_MARQUEE,
       0, 0, 0, 0, hwnd, cast[HMENU](1009), instance, nil)
+    # Explicit fonts avoid the legacy stock control font. Keep ordinary UI
+    # chrome proportional and textual resources fixed-width for listings,
+    # tracker columns, hexadecimal diagnostics, and Unicode block characters.
+    uiFont = CreateFontW(-12, 0, 0, 0, 400, 0, 0, 0, 1, 0, 0, 0, 0,
+      w("Segoe UI"))
+    textFont = CreateFontW(-13, 0, 0, 0, 400, 0, 0, 0, 1, 0, 0, 0, 1,
+      w("Consolas"))
+    for control in [openButton, treeView, fontModeCombo, fontSample,
+        fontGlyphCombo, scaleCombo, playButton, formatCombo, exportButton]:
+      control.setControlFont(uiFont)
+    for control in [textView, fontDetails]:
+      control.setControlFont(textFont)
     discard EnableWindow(playButton, 0)
     discard EnableWindow(exportButton, 0)
     layout(hwnd)
@@ -1492,6 +1567,12 @@ proc mainProc(hwnd: HWND, msg: UINT, wp: WPARAM, lp: LPARAM): LRESULT {.stdcall.
       discard SendMessageW(treeView, TVM_SETIMAGELIST, TVSIL_NORMAL, 0)
       discard ImageList_Destroy(treeImages)
       treeImages = nil
+    if textFont != nil:
+      discard DeleteObject(textFont)
+      textFont = nil
+    if uiFont != nil:
+      discard DeleteObject(uiFont)
+      uiFont = nil
     PostQuitMessage(0)
     return 0
   else: discard

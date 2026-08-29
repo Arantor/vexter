@@ -18,6 +18,8 @@ task cli, "Build the Linux and Windows command-line clients":
 task test, "Run the test suite":
   mkDir "build/linux"
   exec "nim c --path:src -o:build/linux/vexter src/vexter.nim"
+  exec "nim c -r --path:src tests/test_tracker_archetype.nim"
+  exec "nim c -r --path:src tests/test_protracker_mod.nim"
   exec "nim c -r --path:src tests/test_amiga_iff_ilbm.nim"
   exec "nim c -r --path:src tests/test_amiga_8svx.nim"
   exec "nim c -r --path:src tests/test_amiga_16sv.nim"

@@ -27,13 +27,13 @@ proc usage(): string =
                  [--input-format FORMAT] [--pcx-channel-order rgb|bgr]
                  [--ansi-letter-spacing auto|8|9]
                  [--ansi-aspect auto|legacy|square] INPUT
-  vexter export [--format png|gif|apng|gif-cycled|apng-cycled|palette-swatch|gpl|bmfont|html-report|metadata-json|txt|wav|bin]
+  vexter export [--format png|gif|apng|gif-cycled|apng-cycled|palette-swatch|gpl|bmfont|tracker-json|html-report|metadata-json|txt|wav|bin]
                 [--resource PATH] [--allow-large-animation]
                 [--input-format FORMAT] [-o OUTPUT] [--force]
                 [--ignore-warnings] [--pcx-channel-order rgb|bgr]
                 [--ansi-letter-spacing auto|8|9]
                 [--ansi-aspect auto|legacy|square] INPUT
-  vexter export-all [--format png|gif|apng|gif-cycled|apng-cycled|palette-swatch|gpl|bmfont|html-report|metadata-json|txt|wav|bin]
+  vexter export-all [--format png|gif|apng|gif-cycled|apng-cycled|palette-swatch|gpl|bmfont|tracker-json|html-report|metadata-json|txt|wav|bin]
                     [--resource PATH-PATTERN]... [--input-format FORMAT]
                     -o DIRECTORY [--force] [--ignore-warnings]
                     [--allow-large-animation]
@@ -169,6 +169,7 @@ proc descriptorKind(item: VextResourceDescriptor): string =
   of vrnkAudio: "audio"
   of vrnkFont: "font"
   of vrnkPalette: "palette"
+  of vrnkTracker: "tracker"
   of vrnkOpaque: "opaque"
 
 proc inspect(options: CliOptions) =
@@ -362,6 +363,7 @@ proc exportResource(options: CliOptions) =
     of "apng-cycled": "png"
     of "gif-cycled": "gif"
     of "metadata-json": "json"
+    of "tracker-json": "json"
     of "html-report": "html"
     else: exported.outputFormat
   let destination = if options.output.len > 0: options.output

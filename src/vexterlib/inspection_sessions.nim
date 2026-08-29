@@ -234,6 +234,9 @@ proc addLegacyNode(session: VextInspectionSession, node: VextResourceNode,
     described.archetype = "VextPalette"
     described.colours = node.palette.colours.len
     described.colourCycleRanges = node.palette.colourCycles.len
+  of vrnkTracker:
+    described.archetype = "VextTrackerModule"
+    described.channels = node.tracker.channels.len
   else: discard
   described.failureFormat = node.failureFormat
   described.failureMessage = node.failureMessage

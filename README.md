@@ -24,13 +24,16 @@ sufficiently useful to continue as an ongoing project.
 - Palettes: Paint.NET and GIMP text palettes, Adobe Swatch Exchange and Aseprite sprite palettes, and palette-only IFF ILBM/ACBM files
 - Archives and audio: ZIP, level-0/1 LHA/LZH with LH0/LH5 members, Creative
   Voice PCM audio, and integer PCM WAV
+- Tracker music: 15- and 31-instrument ProTracker-compatible MOD modules;
+  patterns export as tracker JSON and individual samples as WAV
 - ZX Spectrum: screen dumps, SNA snapshots, TAP files, and tokenised BASIC
 - Game data: classic DOOM IWAD/PWAD directories, palettes, flats, sprites,
   patches, composited wall textures, sound effects, automap-style map previews,
   and other patch-format graphics
 
 Decoded resources can be exported as PNG, GIF, APNG, BMFont text plus PNG
-atlases, self-contained HTML reports, metadata JSON, WAV, text, or raw binary.
+atlases, tracker JSON, self-contained HTML reports, metadata JSON, WAV, text,
+or raw binary.
 ILBM and ANIM colour cycling can optionally be expanded into bounded GIF or
 APNG animations while static and original-animation exports remain available.
 Containers such as ADF, ZIP, LHA, PowerPacker, and XPK are inspected recursively
@@ -58,8 +61,8 @@ the native Windows application and requires MinGW-w64.
 
 ```text
 vexter inspect INPUT
-vexter export [--format png|gif|apng|palette-swatch|gpl|bmfont|html-report|metadata-json|txt|wav|bin] [-o OUTPUT] INPUT
-vexter export-all [--format png|gif|apng|palette-swatch|gpl|bmfont|html-report|metadata-json|txt|wav|bin] -o DIRECTORY INPUT
+vexter export [--format png|gif|apng|palette-swatch|gpl|bmfont|tracker-json|html-report|metadata-json|txt|wav|bin] [-o OUTPUT] INPUT
+vexter export-all [--format png|gif|apng|palette-swatch|gpl|bmfont|tracker-json|html-report|metadata-json|txt|wav|bin] -o DIRECTORY INPUT
 ```
 
 Run `vexter --help` for the complete option list.

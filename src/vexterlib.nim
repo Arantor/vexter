@@ -4,6 +4,7 @@ import vexterlib/archetypes/raster
 import vexterlib/archetypes/audio
 import vexterlib/archetypes/font
 import vexterlib/archetypes/palette
+import vexterlib/archetypes/tracker
 import vexterlib/transformations/colour_cycle
 import vexterlib/transformations/palette_swatch
 import vexterlib/resources/font_preview
@@ -41,6 +42,7 @@ import vexterlib/containers/paint_net_palette
 import vexterlib/containers/gimp_palette
 import vexterlib/containers/aseprite
 import vexterlib/containers/adobe_swatch_exchange
+import vexterlib/containers/protracker_mod
 import vexterlib/containers/qoi
 import vexterlib/containers/koala_painter
 import vexterlib/containers/netpbm
@@ -90,12 +92,14 @@ import vexterlib/byte_sources
 import vexterlib/inspection_sessions
 import vexterlib/exporters/[gif, html_report, metadata_json, png, raw, wav]
 import vexterlib/exporters/gpl
+import vexterlib/exporters/tracker_json
 import vexterlib/exporters/bmfont
 
 export raster
 export audio
 export font
 export palette
+export tracker
 export colour_cycle
 export palette_swatch
 export font_preview
@@ -139,6 +143,7 @@ export paint_net_palette
 export gimp_palette
 export aseprite
 export adobe_swatch_exchange
+export protracker_mod
 export qoi
 export koala_painter
 export netpbm
@@ -188,3 +193,4 @@ export wav
 export metadata_json
 export html_report
 export gpl
+export tracker_json
