@@ -58,8 +58,8 @@ the native Windows application and requires MinGW-w64.
 
 ```text
 vexter inspect INPUT
-vexter export [--format png|gif|apng|bmfont|html-report|metadata-json|txt|wav|bin] [-o OUTPUT] INPUT
-vexter export-all [--format png|gif|apng|bmfont|html-report|metadata-json|txt|wav|bin] -o DIRECTORY INPUT
+vexter export [--format png|gif|apng|palette-swatch|gpl|bmfont|html-report|metadata-json|txt|wav|bin] [-o OUTPUT] INPUT
+vexter export-all [--format png|gif|apng|palette-swatch|gpl|bmfont|html-report|metadata-json|txt|wav|bin] -o DIRECTORY INPUT
 ```
 
 Run `vexter --help` for the complete option list.

@@ -45,6 +45,8 @@ client, and a dependency-free native Windows GUI. It supports:
   and ligatures;
 - PNG export for a still image or an animation's natural first frame, plus
   ordered palette swatches for palette resources and indexed rasters;
+- GIMP GPL export for palette resources and indexed rasters, automatically
+  using Aseprite's RGBA extension when a palette contains transparency;
 - animated GIF and APNG export;
 - BMFont text export with one or more PNG atlas pages;
 - metadata JSON export for every resource kind, including groups;
@@ -62,14 +64,14 @@ vexter inspect [--json] [--all-candidates] [--ignore-warnings]
                [--ansi-letter-spacing auto|8|9]
                [--ansi-aspect auto|legacy|square] INPUT
 
-vexter export [--format png|gif|apng|gif-cycled|apng-cycled|bmfont|txt|wav|bin]
+vexter export [--format png|gif|apng|gif-cycled|apng-cycled|palette-swatch|gpl|bmfont|txt|wav|bin]
               [--resource PATH] [--allow-large-animation]
               [--input-format FORMAT] [-o OUTPUT] [--force]
               [--ignore-warnings] [--pcx-channel-order rgb|bgr]
               [--ansi-letter-spacing auto|8|9]
               [--ansi-aspect auto|legacy|square] INPUT
 
-vexter export-all [--format png|gif|apng|gif-cycled|apng-cycled|bmfont|txt|wav|bin]
+vexter export-all [--format png|gif|apng|gif-cycled|apng-cycled|palette-swatch|gpl|bmfont|txt|wav|bin]
                   [--resource PATH-PATTERN]... [--input-format FORMAT]
                   -o DIRECTORY [--force] [--ignore-warnings]
                   [--pcx-channel-order rgb|bgr] [--allow-large-animation]

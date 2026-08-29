@@ -83,13 +83,14 @@ suite "vexterlib operations":
       newSeq[byte](ZxSpectrumScreenSize))
     let resource = inspection.resources.rasterResources[0]
     let formats = resource.exportFormatsFor
-    check formats.len == 5
+    check formats.len == 6
     check formats[0].id == "png"
     check formats[0].isDefault
     check formats[1].id == "gif"
     check formats[2].id == "palette-swatch"
-    check formats[3].id == "metadata-json"
-    check formats[4].id == "html-report"
+    check formats[3].id == "gpl"
+    check formats[4].id == "metadata-json"
+    check formats[5].id == "html-report"
     check resource.defaultExportFormat == "png"
 
     let swatch = exportResource(inspection.resources,
@@ -193,7 +194,7 @@ suite "vexterlib operations":
     let tree = VextResourceTree(roots: @[VextResourceNode(path: "/cycled",
       typeId: "test.cycled", kind: vrnkRaster, raster: raster)])
     let formats = tree.roots[0].exportFormatsFor
-    check formats.len == 7
+    check formats.len == 8
     check formats[0].id == "png"
     check formats[2].id == "gif-cycled"
     check exportResource(tree, VextExportRequest(outputFormat: "png",

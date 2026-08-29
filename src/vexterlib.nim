@@ -89,6 +89,7 @@ import vexterlib/resource_tree
 import vexterlib/byte_sources
 import vexterlib/inspection_sessions
 import vexterlib/exporters/[gif, html_report, metadata_json, png, raw, wav]
+import vexterlib/exporters/gpl
 import vexterlib/exporters/bmfont
 
 export raster
@@ -186,3 +187,4 @@ export raw
 export wav
 export metadata_json
 export html_report
+export gpl

@@ -9,7 +9,7 @@ import ./transformations/colour_cycle
 import ./transformations/palette_swatch
 import ./detection
 import ./handler_registry
-import ./exporters/[bmfont, gif, html_report, metadata_json, png, raw, wav]
+import ./exporters/[bmfont, gif, gpl, html_report, metadata_json, png, raw, wav]
 import ./resource_tree
 import ./containers/[amiga_8svx, amiga_16sv, amiga_acbm, amiga_adf, amiga_anim, amiga_diskfont, amiga_dms, amiga_hunk_executable, amiga_iff, amiga_ilbm, amiga_lha_sfx, amiga_pbm, amiga_workbench_icon, amos_bank, amos_bank_set, amos_packed_picture, amos_program,
   amos_sprite_icon_bank, ansi_art, bmfont, bmp, creative_voice, doom_wad, flic, fzx, gif_container, iso9660, jpeg, netpbm, openraster, pcx, png_container,
@@ -119,6 +119,8 @@ proc exportFormatsFor*(resource: VextResourceNode): seq[VextExportFormat] =
       result.add VextExportFormat(id: "palette-swatch",
         displayName: "Palette swatch PNG", extensions: @["png"],
         mediaTypes: @["image/png"])
+      result.add VextExportFormat(id: "gpl", displayName: "GIMP palette (GPL)",
+        extensions: @["gpl"], mediaTypes: @["application/x-gimp-palette"])
     of vrkIndexedAnimation:
       let gifDefault = resource.raster.animation.gifCompatible
       result = @[
@@ -140,6 +142,8 @@ proc exportFormatsFor*(resource: VextResourceNode): seq[VextExportFormat] =
       result.add VextExportFormat(id: "palette-swatch",
         displayName: "Palette swatch PNG", extensions: @["png"],
         mediaTypes: @["image/png"])
+      result.add VextExportFormat(id: "gpl", displayName: "GIMP palette (GPL)",
+        extensions: @["gpl"], mediaTypes: @["application/x-gimp-palette"])
     of vrkTrueColourImage:
       result = @[VextExportFormat(id: "png", displayName: "PNG image",
         extensions: @["png"], mediaTypes: @["image/png"], isDefault: true)]
@@ -155,9 +159,12 @@ proc exportFormatsFor*(resource: VextResourceNode): seq[VextExportFormat] =
       extensions: @["fnt"],
       mediaTypes: @["text/plain", "image/png"], isDefault: true)]
   of vrnkPalette:
-    result = @[VextExportFormat(id: "palette-swatch",
-      displayName: "Palette swatch PNG", extensions: @["png"],
-      mediaTypes: @["image/png"], isDefault: true)]
+    result = @[
+      VextExportFormat(id: "palette-swatch",
+        displayName: "Palette swatch PNG", extensions: @["png"],
+        mediaTypes: @["image/png"], isDefault: true),
+      VextExportFormat(id: "gpl", displayName: "GIMP palette (GPL)",
+        extensions: @["gpl"], mediaTypes: @["application/x-gimp-palette"])]
   of vrnkText:
     result = @[VextExportFormat(id: "txt", displayName: "Plain text",
       extensions: @["txt"], mediaTypes: @["text/plain"], isDefault: true)]
@@ -179,6 +186,13 @@ proc defaultExportFormat*(resource: VextResourceNode): string =
   for format in resource.exportFormatsFor:
     if format.isDefault:
       return format.id
+
+proc gplExportUsesAlpha*(resource: VextResourceNode): bool =
+  ## True when GPL export selects Aseprite's RGBA extension.
+  if not resource.isNil and resource.kind == vrnkPalette:
+    resource.palette.usesGplRgbaExtension
+  else:
+    false
 
 const WindowsDeviceNames = [
   "con", "prn", "aux", "nul", "com1", "com2", "com3", "com4", "com5",
@@ -2222,7 +2236,7 @@ proc exportResource*(tree: VextResourceTree,
     result.artifacts = exportHtmlReport(resource,
       request.suggestedName & ".html")
     return
-  if result.outputFormat == "palette-swatch":
+  if result.outputFormat in ["palette-swatch", "gpl"]:
     let palette = case resource.kind
       of vrnkPalette: resource.palette
       of vrnkRaster:
@@ -2230,11 +2244,17 @@ proc exportResource*(tree: VextResourceTree,
         of vrkIndexedImage: paletteOf(resource.raster.image)
         of vrkIndexedAnimation: paletteOf(resource.raster.animation)
         else: raise newException(ValueError,
-          "palette swatch export requires indexed colour")
+          "palette export requires indexed colour")
       else: raise newException(ValueError,
-        "palette swatch export requires a palette or indexed raster")
-    result.artifacts = exportPng(renderPaletteSwatch(palette),
-      request.suggestedName & ".png")
+        "palette export requires a palette or indexed raster")
+    if result.outputFormat == "palette-swatch":
+      result.artifacts = exportPng(renderPaletteSwatch(palette),
+        request.suggestedName & ".png")
+    else:
+      result.artifacts = exportGpl(palette, request.suggestedName,
+        request.suggestedName & ".gpl")
+      if palette.colourCycles.len > 0:
+        result.warnings.add "GPL cannot preserve colour-cycle ranges."
     return
   case resource.kind
   of vrnkOpaque:

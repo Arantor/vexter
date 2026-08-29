@@ -1253,6 +1253,13 @@ proc doExport() =
   let index = int(SendMessageW(formatCombo, CB_GETCURSEL, 0, 0))
   if index < 0 or index >= formats.len: return
   let format = formats[index]
+  if format.id == "gpl" and selected.node.gplExportUsesAlpha:
+    let message = "This palette contains transparency. Vexter will use " &
+      "Aseprite's RGBA extension to the GIMP Palette format. GIMP may " &
+      "ignore the alpha values when opening this file.\n\nContinue?"
+    if MessageBoxW(mainWindow, w(message), w("GPL alpha compatibility"),
+        0x34) != 6:
+      return
   let destination = chooseFile(true, format.extensions[0],
     format.displayName & "\0*." & format.extensions[0] & "\0All files\0*.*\0\0")
   if destination.len == 0: return

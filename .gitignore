@@ -39,6 +39,7 @@
 /tests/test_gimp_palette
 /tests/test_aseprite
 /tests/test_adobe_swatch_exchange
+/tests/test_gpl_exporter
 /tests/test_doom_wad
 /tests/test_amos_bank
 /tests/test_amos_packed_picture

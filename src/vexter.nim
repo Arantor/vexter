@@ -27,13 +27,13 @@ proc usage(): string =
                  [--input-format FORMAT] [--pcx-channel-order rgb|bgr]
                  [--ansi-letter-spacing auto|8|9]
                  [--ansi-aspect auto|legacy|square] INPUT
-  vexter export [--format png|gif|apng|gif-cycled|apng-cycled|bmfont|html-report|metadata-json|txt|wav|bin]
+  vexter export [--format png|gif|apng|gif-cycled|apng-cycled|palette-swatch|gpl|bmfont|html-report|metadata-json|txt|wav|bin]
                 [--resource PATH] [--allow-large-animation]
                 [--input-format FORMAT] [-o OUTPUT] [--force]
                 [--ignore-warnings] [--pcx-channel-order rgb|bgr]
                 [--ansi-letter-spacing auto|8|9]
                 [--ansi-aspect auto|legacy|square] INPUT
-  vexter export-all [--format png|gif|apng|gif-cycled|apng-cycled|bmfont|html-report|metadata-json|txt|wav|bin]
+  vexter export-all [--format png|gif|apng|gif-cycled|apng-cycled|palette-swatch|gpl|bmfont|html-report|metadata-json|txt|wav|bin]
                     [--resource PATH-PATTERN]... [--input-format FORMAT]
                     -o DIRECTORY [--force] [--ignore-warnings]
                     [--allow-large-animation]

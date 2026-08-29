@@ -13,7 +13,7 @@ The currently implemented formats use this subset of the intended CLI:
 vexter inspect [--json] [--all-candidates] [--ignore-warnings]
                [--input-format FORMAT] [--pcx-channel-order rgb|bgr] INPUT
 
-vexter export [--format png|gif|apng|gif-cycled|apng-cycled|bmfont|html-report|metadata-json|txt|wav|bin]
+vexter export [--format png|gif|apng|gif-cycled|apng-cycled|palette-swatch|gpl|bmfont|html-report|metadata-json|txt|wav|bin]
               [--resource PATH] [--allow-large-animation]
               [--input-format FORMAT] [-o OUTPUT] [--force]
               [--ignore-warnings] [--pcx-channel-order rgb|bgr] INPUT
@@ -683,6 +683,18 @@ third component as an optional colour name.
 Type identifier: `gimp.palette`
 
 Resource path: `/palette`
+
+Palette resources and indexed rasters can export ordered colours with
+`--format gpl`. Fully opaque palettes use standard GIMP GPL. If any
+palette entry has alpha below 255, export automatically adds Aseprite's
+`Channels: RGBA` marker and writes the fourth component, preserving all RGBA
+values. Colour-cycle ranges have no GPL representation and produce an export
+warning.
+
+The GUI labels this format concisely as `GIMP palette (GPL)`. Before exporting
+the RGBA dialect, it asks for confirmation that GIMP may ignore alpha values;
+the confirmation applies only to that export and is not persisted. Library and
+CLI exports are non-interactive and select the lossless dialect automatically.
 
 ## Aseprite sprite files
 
