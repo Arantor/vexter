@@ -64,9 +64,18 @@ changes, arpeggio, portamento, vibrato, sample offset, retrigger, note
 delay/cut, speed/tempo, pattern delay, position jumps, pattern breaks, and
 bounded pattern/restart loops. It can be played in the GUI or exported as WAV.
 Rendering stops before a repeated playback position and has an independent
-five-minute safety limit. Live row highlighting and editing are not
-implemented; filter emulation, tremolo, glissando, selectable modulation
-waveforms, and invert-loop remain incomplete.
+five-minute safety limit. The mixer reserves fixed four-channel headroom before
+its final safety clamp rather than normalizing each song or hard-clipping an
+ordinary two-channels-per-side mix.
+
+The supplied specification defines `E00` as filter on and `E01` as filter off,
+but does not specify analogue circuitry, cutoff, or initial hardware state.
+Vexter therefore documents its replay approximation explicitly: an initially
+enabled, stateful one-pole 4.5 kHz low-pass is applied independently to the
+stereo outputs, and `E00`/`E01` toggles whether its result is heard. Filter
+state continues tracking the mix while bypassed to avoid a stale-state click.
+This is deterministic compatibility behavior, not cycle-accurate Amiga
+hardware emulation. Live row highlighting and editing are not implemented.
 
 `MMD1` files are OctaMED-family modules rather than this documented classic
 MOD layout. The supplied `Worms - The Director's Cut.MOD` is therefore a useful

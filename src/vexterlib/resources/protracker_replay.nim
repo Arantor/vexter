@@ -8,6 +8,7 @@ const
   MaximumProtrackerReplaySeconds* = 300
   PaulaClock = 7_093_789.2
   FixedPointScale = 4_294_967_296.0
+  ProtrackerReplayFilterCutoffHz* = 4_500.0
 
 type
   ReplayChannel = object
@@ -62,6 +63,11 @@ proc renderProtracker*(module: VextTrackerModule,
     channels[index].pan = module.channels[index].defaultPan
   var speed = module.initialSpeed
   var tempo = module.initialTempoBpm
+  var filterEnabled = true
+  var filteredLeft, filteredRight = 0'i64
+  let filterCoefficient = int64(round((1.0 - exp(
+    -2.0 * PI * ProtrackerReplayFilterCutoffHz / float64(sampleRate))) *
+    65_536.0))
   var order = 0
   var row = 0
   var visited = initHashSet[string]()
@@ -146,6 +152,7 @@ proc renderProtracker*(module: VextTrackerModule,
           flowChanged = true
         of 14:
           case x
+          of 0: filterEnabled = y == 0
           of 1: state[].period = max(1.0, state[].period - float64(y))
           of 2: state[].period += float64(y)
           of 10: state[].volume = min(64.0, state[].volume + float64(y))
@@ -222,9 +229,11 @@ proc renderProtracker*(module: VextTrackerModule,
           (2.0 * playbackPeriod * float64(sampleRate)) *
           pow(2.0, fineTune / 1200.0)
         steps[channelIndex] = uint64(max(0.0, step) * FixedPointScale)
-        leftGains[channelIndex] = int(round(state.volume * 2.0 *
+        # Reserve deterministic four-channel headroom: two hard-panned
+        # full-volume channels, or four centred channels, fit without clipping.
+        leftGains[channelIndex] = int(round(state.volume *
           (1.0 - state.pan)))
-        rightGains[channelIndex] = int(round(state.volume * 2.0 *
+        rightGains[channelIndex] = int(round(state.volume *
           (1.0 + state.pan)))
       for frame in 0 ..< tickFrames:
         if left.len >= maximumFrames: break
@@ -239,8 +248,12 @@ proc renderProtracker*(module: VextTrackerModule,
           mixedLeft += value * int64(leftGains[channelIndex])
           mixedRight += value * int64(rightGains[channelIndex])
           state.position += steps[channelIndex]
-        left.add VextAudioSample(clampInt(int(mixedLeft), -32768, 32767))
-        right.add VextAudioSample(clampInt(int(mixedRight), -32768, 32767))
+        filteredLeft += ((mixedLeft - filteredLeft) * filterCoefficient) shr 16
+        filteredRight += ((mixedRight - filteredRight) * filterCoefficient) shr 16
+        let outputLeft = if filterEnabled: filteredLeft else: mixedLeft
+        let outputRight = if filterEnabled: filteredRight else: mixedRight
+        left.add VextAudioSample(clampInt(int(outputLeft), -32768, 32767))
+        right.add VextAudioSample(clampInt(int(outputRight), -32768, 32767))
       for state in channels.mitems:
         state.vibratoPhase = (state.vibratoPhase + state.vibratoSpeed) and 63
 

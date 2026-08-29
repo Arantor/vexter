@@ -104,6 +104,10 @@ The normal `nimble gui` task is a release build. ProTracker replay uses 32.32
 fixed-point sample positions and borrows sample slices in its inner mixer;
 copying reference-counted sampled-instrument values per output frame causes a
 severe ARC/ORC performance regression and must not be reintroduced.
+The mixer reserves fixed four-channel headroom. Its `E0x` behavior is an
+initially enabled, stateful one-pole 4.5 kHz stereo low-pass because the
+supplied MOD references define only the on/off command, not an analogue
+transfer function; do not describe this approximation as hardware-accurate.
 
 Audio playback polls the prepared `waveOut` header for natural completion,
 then releases the device and restores the Play state so the same resource can

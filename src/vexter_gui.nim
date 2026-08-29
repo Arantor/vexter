@@ -715,6 +715,25 @@ proc addLoadedNode(node: VextResourceNode, parent: HTREEITEM): HTREEITEM =
     discard SendMessageW(treeView, TVM_INSERTITEMW, 0,
       cast[LPARAM](addr placeholderInsert))
 
+proc ensureLoadingPlaceholder(parent: HTREEITEM) =
+  ## A descriptor created with enumerable children already owns either its
+  ## original placeholder or materialized TreeView children. Derived children
+  ## discovered only after loading need one placeholder, never one per visit.
+  if parent == nil: return
+  let firstChild = cast[HTREEITEM](SendMessageW(treeView, TVM_GETNEXTITEM,
+    TVGN_CHILD, cast[LPARAM](parent)))
+  if firstChild != nil: return
+  let placeholder = TreeBinding(placeholder: true)
+  bindings.add placeholder
+  let placeholderLabel = w("Loading…")
+  var placeholderInsert = TVINSERTSTRUCTW(hParent: parent,
+    hInsertAfter: TVI_LAST, item: TVITEMW(mask: TVIF_TEXT or TVIF_PARAM or
+    TVIF_IMAGE or TVIF_SELECTEDIMAGE, pszText: placeholderLabel,
+    iImage: I_IMAGENONE, iSelectedImage: I_IMAGENONE,
+    lParam: cast[LPARAM](placeholder)))
+  discard SendMessageW(treeView, TVM_INSERTITEMW, 0,
+    cast[LPARAM](addr placeholderInsert))
+
 proc showTreeItemFailure(item: HTREEITEM) =
   if item == nil or failureImageIndex < 0: return
   var treeItem = TVITEMW(mask: TVIF_IMAGE or TVIF_SELECTEDIMAGE,
@@ -1124,17 +1143,9 @@ proc finishSessionJob(result: ptr SessionResult) =
         showTreeItemFailure(completed.item)
       if not completed.binding.node.isNil and
           completed.binding.node.children.len > 0:
-        completed.binding.childrenLoaded = false
-        let placeholder = TreeBinding(placeholder: true)
-        bindings.add placeholder
-        let placeholderLabel = w("Loading…")
-        var placeholderInsert = TVINSERTSTRUCTW(hParent: completed.item,
-          hInsertAfter: TVI_LAST, item: TVITEMW(mask: TVIF_TEXT or TVIF_PARAM or
-          TVIF_IMAGE or TVIF_SELECTEDIMAGE, pszText: placeholderLabel,
-          iImage: I_IMAGENONE, iSelectedImage: I_IMAGENONE,
-          lParam: cast[LPARAM](placeholder)))
-        discard SendMessageW(treeView, TVM_INSERTITEMW, 0,
-          cast[LPARAM](addr placeholderInsert))
+        if vrcEnumerateChildren notin completed.binding.descriptor.capabilities:
+          completed.binding.childrenLoaded = false
+          ensureLoadingPlaceholder(completed.item)
       if selected == completed.binding:
         selectBinding(completed.binding)
     of sjkDecodeLoaded:
@@ -1145,16 +1156,7 @@ proc finishSessionJob(result: ptr SessionResult) =
           completed.binding.node.kind == vrnkGroup and
           completed.binding.node.children.len > 0:
         completed.binding.childrenLoaded = false
-        let placeholder = TreeBinding(placeholder: true)
-        bindings.add placeholder
-        let placeholderLabel = w("Loading…")
-        var placeholderInsert = TVINSERTSTRUCTW(hParent: completed.item,
-          hInsertAfter: TVI_LAST, item: TVITEMW(mask: TVIF_TEXT or TVIF_PARAM or
-          TVIF_IMAGE or TVIF_SELECTEDIMAGE, pszText: placeholderLabel,
-          iImage: I_IMAGENONE, iSelectedImage: I_IMAGENONE,
-          lParam: cast[LPARAM](placeholder)))
-        discard SendMessageW(treeView, TVM_INSERTITEMW, 0,
-          cast[LPARAM](addr placeholderInsert))
+        ensureLoadingPlaceholder(completed.item)
       if completed.decodeResult == vddFailed:
         showTreeItemFailure(completed.item)
       if selected == completed.binding:

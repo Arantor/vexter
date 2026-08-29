@@ -1373,6 +1373,10 @@ proc inspectSourceDepth(filename: string, data: openArray[byte],
         integerMetadata("sample-rate", ProtrackerReplaySampleRate),
         integerMetadata("channels", 2),
         integerMetadata("bits-per-sample", 16),
+        stringMetadata("mixer-headroom", "four-channel fixed gain"),
+        stringMetadata("filter", "initially-on one-pole low-pass"),
+        integerMetadata("filter-cutoff-hz",
+          int(ProtrackerReplayFilterCutoffHz)),
         stringMetadata("rendering", "derived on demand"),
         integerMetadata("maximum-seconds", MaximumProtrackerReplaySeconds)])
     result.resources.roots.add module

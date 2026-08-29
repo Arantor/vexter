@@ -125,10 +125,22 @@ formats are not included. Detailed format behavior and evidence remain in
     additional range definitions require documentation and focused controls.
 
 - **ProTracker-compatible MOD**
-  - The bounded stereo replay does not yet emulate the Amiga low-pass filter,
-    tremolo, glissando, selectable modulation waveforms, or invert-loop, and
-    it uses a complete in-memory PCM mix rather than streaming. The GUI has no
-    live playback cursor.
+  - The `E0x` filter uses a documented one-pole 4.5 kHz digital approximation;
+    an authoritative model for particular Amiga revisions, their fixed output
+    filtering, cutoff values, and initial LED-filter state has not been
+    supplied. PAL/NTSC clock selection is also not exposed.
+  - Tremolo, glissando, selectable sine/ramp/square/random modulation
+    waveforms and phase-reset rules, runtime `E5x` fine-tune, and invert-loop
+    remain to be implemented. Invert-loop requires replay-private mutable
+    sample state rather than altering extracted instruments.
+  - Replay still needs exact zero-parameter effect memory, combined-effect
+    tick-zero ordering, finetune-specific period tables, sample-offset overflow
+    rules, note-delay/instrument edge cases, later retrigger volume transforms,
+    and a defined policy for conflicting flow commands across channels.
+  - Sample-and-hold is the only resampling mode. Optional linear interpolation,
+    streamed/chunked PCM generation, configurable render length or loop count,
+    and a live GUI playback cursor remain outstanding. The current bounded mix
+    is materialized completely in memory before playback or WAV export.
   - The bounded control-flow analysis covers documented ProTracker jumps,
     breaks, pattern loops, and restart behavior but is not a substitute for
     full tick-by-tick effect replay.

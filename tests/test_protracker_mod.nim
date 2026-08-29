@@ -118,6 +118,17 @@ suite "Protracker MOD":
     check effect["rawCommand"].getInt == 15
     check effect["rawParameter"].getInt == 6
 
+  test "replay reserves mixer headroom and obeys filter switching":
+    let filtered = renderProtracker(parseProtrackerMod(syntheticMod()).module)
+    var filterOffData = syntheticMod()
+    # Row 0, channel 2: E01 disables the hardware-filter approximation.
+    filterOffData[1084 + 8 + 2] = 0x0e
+    filterOffData[1084 + 8 + 3] = 0x01
+    let unfiltered = renderProtracker(parseProtrackerMod(filterOffData).module)
+    check abs(unfiltered.sound.buffer.channels[0][0]) >
+      abs(filtered.sound.buffer.channels[0][0])
+    check unfiltered.sound.buffer.channels[0][0] == -16_384
+
   test "structurally exact unmarked 15-sample modules are probable":
     let inspection = inspectSource("old.mod", syntheticMod(15))
     check inspection.selectedFormat.typeId == ProtrackerModTypeId
