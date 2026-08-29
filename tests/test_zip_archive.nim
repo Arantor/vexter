@@ -143,6 +143,38 @@ suite "ZIP archives":
       loaded.resources.roots[0].failureMessage
     session.close()
 
+  test "extraction plans preserve hierarchy and materialize payloads only":
+    let archive = zipFixture([
+      FixtureEntry(name: "docs/readme.txt",
+        data: @[byte('h'), byte('i')]),
+      FixtureEntry(name: "empty/", data: @[]),
+      FixtureEntry(name: "report:2026?.txt", data: @[7'u8])])
+    let session = openInspectionSession("extract.zip",
+      newSourceCollection(memoryByteSource(archive)))
+    let plan = session.extractionPlan()
+    check vrcExtractTree in plan.root.capabilities
+    check plan.entries.len == 4
+    check plan.entries[0].kind == veekDirectory
+    check plan.entries[0].relativePath == "docs"
+    check plan.entries[1].kind == veekFile
+    check plan.entries[1].relativePath == "docs/readme.txt"
+    check plan.entries[2].kind == veekDirectory
+    check plan.entries[2].relativePath == "empty"
+    check plan.entries[3].relativePath == "report_2026_.txt"
+    check plan.warnings.len == 1
+    check session.materializePayload(plan.entries[1].descriptor.id) ==
+      @[byte('h'), byte('i')]
+    session.close()
+
+  test "extraction planning rejects portable-name collisions":
+    let archive = zipFixture([
+      FixtureEntry(name: "same?.txt", data: @[1'u8]),
+      FixtureEntry(name: "same*.txt", data: @[2'u8])])
+    let session = openInspectionSession("collision.zip",
+      newSourceCollection(memoryByteSource(archive)))
+    expect ValueError: discard session.extractionPlan()
+    session.close()
+
   test "member checksum damage is isolated until materialization":
     var archive = zipFixture([
       FixtureEntry(name: "bad.bin", data: @[1'u8, 2, 3])])

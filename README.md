@@ -64,7 +64,12 @@ the native Windows application and requires MinGW-w64.
 vexter inspect INPUT
 vexter export [--format png|gif|apng|palette-swatch|gpl|bmfont|tracker-json|html-report|metadata-json|txt|wav|bin] [-o OUTPUT] INPUT
 vexter export-all [--format png|gif|apng|palette-swatch|gpl|bmfont|tracker-json|html-report|metadata-json|txt|wav|bin] -o DIRECTORY INPUT
+vexter extract -o DIRECTORY [--force] INPUT
 ```
+
+`extract` unpacks ZIP, LHA/LZH, ISO 9660, or ADF hierarchies as ordinary files
+and directories. Unlike resource export, it preserves original member names,
+extensions, and decoded member bytes rather than exporting nested previews.
 
 Run `vexter --help` for the complete option list.
 

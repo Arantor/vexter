@@ -39,7 +39,8 @@ proc usage(): string =
                     [--allow-large-animation]
                     [--pcx-channel-order rgb|bgr]
                     [--ansi-letter-spacing auto|8|9]
-                    [--ansi-aspect auto|legacy|square] INPUT"""
+                    [--ansi-aspect auto|legacy|square] INPUT
+  vexter extract [--input-format FORMAT] -o DIRECTORY [--force] INPUT"""
 
 proc readBytes(path: string): seq[byte] {.gcsafe.} =
   let length = int(path.getFileSize)
@@ -441,6 +442,63 @@ proc exportAllResources(options: CliOptions) =
     writeFile(destination, bytesToString(artifact.data))
     echo destination
 
+proc extractContainer(options: CliOptions) =
+  if options.output.len == 0:
+    raise newException(CliError, "extract requires -o DIRECTORY")
+  if fileExists(options.output):
+    raise newException(CliError,
+      "extraction output is not a directory: " & options.output)
+  let session = openInspectionSession(options.input,
+    newSourceCollection(fileByteSource(options.input),
+      companionSourceResolverFor(options.input)), options.inputFormat)
+  defer: session.close()
+  let plan = session.extractionPlan()
+  for warning in plan.warnings:
+    stderr.writeLine("vexter: warning: " & warning)
+
+  # Validate every destination before creating the output directory or
+  # materializing a potentially expensive member.
+  for entry in plan.entries:
+    let destination = options.output / entry.relativePath
+    if symlinkExists(destination):
+      raise newException(CliError,
+        "extraction destination is a symbolic link: " & destination)
+    if entry.kind == veekDirectory:
+      if fileExists(destination):
+        raise newException(CliError,
+          "extraction directory conflicts with a file: " & destination)
+    else:
+      if dirExists(destination):
+        raise newException(CliError,
+          "extraction file conflicts with a directory: " & destination)
+      if fileExists(destination) and not options.force:
+        raise newException(CliError,
+          "output already exists (use --force): " & destination)
+    var parent = destination.parentDir
+    while parent.len > 0 and parent != options.output:
+      if symlinkExists(parent):
+        raise newException(CliError,
+          "extraction parent is a symbolic link: " & parent)
+      if fileExists(parent):
+        raise newException(CliError,
+          "extraction parent is a file: " & parent)
+      let next = parent.parentDir
+      if next == parent: break
+      parent = next
+
+  createDir(options.output)
+  for entry in plan.entries:
+    let destination = options.output / entry.relativePath
+    if entry.kind == veekDirectory:
+      createDir(destination)
+      continue
+    if destination.parentDir.len > 0: createDir(destination.parentDir)
+    let data = session.materializePayload(entry.descriptor.id,
+      maximumWorkingBytes = max(session.limits.maximumWorkingBytes,
+        entry.descriptor.estimatedBytes))
+    writeFile(destination, bytesToString(data))
+    echo destination
+
 proc main() =
   let arguments = commandLineParams()
   if arguments.len == 0 or arguments[0] in ["-h", "--help"]:
@@ -451,6 +509,7 @@ proc main() =
   of "inspect": inspect(options)
   of "export": exportResource(options)
   of "export-all": exportAllResources(options)
+  of "extract": extractContainer(options)
   else: raise newException(CliError, "unknown command: " & arguments[0])
 
 when isMainModule:

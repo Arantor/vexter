@@ -7,7 +7,7 @@ import std/[math, os, strformat, strutils, widestrs]
 import vexterlib
 
 {.passC: "-D_WIN32_WINNT=0x0601 -DWINVER=0x0601 -include windows.h".}
-{.passL: "-lcomctl32 -lcomdlg32 -lgdi32 -lwinmm".}
+{.passL: "-lcomctl32 -lcomdlg32 -lgdi32 -lwinmm -lshell32 -lole32".}
 {.emit: """
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
@@ -126,6 +126,15 @@ type
     dwFlags, dwLoops: DWORD
     lpNext: pointer
     reserved: uint
+  BROWSEINFOW {.importc: "BROWSEINFOW", header: "<shlobj.h>".} = object
+    hwndOwner: HWND
+    pidlRoot: pointer
+    pszDisplayName: WideCString
+    lpszTitle: WideCString
+    ulFlags: UINT
+    lpfn: pointer
+    lParam: LPARAM
+    iImage: int32
 
   ViewKind = enum vkNone, vkRaster, vkFont, vkAudio, vkText
   TreeBinding = ref object
@@ -143,6 +152,12 @@ type
     filename: string
     error: string
   LoadJob = tuple[filename: string, result: ptr LoadResult]
+  ExtractionResult = object
+    files: int
+    warnings: seq[string]
+    error: string
+  ExtractionJob = tuple[session: VextInspectionSession, destination: string,
+    overwrite: bool, result: ptr ExtractionResult]
   SessionJobKind = enum sjkExpand, sjkLoad, sjkDecodeLoaded
   SessionResult = object
     kind: SessionJobKind
@@ -196,12 +211,15 @@ const
   WM_LOAD_DONE = WM_APP + 1
   WM_SESSION_DONE = WM_APP + 2
   WM_SESSION_PROGRESS = WM_APP + 3
+  WM_EXTRACTION_DONE = WM_APP + 4
   CB_ADDSTRING = 0x0143'u32
   CB_RESETCONTENT = 0x014B'u32
   CB_SETCURSEL = 0x014E'u32
   CB_GETCURSEL = 0x0147'u32
   PBM_SETMARQUEE = 0x040A'u32 # PBM_SETMARQUEE is WM_USER + 10.
   PBM_SETPOS = 0x0402'u32
+  BIF_RETURNONLYFSDIRS = 0x0001'u32
+  BIF_NEWDIALOGSTYLE = 0x0040'u32
   TVM_INSERTITEMW = 0x1132'u32
   TVM_DELETEITEM = 0x1101'u32
   TVM_SETIMAGELIST = 0x1109'u32
@@ -306,6 +324,11 @@ proc KillTimer(hwnd: HWND, id: uint): BOOL {.stdcall, importc, header: "<windows
 proc GetOpenFileNameW(info: ptr OPENFILENAMEW): BOOL {.stdcall, importc, header: "<commdlg.h>".}
 proc GetSaveFileNameW(info: ptr OPENFILENAMEW): BOOL {.stdcall, importc, header: "<commdlg.h>".}
 proc MessageBoxW(hwnd: HWND, text, caption: WideCString, kind: UINT): int32 {.stdcall, importc, header: "<windows.h>".}
+proc SHBrowseForFolderW(info: ptr BROWSEINFOW): pointer
+    {.stdcall, importc, header: "<shlobj.h>".}
+proc SHGetPathFromIDListW(id: pointer, path: WideCString): BOOL
+    {.stdcall, importc, header: "<shlobj.h>".}
+proc CoTaskMemFree(memory: pointer) {.stdcall, importc, header: "<objbase.h>".}
 proc GetCursorPos(point: ptr POINT): BOOL {.stdcall, importc, header: "<windows.h>".}
 proc ScreenToClient(hwnd: HWND, point: ptr POINT): BOOL {.stdcall, importc, header: "<windows.h>".}
 proc CreatePopupMenu(): HMENU {.stdcall, importc, header: "<windows.h>".}
@@ -336,7 +359,7 @@ var
   instance: HINSTANCE
   mainWindow, treeView, preview, textView, openButton, scaleCombo: HWND
   fontModeCombo, fontSample, fontGlyphCombo, fontDetails: HWND
-  playButton, formatCombo, exportButton, progressBar: HWND
+  playButton, formatCombo, exportButton, extractButton, progressBar: HWND
   bindings: seq[TreeBinding]
   selected: TreeBinding
   metadataViewBinding: TreeBinding
@@ -365,6 +388,8 @@ var
   sessionThread: Thread[SessionJob]
   sessionJobActive = false
   sessionQueue: seq[PendingSessionJob]
+  extractionThread: Thread[ExtractionJob]
+  extractionActive = false
 
 proc lowWord(value: WPARAM): int = int(value and 0xffff)
 proc highWord(value: WPARAM): int = int((value shr 16) and 0xffff)
@@ -1267,6 +1292,141 @@ proc chooseFile(save: bool, extension = "", filter = "All files\0*.*\0\0"): stri
   let accepted = if save: GetSaveFileNameW(addr info) else: GetOpenFileNameW(addr info)
   if accepted != 0: $buffer else: ""
 
+proc chooseFolder(): string =
+  var displayName = newWideCString("", 32768)
+  var info = BROWSEINFOW(hwndOwner: mainWindow,
+    pszDisplayName: displayName,
+    lpszTitle: w("Choose a directory for the extracted files"),
+    ulFlags: BIF_RETURNONLYFSDIRS or BIF_NEWDIALOGSTYLE)
+  let item = SHBrowseForFolderW(addr info)
+  if item == nil: return
+  defer: CoTaskMemFree(item)
+  var path = newWideCString("", 32768)
+  if SHGetPathFromIDListW(item, path) != 0:
+    result = $path
+
+proc canExtractCurrentSession(): bool =
+  if currentSession.isNil: return false
+  for descriptor in currentSession.rootDescriptors:
+    if vrcExtractTree in descriptor.capabilities:
+      return true
+
+proc directoryHasEntries(path: string): bool =
+  if not path.dirExists: return false
+  for _ in walkDir(path):
+    return true
+
+proc writeByteFile(path: string, data: openArray[byte]) =
+  var contents = newString(data.len)
+  for index, value in data:
+    contents[index] = char(value)
+  writeFile(path, contents)
+
+proc extractionWorker(job: ExtractionJob) {.thread.} =
+  var completed: ExtractionResult
+  try:
+    {.cast(gcsafe).}:
+      let plan = job.session.extractionPlan()
+      completed.warnings = plan.warnings
+      for entry in plan.entries:
+        let destination = job.destination / entry.relativePath
+        if symlinkExists(destination):
+          raise newException(IOError,
+            "extraction destination is a symbolic link: " & destination)
+        case entry.kind
+        of veekDirectory:
+          if destination.fileExists:
+            raise newException(IOError,
+              "cannot create directory over an existing file: " & destination)
+        of veekFile:
+          if destination.dirExists:
+            raise newException(IOError,
+              "cannot extract file over an existing directory: " & destination)
+          if destination.fileExists and not job.overwrite:
+            raise newException(IOError,
+              "output file already exists: " & destination)
+          var parent = destination.parentDir
+          while parent.len > 0 and parent != job.destination:
+            if symlinkExists(parent):
+              raise newException(IOError,
+                "an extraction parent is a symbolic link: " & parent)
+            if parent.fileExists:
+              raise newException(IOError,
+                "a parent path is an existing file: " & parent)
+            let next = parent.parentDir
+            if next == parent: break
+            parent = next
+      createDir(job.destination)
+      for entry in plan.entries:
+        let destination = job.destination / entry.relativePath
+        case entry.kind
+        of veekDirectory:
+          createDir(destination)
+        of veekFile:
+          createDir(destination.parentDir)
+          destination.writeByteFile(
+            job.session.materializePayload(entry.descriptor.id,
+              maximumWorkingBytes = max(
+                job.session.limits.maximumWorkingBytes,
+                entry.descriptor.estimatedBytes)))
+          inc completed.files
+  except CatchableError as error:
+    completed.error = error.msg
+  job.result[] = completed
+  discard PostMessageW(mainWindow, WM_EXTRACTION_DONE, 0,
+    cast[LPARAM](job.result))
+
+proc startExtraction() =
+  if extractionActive or sessionJobActive or not canExtractCurrentSession():
+    return
+  let destination = chooseFolder()
+  if destination.len == 0: return
+  var overwrite = false
+  if directoryHasEntries(destination):
+    let message = "The selected directory is not empty. Existing files with " &
+      "the same names will be replaced; unrelated files will be left alone.\n\nContinue?"
+    if MessageBoxW(mainWindow, w(message), w("Extract archive"), 0x34) != 6:
+      return
+    overwrite = true
+  extractionActive = true
+  discard EnableWindow(openButton, 0)
+  discard EnableWindow(extractButton, 0)
+  discard EnableWindow(exportButton, 0)
+  discard EnableWindow(treeView, 0)
+  discard ShowWindow(progressBar, SW_SHOW)
+  discard SendMessageW(progressBar, PBM_SETMARQUEE, 1, 30)
+  let completed = cast[ptr ExtractionResult](
+    allocShared0(sizeof(ExtractionResult)))
+  createThread(extractionThread, extractionWorker,
+    (currentSession, destination, overwrite, completed))
+
+proc finishExtraction(result: ptr ExtractionResult) =
+  joinThread(extractionThread)
+  let completed = result[]
+  reset(result[])
+  deallocShared(result)
+  extractionActive = false
+  discard SendMessageW(progressBar, PBM_SETMARQUEE, 0, 0)
+  discard ShowWindow(progressBar, 0)
+  discard EnableWindow(openButton, 1)
+  discard EnableWindow(treeView, 1)
+  discard EnableWindow(extractButton,
+    if canExtractCurrentSession(): 1 else: 0)
+  discard EnableWindow(exportButton,
+    if not selected.isNil and not selected.node.isNil and
+        selected.metadataText.len == 0 and
+        selected.node.exportFormatsFor.len > 0: 1 else: 0)
+  if completed.error.len > 0:
+    showError(completed.error)
+  else:
+    var message = &"Extracted {completed.files} file(s)."
+    if completed.warnings.len > 0:
+      message.add "\n\nWarnings:\n"
+      for warning in completed.warnings:
+        message.add "- " & warning & "\n"
+    discard MessageBoxW(mainWindow, w(message), w("Vexter"),
+      if completed.warnings.len > 0: 0x30 else: 0x40)
+
 proc guiFileSource(path: string): VextByteSource =
   let length = int(path.getFileSize)
   var input = open(path, fmRead)
@@ -1320,6 +1480,8 @@ proc finishLoad(result: ptr LoadResult) =
     currentFilename = loaded.filename
     currentSession = loaded.session
     rebuildTree()
+    discard EnableWindow(extractButton,
+      if canExtractCurrentSession(): 1 else: 0)
     discard SetWindowTextW(mainWindow, w("Vexter - " & loaded.filename.extractFilename))
 
 proc doExport() =
@@ -1388,7 +1550,8 @@ proc layout(hwnd: HWND) =
   let toolbar = 34
   let treeWidth = max(180, width div 3)
   discard MoveWindow(openButton, 6, 5, 70, 24, 1)
-  discard MoveWindow(progressBar, 84, 8, 220, 18, 1)
+  discard MoveWindow(extractButton, 82, 5, 78, 24, 1)
+  discard MoveWindow(progressBar, 168, 8, 136, 18, 1)
   discard MoveWindow(treeView, 6, int32(toolbar), int32(treeWidth-9), int32(height-toolbar-6), 1)
   discard MoveWindow(scaleCombo, int32(treeWidth+5), 5, 80, 200, 1)
   discard MoveWindow(playButton, int32(treeWidth+91), 5, 70, 24, 1)
@@ -1418,6 +1581,9 @@ proc mainProc(hwnd: HWND, msg: UINT, wp: WPARAM, lp: LPARAM): LRESULT {.stdcall.
     mainWindow = hwnd
     openButton = CreateWindowExW(0, w("BUTTON"), w("Open..."), WS_CHILD or WS_VISIBLE,
       0, 0, 0, 0, hwnd, cast[HMENU](1001), instance, nil)
+    extractButton = CreateWindowExW(0, w("BUTTON"), w("Extract..."),
+      WS_CHILD or WS_VISIBLE, 0, 0, 0, 0, hwnd,
+      cast[HMENU](1014), instance, nil)
     treeView = CreateWindowExW(0, w("SysTreeView32"), w(""), WS_CHILD or WS_VISIBLE or
       WS_BORDER or TVS_HASBUTTONS or TVS_HASLINES or TVS_LINESATROOT or
       TVS_SHOWSELALWAYS,
@@ -1473,13 +1639,14 @@ proc mainProc(hwnd: HWND, msg: UINT, wp: WPARAM, lp: LPARAM): LRESULT {.stdcall.
       w("Segoe UI"))
     textFont = CreateFontW(-13, 0, 0, 0, 400, 0, 0, 0, 1, 0, 0, 0, 1,
       w("Consolas"))
-    for control in [openButton, treeView, fontModeCombo, fontSample,
+    for control in [openButton, extractButton, treeView, fontModeCombo, fontSample,
         fontGlyphCombo, scaleCombo, playButton, formatCombo, exportButton]:
       control.setControlFont(uiFont)
     for control in [textView, fontDetails]:
       control.setControlFont(textFont)
     discard EnableWindow(playButton, 0)
     discard EnableWindow(exportButton, 0)
+    discard EnableWindow(extractButton, 0)
     layout(hwnd)
     if paramCount() > 0:
       startLoad(paramStr(1))
@@ -1499,6 +1666,7 @@ proc mainProc(hwnd: HWND, msg: UINT, wp: WPARAM, lp: LPARAM): LRESULT {.stdcall.
         discard InvalidateRect(preview, nil, 1)
     of 1006: togglePlayback()
     of 1008: doExport()
+    of 1014: startExtraction()
     of 1010:
       if highWord(wp) == 1 and currentView == vkFont:
         fontGridMode = SendMessageW(fontModeCombo, CB_GETCURSEL, 0, 0) == 1
@@ -1571,7 +1739,13 @@ proc mainProc(hwnd: HWND, msg: UINT, wp: WPARAM, lp: LPARAM): LRESULT {.stdcall.
         discard SendMessageW(progressBar, PBM_SETMARQUEE, 0, 0)
         discard SendMessageW(progressBar, PBM_SETPOS, wp - 1, 0)
     return 0
+  of WM_EXTRACTION_DONE:
+    finishExtraction(cast[ptr ExtractionResult](lp))
+    return 0
   of WM_CLOSE:
+    if extractionActive:
+      showError("Extraction is still in progress. Wait for it to finish before closing Vexter.")
+      return 0
     stopAudio()
   of WM_DESTROY:
     if not currentSession.isNil: currentSession.close()

@@ -139,6 +139,12 @@ suite "Amiga ADF filesystems":
     check session.selectedFormat.typeId == AmigaAdfTypeId
     let roots = session.rootDescriptors
     check roots.len == 1
+    check vrcExtractTree in roots[0].capabilities
+    let plan = session.extractionPlan()
+    var foundNote = false
+    for entry in plan.entries:
+      if entry.relativePath == "Pictures/note": foundNote = true
+    check foundNote
     let children = session.expandResource(roots[0].id).children
     check children.len == 3
     let pictures = session.resourceAtPath("/disk/Pictures")

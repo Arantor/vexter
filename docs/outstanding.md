@@ -222,6 +222,9 @@ formats are not included. Detailed format behavior and evidence remain in
 - **Amiga DMS disk archives**
   - QUICK, MEDIUM, and DEEP decompression are not implemented.
   - Encryption and compression identifiers 7 through 9 are not implemented.
+  - Whole-filesystem extraction is not exposed through the reconstructed ADF
+    tree until the legacy bridge retains every original file payload even when
+    nested recognition succeeds.
 
 - **XPK containers**
   - Compressors other than SHRI are unsupported.

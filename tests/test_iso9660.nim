@@ -172,6 +172,7 @@ suite "ISO 9660 filesystems":
     let session = openInspectionSession("disc.iso",
       newSourceCollection(source))
     check session.selectedFormat.typeId == Iso9660TypeId
+    check vrcExtractTree in session.rootDescriptors[0].capabilities
     check not subdirectoryRead
     let rootChildren = session.expandResource(
       session.rootDescriptors[0].id).children
@@ -182,6 +183,11 @@ suite "ISO 9660 filesystems":
     check subdirectoryRead
     check docsChildren.len == 1
     check docsChildren[0].path == "/disc/DOCS/NOTE.TXT"
+    let plan = session.extractionPlan()
+    var foundNote = false
+    for entry in plan.entries:
+      if entry.relativePath == "DOCS/NOTE.TXT": foundNote = true
+    check foundNote
     session.close()
 
   test "descriptor, both-byte, extent, and raw-sector damage is rejected":

@@ -114,6 +114,11 @@ suite "LHA archives":
     let session = openInspectionSession("large.lha",
       newSourceCollection(source))
     check session.selectedFormat.typeId == LhaArchiveTypeId
+    check vrcExtractTree in session.rootDescriptors[0].capabilities
+    check not payloadRead
+    let plan = session.extractionPlan()
+    check plan.entries.len == 1
+    check plan.entries[0].relativePath == "large.bin"
     check not payloadRead
     let child = session.expandResource(session.rootDescriptors[0].id).
       children[0]

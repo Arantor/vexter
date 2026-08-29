@@ -21,6 +21,8 @@ type
     vrcMaterializePayload
     vrcProbeNested
     vrcDecodeRepresentation
+    ## The resource is a container root whose hierarchy can be extracted.
+    vrcExtractTree
 
   VextValidationLevel* = enum
     vvlStructural
@@ -92,6 +94,21 @@ type
     data*: seq[byte]
     resources*: VextResourceTree
     warnings*: seq[VextInspectionWarning]
+
+  VextExtractionEntryKind* = enum
+    veekDirectory
+    veekFile
+
+  VextExtractionEntry* = object
+    kind*: VextExtractionEntryKind
+    relativePath*: string
+    descriptor*: VextResourceDescriptor
+
+  VextExtractionPlan* = object
+    root*: VextResourceDescriptor
+    entries*: seq[VextExtractionEntry]
+    totalEstimatedBytes*: int64
+    warnings*: seq[string]
 
   VextSessionKind = enum
     vskLegacy
@@ -442,7 +459,7 @@ proc openInspectionSession*(filename: string, sources: VextSourceCollection,
     case result.kind
     of vskZip:
       let root = result.allocateDescriptor("/archive", ZipArchiveTypeId,
-        vrnkGroup, {vrcEnumerateChildren}, vvlStructural, metadata = @[
+        vrnkGroup, {vrcEnumerateChildren, vrcExtractTree}, vvlStructural, metadata = @[
           integerMetadata("entries", result.zip.entries.len),
           stringMetadata("comment", result.zip.comment)])
       result.commit(root)
@@ -473,7 +490,7 @@ proc openInspectionSession*(filename: string, sources: VextSourceCollection,
       result.expanded.incl layers.id
     of vskIso9660:
       let root = result.allocateDescriptor("/disc", Iso9660TypeId,
-        vrnkGroup, {vrcEnumerateChildren}, vvlStructural, metadata = @[
+        vrnkGroup, {vrcEnumerateChildren, vrcExtractTree}, vvlStructural, metadata = @[
           stringMetadata("layout", result.iso.layout.iso9660LayoutName),
           stringMetadata("volume.identifier", result.iso.volumeIdentifier),
           stringMetadata("system.identifier", result.iso.systemIdentifier),
@@ -485,13 +502,13 @@ proc openInspectionSession*(filename: string, sources: VextSourceCollection,
         $result.iso.rootLength)
     of vskLha:
       let root = result.allocateDescriptor("/archive", LhaArchiveTypeId,
-        vrnkGroup, {vrcEnumerateChildren}, vvlStructural, metadata = @[
+        vrnkGroup, {vrcEnumerateChildren, vrcExtractTree}, vvlStructural, metadata = @[
           integerMetadata("entries", result.lha.entries.len)])
       result.commit(root)
       result.roots.add root.id
     of vskAmigaAdf:
       let root = result.allocateDescriptor("/disk", AmigaAdfTypeId,
-        vrnkGroup, {vrcEnumerateChildren}, vvlStructural, metadata = @[
+        vrnkGroup, {vrcEnumerateChildren, vrcExtractTree}, vvlStructural, metadata = @[
           stringMetadata("volume.name", result.adf.name),
           stringMetadata("filesystem", result.adf.filesystem),
           integerMetadata("filesystem.flags", result.adf.flags),
@@ -776,6 +793,65 @@ proc findZipEntry(archive: ZipArchive, name: string): int =
     if entry.name == name and not entry.isDirectory: return index
   -1
 
+proc materializePayload*(session: VextInspectionSession, id: VextResourceId,
+    progress: VextSessionProgressCallback = nil,
+    maximumWorkingBytes = 0): seq[byte] =
+  ## Materializes only the retained container-member bytes. Unlike
+  ## loadResource, this deliberately performs no nested probing or decoding.
+  session.ensureOpen()
+  let descriptor = session.descriptor(id)
+  if vrcMaterializePayload notin descriptor.capabilities:
+    raise newException(ValueError, "resource has no extractable payload: " &
+      descriptor.path)
+  let workingLimit = if maximumWorkingBytes > 0: maximumWorkingBytes
+    else: session.limits.maximumWorkingBytes
+  if descriptor.estimatedBytes > workingLimit:
+    raise newException(VextWorkLimitError,
+      "resource requires " & $descriptor.estimatedBytes &
+      " bytes, exceeding the active working-data limit of " &
+      $workingLimit & " bytes: " & descriptor.path)
+  progress.report(VextSessionProgressEvent(phase: vsppMaterializing,
+    path: descriptor.path, discovered: 1, pending: 1,
+    totalState: vptsFinal, message: "Materializing payload"))
+  if session.legacyNodeById.hasKey(id):
+    return session.legacyNodeById[id].resourceBytes
+  case session.kind
+  of vskZip:
+    let entryIndex = session.zipEntryById.getOrDefault(id, -1)
+    if entryIndex < 0:
+      raise newException(ValueError, "resource has no ZIP payload")
+    result = extractZipEntry(session.sources.primary,
+      session.zip.entries[entryIndex], workingLimit)
+  of vskOpenRaster:
+    let sourcePath = session.manifestSourceById.getOrDefault(id)
+    let entryIndex = session.zip.findZipEntry(sourcePath)
+    if entryIndex < 0:
+      raise newException(ValueError, "OpenRaster resource payload is missing")
+    result = extractZipEntry(session.sources.primary,
+      session.zip.entries[entryIndex], workingLimit)
+  of vskIso9660:
+    if not session.isoEntryById.hasKey(id):
+      raise newException(ValueError, "resource has no ISO 9660 payload")
+    result = extractIso9660Entry(session.sources.primary, session.iso,
+      session.isoEntryById[id], workingLimit)
+  of vskLha:
+    let entryIndex = session.lhaEntryById.getOrDefault(id, -1)
+    if entryIndex < 0:
+      raise newException(ValueError, "resource has no LHA payload")
+    result = extractLhaEntry(session.sources.primary,
+      session.lha.entries[entryIndex], workingLimit)
+  of vskAmigaAdf:
+    if not session.adfEntryById.hasKey(id):
+      raise newException(ValueError, "resource has no ADF payload")
+    result = extractAmigaAdfFile(session.sources.primary, session.adf,
+      session.adfEntryById[id], workingLimit)
+  of vskDeferredWrapper, vskLegacy:
+    raise newException(ValueError, "resource has no extractable payload: " &
+      descriptor.path)
+  progress.report(VextSessionProgressEvent(phase: vsppComplete,
+    path: descriptor.path, completed: 1, discovered: 1,
+    totalState: vptsFinal, message: "Payload materialized"))
+
 proc loadResource*(session: VextInspectionSession, id: VextResourceId,
     progress: VextSessionProgressCallback = nil,
     maximumWorkingBytes = 0): VextLoadedResource =
@@ -788,9 +864,6 @@ proc loadResource*(session: VextInspectionSession, id: VextResourceId,
       "resource requires " & $result.descriptor.estimatedBytes &
       " bytes, exceeding the active working-data limit of " &
       $workingLimit & " bytes: " & result.descriptor.path)
-  progress.report(VextSessionProgressEvent(phase: vsppMaterializing,
-    path: result.descriptor.path, discovered: 1, pending: 1,
-    totalState: vptsFinal, message: "Materializing resource"))
   if session.legacyNodeById.hasKey(id):
     let node = session.legacyNodeById[id]
     if node.kind == vrnkAudio and node.soundMaterializer != nil:
@@ -799,35 +872,6 @@ proc loadResource*(session: VextInspectionSession, id: VextResourceId,
     result.resources = VextResourceTree(roots: @[node])
     return
   case session.kind
-  of vskZip:
-    let entryIndex = session.zipEntryById.getOrDefault(id, -1)
-    if entryIndex < 0:
-      raise newException(ValueError, "resource has no ZIP payload")
-    result.data = extractZipEntry(session.sources.primary,
-      session.zip.entries[entryIndex], workingLimit)
-  of vskOpenRaster:
-    let sourcePath = session.manifestSourceById.getOrDefault(id)
-    let entryIndex = session.zip.findZipEntry(sourcePath)
-    if entryIndex < 0:
-      raise newException(ValueError, "OpenRaster resource payload is missing")
-    result.data = extractZipEntry(session.sources.primary,
-      session.zip.entries[entryIndex], workingLimit)
-  of vskIso9660:
-    if not session.isoEntryById.hasKey(id):
-      raise newException(ValueError, "resource has no ISO 9660 payload")
-    result.data = extractIso9660Entry(session.sources.primary, session.iso,
-      session.isoEntryById[id], workingLimit)
-  of vskLha:
-    let entryIndex = session.lhaEntryById.getOrDefault(id, -1)
-    if entryIndex < 0:
-      raise newException(ValueError, "resource has no LHA payload")
-    result.data = extractLhaEntry(session.sources.primary,
-      session.lha.entries[entryIndex], workingLimit)
-  of vskAmigaAdf:
-    if not session.adfEntryById.hasKey(id):
-      raise newException(ValueError, "resource has no ADF payload")
-    result.data = extractAmigaAdfFile(session.sources.primary, session.adf,
-      session.adfEntryById[id], workingLimit)
   of vskDeferredWrapper:
     let inspection = inspectSource(session.filename, session.deferredData,
       session.deferredFormat)
@@ -842,6 +886,8 @@ proc loadResource*(session: VextInspectionSession, id: VextResourceId,
     result.data = node.resourceBytes
     result.resources = VextResourceTree(roots: @[node])
     return
+  else:
+    result.data = session.materializePayload(id, progress, workingLimit)
   let leafName = result.descriptor.path.split('/')[^1]
   var candidates: seq[VextDetectionCandidate]
   try:
@@ -911,6 +957,81 @@ proc walkTopology*(session: VextInspectionSession,
   progress.report(VextSessionProgressEvent(phase: vsppComplete,
     completed: completed, discovered: completed, pending: 0,
     totalState: vptsFinal, message: "Resource topology complete"))
+
+const ExtractionDeviceNames = [
+  "con", "prn", "aux", "nul", "com1", "com2", "com3", "com4", "com5",
+  "com6", "com7", "com8", "com9", "lpt1", "lpt2", "lpt3", "lpt4",
+  "lpt5", "lpt6", "lpt7", "lpt8", "lpt9"]
+
+proc portableExtractionSegment(segment: string): string =
+  for value in segment:
+    if ord(value) < 32 or value in {'<', '>', ':', '"', '/', '\\', '|', '?', '*'}:
+      result.add '_'
+    else:
+      result.add value
+  result = result.strip(chars = {' ', '.'}, trailing = true)
+  if result.len == 0: result = "_"
+  let stem = result.split('.', maxsplit = 1)[0].toLowerAscii
+  if stem in ExtractionDeviceNames: result = "_" & result
+
+proc extractionPlan*(session: VextInspectionSession,
+    rootId = VextResourceId(0),
+    progress: VextSessionProgressCallback = nil): VextExtractionPlan =
+  ## Enumerates a container hierarchy without loading its file payloads.
+  ## Relative paths are portable and collision-checked before any write.
+  session.ensureOpen()
+  var planned: VextExtractionPlan
+  var selectedId = rootId
+  if uint64(selectedId) == 0:
+    for id in session.roots:
+      if vrcExtractTree in session.descriptors[id].capabilities:
+        if uint64(selectedId) != 0:
+          raise newException(ValueError,
+            "more than one extractable container root is available")
+        selectedId = id
+  if uint64(selectedId) == 0:
+    raise newException(ValueError,
+      "the selected format does not expose an extractable hierarchy")
+  planned.root = session.descriptor(selectedId)
+  if vrcExtractTree notin planned.root.capabilities:
+    raise newException(ValueError,
+      "resource is not an extractable container: " & planned.root.path)
+
+  var used = initTable[string, string]()
+  proc visit(parentId: VextResourceId, sourceParts,
+      destinationParts: seq[string]) =
+    let delta = session.expandResource(parentId, progress)
+    for child in delta.children:
+      let sourceName = child.path.split('/')[^1]
+      let safeName = portableExtractionSegment(sourceName)
+      let childSource = sourceParts & @[sourceName]
+      let childDestination = destinationParts & @[safeName]
+      let relativePath = childDestination.join("/")
+      if safeName != sourceName:
+        planned.warnings.add "renamed unsafe member '" &
+          childSource.join("/") & "' to '" & relativePath & "'"
+      let collisionKey = relativePath.toLowerAscii
+      if used.hasKey(collisionKey):
+        raise newException(ValueError, "extraction path collision: " &
+          used[collisionKey] & " and " & childSource.join("/"))
+      used[collisionKey] = childSource.join("/")
+      if vrcEnumerateChildren in child.capabilities:
+        planned.entries.add VextExtractionEntry(kind: veekDirectory,
+          relativePath: relativePath, descriptor: child)
+        visit(child.id, childSource, childDestination)
+      elif vrcMaterializePayload in child.capabilities:
+        planned.entries.add VextExtractionEntry(kind: veekFile,
+          relativePath: relativePath, descriptor: child)
+        planned.totalEstimatedBytes += int64(max(0, child.estimatedBytes))
+      else:
+        planned.warnings.add "skipped non-file member '" &
+          childSource.join("/") & "'"
+  visit(selectedId, @[], @[])
+  progress.report(VextSessionProgressEvent(phase: vsppComplete,
+    path: planned.root.path, completed: planned.entries.len,
+    discovered: planned.entries.len, pending: 0,
+    totalState: vptsFinal, message: "Extraction plan complete"))
+  result = move(planned)
 
 proc close*(session: VextInspectionSession) =
   if session.isNil or session.closed: return

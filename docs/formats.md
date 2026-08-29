@@ -317,6 +317,9 @@ JSON inspection returns their `path`, `format`, and `message` fields.
 Opaque files with retained contents can be selected with `export --resource`;
 they default to byte-identical `application/octet-stream` output with a `.bin`
 extension. Links remain identification-only and are not exportable.
+Whole-container extraction preserves the ADF directory hierarchy, original
+file names, and reconstructed OFS/FFS file bytes. Links remain skipped because
+Vexter does not follow them.
 
 Tests build compact logical filesystems within standard-size synthetic DD
 images. They cover FFS subdirectories, OFS header removal, exact file bytes,
@@ -333,6 +336,9 @@ values and detects a complete valid stream as certain. Matching `.dms` and
 `.fms` suffixes add evidence. Complete ordered disk tracks are concatenated and
 opened through the ADF handler, exposing the same `/disk` hierarchy and
 recursive contained-file inspection as a direct ADF image.
+This reconstructed hierarchy does not yet advertise whole-container extraction;
+the current legacy bridge cannot guarantee retention of every physical file's
+original bytes after nested recognition.
 
 NOCOMP, SIMPLE/RLE, HEAVY1, and HEAVY2 are decoded. HEAVY decoding retains its
 LZ dictionary, static Huffman trees, and repeated-distance state between tracks
@@ -452,6 +458,9 @@ decoder is a native Nim port of the supplied MIT-licensed jslha revision,
 validated against authentic Aminet archives and independent 7-Zip output. The
 routine suite embeds one authentic small LH5 member with its decoded control.
 
+Whole-container extraction preserves the archive hierarchy and stored member
+names, materializing each LH0 or LH5 payload only when it is written.
+
 ## ZIP archives
 
 Container type identifier: `archive.zip`
@@ -494,6 +503,11 @@ invariants reject the parent archive.
 and punctuation characters, trim trailing dots/spaces, and protect Windows
 device names. `export-all` preserves the normalized resource hierarchy and
 adds deterministic suffixes when distinct logical names normalize identically.
+Whole-container extraction is separate from bulk resource export: it preserves
+member extensions and decoded ZIP payload bytes, includes empty directories,
+and never substitutes an export of a recognized nested resource. Unsafe host
+characters are replaced with warnings; names that then collide are rejected
+before any payload is materialized.
 
 ## ISO 9660 data-CD filesystems
 
@@ -516,6 +530,8 @@ probing to 512 files and 128 MiB in total, while an individual file over 64 MiB
 remains opaque. Selecting an unprobed file in the GUI materializes and probes
 that file once; decoded children are added beneath the same node and failures
 remain local to it. Every lazy file remains available for raw export.
+Whole-container extraction preserves the disc hierarchy and file names after
+ISO version-suffix removal, and materializes file extents one at a time.
 
 This initial subset does not interpret Joliet, SUSP/Rock Ridge alternate names,
 multi-extent files, path tables, boot catalogues, or raw-sector EDC/ECC. The
