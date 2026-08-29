@@ -19,7 +19,7 @@ import ./containers/xpk_shri
 import ./containers/powerpacker
 import ./metadata
 import ./resources/[amiga_anim_image, amiga_diskfont_font, amiga_ilbm_image, amiga_pbm_image, amiga_workbench_icon_image, amos_listing, amos_packed_picture_image, amos_planar_image, bmp_image, flic_animation, gif_image, netpbm_image, png_image, zx_spectrum_basic,
-  ansi_art_image, bmfont_font, fzx_font, jpeg_image, koala_painter_image, pcx_image, qoi_image, tga_image, windows_icon_image, zx_spectrum_screen]
+  ansi_art_image, bmfont_font, fzx_font, jpeg_image, koala_painter_image, pcx_image, protracker_replay, qoi_image, tga_image, windows_icon_image, zx_spectrum_screen]
 
 type
   VextOperationCancelledError* = object of CatchableError
@@ -1358,6 +1358,23 @@ proc inspectSourceDepth(filename: string, data: openArray[byte],
           integerMetadata("one-shot-samples", instrument.sample.oneShotSamples),
           integerMetadata("repeat-samples", instrument.sample.repeatSamples)])
     module.children.add samples
+    let replayModule = source.module
+    module.children.add VextResourceNode(
+      path: ProtrackerModResourcePath & "/rendered-audio",
+      typeId: "protracker.rendered-audio", kind: vrnkAudio,
+      audioKind: varkSound,
+      soundMaterializer: proc(): VextSound =
+        renderProtracker(replayModule).sound,
+      derivedAudioChannels: 2, derivedAudioBitsPerSample: 16,
+      derivedAudioSampleRate: ProtrackerReplaySampleRate,
+      derivedAudioMaximumSamples: ProtrackerReplaySampleRate *
+        MaximumProtrackerReplaySeconds,
+      metadata: @[
+        integerMetadata("sample-rate", ProtrackerReplaySampleRate),
+        integerMetadata("channels", 2),
+        integerMetadata("bits-per-sample", 16),
+        stringMetadata("rendering", "derived on demand"),
+        integerMetadata("maximum-seconds", MaximumProtrackerReplaySeconds)])
     result.resources.roots.add module
   of vhkDoomWad:
     let wad = parsedValue[DoomWad](selectedParsed, vhkDoomWad)

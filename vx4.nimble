@@ -7,7 +7,7 @@ bin           = @["vexter"]
 
 task gui, "Cross-compile the native Windows GUI":
   mkDir "build/win32"
-  exec "nim c --os:windows --cpu:amd64 --gcc.exe:x86_64-w64-mingw32-gcc --gcc.linkerexe:x86_64-w64-mingw32-gcc --app:gui --threads:on --mm:arc --path:src -o:build/win32/vexter-gui.exe src/vexter_gui.nim"
+  exec "nim c -d:release --os:windows --cpu:amd64 --gcc.exe:x86_64-w64-mingw32-gcc --gcc.linkerexe:x86_64-w64-mingw32-gcc --app:gui --threads:on --mm:arc --path:src -o:build/win32/vexter-gui.exe src/vexter_gui.nim"
 
 task cli, "Build the Linux and Windows command-line clients":
   mkDir "build/linux"

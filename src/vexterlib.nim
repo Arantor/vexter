@@ -8,6 +8,7 @@ import vexterlib/archetypes/tracker
 import vexterlib/transformations/colour_cycle
 import vexterlib/transformations/palette_swatch
 import vexterlib/resources/font_preview
+import vexterlib/resources/protracker_replay
 import vexterlib/artifacts
 import vexterlib/containers/amos_bank
 import vexterlib/containers/amiga_adf
@@ -103,6 +104,7 @@ export tracker
 export colour_cycle
 export palette_swatch
 export font_preview
+export protracker_replay
 export artifacts
 export openraster
 export jpeg

@@ -125,9 +125,10 @@ formats are not included. Detailed format behavior and evidence remain in
     additional range definitions require documentation and focused controls.
 
 - **ProTracker-compatible MOD**
-  - Parsed tracker structure and samples do not yet have a replay engine,
-    stereo mixdown, or live playback cursor. The GUI currently shows only the
-    first ordered pattern as a static tracker grid.
+  - The bounded stereo replay does not yet emulate the Amiga low-pass filter,
+    tremolo, glissando, selectable modulation waveforms, or invert-loop, and
+    it uses a complete in-memory PCM mix rather than streaming. The GUI has no
+    live playback cursor.
   - The bounded control-flow analysis covers documented ProTracker jumps,
     breaks, pattern loops, and restart behavior but is not a substitute for
     full tick-by-tick effect replay.

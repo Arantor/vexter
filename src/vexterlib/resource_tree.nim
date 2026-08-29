@@ -9,6 +9,7 @@ import ./metadata
 
 type
   VextPayloadMaterializer* = proc(): seq[byte] {.closure.}
+  VextSoundMaterializer* = proc(): VextSound {.closure.}
 
   VextPayloadSource* = ref object
     ## Shared immutable bytes retained once for lazy container members.
@@ -45,6 +46,9 @@ type
     text*: string
     audioKind*: VextAudioResourceKind
     sound*: VextSound
+    soundMaterializer*: VextSoundMaterializer
+    derivedAudioChannels*, derivedAudioBitsPerSample*,
+      derivedAudioSampleRate*, derivedAudioMaximumSamples*: int
     instrument*: VextSampledInstrument
     font*: VextBitmapFont
     palette*: VextPalette
@@ -108,7 +112,11 @@ proc audioSound*(node: VextResourceNode): VextSound =
   if node.isNil or node.kind != vrnkAudio:
     raise newException(ValueError, "resource is not audio")
   case node.audioKind
-  of varkSound: node.sound
+  of varkSound:
+    if node.soundMaterializer != nil:
+      node.sound = node.soundMaterializer()
+      node.soundMaterializer = nil
+    node.sound
   of varkSampledInstrument: node.instrument.sound
 
 proc addRasterResources(node: VextResourceNode,

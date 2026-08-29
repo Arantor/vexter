@@ -36,7 +36,7 @@ proc exportWav*(sound: VextSound,
   if byteRate > uint64(high(uint32)):
     raise newException(ValueError, "WAV byte rate is too large")
 
-  var encoded: seq[byte]
+  var encoded = newSeqOfCap[byte](44 + dataLength + paddingLength)
   for value in "RIFF": encoded.add byte(value)
   encoded.appendU32(uint32(36 + dataLength + paddingLength))
   for value in "WAVEfmt ": encoded.add byte(value)

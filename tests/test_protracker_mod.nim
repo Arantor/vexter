@@ -1,4 +1,4 @@
-import std/[json, strutils, unittest]
+import std/[json, sequtils, strutils, unittest]
 import vexterlib
 
 proc setText(data: var seq[byte], offset: int, value: string) =
@@ -72,12 +72,24 @@ suite "Protracker MOD":
       @[-128'i32, 0, 127, -1]
     check instrument.sample.oneShotSamples == 0
     check instrument.sample.repeatSamples == 4
-    check resource.children.len == 2
+    check resource.children.len == 3
     check resource.children[0].path == "/module/patterns"
     check resource.children[0].children[0].kind == vrnkTracker
     check resource.children[0].children[0].tracker.patterns[0].sourceIndex == 0
     check resource.children[1].path == "/module/samples"
     check resource.children[1].children[0].kind == vrnkAudio
+    check resource.children[2].path == "/module/rendered-audio"
+    check resource.children[2].kind == vrnkAudio
+    check resource.children[2].soundMaterializer != nil
+    let rendered = resource.children[2].audioSound
+    check rendered.buffer.channels.len == 2
+    check rendered.buffer.sampleCount > 0
+    check rendered.buffer.channels[0].anyIt(it != 0)
+
+    let mix = exportResource(inspection.resources, VextExportRequest(
+      resourcePath: "/module/rendered-audio", outputFormat: "wav",
+      suggestedName: "mix"))
+    check mix.artifacts.artifacts[0].data.bytesString.startsWith("RIFF")
 
     let wav = exportResource(inspection.resources, VextExportRequest(
       resourcePath: "/module/samples/1", outputFormat: "wav",

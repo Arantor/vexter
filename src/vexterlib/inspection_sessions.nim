@@ -203,8 +203,13 @@ proc addLegacyNode(session: VextInspectionSession, node: VextResourceNode,
     elif node.kind == vrnkOpaque and node.rawDataAvailable:
       {vrcMaterializePayload, vrcProbeNested}
     else: {vrcDecodeRepresentation}
+  let estimatedBytes =
+    if node.kind == vrnkAudio and node.soundMaterializer != nil:
+      node.derivedAudioMaximumSamples * node.derivedAudioChannels *
+        max(1, node.derivedAudioBitsPerSample div 8)
+    else: node.retainedByteLength
   let item = session.allocateDescriptor(node.path, node.typeId, node.kind,
-    capabilities, vvlRepresentation, node.retainedByteLength, node.metadata)
+    capabilities, vvlRepresentation, estimatedBytes, node.metadata)
   var described = item
   case node.kind
   of vrnkRaster:
@@ -217,13 +222,18 @@ proc addLegacyNode(session: VextInspectionSession, node: VextResourceNode,
       described.frames = node.raster.trueColourAnimation.frames.len
     else: discard
   of vrnkAudio:
-    let sound = node.audioSound
     described.archetype = if node.audioKind == varkSound: "sound"
       else: "sampled-instrument"
-    described.channels = sound.buffer.channels.len
-    described.bitsPerSample = sound.buffer.bitsPerSample
-    described.sampleRate = sound.sampleRate
-    described.samples = sound.buffer.sampleCount
+    if node.soundMaterializer != nil:
+      described.channels = node.derivedAudioChannels
+      described.bitsPerSample = node.derivedAudioBitsPerSample
+      described.sampleRate = node.derivedAudioSampleRate
+    else:
+      let sound = node.audioSound
+      described.channels = sound.buffer.channels.len
+      described.bitsPerSample = sound.buffer.bitsPerSample
+      described.sampleRate = sound.sampleRate
+      described.samples = sound.buffer.sampleCount
   of vrnkFont:
     described.archetype = "VextBitmapFont"
     described.glyphs = node.font.glyphs.len
@@ -783,6 +793,8 @@ proc loadResource*(session: VextInspectionSession, id: VextResourceId,
     totalState: vptsFinal, message: "Materializing resource"))
   if session.legacyNodeById.hasKey(id):
     let node = session.legacyNodeById[id]
+    if node.kind == vrnkAudio and node.soundMaterializer != nil:
+      discard node.audioSound
     result.data = node.resourceBytes
     result.resources = VextResourceTree(roots: @[node])
     return

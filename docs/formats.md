@@ -56,9 +56,17 @@ termination or repeated state without risking an infinite importer loop.
 
 The module's natural `tracker-json` export uses schema `vexter.tracker.v1` and
 contains timing, orders, channels, instruments, patterns, cells, effects, and
-sample resource paths. The GUI provides a static module/order summary and a
-tracker-style grid for the first order position. Playback, audio mixdown,
-live row highlighting, and editing are not implemented.
+sample resource paths. The GUI provides a static module/order summary and
+independently selectable pattern grids. `/module/rendered-audio` derives a
+44.1 kHz, 16-bit stereo mix on demand; it uses the documented Amiga channel
+bias, sample-and-hold replay, sample loops, fine-tuning, volume and period
+changes, arpeggio, portamento, vibrato, sample offset, retrigger, note
+delay/cut, speed/tempo, pattern delay, position jumps, pattern breaks, and
+bounded pattern/restart loops. It can be played in the GUI or exported as WAV.
+Rendering stops before a repeated playback position and has an independent
+five-minute safety limit. Live row highlighting and editing are not
+implemented; filter emulation, tremolo, glissando, selectable modulation
+waveforms, and invert-loop remain incomplete.
 
 `MMD1` files are OctaMED-family modules rather than this documented classic
 MOD layout. The supplied `Worms - The Director's Cut.MOD` is therefore a useful

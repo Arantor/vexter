@@ -100,6 +100,11 @@ tracker columns and source listings aligned and supports the block characters
 used by ZX Spectrum BASIC, with normal Windows font linking available for
 additional Unicode annotation glyphs.
 
+The normal `nimble gui` task is a release build. ProTracker replay uses 32.32
+fixed-point sample positions and borrows sample slices in its inner mixer;
+copying reference-counted sampled-instrument values per output frame causes a
+severe ARC/ORC performance regression and must not be reintroduced.
+
 Audio playback polls the prepared `waveOut` header for natural completion,
 then releases the device and restores the Play state so the same resource can
 be replayed. The resource TreeView uses persistent inactive selection so the
@@ -634,8 +639,10 @@ events, and semantic effects alongside their raw command values. Instruments
 own generic sampled-instrument values, channels retain nominal stereo bias,
 and an explicit analysis result distinguishes termination, detected cycles,
 unanalysed control flow, and safety-limit exhaustion. Tracker resources
-naturally export to the stable `vexter.tracker.v1` JSON representation; they
-deliberately have no playback or audio-mixdown representation yet.
+naturally export to the stable `vexter.tracker.v1` JSON representation.
+ProTracker modules additionally expose an on-demand, bounded stereo replay as
+a generic sound; replay semantics remain format-specific rather than being
+embedded in the generic tracker archetype.
 
 The former `containers/zx_spectrum_screen.nim` and top-level
 `vexterlib/resources.nim` screen-dispatch module have been replaced by the

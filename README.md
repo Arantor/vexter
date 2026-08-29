@@ -25,7 +25,8 @@ sufficiently useful to continue as an ongoing project.
 - Archives and audio: ZIP, level-0/1 LHA/LZH with LH0/LH5 members, Creative
   Voice PCM audio, and integer PCM WAV
 - Tracker music: 15- and 31-instrument ProTracker-compatible MOD modules;
-  patterns export as tracker JSON and individual samples as WAV
+  patterns export as tracker JSON, individual samples as WAV, and a bounded
+  stereo replay mix can be played or exported as WAV
 - ZX Spectrum: screen dumps, SNA snapshots, TAP files, and tokenised BASIC
 - Game data: classic DOOM IWAD/PWAD directories, palettes, flats, sprites,
   patches, composited wall textures, sound effects, automap-style map previews,
