@@ -9,6 +9,8 @@ const
   PaulaClock = 7_093_789.2
   FixedPointScale = 4_294_967_296.0
   ProtrackerReplayFilterCutoffHz* = 4_500.0
+  ProtrackerFunkSpeeds: array[16, int] =
+    [0, 5, 6, 7, 8, 10, 11, 13, 16, 19, 22, 26, 32, 43, 64, 128]
   # Integer period sections used by ProTracker 2.3F. The nibble order is
   # +0..+7, -8..-1, matching both instrument headers and E5x.
   ProtrackerFineTunePeriods: array[16, array[36, int]] = [
@@ -54,6 +56,8 @@ type
     tremoloWaveform: int
     tremoloRetrigger: bool
     tremoloRandomState: uint32
+    funkSpeed, funkAccumulator, funkPosition: int
+    funkLoopStart, funkLoopLength: int
 
   ProtrackerReplayResult* = object
     sound*: VextSound
@@ -126,6 +130,26 @@ proc triggerChannel(channel: var ReplayChannel, channelIndex: int) =
   if channel.tremoloRetrigger:
     channel.tremoloPhase = 0
     channel.tremoloRandomState = uint32(channelIndex + 1)
+
+proc updateFunk(channel: var ReplayChannel,
+    samples: var seq[seq[VextAudioSample]]) =
+  if channel.funkSpeed == 0 or not channel.hasInstrument or
+      channel.funkLoopLength <= 0:
+    return
+  channel.funkAccumulator = (channel.funkAccumulator +
+    ProtrackerFunkSpeeds[channel.funkSpeed and 15]) and 255
+  if (channel.funkAccumulator and 128) == 0: return
+  channel.funkAccumulator = 0
+  inc channel.funkPosition
+  let loopEnd = channel.funkLoopStart + channel.funkLoopLength
+  if channel.funkPosition >= loopEnd:
+    channel.funkPosition = channel.funkLoopStart
+  let instrument = channel.instrument
+  if instrument >= 0 and instrument < samples.len and
+      channel.funkPosition >= 0 and
+      channel.funkPosition < samples[instrument].len:
+    samples[instrument][channel.funkPosition] =
+      -1 - samples[instrument][channel.funkPosition]
 
 proc tremoloValue(channel: var ReplayChannel): float64 =
   case channel.tremoloWaveform
@@ -201,6 +225,15 @@ proc renderProtracker*(module: VextTrackerModule,
     channels[index].vibratoRandomState = uint32(index + 0x101)
     channels[index].tremoloRetrigger = true
     channels[index].tremoloRandomState = uint32(index + 1)
+  # EFx modifies sample memory while replaying. Keep one render-private copy
+  # per instrument: channels share authentic mutations without changing the
+  # imported archetype or later WAV exports/renders.
+  var replaySamples = newSeq[seq[VextAudioSample]](module.instruments.len)
+  for instrumentIndex, instrument in module.instruments:
+    let source = instrument.sample.sound.buffer.channels[0]
+    replaySamples[instrumentIndex] = newSeq[VextAudioSample](source.len)
+    for sampleIndex, sample in source:
+      replaySamples[instrumentIndex][sampleIndex] = sample
   var speed = module.initialSpeed
   var tempo = module.initialTempoBpm
   var filterEnabled = true
@@ -250,6 +283,9 @@ proc renderProtracker*(module: VextTrackerModule,
         state[].fineTune = fineTuneNibble(instrument.fineTuneCents)
         state[].sampleStart = 0
         state[].sampleLength = instrument.sample.sound.buffer.sampleCount
+        state[].funkLoopStart = instrument.sample.oneShotSamples
+        state[].funkLoopLength = instrument.sample.repeatSamples
+        state[].funkPosition = state[].funkLoopStart
       for item in cell.effects:
         if item.rawCommand == 14 and item.rawParameter shr 4 == 13:
           noteDelays[channelIndex] = item.rawParameter and 15
@@ -327,6 +363,9 @@ proc renderProtracker*(module: VextTrackerModule,
             state[].tremoloWaveform = y and 3
             state[].tremoloRetrigger = (y and 4) == 0
           of 14: patternDelay = y
+          of 15:
+            state[].funkSpeed = y
+            if y != 0: state[].updateFunk(replaySamples)
           else: discard
         of 15:
           if item.rawParameter in 1 .. 32: speed = item.rawParameter
@@ -352,6 +391,8 @@ proc renderProtracker*(module: VextTrackerModule,
           state[].triggerChannel(channelIndex)
         playbackPeriods[channelIndex] = state[].period
         tickVolumes[channelIndex] = state[].volume
+        if tick > 0:
+          state[].updateFunk(replaySamples)
         for item in cell.effects:
           let command = item.rawCommand
           let parameter = item.rawParameter
@@ -431,6 +472,9 @@ proc renderProtracker*(module: VextTrackerModule,
                 state[].volume = max(0.0,
                   state[].volume - float64(value))
                 tickVolumes[channelIndex] = state[].volume
+              of 15:
+                state[].funkSpeed = value
+                if value != 0: state[].updateFunk(replaySamples)
               else: discard
             if subcommand == 9 and value > 0 and effectTick mod value == 0 and
                 (tick > 0 or not cell.hasSourcePitch):
@@ -464,7 +508,7 @@ proc renderProtracker*(module: VextTrackerModule,
               playbackPeriods[channelIndex] <= 0: continue
           let instrumentIndex = state.playingInstrument
           let value = int64(sampleAt(
-            module.instruments[instrumentIndex].sample.sound.buffer.channels[0],
+            replaySamples[instrumentIndex],
             module.instruments[instrumentIndex].sample.oneShotSamples,
             module.instruments[instrumentIndex].sample.repeatSamples, state))
           mixedLeft += value * int64(leftGains[channelIndex])

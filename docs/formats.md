@@ -68,10 +68,20 @@ bounded pattern/restart loops. It can be played in the GUI or exported as WAV.
 Replay keeps selected and sounding instruments distinct, retains the documented
 per-channel effect parameters, and uses separate new-row and continuing-tick
 passes for combined effects, delayed notes, retrigger, and fine slides.
+Invert-loop operates on render-private sample copies with the PT2.3F timing
+table, preserving both shared in-render mutations and immutable extracted
+instruments.
 Rendering stops before a repeated playback position and has an independent
 five-minute safety limit. The mixer reserves fixed four-channel headroom before
 its final safety clamp rather than normalizing each song or hard-clipping an
 ordinary two-channels-per-side mix.
+
+For Vexter's recovery-oriented purpose, the authoritative outputs are the
+structured tracker representation, tracker JSON, and independently extractable
+sample WAVs. Rendered audio is a bounded, deterministic and recognisable
+preview rather than a claim of cycle-accurate Paula or PT2.3F emulation.
+Optional fidelity and playback-interface improvements are tracked in
+[`docs/outstanding.md`](outstanding.md).
 
 The supplied specification defines `E00` as filter on and `E01` as filter off,
 but does not specify analogue circuitry, cutoff, or initial hardware state.

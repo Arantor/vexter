@@ -128,6 +128,15 @@ instrument-only row updates future trigger parameters and volume without
 silently replacing the sample already under DMA. Note delay, note cut,
 retrigger, pattern-delay counters, and sample-offset overflow follow the
 supplied replay's tick and persistence rules.
+`EFx` invert-loop uses the PT2.3F 16-entry funk-speed table, a private
+per-channel byte accumulator and loop cursor, and render-private sample copies.
+Channels using the same instrument observe shared mutations during one replay,
+while the imported instrument and subsequent renders remain unchanged and
+deterministic.
+ProTracker support is recovery-oriented: complete tracker JSON and independent
+sample extraction are the durable outputs. The stereo renderer is deliberately
+a bounded preview, not a cycle-accurate Paula emulator; deferred fidelity and
+GUI enhancements are catalogued in `docs/outstanding.md`.
 
 Audio playback polls the prepared `waveOut` header for natural completion,
 then releases the device and restores the Play state so the same resource can

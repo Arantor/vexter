@@ -125,27 +125,51 @@ formats are not included. Detailed format behavior and evidence remain in
     additional range definitions require documentation and focused controls.
 
 - **ProTracker-compatible MOD**
+  - Current support is considered sufficient for Vexter's recovery-oriented
+    scope: modules expose complete tracker data, independently selectable
+    patterns, tracker JSON, and extractable WAV samples, while the bounded
+    stereo render provides a recognisable playback preview. The remaining
+    items below are fidelity, rendering-policy, and GUI enhancements rather
+    than blockers for format support.
   - The `E0x` filter uses a documented one-pole 4.5 kHz digital approximation;
     an authoritative model for particular Amiga revisions, their fixed output
     filtering, cutoff values, and initial LED-filter state has not been
-    supplied. PAL/NTSC clock selection is also not exposed.
-  - Invert-loop remains to be implemented. Runtime `E5x` fine-tune uses the
-    sixteen integer PT2.3F period tables, and `E30`/`E31` control glissando for
-    tone portamento. Vibrato and tremolo support the documented `E4x`/`E7x` sine,
+    supplied. PAL timing is assumed and NTSC clock selection is not exposed.
+  - Runtime `E5x` fine-tune uses the sixteen integer PT2.3F period tables,
+    `E30`/`E31` control glissando for tone portamento, and `EFx` mutates
+    render-private copies of repeating sample data using the PT2.3F funk-speed
+    table. Vibrato and tremolo support the documented `E4x`/`E7x` sine,
     ramp-down, square, and deterministic random selection plus the
-    retrigger/no-retrigger variants. Invert-loop requires replay-private
-    mutable sample state rather than altering extracted instruments.
+    retrigger/no-retrigger variants.
   - Later-format retrigger volume transforms are not part of classic `E9x` and
     remain unsupported. Conflicting flow commands follow PT2.3F's sequential
     channel order; this is deterministic but can remain surprising in modules
     authored against a different tracker clone.
+  - Vibrato and tremolo use deterministic mathematical waveform calculations
+    rather than PT2.3F's exact integer lookup table and shift sequence. The
+    supplied descriptions and replayer also differ around the nominal random
+    waveform variant, so clone-specific output is not promised.
+  - Tick durations are independently rounded to whole output frames. A future
+    fractional-frame accumulator could remove small cumulative tempo drift.
+    `F00` also needs an explicit compatibility policy: PT2.3F stops playback,
+    while some compatible players interpret it as speed 1; Vexter currently
+    leaves the running speed unchanged.
+  - Paula DMA word lengths, register-latching timing, and analogue output are
+    not cycle-accurately emulated. The renderer intentionally uses a practical
+    sample-and-hold software model with fixed stereo channel bias.
   - Sample-and-hold is the only resampling mode. Optional linear interpolation,
     streamed/chunked PCM generation, configurable render length or loop count,
     and a live GUI playback cursor remain outstanding. The current bounded mix
     is materialized completely in memory before playback or WAV export.
   - The bounded control-flow analysis covers documented ProTracker jumps,
     breaks, pattern loops, and restart behavior but is not a substitute for
-    full tick-by-tick effect replay.
+    full tick-by-tick effect replay. The renderer likewise stops at a repeated
+    control position without including every channel, effect, or mutable
+    invert-loop state in its cycle key; evolving intentional loops therefore
+    render as one bounded traversal rather than until their audio state repeats.
+  - Invert-loop has focused synthetic regression coverage but no known
+    real-world corpus example. Dedicated six- and eight-channel fixtures would
+    also strengthen compatibility coverage.
   - `MMD1`/OctaMED modules are a separate unsupported family; the supplied
     Worms module requires authoritative format documentation before work can
     begin.

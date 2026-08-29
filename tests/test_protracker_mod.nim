@@ -301,6 +301,25 @@ suite "Protracker MOD":
     let retrigger = renderProtracker(parseProtrackerMod(retriggerData).module)
     check retrigger.sound.buffer.channels[0] != plain.sound.buffer.channels[0]
 
+  test "EF mutates only replay-private loop data and persists until disabled":
+    let plainModule = parseProtrackerMod(syntheticMod()).module
+    var funkData = syntheticMod()
+    funkData.setPatternCell(0, 0, 1, 428, 14, 0xff)
+    let funkModule = parseProtrackerMod(funkData).module
+    let originalSamples = funkModule.instruments[0].sample.sound.buffer.channels[0]
+    let first = renderProtracker(funkModule)
+    let second = renderProtracker(funkModule)
+    check first.sound.buffer.channels[0] !=
+      renderProtracker(plainModule).sound.buffer.channels[0]
+    check second.sound.buffer.channels[0] == first.sound.buffer.channels[0]
+    check funkModule.instruments[0].sample.sound.buffer.channels[0] ==
+      originalSamples
+
+    var stoppedData = funkData
+    stoppedData.setPatternCell(1, 0, 0, 0, 14, 0xf0)
+    let stopped = renderProtracker(parseProtrackerMod(stoppedData).module)
+    check stopped.sound.buffer.channels[0] != first.sound.buffer.channels[0]
+
   test "structurally exact unmarked 15-sample modules are probable":
     let inspection = inspectSource("old.mod", syntheticMod(15))
     check inspection.selectedFormat.typeId == ProtrackerModTypeId
