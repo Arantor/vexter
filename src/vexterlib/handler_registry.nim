@@ -4,7 +4,7 @@
 ## registry is the authoritative bridge from a stable type identifier to the
 ## validation and inspection implementation for that format.
 
-import ./containers/[amiga_8svx, amiga_16sv, amiga_acbm, amiga_adf, amiga_anim,
+import ./containers/[adobe_swatch_exchange, amiga_8svx, amiga_16sv, amiga_acbm, amiga_adf, amiga_anim, aseprite,
   amiga_diskfont, amiga_dms, amiga_hunk_executable, amiga_iff, amiga_ilbm, amiga_lha_sfx,
   amiga_workbench_icon, amos_bank,
   amos_bank_set, amos_program, amos_sprite_icon_bank, ansi_art, bmp, flic, gif_container,
@@ -48,6 +48,8 @@ type
     vhkCreativeVoice
     vhkPaintNetPalette
     vhkGimpPalette
+    vhkAseprite
+    vhkAdobeSwatchExchange
     vhkDoomWad
     vhkZip
     vhkIso9660
@@ -137,6 +139,9 @@ const FormatHandlers* = [
   VextFormatHandler(typeId: CreativeVoiceTypeId, kind: vhkCreativeVoice),
   VextFormatHandler(typeId: PaintNetPaletteTypeId, kind: vhkPaintNetPalette),
   VextFormatHandler(typeId: GimpPaletteTypeId, kind: vhkGimpPalette),
+  VextFormatHandler(typeId: AsepriteTypeId, kind: vhkAseprite),
+  VextFormatHandler(typeId: AdobeSwatchExchangeTypeId,
+    kind: vhkAdobeSwatchExchange),
   VextFormatHandler(typeId: DoomWadTypeId, kind: vhkDoomWad),
   VextFormatHandler(typeId: ZipArchiveTypeId, kind: vhkZip),
   VextFormatHandler(typeId: Iso9660TypeId, kind: vhkIso9660),
@@ -248,6 +253,9 @@ proc parse*(handler: VextFormatHandler,
   of vhkCreativeVoice: result = parsed(parseCreativeVoice(data))
   of vhkPaintNetPalette: result = parsed(parsePaintNetPalette(data))
   of vhkGimpPalette: result = parsed(parseGimpPalette(data))
+  of vhkAseprite: result = parsed(parseAseprite(data))
+  of vhkAdobeSwatchExchange:
+    result = parsed(parseAdobeSwatchExchange(data))
   of vhkDoomWad: result = parsed(parseDoomWad(data))
   of vhkZip: result = parsed(parseZipArchive(data))
   of vhkIso9660: result = parsed(parseIso9660(data))

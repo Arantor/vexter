@@ -24,7 +24,7 @@ client, and a dependency-free native Windows GUI. It supports:
   and other patch-format graphics,
   PNG, baseline/extended-sequential Huffman JPEG with EXIF orientation,
   OpenRaster layered documents, Windows ICO/CUR collections (including PNG and DIB entries), QOI,
-  Paint.NET and GIMP text palettes,
+  Paint.NET and GIMP text palettes, Adobe Swatch Exchange palettes, palettes embedded in Aseprite sprites,
   Commodore 64 KoalaPainter images,
   Netpbm P1–P7, GIF87a/GIF89a, and FLI/FLC-family animations,
   AmigaDOS ADF filesystems, DMS disk archives, PowerPacker and XPK/SHRI
@@ -241,6 +241,14 @@ Matching case-insensitive extensions add supporting evidence.
 - `gimp_palette.nim` validates GIMP Palette headers and ordered RGB entries,
   including Aseprite's marked RGBA modification, infers the format version,
   and retains optional name, column, and compatibility metadata;
+
+- `aseprite.nim` validates `.ase`/`.aseprite` headers, frames, and chunk
+  envelopes, applies old and current palette chunks, and exposes the final
+  ordered RGBA palette while safely skipping unsupported chunk payloads;
+
+- `adobe_swatch_exchange.nim` validates big-endian `ASEF` version 1.0 block
+  structure, extracts ordered RGB swatches, and safely skips groups, custom
+  block data, and colour spaces without supplied conversion rules;
 
 - `amiga_workbench_icon.nim` validates classic big-endian Workbench
   DiskObjects, their serialized planar images, counted strings, and tool

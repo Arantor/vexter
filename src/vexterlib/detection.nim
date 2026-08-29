@@ -5,7 +5,7 @@ import ./handler_registry
 import ./format_detection_types
 export format_detection_types
 import ./containers/[amiga_8svx, amiga_16sv, amiga_acbm, amiga_adf, amiga_anim, amiga_diskfont, amiga_dms, amiga_hunk_executable, amiga_iff, amiga_ilbm, amiga_lha_sfx, amiga_pbm, amiga_workbench_icon, amos_bank, amos_bank_set, amos_program,
-  amos_sprite_icon_bank, ansi_art, bmfont, bmp, creative_voice, doom_wad, flic, fzx, gif_container, gimp_palette, iso9660, jpeg, koala_painter, netpbm, paint_net_palette, pcx, png_container, qoi, tga,
+  adobe_swatch_exchange, amos_sprite_icon_bank, ansi_art, aseprite, bmfont, bmp, creative_voice, doom_wad, flic, fzx, gif_container, gimp_palette, iso9660, jpeg, koala_painter, netpbm, paint_net_palette, pcx, png_container, qoi, tga,
   wav, windows_icon, zip_archive, lha_archive, zx_spectrum_screen_dump, zx_spectrum_snapshot, zx_spectrum_tap]
 import ./containers/xpk_shri
 import ./containers/powerpacker
@@ -307,6 +307,27 @@ proc detectBaseFormats(filename: string, data: openArray[byte]):
     if hasGimpPaletteExtension(filename):
       evidence.add VextDetectionEvidence(description: "file extension is .gpl")
     result.add VextDetectionCandidate(typeId: GimpPaletteTypeId,
+      confidence: vdcCertain, evidence: evidence)
+
+  if isAseprite(data):
+    let source = parseAseprite(data)
+    var evidence = @[VextDetectionEvidence(description:
+      "file has a valid Aseprite header and " & $source.frames &
+      " structurally complete frame(s)")]
+    if hasAsepriteExtension(filename):
+      evidence.add VextDetectionEvidence(description:
+        "file extension is .ase or .aseprite")
+    result.add VextDetectionCandidate(typeId: AsepriteTypeId,
+      confidence: vdcCertain, evidence: evidence)
+
+  if isAdobeSwatchExchange(data):
+    let source = parseAdobeSwatchExchange(data)
+    var evidence = @[VextDetectionEvidence(description:
+      "file has a valid ASEF version 1.0 header and " &
+      $source.blockCount & " complete block(s)")]
+    if hasAdobeSwatchExchangeExtension(filename):
+      evidence.add VextDetectionEvidence(description: "file extension is .ase")
+    result.add VextDetectionCandidate(typeId: AdobeSwatchExchangeTypeId,
       confidence: vdcCertain, evidence: evidence)
 
   if isZipArchive(data):

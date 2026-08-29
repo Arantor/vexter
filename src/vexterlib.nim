@@ -39,6 +39,8 @@ import vexterlib/containers/wav as wav_container
 import vexterlib/containers/creative_voice
 import vexterlib/containers/paint_net_palette
 import vexterlib/containers/gimp_palette
+import vexterlib/containers/aseprite
+import vexterlib/containers/adobe_swatch_exchange
 import vexterlib/containers/qoi
 import vexterlib/containers/koala_painter
 import vexterlib/containers/netpbm
@@ -134,6 +136,8 @@ export wav_container
 export creative_voice
 export paint_net_palette
 export gimp_palette
+export aseprite
+export adobe_swatch_exchange
 export qoi
 export koala_painter
 export netpbm

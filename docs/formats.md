@@ -684,6 +684,52 @@ Type identifier: `gimp.palette`
 
 Resource path: `/palette`
 
+## Aseprite sprite files
+
+Aseprite `.ase` and `.aseprite` files are identified by the `0xA5E0`
+little-endian header magic and validated declared file size. Vexter validates
+the 128-byte file header, every frame header and size, and every chunk
+envelope. The header's dimensions, frame count, colour depth, transparent
+index, and declared colour count become metadata.
+
+Palette extraction supports the current `0x2019` RGBA palette chunk, including
+partial index-range updates and entry names, and both old packet palette chunks
+`0x0004` and `0x0011`. Entry names are UTF-8 validated but not retained. When a
+current palette chunk is present, backward-compatibility old chunks are ignored
+as required by the supplied specification. Otherwise old palette packets are
+applied in order; six-bit `0x0011` components are expanded to eight bits.
+
+The final palette state is exposed as an ordered RGBA palette and naturally
+exports as a PNG swatch. Other valid chunk types are currently skipped within
+their checked boundaries. Layer/cel compositing, animation rendering, tags,
+slices, tilesets, profiles, masks, and user properties are not yet decoded.
+An Aseprite file without a palette is identified structurally but has no
+exportable decoded media yet.
+
+Type identifier: `aseprite.sprite`
+
+Palette resource path: `/palette`
+
+## Adobe Swatch Exchange palette files
+
+Adobe Swatch Exchange `.ase` files are distinct from Aseprite files that can
+share the same extension. They are identified by the ASCII `ASEF` signature,
+big-endian version 1.0 header, declared block count, and complete
+length-delimited blocks.
+
+Vexter extracts colour blocks tagged `RGB ` and converts their three finite
+floating-point components from the documented 0–1 range to opaque eight-bit
+RGB. UTF-16BE names, groups, colour classifications, and application-specific
+trailing block data are not retained. The supplied article documents the
+component counts but not the conversions for `CMYK`, `LAB `, or `Gray`, so
+those structurally complete colours are counted as unsupported and skipped
+rather than converted speculatively. Files containing supported RGB swatches
+naturally export as PNG palette swatches.
+
+Type identifier: `adobe.swatch-exchange`
+
+Resource path: `/palette`
+
 ## Amiga IFF, ILBM, ACBM, and PBM
 
 An ILBM or ACBM containing a `CMAP` but no bitmap `BODY`/`ABIT` is treated as

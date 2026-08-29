@@ -115,12 +115,20 @@ formats are not included. Detailed format behavior and evidence remain in
 
 - **Palette interchange**
   - Ordered palettes can currently be exported as PNG swatches and exact
-    metadata JSON. GIMP GPL, Aseprite's alpha-bearing GPL modification, and
-    Paint.NET text palettes are supported as input, but not as export formats.
+    metadata JSON. GIMP GPL, Aseprite's alpha-bearing GPL modification,
+    Paint.NET text palettes, and Adobe Swatch Exchange RGB palettes are
+    supported as input, but not as export formats. Adobe ASE CMYK, Lab, and
+    grayscale conversion needs supplied authoritative conversion rules.
   - Brilliance `DRNG` and `BRNG` chunks in palette-only IFF files are not yet
     interpreted. Their accompanying `CMAP` colours remain available, but the
     additional range definitions require documentation and focused controls.
 
+- **Aseprite sprites**
+  - File, frame, and chunk structure plus old and current palette chunks are
+    recognized. Layer/cel compositing, linked and compressed cels, blend modes,
+    tilemaps and tilesets, animation tags, slices, profiles, masks, external
+    files, and structured user data remain to be decoded from the supplied
+    specification.
 - **Amiga Hunk executables and LHA self-extractors**
   - Broader Hunk record and executable-variant coverage needs a supplied Hunk
     specification and authentic controls.

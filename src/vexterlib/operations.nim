@@ -13,7 +13,7 @@ import ./exporters/[bmfont, gif, html_report, metadata_json, png, raw, wav]
 import ./resource_tree
 import ./containers/[amiga_8svx, amiga_16sv, amiga_acbm, amiga_adf, amiga_anim, amiga_diskfont, amiga_dms, amiga_hunk_executable, amiga_iff, amiga_ilbm, amiga_lha_sfx, amiga_pbm, amiga_workbench_icon, amos_bank, amos_bank_set, amos_packed_picture, amos_program,
   amos_sprite_icon_bank, ansi_art, bmfont, bmp, creative_voice, doom_wad, flic, fzx, gif_container, iso9660, jpeg, netpbm, openraster, pcx, png_container,
-  gimp_palette, koala_painter, paint_net_palette, qoi, tga, wav, windows_icon, zip_archive, lha_archive, zx_spectrum_snapshot, zx_spectrum_tap]
+  adobe_swatch_exchange, aseprite, gimp_palette, koala_painter, paint_net_palette, qoi, tga, wav, windows_icon, zip_archive, lha_archive, zx_spectrum_snapshot, zx_spectrum_tap]
 import ./containers/xpk_shri
 import ./containers/powerpacker
 import ./metadata
@@ -1242,6 +1242,44 @@ proc inspectSourceDepth(filename: string, data: openArray[byte],
     result.resources.roots.add VextResourceNode(
       path: GimpPaletteResourcePath, typeId: GimpPaletteTypeId,
       kind: vrnkPalette, palette: source.palette, metadata: metadata)
+  of vhkAseprite:
+    let source = parsedValue[AsepriteSource](selectedParsed, vhkAseprite)
+    var metadata = @[
+      integerMetadata("width", source.width),
+      integerMetadata("height", source.height),
+      integerMetadata("frames", source.frames),
+      integerMetadata("colour-depth", source.colourDepth),
+      integerMetadata("chunks", source.chunkCount),
+      integerMetadata("palette-chunks", source.paletteChunkCount),
+      integerMetadata("transparent-index", source.transparentIndex),
+      integerMetadata("declared-colours", source.declaredColours)]
+    if source.palette.colours.len == 0:
+      result.resources.roots.add VextResourceNode(path: "/sprite",
+        typeId: AsepriteTypeId, kind: vrnkOpaque, metadata: metadata)
+    else:
+      metadata.add integerMetadata("colours", source.palette.colours.len)
+      result.resources.roots.add VextResourceNode(
+        path: AsepritePaletteResourcePath, typeId: AsepriteTypeId,
+        kind: vrnkPalette, palette: source.palette, metadata: metadata)
+  of vhkAdobeSwatchExchange:
+    let source = parsedValue[AdobeSwatchExchange](selectedParsed,
+      vhkAdobeSwatchExchange)
+    var metadata = @[
+      integerMetadata("version.major", source.versionMajor),
+      integerMetadata("version.minor", source.versionMinor),
+      integerMetadata("blocks", source.blockCount),
+      integerMetadata("rgb-colours", source.rgbColourCount),
+      integerMetadata("unsupported-colours", source.unsupportedColourCount)]
+    if source.palette.colours.len == 0:
+      result.resources.roots.add VextResourceNode(path: "/swatches",
+        typeId: AdobeSwatchExchangeTypeId, kind: vrnkOpaque,
+        metadata: metadata)
+    else:
+      metadata.add integerMetadata("colours", source.palette.colours.len)
+      result.resources.roots.add VextResourceNode(
+        path: AdobeSwatchExchangeResourcePath,
+        typeId: AdobeSwatchExchangeTypeId, kind: vrnkPalette,
+        palette: source.palette, metadata: metadata)
   of vhkDoomWad:
     let wad = parsedValue[DoomWad](selectedParsed, vhkDoomWad)
     let root = VextResourceNode(path: "/wad", typeId: DoomWadTypeId,
