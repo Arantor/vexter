@@ -108,6 +108,14 @@ The mixer reserves fixed four-channel headroom. Its `E0x` behavior is an
 initially enabled, stateful one-pole 4.5 kHz stereo low-pass because the
 supplied MOD references define only the on/off command, not an analogue
 transfer function; do not describe this approximation as hardware-accurate.
+Effect `7xy` tremolo retains speed/depth memory, advances a per-channel
+waveform phase on active ticks, and derives a temporary clamped tick volume without
+rewriting the channel's persistent base volume. `E7x` selects sine, ramp-down,
+square, or deterministic pseudo-random choice among those waveforms and
+controls whether a new note resets phase. Each channel has private reproducible
+random state so repeated exports are byte-identical. `E4x` vibrato waveform
+selection mirrors the same waveform, reset, and private-random-state rules
+while modulating the temporary playback period rather than base volume.
 
 Audio playback polls the prepared `waveOut` header for natural completion,
 then releases the device and restores the Play state so the same resource can

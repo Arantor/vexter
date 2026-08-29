@@ -22,6 +22,14 @@ type
     portaSpeed: int
     portaActive: bool
     vibratoSpeed, vibratoDepth, vibratoPhase: int
+    vibratoWaveform: int
+    vibratoRetrigger: bool
+    vibratoRandomState: uint32
+    tremoloSpeed, tremoloDepth, tremoloPhase: int
+    tremoloActive: bool
+    tremoloWaveform: int
+    tremoloRetrigger: bool
+    tremoloRandomState: uint32
     slideUp, slideDown, volumeSlide: int
 
   ProtrackerReplayResult* = object
@@ -33,6 +41,41 @@ type
 
 proc clampInt(value, minimum, maximum: int): int =
   max(minimum, min(maximum, value))
+
+proc tremoloValue(channel: var ReplayChannel): float64 =
+  case channel.tremoloWaveform
+  of 1: # Ramp down over one 64-step cycle.
+    1.0 - float64(channel.tremoloPhase) / 31.5
+  of 2:
+    if channel.tremoloPhase < 32: 1.0 else: -1.0
+  of 3:
+    # The supplied specification describes random as a deterministic-time
+    # choice among the three defined waveforms. Use a private reproducible PRNG
+    # so repeated WAV exports are byte-identical.
+    channel.tremoloRandomState = channel.tremoloRandomState * 1_664_525'u32 +
+      1_013_904_223'u32
+    case int(channel.tremoloRandomState mod 3)
+    of 0: sin(float64(channel.tremoloPhase) * PI / 32.0)
+    of 1: 1.0 - float64(channel.tremoloPhase) / 31.5
+    else: (if channel.tremoloPhase < 32: 1.0 else: -1.0)
+  else:
+    sin(float64(channel.tremoloPhase) * PI / 32.0)
+
+proc vibratoValue(channel: var ReplayChannel): float64 =
+  case channel.vibratoWaveform
+  of 1:
+    1.0 - float64(channel.vibratoPhase) / 31.5
+  of 2:
+    if channel.vibratoPhase < 32: 1.0 else: -1.0
+  of 3:
+    channel.vibratoRandomState = channel.vibratoRandomState * 1_664_525'u32 +
+      1_013_904_223'u32
+    case int(channel.vibratoRandomState mod 3)
+    of 0: sin(float64(channel.vibratoPhase) * PI / 32.0)
+    of 1: 1.0 - float64(channel.vibratoPhase) / 31.5
+    else: (if channel.vibratoPhase < 32: 1.0 else: -1.0)
+  else:
+    sin(float64(channel.vibratoPhase) * PI / 32.0)
 
 proc sampleAt(samples: openArray[VextAudioSample], loopStart, loopLength: int,
     channel: var ReplayChannel): int32 =
@@ -61,6 +104,10 @@ proc renderProtracker*(module: VextTrackerModule,
   var channels = newSeq[ReplayChannel](module.channels.len)
   for index in 0 ..< channels.len:
     channels[index].pan = module.channels[index].defaultPan
+    channels[index].vibratoRetrigger = true
+    channels[index].vibratoRandomState = uint32(index + 0x101)
+    channels[index].tremoloRetrigger = true
+    channels[index].tremoloRandomState = uint32(index + 1)
   var speed = module.initialSpeed
   var tempo = module.initialTempoBpm
   var filterEnabled = true
@@ -103,6 +150,7 @@ proc renderProtracker*(module: VextTrackerModule,
       state[].slideDown = 0
       state[].volumeSlide = 0
       state[].portaActive = false
+      state[].tremoloActive = false
       if cell.hasInstrument:
         state[].instrument = cell.instrument
         state[].hasInstrument = true
@@ -117,6 +165,12 @@ proc renderProtracker*(module: VextTrackerModule,
         state[].targetPeriod = state[].period
         state[].position = 0'u64
         state[].active = true
+        if state[].vibratoRetrigger:
+          state[].vibratoPhase = 0
+          state[].vibratoRandomState = uint32(channelIndex + 0x101)
+        if state[].tremoloRetrigger:
+          state[].tremoloPhase = 0
+          state[].tremoloRandomState = uint32(channelIndex + 1)
       elif cell.noteKind == vtnkTarget and cell.hasSourcePitch:
         state[].targetPeriod = float64(cell.sourcePitch)
       for item in cell.effects:
@@ -136,6 +190,10 @@ proc renderProtracker*(module: VextTrackerModule,
           state[].volumeSlide = x - y
         of 6:
           state[].volumeSlide = x - y
+        of 7:
+          if x != 0: state[].tremoloSpeed = x
+          if y != 0: state[].tremoloDepth = y
+          state[].tremoloActive = true
         of 8: state[].pan = float64(item.rawParameter) / 127.5 - 1.0
         of 9:
           if state[].active:
@@ -155,6 +213,9 @@ proc renderProtracker*(module: VextTrackerModule,
           of 0: filterEnabled = y == 0
           of 1: state[].period = max(1.0, state[].period - float64(y))
           of 2: state[].period += float64(y)
+          of 4:
+            state[].vibratoWaveform = y and 3
+            state[].vibratoRetrigger = (y and 4) == 0
           of 10: state[].volume = min(64.0, state[].volume + float64(y))
           of 11: state[].volume = max(0.0, state[].volume - float64(y))
           of 6:
@@ -167,6 +228,9 @@ proc renderProtracker*(module: VextTrackerModule,
               dec loopCounts[channelIndex]
               if loopCounts[channelIndex] > 0:
                 patternLoopRow = loopStarts[channelIndex]
+          of 7:
+            state[].tremoloWaveform = y and 3
+            state[].tremoloRetrigger = (y and 4) == 0
           of 14: patternDelay = y
           else: discard
         of 15:
@@ -183,6 +247,12 @@ proc renderProtracker*(module: VextTrackerModule,
           state[].targetPeriod = state[].period
           state[].position = 0'u64
           state[].active = true
+          if state[].vibratoRetrigger:
+            state[].vibratoPhase = 0
+            state[].vibratoRandomState = uint32(channelIndex + 0x101)
+          if state[].tremoloRetrigger:
+            state[].tremoloPhase = 0
+            state[].tremoloRandomState = uint32(channelIndex + 1)
         for item in cell.effects:
           if item.rawCommand == 14:
             let subcommand = item.rawParameter shr 4
@@ -208,7 +278,7 @@ proc renderProtracker*(module: VextTrackerModule,
       var steps = newSeq[uint64](channels.len)
       var leftGains = newSeq[int](channels.len)
       var rightGains = newSeq[int](channels.len)
-      for channelIndex, state in channels:
+      for channelIndex, state in channels.mpairs:
         if not state.active or not state.hasInstrument or state.period <= 0:
           continue
         let cell = trackerRow.cells[channelIndex]
@@ -222,7 +292,7 @@ proc renderProtracker*(module: VextTrackerModule,
           playbackPeriod /= pow(2.0, float64(semitone) / 12.0)
         for item in cell.effects:
           if item.rawCommand in [4, 6] and state.vibratoDepth > 0:
-            playbackPeriod += sin(float64(state.vibratoPhase) * PI / 32.0) *
+            playbackPeriod += state.vibratoValue *
               float64(state.vibratoDepth * 2)
         let fineTune = module.instruments[state.instrument].fineTuneCents
         let step = PaulaClock /
@@ -231,9 +301,14 @@ proc renderProtracker*(module: VextTrackerModule,
         steps[channelIndex] = uint64(max(0.0, step) * FixedPointScale)
         # Reserve deterministic four-channel headroom: two hard-panned
         # full-volume channels, or four centred channels, fit without clipping.
-        leftGains[channelIndex] = int(round(state.volume *
+        var tickVolume = state.volume
+        if state.tremoloActive and tick > 0 and state.tremoloDepth > 0:
+          tickVolume = max(0.0, min(64.0, tickVolume +
+            state.tremoloValue *
+            float64(state.tremoloDepth * 4)))
+        leftGains[channelIndex] = int(round(tickVolume *
           (1.0 - state.pan)))
-        rightGains[channelIndex] = int(round(state.volume *
+        rightGains[channelIndex] = int(round(tickVolume *
           (1.0 + state.pan)))
       for frame in 0 ..< tickFrames:
         if left.len >= maximumFrames: break
@@ -256,6 +331,9 @@ proc renderProtracker*(module: VextTrackerModule,
         right.add VextAudioSample(clampInt(int(outputRight), -32768, 32767))
       for state in channels.mitems:
         state.vibratoPhase = (state.vibratoPhase + state.vibratoSpeed) and 63
+        if state.tremoloActive:
+          state.tremoloPhase =
+            (state.tremoloPhase + state.tremoloSpeed) and 63
 
     inc result.rowsRendered
     if patternLoopRow >= 0 and not flowChanged:

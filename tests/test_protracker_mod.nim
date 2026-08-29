@@ -129,6 +129,48 @@ suite "Protracker MOD":
       abs(filtered.sound.buffer.channels[0][0])
     check unfiltered.sound.buffer.channels[0][0] == -16_384
 
+  test "tremolo modulates tick volume without changing base volume":
+    var plainData = syntheticMod()
+    plainData[45] = 32
+    var tremoloData = plainData
+    # Replace F06 on row 0/channel 0 with 744: speed 4, depth 4.
+    tremoloData[1084 + 2] = 0x17
+    tremoloData[1084 + 3] = 0x44
+    let plainModule = parseProtrackerMod(plainData).module
+    let tremoloModule = parseProtrackerMod(tremoloData).module
+    let plain = renderProtracker(plainModule)
+    let tremolo = renderProtracker(tremoloModule)
+    check tremolo.sound.buffer.channels[0] != plain.sound.buffer.channels[0]
+    # Replay state modulation must not rewrite the imported instrument volume.
+    check tremoloModule.instruments[0].sample.volume == 0.5
+
+  test "E7 selects the tremolo waveform":
+    var sineData = syntheticMod()
+    sineData[45] = 32
+    # Row 1/channel 0 applies tremolo after the row-0 note has begun.
+    sineData[1084 + 16 + 2] = 0x07
+    sineData[1084 + 16 + 3] = 0x44
+    var squareData = sineData
+    # Row 0/channel 0 selects retriggered square wave for later tremolo.
+    squareData[1084 + 2] = 0x1e
+    squareData[1084 + 3] = 0x72
+    let sine = renderProtracker(parseProtrackerMod(sineData).module)
+    let square = renderProtracker(parseProtrackerMod(squareData).module)
+    check square.sound.buffer.channels[0] != sine.sound.buffer.channels[0]
+
+  test "E4 selects the vibrato waveform":
+    var sineData = syntheticMod()
+    # Row 1/channel 0 applies vibrato after the row-0 note has begun.
+    sineData[1084 + 16 + 2] = 0x04
+    sineData[1084 + 16 + 3] = 0x44
+    var squareData = sineData
+    # Row 0/channel 0 selects retriggered square wave for later vibrato.
+    squareData[1084 + 2] = 0x1e
+    squareData[1084 + 3] = 0x42
+    let sine = renderProtracker(parseProtrackerMod(sineData).module)
+    let square = renderProtracker(parseProtrackerMod(squareData).module)
+    check square.sound.buffer.channels[0] != sine.sound.buffer.channels[0]
+
   test "structurally exact unmarked 15-sample modules are probable":
     let inspection = inspectSource("old.mod", syntheticMod(15))
     check inspection.selectedFormat.typeId == ProtrackerModTypeId
