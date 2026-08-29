@@ -8,6 +8,14 @@ proc setBeWord(data: var seq[byte], offset, value: int) =
   data[offset] = byte(value shr 8)
   data[offset + 1] = byte(value)
 
+proc setPatternCell(data: var seq[byte], row, channel, instrument, period,
+    command, parameter: int) =
+  let offset = 1084 + (row * 4 + channel) * 4
+  data[offset] = byte(instrument and 0xf0 or period shr 8 and 0x0f)
+  data[offset + 1] = byte(period)
+  data[offset + 2] = byte((instrument and 0x0f) shl 4 or command and 0x0f)
+  data[offset + 3] = byte(parameter)
+
 proc syntheticMod(sampleCount = 31): seq[byte] =
   let patternOffset = if sampleCount == 31: 1084 else: 600
   result = newSeq[byte](patternOffset + 1024 + 4)
@@ -205,6 +213,93 @@ suite "Protracker MOD":
     let smooth = renderProtracker(parseProtrackerMod(smoothData).module)
     let glissando = renderProtracker(parseProtrackerMod(glissandoData).module)
     check glissando.sound.buffer.channels[0] != smooth.sound.buffer.channels[0]
+
+  test "instrument-only rows do not replace the sample already playing":
+    var unchangedData = syntheticMod()
+    # Add a distinct four-byte second instrument with the same volume.
+    unchangedData.setBeWord(72, 2)
+    unchangedData[75] = 64
+    unchangedData.setBeWord(76, 0)
+    unchangedData.setBeWord(78, 2)
+    unchangedData.add @[0x20'u8, 0x30, 0x40, 0x50]
+    var selectedData = unchangedData
+    unchangedData.setPatternCell(1, 0, 1, 0, 0, 0)
+    selectedData.setPatternCell(1, 0, 2, 0, 0, 0)
+    let unchanged = renderProtracker(parseProtrackerMod(unchangedData).module)
+    let selected = renderProtracker(parseProtrackerMod(selectedData).module)
+    check selected.sound.buffer.channels[0] ==
+      unchanged.sound.buffer.channels[0]
+
+  test "note delay retains the old sample until the delayed instrument starts":
+    var instrumentOnlyData = syntheticMod()
+    instrumentOnlyData.setBeWord(72, 2)
+    instrumentOnlyData[75] = 64
+    instrumentOnlyData.setBeWord(76, 0)
+    instrumentOnlyData.setBeWord(78, 2)
+    instrumentOnlyData.add @[0x20'u8, 0x30, 0x40, 0x50]
+    instrumentOnlyData.setPatternCell(1, 0, 2, 0, 0, 0)
+    var delayedData = instrumentOnlyData
+    delayedData.setPatternCell(1, 0, 2, 428, 14, 0xd2)
+    let instrumentOnly = renderProtracker(
+      parseProtrackerMod(instrumentOnlyData).module)
+    let delayed = renderProtracker(parseProtrackerMod(delayedData).module)
+    let rowStart = 6 * 882
+    let delayedStart = rowStart + 2 * 882
+    check delayed.sound.buffer.channels[0][rowStart ..< delayedStart] ==
+      instrumentOnly.sound.buffer.channels[0][rowStart ..< delayedStart]
+    check delayed.sound.buffer.channels[0][delayedStart ..< delayedStart + 882] !=
+      instrumentOnly.sound.buffer.channels[0][delayedStart ..< delayedStart + 882]
+
+  test "900 reuses channel sample-offset memory and preserves overflow rules":
+    var rememberedData = syntheticMod()
+    rememberedData.setBeWord(42, 150)
+    rememberedData.setBeWord(48, 1)
+    rememberedData.setLen(1084 + 1024 + 300)
+    for index in 0 ..< 300:
+      rememberedData[1084 + 1024 + index] = byte(index and 0x7f)
+    rememberedData.setPatternCell(0, 0, 1, 428, 9, 1)
+    rememberedData.setPatternCell(1, 0, 0, 428, 9, 0)
+    var noSecondOffsetData = rememberedData
+    noSecondOffsetData.setPatternCell(1, 0, 0, 428, 0, 0)
+    let remembered = renderProtracker(
+      parseProtrackerMod(rememberedData).module)
+    let noSecondOffset = renderProtracker(
+      parseProtrackerMod(noSecondOffsetData).module)
+    check remembered.sound.buffer.channels[0] !=
+      noSecondOffset.sound.buffer.channels[0]
+
+  test "blank rows preserve vibrato phase while 400 reuses its memory":
+    var blankData = syntheticMod()
+    blankData.setPatternCell(0, 0, 1, 428, 4, 0x44)
+    blankData.setPatternCell(1, 0, 0, 0, 0, 0)
+    blankData.setPatternCell(1, 3, 0, 0, 0, 0)
+    blankData.setPatternCell(2, 0, 0, 0, 4, 0)
+    blankData.setPatternCell(2, 3, 0, 0, 11, 0)
+    var activeData = blankData
+    activeData.setPatternCell(1, 0, 0, 0, 4, 0)
+    let blank = renderProtracker(parseProtrackerMod(blankData).module)
+    let active = renderProtracker(parseProtrackerMod(activeData).module)
+    let thirdRow = 12 * 882
+    check active.sound.buffer.channels[0][thirdRow ..< thirdRow + 882] !=
+      blank.sound.buffer.channels[0][thirdRow ..< thirdRow + 882]
+
+  test "volume slide ignores the down nibble when the up nibble is nonzero":
+    var upOnlyData = syntheticMod()
+    upOnlyData.setPatternCell(0, 0, 1, 428, 10, 0x10)
+    var bothData = upOnlyData
+    bothData.setPatternCell(0, 0, 1, 428, 10, 0x1f)
+    let upOnly = renderProtracker(parseProtrackerMod(upOnlyData).module)
+    let both = renderProtracker(parseProtrackerMod(bothData).module)
+    check both.sound.buffer.channels[0] == upOnly.sound.buffer.channels[0]
+
+  test "E9 retriggers on tick zero only when the row has no note":
+    var plainData = syntheticMod()
+    plainData.setPatternCell(1, 0, 0, 0, 0, 0)
+    var retriggerData = plainData
+    retriggerData.setPatternCell(1, 0, 0, 0, 14, 0x91)
+    let plain = renderProtracker(parseProtrackerMod(plainData).module)
+    let retrigger = renderProtracker(parseProtrackerMod(retriggerData).module)
+    check retrigger.sound.buffer.channels[0] != plain.sound.buffer.channels[0]
 
   test "structurally exact unmarked 15-sample modules are probable":
     let inspection = inspectSource("old.mod", syntheticMod(15))

@@ -65,6 +65,9 @@ integer PT2.3F period tables, vibrato and tremolo with `E4x`/`E7x`
 sine/ramp/square/random waveform selection, sample offset, retrigger, note
 delay/cut, speed/tempo, pattern delay, position jumps, pattern breaks, and
 bounded pattern/restart loops. It can be played in the GUI or exported as WAV.
+Replay keeps selected and sounding instruments distinct, retains the documented
+per-channel effect parameters, and uses separate new-row and continuing-tick
+passes for combined effects, delayed notes, retrigger, and fine slides.
 Rendering stops before a repeated playback position and has an independent
 five-minute safety limit. The mixer reserves fixed four-channel headroom before
 its final safety clamp rather than normalizing each song or hard-clipping an

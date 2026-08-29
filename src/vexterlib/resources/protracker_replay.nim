@@ -34,13 +34,16 @@ type
   ReplayChannel = object
     instrument: int
     hasInstrument: bool
+    playingInstrument: int
+    hasPlayingInstrument: bool
     position: uint64
+    sampleStart, sampleLength, initialEnd: int
+    sampleOffsetMemory: int
     period, targetPeriod: float64
     volume: float64
     pan: float64
     active: bool
     portaSpeed: int
-    portaActive: bool
     fineTune: int
     glissando: bool
     vibratoSpeed, vibratoDepth, vibratoPhase: int
@@ -48,11 +51,9 @@ type
     vibratoRetrigger: bool
     vibratoRandomState: uint32
     tremoloSpeed, tremoloDepth, tremoloPhase: int
-    tremoloActive: bool
     tremoloWaveform: int
     tremoloRetrigger: bool
     tremoloRandomState: uint32
-    slideUp, slideDown, volumeSlide: int
 
   ProtrackerReplayResult* = object
     sound*: VextSound
@@ -88,6 +89,43 @@ proc glissandoPeriod(period: float64, fineTune: int): float64 =
   var index = 0
   while index < 35 and period < float64(periods[index]): inc index
   float64(periods[index])
+
+proc arpeggioPeriod(period: float64, fineTune, semitone: int): float64 =
+  let periods = ProtrackerFineTunePeriods[fineTune and 15]
+  var index = 0
+  while index < 35 and period < float64(periods[index]): inc index
+  float64(periods[min(35, index + semitone)])
+
+proc applyVolumeSlide(channel: var ReplayChannel, parameter: int) =
+  let upward = parameter shr 4
+  let downward = parameter and 15
+  if upward > 0:
+    channel.volume = min(64.0, channel.volume + float64(upward))
+  else:
+    channel.volume = max(0.0, channel.volume - float64(downward))
+
+proc applyTonePortamento(channel: var ReplayChannel) =
+  if channel.portaSpeed <= 0 or channel.targetPeriod <= 0: return
+  if channel.period < channel.targetPeriod:
+    channel.period = min(channel.targetPeriod,
+      channel.period + float64(channel.portaSpeed))
+  elif channel.period > channel.targetPeriod:
+    channel.period = max(channel.targetPeriod,
+      channel.period - float64(channel.portaSpeed))
+
+proc triggerChannel(channel: var ReplayChannel, channelIndex: int) =
+  if not channel.hasInstrument: return
+  channel.playingInstrument = channel.instrument
+  channel.hasPlayingInstrument = true
+  channel.position = uint64(channel.sampleStart) shl 32
+  channel.initialEnd = channel.sampleStart + channel.sampleLength
+  channel.active = true
+  if channel.vibratoRetrigger:
+    channel.vibratoPhase = 0
+    channel.vibratoRandomState = uint32(channelIndex + 0x101)
+  if channel.tremoloRetrigger:
+    channel.tremoloPhase = 0
+    channel.tremoloRandomState = uint32(channelIndex + 1)
 
 proc tremoloValue(channel: var ReplayChannel): float64 =
   case channel.tremoloWaveform
@@ -129,6 +167,14 @@ proc sampleAt(samples: openArray[VextAudioSample], loopStart, loopLength: int,
   if not channel.active or samples.len == 0: return 0
   let loopEnd = loopStart + loopLength
   var index = int(channel.position shr 32)
+  if channel.initialEnd > 0 and index >= channel.initialEnd:
+    channel.initialEnd = 0
+    if loopLength > 0:
+      channel.position = uint64(loopStart) shl 32
+      index = loopStart
+    else:
+      channel.active = false
+      return 0
   if loopLength > 0 and index >= loopEnd:
     let loopStartFixed = uint64(loopStart) shl 32
     let loopLengthFixed = uint64(loopLength) shl 32
@@ -191,19 +237,19 @@ proc renderProtracker*(module: VextTrackerModule,
     var delayedPeriods = newSeq[int](channels.len)
     for index in 0 ..< noteDelays.len: noteDelays[index] = -1
 
+    # Tick zero: channels are visited in source order, as in PT2.3F's
+    # mt_GetNewNote/mt_PlayVoice pass. Instrument selection changes future
+    # trigger parameters but does not replace a sample already being played.
     for channelIndex, cell in trackerRow.cells:
       var state = addr channels[channelIndex]
-      state[].slideUp = 0
-      state[].slideDown = 0
-      state[].volumeSlide = 0
-      state[].portaActive = false
-      state[].tremoloActive = false
       if cell.hasInstrument:
         state[].instrument = cell.instrument
         state[].hasInstrument = true
-        state[].volume = module.instruments[cell.instrument].sample.volume * 64.0
-        state[].fineTune = fineTuneNibble(
-          module.instruments[cell.instrument].fineTuneCents)
+        let instrument = module.instruments[cell.instrument]
+        state[].volume = instrument.sample.volume * 64.0
+        state[].fineTune = fineTuneNibble(instrument.fineTuneCents)
+        state[].sampleStart = 0
+        state[].sampleLength = instrument.sample.sound.buffer.sampleCount
       for item in cell.effects:
         if item.rawCommand == 14 and item.rawParameter shr 4 == 13:
           noteDelays[channelIndex] = item.rawParameter and 15
@@ -217,14 +263,6 @@ proc renderProtracker*(module: VextTrackerModule,
           state[].hasInstrument and noteDelays[channelIndex] < 0:
         state[].period = directNotePeriod(cell.sourcePitch, state[].fineTune)
         state[].targetPeriod = state[].period
-        state[].position = 0'u64
-        state[].active = true
-        if state[].vibratoRetrigger:
-          state[].vibratoPhase = 0
-          state[].vibratoRandomState = uint32(channelIndex + 0x101)
-        if state[].tremoloRetrigger:
-          state[].tremoloPhase = 0
-          state[].tremoloRandomState = uint32(channelIndex + 1)
       elif cell.noteKind == vtnkTarget and cell.hasSourcePitch:
         state[].targetPeriod = tonePortamentoTarget(
           cell.sourcePitch, state[].fineTune)
@@ -232,28 +270,29 @@ proc renderProtracker*(module: VextTrackerModule,
         let x = item.rawParameter shr 4
         let y = item.rawParameter and 15
         case item.rawCommand
-        of 1: state[].slideUp = item.rawParameter
-        of 2: state[].slideDown = item.rawParameter
         of 3:
           if item.rawParameter != 0: state[].portaSpeed = item.rawParameter
-          state[].portaActive = true
         of 4:
           if x != 0: state[].vibratoSpeed = x
           if y != 0: state[].vibratoDepth = y
-        of 5:
-          state[].portaActive = true
-          state[].volumeSlide = x - y
-        of 6:
-          state[].volumeSlide = x - y
+        of 5: discard
+        of 6: discard
         of 7:
           if x != 0: state[].tremoloSpeed = x
           if y != 0: state[].tremoloDepth = y
-          state[].tremoloActive = true
         of 8: state[].pan = float64(item.rawParameter) / 127.5 - 1.0
         of 9:
-          if state[].active:
-            state[].position = uint64(item.rawParameter * 256) shl 32
-        of 10: state[].volumeSlide = x - y
+          if item.rawParameter != 0:
+            state[].sampleOffsetMemory = item.rawParameter
+          let offset = state[].sampleOffsetMemory * 256
+          if offset < state[].sampleLength:
+            state[].sampleStart += offset
+            state[].sampleLength -= offset
+          else:
+            # PT2.3F leaves the start address alone and requests one Paula
+            # word when the remembered offset exceeds the remaining sample.
+            state[].sampleLength = min(2, state[].sampleLength)
+        of 10: discard
         of 11:
           nextOrder = item.rawParameter
           nextRow = 0
@@ -293,8 +332,16 @@ proc renderProtracker*(module: VextTrackerModule,
           if item.rawParameter in 1 .. 32: speed = item.rawParameter
           elif item.rawParameter > 32: tempo = float64(item.rawParameter)
         else: discard
+      if cell.noteKind == vtnkTrigger and cell.hasSourcePitch and
+          state[].hasInstrument and noteDelays[channelIndex] < 0:
+        state[].triggerChannel(channelIndex)
 
     for tick in 0 ..< speed * (patternDelay + 1):
+      # Pattern delay repeats the continuing-effect pass with the tracker
+      # counter cycling through 0..<speed, but does not fetch the row again.
+      let effectTick = tick mod speed
+      var playbackPeriods = newSeq[float64](channels.len)
+      var tickVolumes = newSeq[float64](channels.len)
       for channelIndex, cell in trackerRow.cells:
         var state = addr channels[channelIndex]
         if noteDelays[channelIndex] == tick and state[].hasInstrument and
@@ -302,67 +349,109 @@ proc renderProtracker*(module: VextTrackerModule,
           state[].period = directNotePeriod(
             delayedPeriods[channelIndex], state[].fineTune)
           state[].targetPeriod = state[].period
-          state[].position = 0'u64
-          state[].active = true
-          if state[].vibratoRetrigger:
-            state[].vibratoPhase = 0
-            state[].vibratoRandomState = uint32(channelIndex + 0x101)
-          if state[].tremoloRetrigger:
-            state[].tremoloPhase = 0
-            state[].tremoloRandomState = uint32(channelIndex + 1)
+          state[].triggerChannel(channelIndex)
+        playbackPeriods[channelIndex] = state[].period
+        tickVolumes[channelIndex] = state[].volume
         for item in cell.effects:
-          if item.rawCommand == 14:
+          let command = item.rawCommand
+          let parameter = item.rawParameter
+          if tick > 0:
+            case command
+            of 0:
+              if parameter != 0:
+                let semitone = case effectTick mod 3
+                  of 1: parameter shr 4
+                  of 2: parameter and 15
+                  else: 0
+                playbackPeriods[channelIndex] = arpeggioPeriod(
+                  state[].period, state[].fineTune, semitone)
+            of 1:
+              state[].period = max(113.0,
+                state[].period - float64(parameter))
+              playbackPeriods[channelIndex] = state[].period
+            of 2:
+              state[].period = min(856.0,
+                state[].period + float64(parameter))
+              playbackPeriods[channelIndex] = state[].period
+            of 3, 5:
+              state[].applyTonePortamento
+              playbackPeriods[channelIndex] = if state[].glissando:
+                  glissandoPeriod(state[].period, state[].fineTune)
+                else: state[].period
+              if command == 5:
+                state[].applyVolumeSlide(parameter)
+                tickVolumes[channelIndex] = state[].volume
+            of 4, 6:
+              if state[].vibratoDepth > 0:
+                playbackPeriods[channelIndex] = state[].period +
+                  state[].vibratoValue * float64(state[].vibratoDepth * 2)
+              state[].vibratoPhase =
+                (state[].vibratoPhase + state[].vibratoSpeed) and 63
+              if command == 6:
+                state[].applyVolumeSlide(parameter)
+                tickVolumes[channelIndex] = state[].volume
+            of 7:
+              if state[].tremoloDepth > 0:
+                tickVolumes[channelIndex] = max(0.0, min(64.0,
+                  state[].volume + state[].tremoloValue *
+                    float64(state[].tremoloDepth * 4)))
+              state[].tremoloPhase =
+                (state[].tremoloPhase + state[].tremoloSpeed) and 63
+            of 10:
+              state[].applyVolumeSlide(parameter)
+              tickVolumes[channelIndex] = state[].volume
+            else: discard
+          if command == 14:
             let subcommand = item.rawParameter shr 4
             let value = item.rawParameter and 15
-            if subcommand == 9 and value > 0 and tick > 0 and
-                tick mod value == 0 and state[].hasInstrument:
-              state[].position = 0'u64
-              state[].active = true
-            elif subcommand == 12 and tick == value:
-              state[].active = false
-      if tick > 0:
-        for state in channels.mitems:
-          if state.slideUp > 0: state.period = max(1.0, state.period - float64(state.slideUp))
-          if state.slideDown > 0: state.period += float64(state.slideDown)
-          if state.portaActive and state.portaSpeed > 0 and state.targetPeriod > 0:
-            if state.period < state.targetPeriod:
-              state.period = min(state.targetPeriod, state.period + float64(state.portaSpeed))
-            elif state.period > state.targetPeriod:
-              state.period = max(state.targetPeriod, state.period - float64(state.portaSpeed))
-          state.volume = max(0.0, min(64.0,
-            state.volume + float64(state.volumeSlide)))
+            if tick > 0 and effectTick == 0:
+              case subcommand
+              of 0: filterEnabled = value == 0
+              of 1:
+                state[].period = max(113.0,
+                  state[].period - float64(value))
+                playbackPeriods[channelIndex] = state[].period
+              of 2:
+                state[].period = min(856.0,
+                  state[].period + float64(value))
+                playbackPeriods[channelIndex] = state[].period
+              of 3: state[].glissando = value != 0
+              of 4:
+                state[].vibratoWaveform = value and 3
+                state[].vibratoRetrigger = (value and 4) == 0
+              of 5: state[].fineTune = value
+              of 7:
+                state[].tremoloWaveform = value and 3
+                state[].tremoloRetrigger = (value and 4) == 0
+              of 10:
+                state[].volume = min(64.0,
+                  state[].volume + float64(value))
+                tickVolumes[channelIndex] = state[].volume
+              of 11:
+                state[].volume = max(0.0,
+                  state[].volume - float64(value))
+                tickVolumes[channelIndex] = state[].volume
+              else: discard
+            if subcommand == 9 and value > 0 and effectTick mod value == 0 and
+                (tick > 0 or not cell.hasSourcePitch):
+              state[].triggerChannel(channelIndex)
+            elif subcommand == 12 and effectTick == value:
+              state[].volume = 0
+              tickVolumes[channelIndex] = 0
       let tickFrames = max(1, int(round(float64(sampleRate) * 2.5 / tempo)))
       var steps = newSeq[uint64](channels.len)
       var leftGains = newSeq[int](channels.len)
       var rightGains = newSeq[int](channels.len)
       for channelIndex, state in channels.mpairs:
-        if not state.active or not state.hasInstrument or state.period <= 0:
+        if not state.active or not state.hasPlayingInstrument or
+            playbackPeriods[channelIndex] <= 0:
           continue
-        let cell = trackerRow.cells[channelIndex]
-        var playbackPeriod = state.period
-        if state.glissando and state.portaActive:
-          playbackPeriod = glissandoPeriod(playbackPeriod, state.fineTune)
-        if cell.effects.len > 0 and cell.effects[0].rawCommand == 0 and
-            cell.effects[0].rawParameter != 0:
-          let semitone = case tick mod 3
-            of 1: cell.effects[0].rawParameter shr 4
-            of 2: cell.effects[0].rawParameter and 15
-            else: 0
-          playbackPeriod /= pow(2.0, float64(semitone) / 12.0)
-        for item in cell.effects:
-          if item.rawCommand in [4, 6] and state.vibratoDepth > 0:
-            playbackPeriod += state.vibratoValue *
-              float64(state.vibratoDepth * 2)
         let step = PaulaClock /
-          (2.0 * playbackPeriod * float64(sampleRate))
+          (2.0 * playbackPeriods[channelIndex] * float64(sampleRate))
         steps[channelIndex] = uint64(max(0.0, step) * FixedPointScale)
         # Reserve deterministic four-channel headroom: two hard-panned
         # full-volume channels, or four centred channels, fit without clipping.
-        var tickVolume = state.volume
-        if state.tremoloActive and tick > 0 and state.tremoloDepth > 0:
-          tickVolume = max(0.0, min(64.0, tickVolume +
-            state.tremoloValue *
-            float64(state.tremoloDepth * 4)))
+        let tickVolume = tickVolumes[channelIndex]
         leftGains[channelIndex] = int(round(tickVolume *
           (1.0 - state.pan)))
         rightGains[channelIndex] = int(round(tickVolume *
@@ -371,8 +460,9 @@ proc renderProtracker*(module: VextTrackerModule,
         if left.len >= maximumFrames: break
         var mixedLeft, mixedRight = 0'i64
         for channelIndex, state in channels.mpairs:
-          if not state.active or not state.hasInstrument or state.period <= 0: continue
-          let instrumentIndex = state.instrument
+          if not state.active or not state.hasPlayingInstrument or
+              playbackPeriods[channelIndex] <= 0: continue
+          let instrumentIndex = state.playingInstrument
           let value = int64(sampleAt(
             module.instruments[instrumentIndex].sample.sound.buffer.channels[0],
             module.instruments[instrumentIndex].sample.oneShotSamples,
@@ -386,12 +476,6 @@ proc renderProtracker*(module: VextTrackerModule,
         let outputRight = if filterEnabled: filteredRight else: mixedRight
         left.add VextAudioSample(clampInt(int(outputLeft), -32768, 32767))
         right.add VextAudioSample(clampInt(int(outputRight), -32768, 32767))
-      for state in channels.mitems:
-        state.vibratoPhase = (state.vibratoPhase + state.vibratoSpeed) and 63
-        if state.tremoloActive:
-          state.tremoloPhase =
-            (state.tremoloPhase + state.tremoloSpeed) and 63
-
     inc result.rowsRendered
     if patternLoopRow >= 0 and not flowChanged:
       nextRow = patternLoopRow

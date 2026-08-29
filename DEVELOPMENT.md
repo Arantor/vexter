@@ -120,6 +120,14 @@ while modulating the temporary playback period rather than base volume.
 private channel replay state. `E30`/`E31` disable or enable semitone-quantised
 tone portamento; the underlying portamento accumulator remains smooth while
 only the period sent to playback is quantised.
+Replay separates tick-zero row setup from continuing effects. Tone-portamento,
+vibrato, tremolo, and sample-offset parameters have PT2.3F-compatible
+per-channel memory; combined effects preserve their defined operation order.
+Selected and currently playing instruments are separate state, so an
+instrument-only row updates future trigger parameters and volume without
+silently replacing the sample already under DMA. Note delay, note cut,
+retrigger, pattern-delay counters, and sample-offset overflow follow the
+supplied replay's tick and persistence rules.
 
 Audio playback polls the prepared `waveOut` header for natural completion,
 then releases the device and restores the Play state so the same resource can

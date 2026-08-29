@@ -135,10 +135,10 @@ formats are not included. Detailed format behavior and evidence remain in
     ramp-down, square, and deterministic random selection plus the
     retrigger/no-retrigger variants. Invert-loop requires replay-private
     mutable sample state rather than altering extracted instruments.
-  - Replay still needs exact zero-parameter effect memory, combined-effect
-    tick-zero ordering, sample-offset overflow
-    rules, note-delay/instrument edge cases, later retrigger volume transforms,
-    and a defined policy for conflicting flow commands across channels.
+  - Later-format retrigger volume transforms are not part of classic `E9x` and
+    remain unsupported. Conflicting flow commands follow PT2.3F's sequential
+    channel order; this is deterministic but can remain surprising in modules
+    authored against a different tracker clone.
   - Sample-and-hold is the only resampling mode. Optional linear interpolation,
     streamed/chunked PCM generation, configurable render length or loop count,
     and a live GUI playback cursor remain outstanding. The current bounded mix
