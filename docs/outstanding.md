@@ -129,13 +129,14 @@ formats are not included. Detailed format behavior and evidence remain in
     an authoritative model for particular Amiga revisions, their fixed output
     filtering, cutoff values, and initial LED-filter state has not been
     supplied. PAL/NTSC clock selection is also not exposed.
-  - Glissando, runtime `E5x` fine-tune, and invert-loop remain to be
-    implemented. Vibrato and tremolo support the documented `E4x`/`E7x` sine,
+  - Invert-loop remains to be implemented. Runtime `E5x` fine-tune uses the
+    sixteen integer PT2.3F period tables, and `E30`/`E31` control glissando for
+    tone portamento. Vibrato and tremolo support the documented `E4x`/`E7x` sine,
     ramp-down, square, and deterministic random selection plus the
     retrigger/no-retrigger variants. Invert-loop requires replay-private
     mutable sample state rather than altering extracted instruments.
   - Replay still needs exact zero-parameter effect memory, combined-effect
-    tick-zero ordering, finetune-specific period tables, sample-offset overflow
+    tick-zero ordering, sample-offset overflow
     rules, note-delay/instrument edge cases, later retrigger volume transforms,
     and a defined policy for conflicting flow commands across channels.
   - Sample-and-hold is the only resampling mode. Optional linear interpolation,

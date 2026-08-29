@@ -171,6 +171,41 @@ suite "Protracker MOD":
     let square = renderProtracker(parseProtrackerMod(squareData).module)
     check square.sound.buffer.channels[0] != sine.sound.buffer.channels[0]
 
+  test "E5 applies signed runtime fine-tune without changing the instrument":
+    var normalData = syntheticMod()
+    normalData[44] = 0
+    # Replace F06 with E50; the note uses the runtime finetune on this row.
+    normalData[1084 + 2] = 0x1e
+    normalData[1084 + 3] = 0x50
+    var sharpData = normalData
+    sharpData[1084 + 3] = 0x57
+    var flatData = normalData
+    flatData[1084 + 3] = 0x58
+    let normalModule = parseProtrackerMod(normalData).module
+    let sharp = renderProtracker(parseProtrackerMod(sharpData).module)
+    let flat = renderProtracker(parseProtrackerMod(flatData).module)
+    check sharp.sound.buffer.channels[0] !=
+      renderProtracker(normalModule).sound.buffer.channels[0]
+    check flat.sound.buffer.channels[0] != sharp.sound.buffer.channels[0]
+    check normalModule.instruments[0].fineTuneCents == 0.0
+
+  test "E3 switches tone-portamento glissando quantisation":
+    var smoothData = syntheticMod()
+    smoothData[44] = 0
+    # Replace F06 with E30 to select smooth portamento on channel 0.
+    smoothData[1084 + 2] = 0x1e
+    smoothData[1084 + 3] = 0x30
+    # Row 1/channel 0: target C-3 (period 214), tone-portamento speed 3.
+    smoothData[1084 + 16] = 0x00
+    smoothData[1084 + 17] = 0xd6
+    smoothData[1084 + 18] = 0x03
+    smoothData[1084 + 19] = 0x03
+    var glissandoData = smoothData
+    glissandoData[1084 + 3] = 0x31
+    let smooth = renderProtracker(parseProtrackerMod(smoothData).module)
+    let glissando = renderProtracker(parseProtrackerMod(glissandoData).module)
+    check glissando.sound.buffer.channels[0] != smooth.sound.buffer.channels[0]
+
   test "structurally exact unmarked 15-sample modules are probable":
     let inspection = inspectSource("old.mod", syntheticMod(15))
     check inspection.selectedFormat.typeId == ProtrackerModTypeId

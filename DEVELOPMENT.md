@@ -116,6 +116,10 @@ controls whether a new note resets phase. Each channel has private reproducible
 random state so repeated exports are byte-identical. `E4x` vibrato waveform
 selection mirrors the same waveform, reset, and private-random-state rules
 while modulating the temporary playback period rather than base volume.
+`E5x` selects one of the sixteen integer ProTracker finetune period tables in
+private channel replay state. `E30`/`E31` disable or enable semitone-quantised
+tone portamento; the underlying portamento accumulator remains smooth while
+only the period sent to playback is quantised.
 
 Audio playback polls the prepared `waveOut` header for natural completion,
 then releases the device and restores the Play state so the same resource can

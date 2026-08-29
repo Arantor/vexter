@@ -28,6 +28,54 @@ The supplied documentation SHA-256 values are:
 315486e2ffb43db7a73b20501e6d1f7fb49842d66bcf283fd7e4be4e489db269  Protracker Module Format - 4th edition.html
 ```
 
+The developer also supplied `PT2.3F_replay_cia.s`, obtained from Olav
+Sørensen's PT2.3F repository, and its accompanying `3-clause BSD LICENSE` on
+29 August 2026. Vexter uses the replay source as a behavioural reference for
+the sixteen integer finetune period tables and the `E3x`/`E5x` control flow;
+it does not include or assemble the supplied 680x0 implementation.
+
+Source URL:
+* https://github.com/8bitbubsy/pt23f/blob/main/replayer/PT2.3F_replay_cia.s
+
+```text
+b5dba561016ae6939f35dbf3147f9671c09fc6d515d5a834215c7355f95e365c  PT2.3F_replay_cia.s
+2ab4a93576ea590777d89788db17056306b4cf5e04723624c57795ed25494993  3-clause BSD LICENSE
+```
+
+The required licence text follows:
+
+```text
+BSD 3-Clause License
+
+Copyright (c) 2020-2025, Olav Sørensen
+All rights reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are met:
+
+1. Redistributions of source code must retain the above copyright notice, this
+   list of conditions and the following disclaimer.
+
+2. Redistributions in binary form must reproduce the above copyright notice,
+   this list of conditions and the following disclaimer in the documentation
+   and/or other materials provided with the distribution.
+
+3. Neither the name of the copyright holder nor the names of its
+   contributors may be used to endorse or promote products derived from
+   this software without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+```
+
 ## Adobe Swatch Exchange article and sample
 
 The developer supplied Richard Moss's 16 October 2015 Cyotek article,

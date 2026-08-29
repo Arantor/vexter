@@ -60,7 +60,8 @@ sample resource paths. The GUI provides a static module/order summary and
 independently selectable pattern grids. `/module/rendered-audio` derives a
 44.1 kHz, 16-bit stereo mix on demand; it uses the documented Amiga channel
 bias, sample-and-hold replay, sample loops, fine-tuning, volume and period
-changes, arpeggio, portamento, vibrato and tremolo with `E4x`/`E7x`
+changes, arpeggio, portamento, glissando, runtime finetune using the sixteen
+integer PT2.3F period tables, vibrato and tremolo with `E4x`/`E7x`
 sine/ramp/square/random waveform selection, sample offset, retrigger, note
 delay/cut, speed/tempo, pattern delay, position jumps, pattern breaks, and
 bounded pattern/restart loops. It can be played in the GUI or exported as WAV.
