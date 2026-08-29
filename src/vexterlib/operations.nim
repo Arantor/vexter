@@ -1236,6 +1236,9 @@ proc inspectSourceDepth(filename: string, data: openArray[byte],
       integerMetadata("columns", source.columns)]
     if source.name.len > 0:
       metadata.add stringMetadata("name", source.name)
+    if source.hasAlpha:
+      metadata.add stringMetadata("variant", "aseprite-rgba")
+      metadata.add stringMetadata("channels", "RGBA")
     result.resources.roots.add VextResourceNode(
       path: GimpPaletteResourcePath, typeId: GimpPaletteTypeId,
       kind: vrnkPalette, palette: source.palette, metadata: metadata)

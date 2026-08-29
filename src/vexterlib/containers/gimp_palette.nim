@@ -13,6 +13,7 @@ type GimpPalette* = object
   name*: string
   columns*: int
   version*: int
+  hasAlpha*: bool
   palette*: VextPalette
 
 proc text(data: openArray[byte]): string =
@@ -48,17 +49,23 @@ proc parseGimpPalette*(data: openArray[byte]): GimpPalette =
     result.version = 2
     result.name = lines[1]["Name: ".len .. ^1].strip
     bodyStart = 2
-    if lines.len > bodyStart and lines[bodyStart].startsWith("Columns: "):
-      let value = lines[bodyStart]["Columns: ".len .. ^1]
-      try:
-        result.columns = parseInt(value)
-      except ValueError:
-        raise newException(ValueError,
-          "GIMP palette column count must be an integer")
-      if result.columns < 0 or result.columns > 255:
-        raise newException(ValueError,
-          "GIMP palette column count must be between 0 and 255")
-      inc bodyStart
+
+  if lines.len > bodyStart and lines[bodyStart] == "Channels: RGBA":
+    result.hasAlpha = true
+    inc bodyStart
+
+  if result.version == 2 and lines.len > bodyStart and
+      lines[bodyStart].startsWith("Columns: "):
+    let value = lines[bodyStart]["Columns: ".len .. ^1]
+    try:
+      result.columns = parseInt(value)
+    except ValueError:
+      raise newException(ValueError,
+        "GIMP palette column count must be an integer")
+    if result.columns < 0 or result.columns > 255:
+      raise newException(ValueError,
+        "GIMP palette column count must be between 0 and 255")
+    inc bodyStart
 
   for lineIndex in bodyStart ..< lines.len:
     let line = lines[lineIndex]
@@ -67,11 +74,15 @@ proc parseGimpPalette*(data: openArray[byte]): GimpPalette =
     if fields.len < 3:
       raise newException(ValueError,
         "GIMP palette colour must contain red, green, and blue components")
+    if result.hasAlpha and fields.len < 4:
+      raise newException(ValueError,
+        "RGBA GIMP palette colour must contain an alpha component")
     if result.palette.colours.len >= MaximumGimpPaletteColours:
       raise newException(ValueError, "GIMP palette contains too many colours")
     result.palette.colours.add VextRgba(
       r: parseComponent(fields[0]), g: parseComponent(fields[1]),
-      b: parseComponent(fields[2]), a: 255)
+      b: parseComponent(fields[2]),
+      a: if result.hasAlpha: parseComponent(fields[3]) else: 255)
 
   if result.palette.colours.len == 0:
     raise newException(ValueError, "GIMP palette must contain at least one colour")

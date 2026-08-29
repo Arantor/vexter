@@ -301,7 +301,9 @@ proc detectBaseFormats(filename: string, data: openArray[byte]):
     let source = parseGimpPalette(data)
     var evidence = @[VextDetectionEvidence(description:
       "file begins with the GIMP palette magic identifier and contains " &
-      $source.palette.colours.len & " valid RGB colour entries")]
+      $source.palette.colours.len & " valid " &
+      (if source.hasAlpha: "Aseprite RGBA" else: "RGB") &
+      " colour entries")]
     if hasGimpPaletteExtension(filename):
       evidence.add VextDetectionEvidence(description: "file extension is .gpl")
     result.add VextDetectionCandidate(typeId: GimpPaletteTypeId,

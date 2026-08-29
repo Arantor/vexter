@@ -115,9 +115,8 @@ formats are not included. Detailed format behavior and evidence remain in
 
 - **Palette interchange**
   - Ordered palettes can currently be exported as PNG swatches and exact
-    metadata JSON. GIMP GPL and Paint.NET text palettes are supported as input,
-    but not as export formats. Dedicated Aseprite palette interchange needs a
-    supplied specification or controls before choosing the supported variants.
+    metadata JSON. GIMP GPL, Aseprite's alpha-bearing GPL modification, and
+    Paint.NET text palettes are supported as input, but not as export formats.
   - Brilliance `DRNG` and `BRNG` chunks in palette-only IFF files are not yet
     interpreted. Their accompanying `CMAP` colours remain available, but the
     additional range definitions require documentation and focused controls.

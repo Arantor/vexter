@@ -20,6 +20,12 @@ Their supplied-file SHA-256 values are:
 793af3d1aa2305aed01faeeacaadbd57d6ebeb8995fe899e12f86f7b1bb39e71  resurrect-64.gpl
 ```
 
+On 29 August 2026 the developer also supplied the Aseprite modification used
+by Vexter: a `Channels: RGBA` header immediately after the magic or optional
+name line changes body records from RGB to RGBA. This behavior is documented
+as supplied compatibility knowledge rather than attributed to the GIMP GPL
+specification.
+
 ## Lospec Paint.NET palette samples
 
 The developer supplied `general.txt` and `resurrect-64.txt` on 28 August 2026.

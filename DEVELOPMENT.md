@@ -239,7 +239,8 @@ Matching case-insensitive extensions add supporting evidence.
   and treats a declared colour count as advisory;
 
 - `gimp_palette.nim` validates GIMP Palette headers and ordered RGB entries,
-  infers the format version, and retains optional name and column metadata;
+  including Aseprite's marked RGBA modification, infers the format version,
+  and retains optional name, column, and compatibility metadata;
 
 - `amiga_workbench_icon.nim` validates classic big-endian Workbench
   DiskObjects, their serialized planar images, counted strings, and tool

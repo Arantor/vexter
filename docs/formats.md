@@ -672,6 +672,14 @@ red, green, and blue components from 0 through 255. Optional colour names are
 validated as part of the UTF-8 document but otherwise ignored. Entries become
 opaque RGBA colours in source order and naturally export as a PNG swatch.
 
+Aseprite's modified form places `Channels: RGBA` immediately after the magic
+line, or after `Name:` when present. Its entries require a fourth decimal alpha
+component, which Vexter preserves. Metadata marks these files with variant
+`aseprite-rgba` and channels `RGBA`, because GIMP itself treats the fourth
+component as part of the colour name and therefore does not preserve alpha.
+Without the marker, Vexter uses RGB only and ignores every value after the
+third component as an optional colour name.
+
 Type identifier: `gimp.palette`
 
 Resource path: `/palette`
