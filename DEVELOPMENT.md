@@ -38,6 +38,8 @@ client, and a dependency-free native Windows GUI. It supports:
   identified opaque resources, and metadata;
 - indexed still-image, indexed-animation, and true-colour image raster
   archetypes;
+- an ordered palette archetype whose entries are complete RGBA colours and
+  whose optional colour-cycle ranges move those entries as indivisible values;
 - a bitmap-font archetype with mono, indexed, or true-colour glyphs, explicit
   Unicode mappings, bearings, advances, line metrics, kerning, substitutions,
   and ligatures;
@@ -537,6 +539,12 @@ indexed animation, true-colour image, and true-colour animation contracts.
 Indexed and true-colour images may carry an orthogonal per-pixel eight-bit
 alpha channel; an omitted channel means fully opaque. `alphaAt`, `rgbaAt`, and
 `hasAlpha` provide representation-independent access and validation.
+
+`src/vexterlib/archetypes/palette.nim` defines an ordered collection of
+`VextRgba` entries plus optional colour-cycle ranges. Palette-entry alpha is
+intrinsic to each colour. It is distinct from an indexed raster's per-pixel
+alpha, which may vary between pixels that use the same RGB palette index;
+converting an indexed raster palette therefore creates opaque RGBA entries.
 
 `src/vexterlib/archetypes/font.nim` defines `VextBitmapFont`. Glyph identity is
 separate from Unicode mappings, allowing aliases and custom characters without

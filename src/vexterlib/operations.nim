@@ -1263,7 +1263,7 @@ proc inspectSourceDepth(filename: string, data: openArray[byte],
       if entry.name == "PLAYPAL":
         try:
           let palettes = decodeDoomPalettes(entry.entryBytes(data))
-          paletteZero = palettes[0].colours
+          for colour in palettes[0].colours: paletteZero.add colour.rgb
           break
         except ValueError:
           discard
@@ -1851,7 +1851,9 @@ proc inspectSourceDepth(filename: string, data: openArray[byte],
     else:
       parsedValue[AmigaIlbm](selectedParsed, vhkAmigaIlbm).image
     if not image.hasBitmap:
-      let colours = decodeAmigaIlbmPalette(image)
+      let rgbColours = decodeAmigaIlbmPalette(image)
+      var colours: seq[VextRgba]
+      for colour in rgbColours: colours.add colour.rgba
       var cycles: seq[VextColourCycleRange]
       for cycle in image.colourCycles:
         if cycle.low >= 0 and cycle.high < colours.len and

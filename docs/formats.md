@@ -649,11 +649,11 @@ declared colour count, but it is advisory and does not constrain or override
 the number of parsed entries. Other comments, including generic download
 URLs, are not interpreted as metadata.
 
-The ordered colours use the generic palette archetype. Per-entry alpha is
-retained when any entry is not opaque, appears in metadata JSON, and is
-preserved by the PNG swatch used for natural export and GUI preview. Existing
-opaque palettes use the same optional-alpha representation without acquiring
-redundant alpha data.
+The ordered colours use complete RGBA entries in the generic palette
+archetype. Per-entry alpha appears in metadata JSON and is preserved by the PNG
+swatch used for natural export and GUI preview. Opaque entries simply carry an
+alpha value of 255; there is no parallel alpha vector to synchronize with the
+colour sequence.
 
 Type identifier: `paint-net.palette`
 

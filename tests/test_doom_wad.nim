@@ -162,7 +162,7 @@ suite "DOOM WAD":
     check lumps.children[0].children.len == DoomPaletteCount
     check lumps.children[0].children[0].kind == vrnkPalette
     check lumps.children[0].children[13].palette.colours[42] ==
-      VextRgb(r: 42, g: 13, b: 213)
+      VextRgba(r: 42, g: 13, b: 213, a: 255)
 
     let flatNode = inspection.resources.findRasterResource(
       "/wad/lumps/2-FLOOR1")

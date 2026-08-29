@@ -43,8 +43,6 @@ proc parsePaintNetPalette*(data: openArray[byte]): PaintNetPalette =
       "Paint.NET palette must begin with its magic comment")
 
   result.declaredColourCount = -1
-  var alpha: seq[uint8]
-  var hasTransparency = false
   for lineIndex in 1 ..< lines.len:
     let line = lines[lineIndex]
     if line.len == 0: continue
@@ -70,16 +68,13 @@ proc parsePaintNetPalette*(data: openArray[byte]): PaintNetPalette =
         "Paint.NET palette colour must contain exactly eight ARGB hex digits")
     if result.palette.colours.len >= MaximumPaintNetPaletteColours:
       raise newException(ValueError, "Paint.NET palette contains too many colours")
-    let a = hexByte(line, 0)
-    result.palette.colours.add VextRgb(
-      r: hexByte(line, 2), g: hexByte(line, 4), b: hexByte(line, 6))
-    alpha.add a
-    if a != 255: hasTransparency = true
+    result.palette.colours.add VextRgba(
+      r: hexByte(line, 2), g: hexByte(line, 4), b: hexByte(line, 6),
+      a: hexByte(line, 0))
 
   if result.palette.colours.len == 0:
     raise newException(ValueError,
       "Paint.NET palette must contain at least one colour")
-  if hasTransparency: result.palette.alpha = move(alpha)
   result.palette.validate
 
 proc isPaintNetPalette*(data: openArray[byte]): bool =

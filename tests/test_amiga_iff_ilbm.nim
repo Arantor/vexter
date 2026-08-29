@@ -80,24 +80,25 @@ suite "Amiga IFF ILBM":
     check resource.kind == vrnkPalette
     check resource.path == "/palette"
     check resource.palette.colours.len == 4
-    check resource.palette.colours[0] == VextRgb(r: 0x10, g: 0x20, b: 0x30)
+    check resource.palette.colours[0] ==
+      VextRgba(r: 0x10, g: 0x20, b: 0x30, a: 255)
     check resource.palette.colourCycles.len == 1
     check resource.palette.colourCycles[0].low == 1
     check resource.palette.colourCycles[0].high == 3
     let swatch = renderPaletteSwatch(resource.palette)
     check swatch.width > 48 # Caption is embedded in the image.
     check swatch.height == 61
-    check swatch.colourAt(8, 8) == resource.palette.colours[0]
-    check swatch.colourAt(24, 8) == resource.palette.colours[1]
-    check swatch.colourAt(8, 53) == resource.palette.colours[1]
-    check swatch.colourAt(24, 53) == resource.palette.colours[2]
-    check swatch.colourAt(40, 53) == resource.palette.colours[3]
+    check swatch.colourAt(8, 8) == resource.palette.colours[0].rgb
+    check swatch.colourAt(24, 8) == resource.palette.colours[1].rgb
+    check swatch.colourAt(8, 53) == resource.palette.colours[1].rgb
+    check swatch.colourAt(24, 53) == resource.palette.colours[2].rgb
+    check swatch.colourAt(40, 53) == resource.palette.colours[3].rgb
     var reversePalette = resource.palette
     reversePalette.colourCycles[0].direction = -1
     let reverseSwatch = renderPaletteSwatch(reversePalette)
-    check reverseSwatch.colourAt(8, 53) == resource.palette.colours[3]
-    check reverseSwatch.colourAt(24, 53) == resource.palette.colours[2]
-    check reverseSwatch.colourAt(40, 53) == resource.palette.colours[1]
+    check reverseSwatch.colourAt(8, 53) == resource.palette.colours[3].rgb
+    check reverseSwatch.colourAt(24, 53) == resource.palette.colours[2].rgb
+    check reverseSwatch.colourAt(40, 53) == resource.palette.colours[1].rgb
     let exported = exportResource(inspection.resources,
       VextExportRequest(suggestedName: "shared-palette"))
     check exported.outputFormat == "palette-swatch"
@@ -172,15 +173,16 @@ suite "Amiga IFF ILBM":
     check swatch.height == 256
 
   test "standalone palettes are not limited by eight-bit image indices":
-    var colours = newSeq[VextRgb](384)
+    var colours = newSeq[VextRgba](384)
     for index in 0 ..< colours.len:
-      colours[index] = VextRgb(r: uint8(index mod 256),
-        g: uint8(index div 2 mod 256), b: uint8(index div 3 mod 256))
+      colours[index] = VextRgba(r: uint8(index mod 256),
+        g: uint8(index div 2 mod 256), b: uint8(index div 3 mod 256),
+        a: 255)
     let swatch = renderPaletteSwatch(VextPalette(colours: colours))
     check swatch.width == 320
     check swatch.height == 320
-    check swatch.colourAt(8, 8) == colours[0]
-    check swatch.colourAt(56, 312) == colours[383]
+    check swatch.colourAt(8, 8) == colours[0].rgb
+    check swatch.colourAt(56, 312) == colours[383].rgb
 
   test "HAM6 holds and modifies RGB components across a scanline":
     var palette = newSeq[byte](16 * 3)

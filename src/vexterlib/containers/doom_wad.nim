@@ -173,12 +173,12 @@ proc decodeDoomPalettes*(data: openArray[byte]): seq[VextPalette] =
   if data.len != DoomPaletteCount * DoomPaletteBytes:
     raise newException(ValueError, "PLAYPAL must contain fourteen 256-colour palettes")
   for paletteIndex in 0 ..< DoomPaletteCount:
-    var palette: seq[VextRgb]
+    var palette: seq[VextRgba]
     let start = paletteIndex * DoomPaletteBytes
     for colour in 0 ..< DoomPaletteColours:
       let offset = start + colour * 3
-      palette.add VextRgb(r: data[offset], g: data[offset + 1],
-        b: data[offset + 2])
+      palette.add VextRgba(r: data[offset], g: data[offset + 1],
+        b: data[offset + 2], a: 255)
     result.add VextPalette(colours: palette)
 
 proc parseDoomSound*(data: openArray[byte]): DoomSoundSource =

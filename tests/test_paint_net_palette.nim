@@ -30,9 +30,8 @@ suite "Paint.NET palettes":
     check resource.path == PaintNetPaletteResourcePath
     check resource.kind == vrnkPalette
     check resource.palette.colours == @[
-      VextRgb(r: 0x40, g: 0xa0, b: 0xff),
-      VextRgb(r: 1, g: 2, b: 3)]
-    check resource.palette.alpha == @[0x80'u8, 0xff]
+      VextRgba(r: 0x40, g: 0xa0, b: 0xff, a: 0x80),
+      VextRgba(r: 1, g: 2, b: 3, a: 0xff)]
     check resource.metadataValue("name") == "Example"
     check resource.metadataValue("description") == "A small palette"
     check resource.metadata[0].value.integerValue == 2
@@ -62,7 +61,7 @@ suite "Paint.NET palettes":
     check source.name.len == 0
     check source.description.len == 0
     check source.declaredColourCount == -1
-    check source.palette.alpha.len == 0
+    check source.palette.colours[0].a == 255
     let resource = inspectSource("palette", bytes(
       ";paint.net Palette File\n;Description:\nFFabcdef\n")).resources.roots[0]
     check not resource.hasMetadata("name")

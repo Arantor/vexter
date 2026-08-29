@@ -58,6 +58,12 @@ type
     of vrkTrueColourAnimation:
       trueColourAnimation*: VextTrueColourAnimation
 
+proc rgba*(colour: VextRgb, alpha = 255'u8): VextRgba =
+  VextRgba(r: colour.r, g: colour.g, b: colour.b, a: alpha)
+
+proc rgb*(colour: VextRgba): VextRgb =
+  VextRgb(r: colour.r, g: colour.g, b: colour.b)
+
 proc pixelAt*(image: VextIndexedImage, x, y: int): uint8 =
   ## Returns the palette index at `(x, y)`.
   if x < 0 or x >= image.width or y < 0 or y >= image.height:

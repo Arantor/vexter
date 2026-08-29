@@ -29,9 +29,9 @@ proc paletteNode(palette: VextPalette): JsonNode =
   result = %*{"archetype": "VextPalette",
     "colourCycles": cyclesNode(palette.colourCycles)}
   var colours = newJArray()
-  for index, colour in palette.colours:
+  for colour in palette.colours:
     colours.add %*{"r": colour.r, "g": colour.g, "b": colour.b,
-      "a": (if palette.alpha.len == 0: 255 else: int(palette.alpha[index]))}
+      "a": colour.a}
   result["colours"] = colours
 
 proc rasterNode(raster: VextRaster): JsonNode =
