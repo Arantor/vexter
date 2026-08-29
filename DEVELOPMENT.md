@@ -123,7 +123,9 @@ only the period sent to playback is quantised.
 
 Audio playback polls the prepared `waveOut` header for natural completion,
 then releases the device and restores the Play state so the same resource can
-be replayed. The resource TreeView uses persistent inactive selection so the
+be replayed. Audio waveform previews draw each channel in a separate vertical
+lane (left above right for stereo) rather than collapsing the display to the
+first channel. The resource TreeView uses persistent inactive selection so the
 current item remains visible while a playback or export control has focus.
 
 Contained resources carrying decode failures use the standard Windows warning

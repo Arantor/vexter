@@ -616,21 +616,31 @@ proc paintPreview(hwnd: HWND) =
     let channels = sound.buffer.channels
     if channels.len > 0 and channels[0].len > 0:
       let width = max(1, int(area.right-area.left))
-      let height = int(area.bottom-area.top)
-      discard MoveToEx(dc, 0, int32(height div 2), nil)
-      for x in 0..<width:
-        let first = x * channels[0].len div width
-        let last = max(first+1, (x+1) * channels[0].len div width)
-        var lo = high(int32)
-        var hi = low(int32)
-        for i in first..<min(last, channels[0].len):
-          lo = min(lo, channels[0][i])
-          hi = max(hi, channels[0][i])
-        let denom = max(1.0, pow(2.0, sound.buffer.bitsPerSample.float-1))
-        let y1 = height div 2 - int(hi.float / denom * (height.float * 0.45))
-        let y2 = height div 2 - int(lo.float / denom * (height.float * 0.45))
-        discard MoveToEx(dc, int32(x), int32(y1), nil)
-        discard LineTo(dc, int32(x), int32(y2))
+      let height = max(1, int(area.bottom-area.top))
+      let denominator = max(1.0,
+        pow(2.0, sound.buffer.bitsPerSample.float-1))
+      # Give every channel its own lane. For ordinary stereo this presents
+      # left above right instead of silently drawing only the left channel.
+      for channelIndex, channel in channels:
+        let laneTop = channelIndex * height div channels.len
+        let laneBottom = (channelIndex + 1) * height div channels.len
+        let laneHeight = max(1, laneBottom - laneTop)
+        let centre = laneTop + laneHeight div 2
+        discard MoveToEx(dc, 0, int32(centre), nil)
+        discard LineTo(dc, int32(width), int32(centre))
+        for x in 0..<width:
+          let first = x * channel.len div width
+          let last = max(first+1, (x+1) * channel.len div width)
+          var lo = high(int32)
+          var hi = low(int32)
+          for i in first..<min(last, channel.len):
+            lo = min(lo, channel[i])
+            hi = max(hi, channel[i])
+          let amplitude = laneHeight.float * 0.45
+          let y1 = centre - int(hi.float / denominator * amplitude)
+          let y2 = centre - int(lo.float / denominator * amplitude)
+          discard MoveToEx(dc, int32(x), int32(y1), nil)
+          discard LineTo(dc, int32(x), int32(y2))
   discard EndPaint(hwnd, addr ps)
 
 proc previewProc(hwnd: HWND, msg: UINT, wp: WPARAM, lp: LPARAM): LRESULT {.stdcall.} =
