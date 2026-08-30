@@ -47,20 +47,6 @@ formats are not included. Detailed format behavior and evidence remain in
     suite. Document its representative inputs and expected observations once
     suitable resources are available.
 
-- **GUI raster-preview resampling**
-  - Raster previews currently use nearest-neighbour-style scaling. This is the
-    desired default when enlarging legacy pixel art, but large images scaled
-    down to fit the preview can lose thin features or appear broken; WAD map
-    previews are a concrete example.
-  - Add direction-aware resampling choices. Investigate bicubic resampling as
-    the initial higher-quality default for downscaling, retain nearest-neighbour
-    enlargement as the default for legacy pixel material, and allow other
-    upscaling or downscaling methods to be selected where useful.
-  - Keep resampling a GUI presentation decision: changing preview quality must
-    not alter decoded rasters or exported source-resolution content. Define
-    expected behaviour for animation, alpha, indexed images, very large
-    previews, and repeated repainting before choosing an implementation.
-
 - **DOS ANSI art**
   - ANSiMation currently yields only its final static terminal state; no source
     timing convention has yet been supplied.

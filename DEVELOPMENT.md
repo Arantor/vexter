@@ -108,6 +108,14 @@ tracker columns and source listings aligned and supports the block characters
 used by ZX Spectrum BASIC, with normal Windows font linking available for
 additional Unicode annotation glyphs.
 
+Raster-preview scaling is a presentation-only operation. Fit mode preserves
+aspect ratio and caps enlargement at 5x, preventing tiny resources from filling
+the complete viewport. Reductions and true-colour enlargement use GDI's
+filtered halftone resampling; indexed images, indexed animations, bitmap-font
+previews, and palette swatches retain nearest-neighbour enlargement. Explicit
+integer zoom uses the same direction- and archetype-aware policy. Source
+rasters and exports remain unchanged.
+
 The normal `nimble gui` task is a release build. ProTracker replay uses 32.32
 fixed-point sample positions and borrows sample slices in its inner mixer;
 copying reference-counted sampled-instrument values per output frame causes a

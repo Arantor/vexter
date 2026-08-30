@@ -5,6 +5,7 @@ when not defined(windows):
 
 import std/[math, os, strformat, strutils, widestrs]
 import vexterlib
+import vexterlib/gui_preview
 
 {.passC: "-D_WIN32_WINNT=0x0601 -DWINVER=0x0601 -include windows.h".}
 {.passL: "-lcomctl32 -lcomdlg32 -lgdi32 -lwinmm -lshell32 -lole32".}
@@ -254,6 +255,7 @@ const
   DIB_RGB_COLORS = 0'u32
   SRCCOPY = 0x00CC0020'u32
   COLORONCOLOR = 3
+  HALFTONE = 4
   WHDR_DONE = 0x00000001'u32
   SB_HORZ = 0
   SB_VERT = 1
@@ -315,6 +317,8 @@ proc ShowScrollBar(hwnd: HWND, bar: int32, show: BOOL): BOOL {.stdcall, importc,
 proc GetScrollInfo(hwnd: HWND, bar: int32, info: ptr SCROLLINFO): BOOL {.stdcall, importc, header: "<windows.h>".}
 proc SetScrollInfo(hwnd: HWND, bar: int32, info: ptr SCROLLINFO, redraw: BOOL): int32 {.stdcall, importc, header: "<windows.h>".}
 proc SetStretchBltMode(dc: HDC, mode: int32): int32 {.stdcall, importc, header: "<windows.h>".}
+proc SetBrushOrgEx(dc: HDC, x, y: int32, old: pointer): BOOL
+    {.stdcall, importc, header: "<windows.h>".}
 proc StretchDIBits(dc: HDC, x, y, dw, dh, sx, sy, sw, sh: int32,
     bits: pointer, info: ptr BITMAPINFO, usage, rop: DWORD): int32 {.stdcall, importc, header: "<windows.h>".}
 proc MoveToEx(dc: HDC, x, y: int32, old: pointer): BOOL {.stdcall, importc, header: "<windows.h>".}
@@ -579,10 +583,8 @@ proc paintPreview(hwnd: HWND) =
         biBitCount: 32, biCompression: 0)
       var dw, dh: int
       if scaleChoice == 0:
-        let factor = min(availableW.float / image.width.float,
-          availableH.float / image.height.float)
-        dw = max(1, int(image.width.float * factor))
-        dh = max(1, int(image.height.float * factor))
+        (dw, dh) = previewFitSize(image.width, image.height, availableW,
+          availableH)
       else:
         dw = image.width * scaleChoice
         dh = image.height * scaleChoice
@@ -626,7 +628,18 @@ proc paintPreview(hwnd: HWND) =
         discard GetScrollInfo(hwnd, SB_VERT, addr vertical)
         scrollX = int(horizontal.nPos)
         scrollY = int(vertical.nPos)
-      discard SetStretchBltMode(dc, COLORONCOLOR)
+      let indexedPreview = currentView == vkFont or
+        (not selected.isNil and not selected.node.isNil and
+          (selected.node.kind == vrnkPalette or
+          (selected.node.kind == vrnkRaster and selected.node.raster.kind in
+            {vrkIndexedImage, vrkIndexedAnimation})))
+      let resampling = previewResampling(indexedPreview, image.width,
+        image.height, dw, dh)
+      if resampling == vprFiltered:
+        discard SetStretchBltMode(dc, HALFTONE)
+        discard SetBrushOrgEx(dc, 0, 0, nil)
+      else:
+        discard SetStretchBltMode(dc, COLORONCOLOR)
       let drawX = if dw <= availableW: (availableW-dw) div 2 else: -scrollX
       let drawY = if dh <= availableH: (availableH-dh) div 2 else: -scrollY
       discard StretchDIBits(dc, int32(drawX), int32(drawY), int32(dw), int32(dh), 0, 0,
