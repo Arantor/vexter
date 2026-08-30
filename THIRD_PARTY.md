@@ -343,6 +343,20 @@ b7e9e23c18a08ef177b6ded86dfeb9b3c44f79e2c25ef2160c335ee49ab7957d  Images/koa/gar
 40d96317a68fdf5301412846693cfaf0cdd1c4e3480502ec35633279e2b402ce  Images/prg/r-type.prg
 ```
 
+On 30 August 2026 the developer added `garfield.koa` and `ghost.koa`, extracted
+from the D64 image distributed on the [CSDb release page 256762](https://csdb.dk/release/?id=256762),
+as committed authentic fixtures. Supplied indexed PNG renderings accompany the
+two KoalaPainter files as visual controls. The source release page
+and extracted material did not include separate licence terms in the
+provenance supplied to this project.
+
+```text
+0dd271d804f5e5135a2be375b3a7aeacefd57aa740d6726aa779e57d3448e988  tests/fixtures/commodore64.koala-painter/garfield.koa
+c637b17c939edbfbf161dc52a823f3f49061fd0cf6ab387034de3dab6629269e  tests/fixtures/commodore64.koala-painter/garfield.png
+d64acf03e17ff369beaec8b93c32521607655d9ff37e8fabadbb031b3f97150f  tests/fixtures/commodore64.koala-painter/ghost.koa
+76f40724948764fb6168917e6f7baf505f1579e404cfac60e6c203b88616cfd5  tests/fixtures/commodore64.koala-painter/ghost.png
+```
+
 ## ISO 9660 reference
 
 The developer supplied a local copy of Wikipedia's

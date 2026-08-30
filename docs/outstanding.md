@@ -325,10 +325,6 @@ formats are not included. Detailed format behavior and evidence remain in
     be rendered.
   - Automated compatibility coverage is currently synthetic.
 
-- **Commodore 64 KoalaPainter images**
-  - Authentic supplied samples are temporary compatibility controls rather
-    than committed fixtures; routine automated coverage is synthetic.
-
 - **Amiga Workbench icons**
   - Chained classic icon images are unsupported.
   - Broader authentic controls for classic, NewIcons, and GlowIcons variants

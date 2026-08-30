@@ -1071,7 +1071,8 @@ The routine suites are:
 - `tests/test_koala_painter.nim`: fixed-layout validation, extension and size
   confidence, noncanonical load addresses, tolerated trailing data,
   multicolour selector ordering, doubled pixels, and the Colodore VIC-II
-  palette mapping;
+  palette mapping, plus pixel-exact comparison of two authentic D64-extracted
+  images against their supplied indexed PNG controls;
 - `tests/test_netpbm.nim`: P1–P7 parsing, comments, packed PBM rows, plain
   samples, 16-bit raw samples, exact binary delimiters, concatenated images,
   PAM visual tuple types and alpha, extra planes, and malformed input;

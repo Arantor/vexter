@@ -1770,10 +1770,19 @@ Lospec Paint.NET palette. That palette file groups colours visually, so Vexter
 reorders the exact supplied ARGB values into the VIC-II indices established by
 the datatype's named C64 palette and Koala selector semantics. The temporary
 AmigaOS datatype package supplies the format specification, independent
-decoder behavior, and 45 authentic compatibility images across `.kla`, `.koa`,
-`.prg`, and extensionless names. Routine tests use synthetic structures; the
-temporary samples are not committed. Full provenance and selected hashes are
-recorded in [`THIRD_PARTY.md`](../THIRD_PARTY.md).
+decoder behavior, and 45 uncommitted compatibility images across `.kla`,
+`.koa`, `.prg`, and extensionless names. Routine structural edge cases remain
+synthetic, supplemented by the committed authentic controls below. Full
+provenance and selected hashes are recorded in
+[`THIRD_PARTY.md`](../THIRD_PARTY.md).
+
+The committed authentic fixtures `garfield.koa` and `ghost.koa` were extracted
+from the D64 image supplied through CSDb release 256762. Their accompanying
+indexed PNG controls match Vexter's decoded RGB output at every pixel. They
+provide routine coverage of complete authentic `$6000` images, VIC-II selector
+interpretation, cell traversal, doubled multicolour pixels, background colour,
+and the reordered Colodore palette. The four fixture hashes and full source
+provenance are recorded in [`THIRD_PARTY.md`](../THIRD_PARTY.md).
 
 ## QOI images
 
