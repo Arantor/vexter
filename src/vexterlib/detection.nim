@@ -5,7 +5,7 @@ import ./handler_registry
 import ./format_detection_types
 export format_detection_types
 import ./containers/[amiga_8svx, amiga_16sv, amiga_acbm, amiga_adf, amiga_anim, amiga_diskfont, amiga_dms, amiga_hunk_executable, amiga_iff, amiga_ilbm, amiga_lha_sfx, amiga_pbm, amiga_workbench_icon, amos_bank, amos_bank_set, amos_program,
-  adobe_swatch_exchange, amos_sprite_icon_bank, ansi_art, aseprite, bmfont, bmp, creative_voice, doom_wad, flic, fzx, gif_container, gimp_palette, iso9660, jpeg, koala_painter, netpbm, paint_net_palette, pcx, png_container, protracker_mod, qoi, tga,
+  adobe_swatch_exchange, amos_sprite_icon_bank, ansi_art, aseprite, bmfont, bmp, creative_voice, doom_wad, electron_asar, flic, fzx, gif_container, gimp_palette, iso9660, jpeg, koala_painter, netpbm, paint_net_palette, pcx, png_container, protracker_mod, qoi, tga,
   wav, windows_icon, zip_archive, lha_archive, zx_spectrum_screen_dump, zx_spectrum_snapshot, zx_spectrum_tap]
 import ./containers/xpk_shri
 import ./containers/powerpacker
@@ -45,6 +45,16 @@ proc detectBaseFormats(filename: string, data: openArray[byte]):
     if hasDoomWadExtension(filename):
       evidence.add VextDetectionEvidence(description: "file extension is .wad")
     result.add VextDetectionCandidate(typeId: DoomWadTypeId,
+      confidence: vdcCertain, evidence: evidence)
+
+  if isElectronAsar(data):
+    let archive = parseElectronAsar(data)
+    var evidence = @[VextDetectionEvidence(description:
+      "file has valid ASAR Pickle framing, a JSON file manifest, and " &
+      $archive.entries.len & " bounded entries")]
+    if hasElectronAsarExtension(filename):
+      evidence.add VextDetectionEvidence(description: "file extension is .asar")
+    result.add VextDetectionCandidate(typeId: ElectronAsarTypeId,
       confidence: vdcCertain, evidence: evidence)
 
   if isAmigaDiskfontIndex(data):

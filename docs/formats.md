@@ -461,6 +461,40 @@ routine suite embeds one authentic small LH5 member with its decoded control.
 Whole-container extraction preserves the archive hierarchy and stored member
 names, materializing each LH0 or LH5 payload only when it is written.
 
+## Electron ASAR archives
+
+Container type identifier: `archive.electron-asar`
+
+Electron ASAR is an uncompressed random-access archive. Vexter validates the
+8-byte header-size Pickle, the second Pickle's payload length, JSON-string
+length, NUL terminator and four-byte padding, then parses the JSON `files`
+manifest. Packed members use decimal-string offsets relative to the end of the
+two Pickles. Sizes, offsets, paths, UTF-8 names, payload bounds, executable
+flags, and optional SHA256 integrity metadata are validated. Duplicate files
+may share the same offset as described by the format.
+
+The archive appears below `/archive`; files and directories use
+`archive.electron-asar-file` and `archive.electron-asar-directory`. Opening an
+archive reads only its Pickle header and manifest. Directory expansion remains
+structural, while selecting or extracting a packed file reads only that file's
+stored bytes. Whole-container extraction therefore preserves the hierarchy,
+dotfiles, extensions, empty directories, and stored member contents without
+recursively exporting recognized files.
+
+Entries marked `unpacked` are inventoried with their sizes and integrity
+metadata but have no payload inside the ASAR. The supplied format document does
+not define how to locate their external companion files, so Vexter currently
+shows them as non-materializable leaves and warns that they were skipped during
+whole-container extraction. SHA256 strings and block counts are structurally
+validated, but their digests are not yet recomputed when a payload is read.
+
+The implementation follows the developer-supplied `asar/README.md` from the
+MIT-licensed `@electron/asar` project. Its concise description plus the supplied
+application archive establish the limited Pickle framing needed here; Vexter
+does not implement or depend on Chromium's general Pickle serializer. The
+application archive is a temporary compatibility control and is not part of
+the routine test suite.
+
 ## ZIP archives
 
 Container type identifier: `archive.zip`

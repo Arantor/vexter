@@ -234,6 +234,12 @@ formats are not included. Detailed format behavior and evidence remain in
   - ZIP64, encrypted entries, classic multi-volume archives, and compression
     methods other than stored and DEFLATE are unsupported.
 
+- **Electron ASAR archives**
+  - External files marked `unpacked` are inventoried but cannot be resolved or
+    extracted until supplied documentation defines their companion location.
+  - Declared SHA256 hashes and per-block hashes are structurally validated but
+    are not yet recomputed during materialization.
+
 - **Amiga IFF 8SVX audio**
   - Multi-octave BODY layout is unsupported.
   - WAV export does not preserve instrument loop, volume, pan, or pitch-cycle

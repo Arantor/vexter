@@ -9,7 +9,7 @@ import ./format_detection_types
 import ./metadata
 import ./operations
 import ./resource_tree
-import ./containers/[amiga_adf, amiga_dms, iso9660, lha_archive, openraster,
+import ./containers/[amiga_adf, amiga_dms, electron_asar, iso9660, lha_archive, openraster,
   powerpacker, xpk_shri, zip_archive]
 import ./resources/[ansi_art_image, pcx_image]
 
@@ -116,6 +116,7 @@ type
     vskOpenRaster
     vskIso9660
     vskLha
+    vskElectronAsar
     vskAmigaAdf
     vskDeferredWrapper
 
@@ -142,6 +143,8 @@ type
     isoVisited: HashSet[string]
     lha: LhaArchive
     lhaEntryById: Table[VextResourceId, int]
+    asar: ElectronAsarArchive
+    asarEntryById: Table[VextResourceId, int]
     adf: AmigaAdfIndex
     adfEntryById: Table[VextResourceId, AmigaAdfEntry]
     adfVisited: HashSet[int]
@@ -334,6 +337,15 @@ proc selectLha(session: VextInspectionSession) =
   session.candidates = @[lhaCandidate]
   session.kind = vskLha
 
+proc selectElectronAsar(session: VextInspectionSession) =
+  session.asar = parseElectronAsar(session.sources.primary,
+    session.limits.maximumManifestBytes)
+  let asarCandidate = candidate(ElectronAsarTypeId, vdcCertain,
+    "source has valid ASAR Pickle framing and a bounded JSON file manifest")
+  session.selectedFormat = asarCandidate
+  session.candidates = @[asarCandidate]
+  session.kind = vskElectronAsar
+
 proc selectAmigaAdf(session: VextInspectionSession) =
   session.adf = indexAmigaAdf(session.sources.primary)
   let adfCandidate = candidate(AmigaAdfTypeId, vdcCertain,
@@ -378,6 +390,9 @@ proc openInspectionSession*(filename: string, sources: VextSourceCollection,
       leading[3] in [2'u8, 4'u8, 6'u8, 8'u8]
     let preferLha = leading.len == 7 and leading[2] == byte('-') and
       leading[6] == byte('-')
+    let preferAsar = filename.hasElectronAsarExtension and leading.len >= 4 and
+      leading[0] == 4 and leading[1] == 0 and leading[2] == 0 and
+      leading[3] == 0
     let preferAdf = leading.len >= 4 and leading[0] == byte('D') and
       leading[1] == byte('O') and leading[2] == byte('S') and leading[3] <= 5 and
       sources.primary.length in [AmigaAdfDdSize, AmigaAdfHdSize]
@@ -409,6 +424,7 @@ proc openInspectionSession*(filename: string, sources: VextSourceCollection,
             "source is not a valid OpenRaster package")
       of Iso9660TypeId: result.selectIso()
       of LhaArchiveTypeId: result.selectLha()
+      of ElectronAsarTypeId: result.selectElectronAsar()
       of AmigaAdfTypeId: result.selectAmigaAdf()
       of AmigaDmsTypeId:
         result.selectDeferredWrapper(AmigaDmsTypeId, "/disk",
@@ -429,6 +445,9 @@ proc openInspectionSession*(filename: string, sources: VextSourceCollection,
       try:
         result.selectDeferredWrapper(XpkTypeId, "/content",
           "source has valid XPK master and chunk framing")
+      except ValueError: selectLegacy()
+    elif preferAsar:
+      try: result.selectElectronAsar()
       except ValueError: selectLegacy()
     elif preferPowerPacker:
       try:
@@ -504,6 +523,22 @@ proc openInspectionSession*(filename: string, sources: VextSourceCollection,
       let root = result.allocateDescriptor("/archive", LhaArchiveTypeId,
         vrnkGroup, {vrcEnumerateChildren, vrcExtractTree}, vvlStructural, metadata = @[
           integerMetadata("entries", result.lha.entries.len)])
+      result.commit(root)
+      result.roots.add root.id
+    of vskElectronAsar:
+      var packedFiles, unpackedFiles: int
+      for entry in result.asar.entries:
+        if entry.isDirectory: discard
+        elif entry.unpacked: inc unpackedFiles
+        else: inc packedFiles
+      let root = result.allocateDescriptor("/archive", ElectronAsarTypeId,
+        vrnkGroup, {vrcEnumerateChildren, vrcExtractTree}, vvlManifest,
+        metadata = @[
+          integerMetadata("entries", result.asar.entries.len),
+          integerMetadata("files.packed", packedFiles),
+          integerMetadata("files.unpacked", unpackedFiles),
+          integerMetadata("header.length", result.asar.headerSize),
+          integerMetadata("manifest.length", result.asar.headerJsonSize)])
       result.commit(root)
       result.roots.add root.id
     of vskAmigaAdf:
@@ -659,6 +694,66 @@ proc expandResource*(session: VextInspectionSession, id: VextResourceId,
       session.children.mgetOrPut(id, @[]).add pendingItem.item.id
       if pendingItem.entryIndex >= 0:
         session.lhaEntryById[pendingItem.item.id] = pendingItem.entryIndex
+      result.children.add pendingItem.item
+    session.expanded.incl id
+    return
+  if session.kind == vskElectronAsar:
+    let prefix = prefixSegments(result.parentDescriptor.path)
+    var paths = initHashSet[string]()
+    var localNext = session.nextId
+    var pending: seq[tuple[item: VextResourceDescriptor, entryIndex: int]]
+    for entryIndex, entry in session.asar.entries:
+      if not entry.segments.startsWithSegments(prefix) or
+          entry.segments.len <= prefix.len:
+        continue
+      let directIndex = prefix.len
+      var path = "/archive"
+      for index in 0 .. directIndex: path.add "/" & entry.segments[index]
+      if path in paths: continue
+      paths.incl path
+      inc localNext
+      let directFile = entry.segments.len == prefix.len + 1 and
+        not entry.isDirectory
+      var metadata: seq[VextMetadataEntry]
+      if directFile:
+        metadata = @[
+          stringMetadata("asar.name", entry.name),
+          integerMetadata("data.length", entry.size),
+          integerMetadata("asar.unpacked", ord(entry.unpacked)),
+          integerMetadata("asar.executable", ord(entry.executable))]
+        if entry.integrityAlgorithm.len > 0:
+          metadata.add stringMetadata("integrity.algorithm",
+            entry.integrityAlgorithm)
+          metadata.add stringMetadata("integrity.hash", entry.integrityHash)
+          metadata.add integerMetadata("integrity.block-size",
+            entry.integrityBlockSize)
+          metadata.add integerMetadata("integrity.blocks",
+            entry.integrityBlocks)
+      let item = VextResourceDescriptor(id: VextResourceId(localNext),
+        path: path,
+        typeId: if directFile: ElectronAsarFileTypeId
+          else: ElectronAsarDirectoryTypeId,
+        kind: if directFile: vrnkOpaque else: vrnkGroup,
+        capabilities: if directFile and not entry.unpacked:
+          {vrcMaterializePayload, vrcProbeNested}
+        elif directFile: {}
+        else: {vrcEnumerateChildren}, validatedThrough: vvlManifest,
+        estimatedBytes: if directFile: entry.size else: 0,
+        metadata: metadata)
+      pending.add (item, if directFile: entryIndex else: -1)
+    if session.descriptors.len + pending.len > session.limits.maximumResources:
+      raise newException(VextWorkLimitError,
+        "resource count exceeds the inspection limit")
+    progress.report(VextSessionProgressEvent(phase: vsppEnumerating,
+      path: result.parentDescriptor.path, completed: pending.len,
+      discovered: pending.len, pending: 0, totalState: vptsFinal,
+      message: "Children enumerated"))
+    session.nextId = localNext
+    for pendingItem in pending:
+      session.commit(pendingItem.item)
+      session.children.mgetOrPut(id, @[]).add pendingItem.item.id
+      if pendingItem.entryIndex >= 0:
+        session.asarEntryById[pendingItem.item.id] = pendingItem.entryIndex
       result.children.add pendingItem.item
     session.expanded.incl id
     return
@@ -840,6 +935,12 @@ proc materializePayload*(session: VextInspectionSession, id: VextResourceId,
       raise newException(ValueError, "resource has no LHA payload")
     result = extractLhaEntry(session.sources.primary,
       session.lha.entries[entryIndex], workingLimit)
+  of vskElectronAsar:
+    let entryIndex = session.asarEntryById.getOrDefault(id, -1)
+    if entryIndex < 0:
+      raise newException(ValueError, "resource has no ASAR payload")
+    result = extractElectronAsarEntry(session.sources.primary,
+      session.asar.entries[entryIndex], workingLimit)
   of vskAmigaAdf:
     if not session.adfEntryById.hasKey(id):
       raise newException(ValueError, "resource has no ADF payload")
@@ -969,7 +1070,7 @@ proc portableExtractionSegment(segment: string): string =
       result.add '_'
     else:
       result.add value
-  result = result.strip(chars = {' ', '.'}, trailing = true)
+  result = result.strip(chars = {' ', '.'}, leading = false, trailing = true)
   if result.len == 0: result = "_"
   let stem = result.split('.', maxsplit = 1)[0].toLowerAscii
   if stem in ExtractionDeviceNames: result = "_" & result
@@ -1024,7 +1125,7 @@ proc extractionPlan*(session: VextInspectionSession,
           relativePath: relativePath, descriptor: child)
         planned.totalEstimatedBytes += int64(max(0, child.estimatedBytes))
       else:
-        planned.warnings.add "skipped non-file member '" &
+        planned.warnings.add "skipped non-materializable member '" &
           childSource.join("/") & "'"
   visit(selectedId, @[], @[])
   progress.report(VextSessionProgressEvent(phase: vsppComplete,
@@ -1040,4 +1141,5 @@ proc close*(session: VextInspectionSession) =
   session.descriptors.clear()
   session.children.clear()
   session.idsByPath.clear()
+  session.asarEntryById.clear()
   session.legacyNodeById.clear()

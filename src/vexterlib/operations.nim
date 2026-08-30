@@ -13,7 +13,7 @@ import ./handler_registry
 import ./exporters/[bmfont, gif, gpl, html_report, metadata_json, png, raw, tracker_json, wav]
 import ./resource_tree
 import ./containers/[amiga_8svx, amiga_16sv, amiga_acbm, amiga_adf, amiga_anim, amiga_diskfont, amiga_dms, amiga_hunk_executable, amiga_iff, amiga_ilbm, amiga_lha_sfx, amiga_pbm, amiga_workbench_icon, amos_bank, amos_bank_set, amos_packed_picture, amos_program,
-  amos_sprite_icon_bank, ansi_art, bmfont, bmp, creative_voice, doom_wad, flic, fzx, gif_container, iso9660, jpeg, netpbm, openraster, pcx, png_container,
+  amos_sprite_icon_bank, ansi_art, bmfont, bmp, creative_voice, doom_wad, electron_asar, flic, fzx, gif_container, iso9660, jpeg, netpbm, openraster, pcx, png_container,
   adobe_swatch_exchange, aseprite, gimp_palette, koala_painter, paint_net_palette, protracker_mod, qoi, tga, wav, windows_icon, zip_archive, lha_archive, zx_spectrum_snapshot, zx_spectrum_tap]
 import ./containers/xpk_shri
 import ./containers/powerpacker
@@ -1765,6 +1765,56 @@ proc inspectSourceDepth(filename: string, data: openArray[byte],
     var directories = {root.path: root}.toTable
     for entry in archive.entries:
       addZipEntry(root, entry, zipSource, directories)
+    result.resources.roots.add root
+  of vhkElectronAsar:
+    let archive = parsedValue[ElectronAsarArchive](selectedParsed,
+      vhkElectronAsar)
+    let asarSource = if backingSource.isNil:
+        VextPayloadSource(data: @data)
+      else:
+        backingSource
+    let root = VextResourceNode(path: "/archive",
+      typeId: ElectronAsarTypeId, kind: vrnkGroup, metadata: @[
+        integerMetadata("entries", archive.entries.len),
+        integerMetadata("header.length", archive.headerSize),
+        integerMetadata("manifest.length", archive.headerJsonSize)])
+    var directories = {root.path: root}.toTable
+    for entry in archive.entries:
+      var parent = root
+      var path = "/archive"
+      for index, segment in entry.segments:
+        path.add "/" & segment
+        if index == entry.segments.high and not entry.isDirectory:
+          var metadata = @[
+            integerMetadata("data.length", entry.size),
+            integerMetadata("asar.unpacked", ord(entry.unpacked)),
+            integerMetadata("asar.executable", ord(entry.executable))]
+          if entry.integrityAlgorithm.len > 0:
+            metadata.add stringMetadata("integrity.algorithm",
+              entry.integrityAlgorithm)
+            metadata.add stringMetadata("integrity.hash", entry.integrityHash)
+            metadata.add integerMetadata("integrity.block-size",
+              entry.integrityBlockSize)
+            metadata.add integerMetadata("integrity.blocks",
+              entry.integrityBlocks)
+          var node = VextResourceNode(path: path,
+            typeId: ElectronAsarFileTypeId, kind: vrnkOpaque,
+            metadata: metadata)
+          if not entry.unpacked:
+            node.lazyPayload = VextPayloadRef(source: asarSource,
+              spans: if entry.size > 0: @[VextPayloadSpan(
+                offset: entry.payloadOffset, length: entry.size)] else: @[],
+              length: entry.size)
+            node.rawDataAvailable = true
+          parent.children.add node
+        elif not directories.hasKey(path):
+          let directory = VextResourceNode(path: path,
+            typeId: ElectronAsarDirectoryTypeId, kind: vrnkGroup)
+          parent.children.add directory
+          directories[path] = directory
+          parent = directory
+        else:
+          parent = directories[path]
     result.resources.roots.add root
   of vhkIso9660:
     let image = parsedValueRef[Iso9660Image](selectedParsed, vhkIso9660)

@@ -22,8 +22,8 @@ sufficiently useful to continue as an ongoing project.
 - Fonts: BMFont text, XML, and binary-v3 descriptors with PNG pages, FZX, and
   monochrome or colour Amiga bitmap diskfonts
 - Palettes: Paint.NET and GIMP text palettes, Adobe Swatch Exchange and Aseprite sprite palettes, and palette-only IFF ILBM/ACBM files
-- Archives and audio: ZIP, level-0/1 LHA/LZH with LH0/LH5 members, Creative
-  Voice PCM audio, and integer PCM WAV
+- Archives and audio: ZIP, Electron ASAR, level-0/1 LHA/LZH with LH0/LH5
+  members, Creative Voice PCM audio, and integer PCM WAV
 - Tracker music: 15- and 31-instrument ProTracker-compatible MOD modules;
   patterns export as tracker JSON, individual samples as WAV, and a bounded
   stereo replay mix can be played or exported as WAV
@@ -67,7 +67,7 @@ vexter export-all [--format png|gif|apng|palette-swatch|gpl|bmfont|tracker-json|
 vexter extract -o DIRECTORY [--force] INPUT
 ```
 
-`extract` unpacks ZIP, LHA/LZH, ISO 9660, or ADF hierarchies as ordinary files
+`extract` unpacks ZIP, Electron ASAR, LHA/LZH, ISO 9660, or ADF hierarchies as ordinary files
 and directories. Unlike resource export, it preserves original member names,
 extensions, and decoded member bytes rather than exporting nested previews.
 

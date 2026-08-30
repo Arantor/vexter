@@ -29,7 +29,8 @@ client, and a dependency-free native Windows GUI. It supports:
   Commodore 64 KoalaPainter images,
   Netpbm P1–P7, GIF87a/GIF89a, and FLI/FLC-family animations,
   AmigaDOS ADF filesystems, DMS disk archives, PowerPacker and XPK/SHRI
-  wrappers, ZIP archives, ISO 9660 data-CD filesystems, level-0/1 LHA/LZH archives using LH0 or LH5,
+  wrappers, ZIP and Electron ASAR archives, ISO 9660 data-CD filesystems,
+  level-0/1 LHA/LZH archives using LH0 or LH5,
   minimally structured Amiga Hunk executables and LHA self-extractors,
   ZX Spectrum raw screen dumps, SNA snapshots,
   TAP containers, tokenised BASIC resources, BMFont text descriptors, FZX and Amiga bitmap diskfonts
@@ -61,7 +62,7 @@ client, and a dependency-free native Windows GUI. It supports:
 - byte-identical BIN export for opaque resources that retain raw data; and
 - bulk export of all exportable leaves or a union of segment-wildcard resource
   patterns, preserving a safe resource-path hierarchy; and
-- whole-container extraction for ZIP, LHA/LZH, ISO 9660, and ADF, preserving
+- whole-container extraction for ZIP, Electron ASAR, LHA/LZH, ISO 9660, and ADF, preserving
   member names and directories while materializing one original member at a
   time.
 
@@ -251,7 +252,7 @@ lifetime without requiring the complete input to be retained in memory.
 separates stable resource descriptors from payload materialization, exposes
 independent child enumeration and load operations, applies depth/resource/
 manifest/working-memory limits, and reports progress whose total is explicitly
-unknown, growing, or final. ZIP/OpenRaster, ISO 9660, LHA, and ADF use indexed
+unknown, growing, or final. ZIP/OpenRaster, Electron ASAR, ISO 9660, LHA, and ADF use indexed
 random-access providers: opening validates only the carrier or manifest,
 expanding reads one directory, and loading reads one member. Packed wrappers
 defer their unpacking until their synthetic content root is expanded or loaded.
@@ -1000,6 +1001,9 @@ The routine suites are:
 - `tests/test_zip_archive.nim`: stored/DEFLATE expansion, hierarchy and nested
   decoding, per-member decoder-failure isolation, unsafe/duplicate/overlong
   path rejection, and portable export-name normalization;
+- `tests/test_electron_asar.nim`: synthetic Pickle and JSON-manifest framing,
+  lazy hierarchy and member reads, dotfile preservation, external-member
+  warnings, payload bounds, and whole-container extraction planning;
 - `tests/test_openraster.nim`: synthetic ZIP-profile refinement, required MIME
   placement and members, layer-stack metadata and raster exposure, derivation
   reporting, and forced generic-carrier inspection;

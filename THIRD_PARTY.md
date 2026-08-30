@@ -372,6 +372,26 @@ its deliberately narrow executable recognizer. The source itself declines to
 interpret overlays; Vexter retains the length-delimited overlay observed in
 the supplied `lha.run` control without assigning execution semantics to it.
 
+## Electron ASAR format reference and compatibility archive
+
+`asar/README.md` was supplied by the developer from the
+[`@electron/asar` repository](https://github.com/electron/asar/blob/main/README.md).
+The project documentation is MIT licensed. Vexter uses only its prose format
+description: the two limited Pickle envelopes, JSON file manifest, relative
+stored-file offsets, deduplicated payloads, executable and unpacked flags, and
+SHA256 integrity fields. No Electron, ASAR, Chromium Pickle, JavaScript, or
+TypeScript implementation code is copied or linked.
+
+`asar/app.asar` is a developer-supplied application archive used temporarily
+to validate real manifest nesting, packed and unpacked directory flags,
+integrity records, and random-access extraction. It is not redistributed as a
+routine fixture.
+
+```text
+bb3c0edb5c55877c571b66237b54f9f1874f2c79b98df9b68619d084fbf6ab0c  asar/README.md
+736d7c945ee91892dee9e7ce91ea5d98f3f54aeedc3546b064b850cd4b36c45d  asar/app.asar
+```
+
 ## jslha LHA/LH5 reference
 
 `jslha/` is a developer-supplied checkout of Jani Poikela's jslha, sourced
