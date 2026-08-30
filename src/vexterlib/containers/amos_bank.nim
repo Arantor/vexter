@@ -6,6 +6,7 @@ const
   AmosBankMagic* = "AmBk"
   AmosBankTypeId* = "amos.bank"
   AmosBankResourceTypeId* = "amos.bank-data"
+  AmosAssemblyResourceTypeId* = "amos.680x0-assembly"
   AmosBankHeaderSize* = 20
   AmosBankStoredLengthOverhead* = 8
   AmosBankLengthMask* = 0x0fffffff'u32
@@ -74,3 +75,6 @@ proc isAmosBank*(data: openArray[byte]): bool =
 
 proc hasAmosBankExtension*(filename: string): bool =
   filename.splitFile.ext.toLowerAscii == ".abk"
+
+proc isAmosAssemblyBank*(bank: AmosBank): bool =
+  bank.bankType in ["Asm", "Code"]

@@ -798,6 +798,7 @@ amiga.ilbm-image
 amiga.anim
 amos.bank
 amos.bank-data
+amos.680x0-assembly
 amos.bank-set
 amos.packed-picture
 amos.program
@@ -972,9 +973,11 @@ shifts are decoded; one-bit DTA images remain pending their separately
 referenced pixel-packing specification.
 
 Generic `AmBk` containers continue to expose unknown bank types as opaque bank
-data. A `Pac.Pic.` bank with its screen palette instead exposes an indexed
-`amos.packed-picture` raster at `/picture`; the same bank nested in an `AmBs`
-or AMOS program uses its numbered `/banks/N` resource path.
+data. Banks identified as `Asm` or `Code` expose exportable opaque
+`amos.680x0-assembly` payloads. A `Pac.Pic.` bank with its screen palette
+instead exposes an indexed `amos.packed-picture` raster at `/picture`; the same
+bank nested in an `AmBs` or AMOS program uses its numbered `/banks/N` resource
+path.
 
 ANIM containers expose `/animation`. GIF-compatible indexed animations default
 to GIF, while HAM animations produce
@@ -999,10 +1002,9 @@ zero-based numbered raster children. Hotspots are attached to each child as
 the described header-palette layout and the fixture-confirmed trailing-palette
 layout.
 
-Generic `AmBk` files expose one opaque `/bank` resource with header metadata.
-Their payload is deliberately not decoded or exported yet. This preserves an
-identifiable resource in the tree for bank types that are not otherwise
-supported.
+Generic `AmBk` files expose one opaque, BIN-exportable `/bank` resource with
+header metadata. `Asm` and `Code` payloads are identified as 680x0 assembly;
+other unsupported types retain the generic bank-data identity.
 
 AMOS `AmBs` sets expose a `/banks` group. Generic members are opaque
 `/banks/N` leaves; sprite and icon members expose numbered raster children

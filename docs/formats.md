@@ -1205,6 +1205,10 @@ opaque `amos.bank-data` resource at `/bank`. Inspection reports `bank.number`,
 `bank.flags`, `bank.type`, and `data.length` metadata. The undecoded bank
 payload is retained and defaults to raw `.bin` export.
 
+The space-padded `Asm` and `Code` identifiers both classify their payload as
+an opaque, BIN-exportable `amos.680x0-assembly` resource. Vexter does not yet
+disassemble or otherwise interpret the 680x0 instructions.
+
 `Pac.Pic.` banks with a screen header are decoded into indexed rasters. Their
 nested compressed streams are expanded into ordinary planar pixels, and the
 screen header supplies up to 32 `$0RGB` palette entries. One-through-five-plane

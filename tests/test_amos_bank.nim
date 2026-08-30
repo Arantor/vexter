@@ -58,6 +58,26 @@ suite "generic AMOS banks":
         "Asm", "Code", "Pac.Pic.", "Resource", "Samples"]:
       check parseAmosBank(genericBank(bankType)).bankType == bankType
 
+  test "Asm and Code banks are exportable 680x0 assembly resources":
+    for bankType in ["Asm", "Code"]:
+      let
+        payload = @[0x4e'u8, 0x75]
+        inspection = inspectSource(bankType & ".abk",
+          genericBank(bankType, payload))
+        resources = inspection.resources.leafResources
+
+      check resources.len == 1
+      check resources[0].path == "/bank"
+      check resources[0].typeId == AmosAssemblyResourceTypeId
+      check resources[0].kind == vrnkOpaque
+      check resources[0].rawDataAvailable
+      check resources[0].metadata[2].value.stringValue == bankType
+
+      let exported = exportResource(inspection.resources,
+        VextExportRequest(suggestedName: bankType))
+      check exported.outputFormat == "bin"
+      check exported.artifacts.artifacts[0].data == payload
+
   test "length and type validation reject malformed banks":
     var wrongLength = genericBank()
     wrongLength[11] = wrongLength[11] + 1

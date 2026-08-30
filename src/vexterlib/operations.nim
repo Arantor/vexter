@@ -273,7 +273,8 @@ proc amosRasterNode(path, typeId: string, source: AmosPlanarImage,
 proc amosGenericNode(path: string, bank: AmosBank): VextResourceNode =
   VextResourceNode(
     path: path,
-    typeId: AmosBankResourceTypeId,
+    typeId: if bank.isAmosAssemblyBank:
+        AmosAssemblyResourceTypeId else: AmosBankResourceTypeId,
     kind: vrnkOpaque,
     data: bank.data,
     rawDataAvailable: true,
