@@ -9,7 +9,7 @@ import ./format_detection_types
 import ./metadata
 import ./operations
 import ./resource_tree
-import ./containers/[amiga_adf, amiga_dms, electron_asar, iso9660, lha_archive, openraster,
+import ./containers/[amiga_adf, amiga_dms, appimage, electron_asar, iso9660, lha_archive, openraster,
   powerpacker, xpk_shri, zip_archive]
 import ./resources/[ansi_art_image, pcx_image]
 
@@ -115,6 +115,8 @@ type
     vskZip
     vskOpenRaster
     vskIso9660
+    vskAppImageType1
+    vskAppImage
     vskLha
     vskElectronAsar
     vskAmigaAdf
@@ -139,8 +141,12 @@ type
     zipEntryById: Table[VextResourceId, int]
     manifestSourceById: Table[VextResourceId, string]
     iso: Iso9660Index
+    isoSource: VextByteSource
+    appImageType1: AppImageType1
     isoEntryById: Table[VextResourceId, Iso9660Entry]
     isoVisited: HashSet[string]
+    appImage: AppImageArchive
+    appImageEntryById: Table[VextResourceId, int]
     lha: LhaArchive
     lhaEntryById: Table[VextResourceId, int]
     asar: ElectronAsarArchive
@@ -322,12 +328,37 @@ proc selectZip(session: VextInspectionSession, filename: string,
         format: OpenRasterTypeId, message: error.msg)
 
 proc selectIso(session: VextInspectionSession) =
-  session.iso = indexIso9660(session.sources.primary)
+  session.isoSource = session.sources.primary
+  session.iso = indexIso9660(session.isoSource)
   let isoCandidate = candidate(Iso9660TypeId, vdcCertain,
     "source has valid ISO 9660 descriptors and root directory bounds")
   session.selectedFormat = isoCandidate
   session.candidates = @[isoCandidate]
   session.kind = vskIso9660
+
+proc selectAppImageType1(session: VextInspectionSession) =
+  session.appImageType1 = indexAppImageType1(session.sources.primary)
+  session.iso = session.appImageType1.iso
+  session.isoSource = sliceByteSource(session.sources.primary,
+    session.appImageType1.filesystemOffset,
+    session.sources.primary.length - session.appImageType1.filesystemOffset,
+    session.filename & " (AppImage ISO)")
+  let appCandidate = candidate(AppImageType1TypeId, vdcCertain,
+    if session.appImageType1.filesystemOffset == 0:
+      "source is a valid ELF runtime in the system area of an ISO 9660 filesystem"
+    else:
+      "source is a valid ELF with AI01 marker and an appended ISO 9660 filesystem")
+  session.selectedFormat = appCandidate
+  session.candidates = @[appCandidate]
+  session.kind = vskAppImageType1
+
+proc selectAppImage(session: VextInspectionSession) =
+  session.appImage = indexAppImage(session.sources.primary)
+  let appCandidate = candidate(AppImageTypeId, vdcCertain,
+    "source is a valid ELF with AI02 marker and an appended SquashFS 4 filesystem")
+  session.selectedFormat = appCandidate
+  session.candidates = @[appCandidate]
+  session.kind = vskAppImage
 
 proc selectLha(session: VextInspectionSession) =
   session.lha = indexLhaArchive(session.sources.primary)
@@ -384,7 +415,10 @@ proc openInspectionSession*(filename: string, sources: VextSourceCollection,
     progress.report(VextSessionProgressEvent(phase: vsppDetecting,
       path: filename, totalState: vptsUnknown,
       message: "Detecting input format"))
-    let leading = sources.primary.readAt(0, min(7, sources.primary.length))
+    let leading = sources.primary.readAt(0, min(11, sources.primary.length))
+    let preferAppImage = leading.len >= 11 and leading[0] == 0x7f and
+      leading[1] == byte('E') and leading[2] == byte('L') and
+      leading[3] == byte('F')
     let preferZip = leading.len >= 4 and leading[0] == byte('P') and
       leading[1] == byte('K') and leading[2] in [1'u8, 3'u8, 5'u8, 7'u8] and
       leading[3] in [2'u8, 4'u8, 6'u8, 8'u8]
@@ -423,6 +457,8 @@ proc openInspectionSession*(filename: string, sources: VextSourceCollection,
           raise newException(ValueError,
             "source is not a valid OpenRaster package")
       of Iso9660TypeId: result.selectIso()
+      of AppImageType1TypeId: result.selectAppImageType1()
+      of AppImageTypeId: result.selectAppImage()
       of LhaArchiveTypeId: result.selectLha()
       of ElectronAsarTypeId: result.selectElectronAsar()
       of AmigaAdfTypeId: result.selectAmigaAdf()
@@ -436,6 +472,12 @@ proc openInspectionSession*(filename: string, sources: VextSourceCollection,
         result.selectDeferredWrapper(PowerPackerTypeId, "/content",
           "source has valid PowerPacker framing")
       else: selectLegacy()
+    elif preferAppImage:
+      try:
+        if leading[8] == byte('A') and leading[9] == byte('I') and
+            leading[10] == 2: result.selectAppImage()
+        else: result.selectAppImageType1()
+      except ValueError, LibraryError: selectLegacy()
     elif preferDms:
       try:
         result.selectDeferredWrapper(AmigaDmsTypeId, "/disk",
@@ -519,6 +561,38 @@ proc openInspectionSession*(filename: string, sources: VextSourceCollection,
       result.roots.add root.id
       result.isoVisited.incl($result.iso.rootExtent & ":" &
         $result.iso.rootLength)
+    of vskAppImageType1:
+      let root = result.allocateDescriptor("/appimage", AppImageType1TypeId,
+        vrnkGroup, {vrcEnumerateChildren, vrcExtractTree}, vvlStructural,
+        metadata = @[
+          integerMetadata("appimage.type", 1),
+          integerMetadata("elf.class", result.appImageType1.elfClass),
+          integerMetadata("elf.endian", result.appImageType1.elfEndian),
+          integerMetadata("elf.machine", result.appImageType1.elfMachine),
+          integerMetadata("filesystem.offset", result.appImageType1.filesystemOffset),
+          stringMetadata("filesystem.type", Iso9660TypeId),
+          stringMetadata("iso9660.layout", result.iso.layout.iso9660LayoutName),
+          stringMetadata("iso9660.volume.identifier", result.iso.volumeIdentifier),
+          integerMetadata("iso9660.logical-block-size", result.iso.logicalBlockSize),
+          integerMetadata("iso9660.volume.blocks", result.iso.volumeBlocks)])
+      result.commit(root)
+      result.roots.add root.id
+      result.isoVisited.incl($result.iso.rootExtent & ":" &
+        $result.iso.rootLength)
+    of vskAppImage:
+      let root = result.allocateDescriptor("/appimage", AppImageTypeId,
+        vrnkGroup, {vrcEnumerateChildren, vrcExtractTree}, vvlStructural,
+        metadata = @[
+          integerMetadata("appimage.type", 2),
+          integerMetadata("elf.class", result.appImage.elfClass),
+          integerMetadata("elf.endian", result.appImage.elfEndian),
+          integerMetadata("elf.machine", result.appImage.elfMachine),
+          integerMetadata("filesystem.offset", result.appImage.filesystemOffset),
+          integerMetadata("squashfs.block-size", result.appImage.blockSize),
+          integerMetadata("squashfs.compressor", result.appImage.compressor),
+          integerMetadata("squashfs.entries", result.appImage.entries.len)])
+      result.commit(root)
+      result.roots.add root.id
     of vskLha:
       let root = result.allocateDescriptor("/archive", LhaArchiveTypeId,
         vrnkGroup, {vrcEnumerateChildren, vrcExtractTree}, vvlStructural, metadata = @[
@@ -597,7 +671,58 @@ proc expandResource*(session: VextInspectionSession, id: VextResourceId,
   progress.report(VextSessionProgressEvent(phase: vsppEnumerating,
     path: result.parentDescriptor.path, totalState: vptsGrowing,
     message: "Enumerating children"))
-  if session.kind == vskIso9660:
+  if session.kind == vskAppImage:
+    let prefix = prefixSegments(result.parentDescriptor.path)
+    var paths = initHashSet[string]()
+    var localNext = session.nextId
+    var pending: seq[tuple[item: VextResourceDescriptor, entryIndex: int]]
+    for entryIndex, entry in session.appImage.entries:
+      if not entry.segments.startsWithSegments(prefix) or
+          entry.segments.len <= prefix.len:
+        continue
+      let directIndex = prefix.len
+      var path = "/appimage"
+      for index in 0 .. directIndex: path.add "/" & entry.segments[index]
+      if path in paths: continue
+      paths.incl path
+      inc localNext
+      let direct = entry.segments.len == prefix.len + 1
+      let isDirectory = not direct or entry.kind == aiekDirectory
+      let materializable = direct and entry.kind == aiekFile
+      let item = VextResourceDescriptor(id: VextResourceId(localNext),
+        path: path,
+        typeId: if isDirectory: AppImageDirectoryTypeId
+          elif entry.kind == aiekSymlink: AppImageSymlinkTypeId
+          else: AppImageFileTypeId,
+        kind: if isDirectory: vrnkGroup else: vrnkOpaque,
+        capabilities: if isDirectory: {vrcEnumerateChildren}
+          elif materializable: {vrcMaterializePayload, vrcProbeNested}
+          else: {}, validatedThrough: vvlStructural,
+        estimatedBytes: if materializable: entry.size else: 0,
+        metadata: if direct: @[
+          integerMetadata("posix.permissions", entry.permissions),
+          integerMetadata("posix.uid-index", entry.uidIndex),
+          integerMetadata("posix.gid-index", entry.gidIndex),
+          integerMetadata("posix.uid", entry.uid),
+          integerMetadata("posix.gid", entry.gid),
+          integerMetadata("posix.inode", entry.inodeNumber),
+          integerMetadata("posix.mtime", int(entry.mtime)),
+          integerMetadata("data.length", entry.size),
+          stringMetadata("posix.symlink-target", entry.symlinkTarget)] else: @[])
+      pending.add (item, if materializable: entryIndex else: -1)
+    if session.descriptors.len + pending.len > session.limits.maximumResources:
+      raise newException(VextWorkLimitError,
+        "resource count exceeds the inspection limit")
+    session.nextId = localNext
+    for pendingItem in pending:
+      session.commit(pendingItem.item)
+      session.children.mgetOrPut(id, @[]).add pendingItem.item.id
+      if pendingItem.entryIndex >= 0:
+        session.appImageEntryById[pendingItem.item.id] = pendingItem.entryIndex
+      result.children.add pendingItem.item
+    session.expanded.incl id
+    return
+  if session.kind in {vskIso9660, vskAppImageType1}:
     var parentSegments: seq[string]
     let stripped = result.parentDescriptor.path.strip(chars = {'/'})
     let parts = stripped.split('/')
@@ -611,7 +736,7 @@ proc expandResource*(session: VextInspectionSession, id: VextResourceId,
       let identity = $extent & ":" & $length
       if identity in session.isoVisited:
         raise newException(ValueError, "cyclic ISO 9660 directory extent")
-    let entries = listIso9660Directory(session.sources.primary, session.iso,
+    let entries = listIso9660Directory(session.isoSource, session.iso,
       extent, length, parentSegments)
     if session.descriptors.len + entries.len > session.limits.maximumResources:
       raise newException(VextWorkLimitError,
@@ -621,20 +746,27 @@ proc expandResource*(session: VextInspectionSession, id: VextResourceId,
       entry: Iso9660Entry]]
     for entry in entries:
       inc localNext
-      let path = "/disc/" & entry.segments.join("/")
+      let rootPath = if session.kind == vskAppImageType1: "/appimage" else: "/disc"
+      let path = rootPath & "/" & entry.segments.join("/")
       let item = VextResourceDescriptor(id: VextResourceId(localNext),
         path: path,
         typeId: if entry.isDirectory: Iso9660DirectoryTypeId
           else: Iso9660FileTypeId,
         kind: if entry.isDirectory: vrnkGroup else: vrnkOpaque,
         capabilities: if entry.isDirectory: {vrcEnumerateChildren}
+          elif entry.isSymlink: {}
           else: {vrcMaterializePayload, vrcProbeNested},
         validatedThrough: vvlStructural, estimatedBytes: entry.dataLength,
         metadata: @[
           stringMetadata("iso9660.name", entry.name),
           integerMetadata("iso9660.extent-block", entry.extentBlock),
           integerMetadata("data.length", entry.dataLength),
-          integerMetadata("iso9660.file-version", entry.fileVersion)])
+          integerMetadata("iso9660.file-version", entry.fileVersion),
+          integerMetadata("posix.mode", entry.posixMode),
+          integerMetadata("posix.uid", entry.posixUid),
+          integerMetadata("posix.gid", entry.posixGid),
+          integerMetadata("posix.serial", entry.posixSerial),
+          stringMetadata("posix.symlink-target", entry.symlinkTarget)])
       pending.add (item, entry)
     progress.report(VextSessionProgressEvent(phase: vsppEnumerating,
       path: result.parentDescriptor.path, completed: pending.len,
@@ -924,11 +1056,17 @@ proc materializePayload*(session: VextInspectionSession, id: VextResourceId,
       raise newException(ValueError, "OpenRaster resource payload is missing")
     result = extractZipEntry(session.sources.primary,
       session.zip.entries[entryIndex], workingLimit)
-  of vskIso9660:
+  of vskIso9660, vskAppImageType1:
     if not session.isoEntryById.hasKey(id):
       raise newException(ValueError, "resource has no ISO 9660 payload")
-    result = extractIso9660Entry(session.sources.primary, session.iso,
+    result = extractIso9660Entry(session.isoSource, session.iso,
       session.isoEntryById[id], workingLimit)
+  of vskAppImage:
+    let entryIndex = session.appImageEntryById.getOrDefault(id, -1)
+    if entryIndex < 0:
+      raise newException(ValueError, "resource has no AppImage payload")
+    result = extractAppImageEntry(session.sources.primary, session.appImage,
+      session.appImage.entries[entryIndex], workingLimit)
   of vskLha:
     let entryIndex = session.lhaEntryById.getOrDefault(id, -1)
     if entryIndex < 0:
@@ -1142,4 +1280,5 @@ proc close*(session: VextInspectionSession) =
   session.children.clear()
   session.idsByPath.clear()
   session.asarEntryById.clear()
+  session.appImageEntryById.clear()
   session.legacyNodeById.clear()

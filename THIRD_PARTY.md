@@ -359,6 +359,47 @@ are deliberately neither catalogued nor committed. The reference-page hash is:
 a8573c6bc3939821513b0c7059bdf852b69502e432d7dd411d379299129ab1df  ISO 9660 - Wikipedia.html
 ```
 
+The developer subsequently supplied the IEEE System Use Sharing Protocol
+1.10 (`appimage/susp.ps`) and Rock Ridge Interchange Protocol references 1.10
+and 1.12 (`appimage/rrip.ps` and `appimage/rrip112.pdf`). Vexter uses their
+record descriptions for bounded `SP`, `CE`, `ST`, `PX`, `NM`, `SL`, `CL`, and
+`RE` parsing. These standards documents are research inputs; Vexter does not
+copy an implementation from them.
+
+Source URLs:
+* http://cdrtools.sourceforge.net/private/RRIP/rrip.ps
+* https://people.freebsd.org/~emaste/rrip112.pdf
+* https://cdrtools.sourceforge.net/private/RRIP/susp.ps
+
+```text
+51b9c591b8b26f8b2f45e4badd5a4926ecf2322b7d4683fb2250d5f7a347b677  appimage/susp.ps
+2b90549be3d5c503eef57d2570d497aa0b32f2d9ed59b34ef5c937de735bbc4d  appimage/rrip.ps
+4af958809aecc938ae0d4ac51c1afdb6ac4b6c9359b6bb207acae88c58a29ad6  appimage/rrip112.pdf
+```
+
+## AppImage, ELF, SquashFS, and Zstandard references
+
+The developer supplied the AppImage draft specification from the AppImageSpec
+repository under its MIT licence, System V ABI ELF documentation, the
+independently published SquashFS binary-format description, and RFC 8878 for
+Zstandard. Vexter's implementation uses the record and bitstream descriptions
+from these documents and does not copy AppImage runtime, SquashFS-tools, zlib,
+or Zstandard implementation source. Supplied AppImages are temporary
+compatibility inputs and are not redistributed as routine fixtures.
+
+Source URLs:
+* https://refspecs.linuxfoundation.org/elf/gabi4+/ch4.intro.html#file_format
+* https://refspecs.linuxfoundation.org/elf/gabi4+/ch4.eheader.html
+* https://dr-emann.github.io/squashfs/squashfs.html
+* https://www.rfc-editor.org/rfc/rfc8878.txt
+
+```text
+44750518d8c03cb9c6d5b6941158566e68253adf3f0c4d81cc61155c48c8a927  appimage/draft.md
+6e6308317b7f70d1771e342e0157bd3aee34c26c9a355a657b4935c6b219014d  appimage/ELF Header.html
+d786e8bb1f1e902cc851b03a03cbc9b5dbc50d5f0409b0eb2cc3008e0771de9e  Squashfs Binary Format.html
+8ee6be03534113f5689cda75b9539a02e0704a2506d420814223e506420aeea4  appimage/rfc8878.txt
+```
+
 ## IFFSpecs bundle Hunk reference
 
 The developer-supplied `IFFSpecs.lzh` bundle from Aminet is documented with

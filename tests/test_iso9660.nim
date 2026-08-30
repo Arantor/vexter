@@ -99,6 +99,44 @@ proc isoFixture(): seq[byte] =
   for index, value in "hello":
     result[27 * Iso9660LogicalBlockSize + index] = byte(value)
 
+proc suspField(signature: string, payload: seq[byte]): seq[byte] =
+  result = @[byte(signature[0]), byte(signature[1]), byte(4 + payload.len), 1'u8]
+  result.add payload
+
+proc rockRidgeFixture(): seq[byte] =
+  result = isoFixture()
+  var rootDirectory = newSeq[byte](Iso9660LogicalBlockSize)
+  var rootSusp = suspField("SP", @[0xbe'u8, 0xef'u8, 0'u8])
+  rootSusp.add suspField("ER", @[10'u8, 0'u8, 0'u8, 1'u8, 'I'.byte,
+    'E'.byte, 'E'.byte, 'E'.byte, '_'.byte, 'P'.byte, '1'.byte,
+    '2'.byte, '8'.byte, '2'.byte])
+  rootDirectory.appendRecord(directoryRecord(20, Iso9660LogicalBlockSize,
+    @[0'u8], true, rootSusp))
+  rootDirectory.appendRecord(directoryRecord(20, Iso9660LogicalBlockSize,
+    @[1'u8], true))
+  var nm = suspField("NM", @[0'u8, 'r'.byte, 'e'.byte, 'a'.byte,
+    'd'.byte, 'm'.byte, 'e'.byte, '.'.byte, 't'.byte, 'x'.byte, 't'.byte])
+  var pxPayload = newSeq[byte](40)
+  pxPayload.putBothDword(0, 0o100644)
+  pxPayload.putBothDword(8, 1)
+  pxPayload.putBothDword(16, 1000)
+  pxPayload.putBothDword(24, 1001)
+  pxPayload.putBothDword(32, 7)
+  nm.add suspField("PX", pxPayload)
+  nm.add suspField("ST", @[])
+  rootDirectory.appendRecord(directoryRecord(27, 5,
+    @['R'.byte, 'E'.byte, 'A'.byte, 'D'.byte, 'M'.byte, 'E'.byte,
+      '.'.byte, 'T'.byte, 'X'.byte, 'T'.byte, ';'.byte, '1'.byte],
+    systemUse = nm))
+  var link = suspField("NM", @[0'u8, 'l'.byte, 'i'.byte, 'n'.byte, 'k'.byte])
+  link.add suspField("SL", @[0'u8, 0'u8, 10'u8, 'r'.byte, 'e'.byte,
+    'a'.byte, 'd'.byte, 'm'.byte, 'e'.byte, '.'.byte, 't'.byte,
+    'x'.byte, 't'.byte])
+  rootDirectory.appendRecord(directoryRecord(0, 0,
+    @['L'.byte, 'I'.byte, 'N'.byte, 'K'.byte, ';'.byte, '1'.byte],
+    systemUse = link))
+  result.putSector(20, rootDirectory)
+
 proc rawMode1(cooked: seq[byte]): seq[byte] =
   let sectors = cooked.len div Iso9660LogicalBlockSize
   result = newSeq[byte](sectors * 2352)
@@ -111,6 +149,24 @@ proc rawMode1(cooked: seq[byte]): seq[byte] =
         cooked[sector * Iso9660LogicalBlockSize + index]
 
 suite "ISO 9660 filesystems":
+  test "SUSP activates Rock Ridge names, POSIX metadata, and symbolic links":
+    let source = memoryByteSource(rockRidgeFixture())
+    let index = indexIso9660(source)
+    check index.rockRidge
+    check index.suspSkip == 0
+    let entries = listIso9660Directory(source, index, index.rootExtent,
+      index.rootLength, @[])
+    check entries.len == 2
+    check entries[0].name == "readme.txt"
+    check entries[0].posixMode == 0o100644
+    check entries[0].posixUid == 1000
+    check entries[0].posixGid == 1001
+    check entries[0].posixSerial == 7
+    check entries[1].name == "link"
+    check entries[1].isSymlink
+    check entries[1].symlinkTarget == "readme.txt"
+    source.close()
+
   test "cooked images expose hierarchy and recursively decoded files":
     let data = isoFixture()
     let parsed = parseIso9660(data)

@@ -2,6 +2,7 @@
 
 import std/[os, strutils, tables]
 import ./artifacts
+import ./byte_sources
 import ./archetypes/raster
 import ./archetypes/audio
 import ./archetypes/palette
@@ -13,7 +14,7 @@ import ./handler_registry
 import ./exporters/[bmfont, gif, gpl, html_report, metadata_json, png, raw, tracker_json, wav]
 import ./resource_tree
 import ./containers/[amiga_8svx, amiga_16sv, amiga_acbm, amiga_adf, amiga_anim, amiga_diskfont, amiga_dms, amiga_hunk_executable, amiga_iff, amiga_ilbm, amiga_lha_sfx, amiga_pbm, amiga_workbench_icon, amos_bank, amos_bank_set, amos_packed_picture, amos_program,
-  amos_sprite_icon_bank, ansi_art, bmfont, bmp, creative_voice, doom_wad, electron_asar, flic, fzx, gif_container, iso9660, jpeg, netpbm, openraster, pcx, png_container,
+  amos_sprite_icon_bank, ansi_art, appimage, bmfont, bmp, creative_voice, doom_wad, electron_asar, flic, fzx, gif_container, iso9660, jpeg, netpbm, openraster, pcx, png_container,
   adobe_swatch_exchange, aseprite, gimp_palette, koala_painter, paint_net_palette, protracker_mod, qoi, tga, wav, windows_icon, zip_archive, lha_archive, zx_spectrum_snapshot, zx_spectrum_tap]
 import ./containers/xpk_shri
 import ./containers/powerpacker
@@ -463,6 +464,19 @@ proc zipPayload(entry: ZipEntry,
   result = VextPayloadRef(source: source, length: entry.uncompressedSize,
     materializer: proc(): seq[byte] =
       extractZipEntry(source.data, capturedEntry))
+
+proc appImagePayload(entry: AppImageEntry, archive: AppImageArchive,
+    source: VextPayloadSource): VextPayloadRef =
+  let capturedEntry = entry
+  let capturedArchive = archive
+  result = VextPayloadRef(source: source, length: entry.size,
+    materializer: proc(): seq[byte] =
+      let byteSource = newByteSource(source.data.len,
+        proc(offset, length: int): seq[byte] =
+          source.data[offset ..< offset + length])
+      try: result = extractAppImageEntry(byteSource, capturedArchive,
+        capturedEntry)
+      finally: byteSource.close())
 
 proc addZipEntry(root: VextResourceNode, entry: ZipEntry,
     source: VextPayloadSource,
@@ -1810,6 +1824,81 @@ proc inspectSourceDepth(filename: string, data: openArray[byte],
         elif not directories.hasKey(path):
           let directory = VextResourceNode(path: path,
             typeId: ElectronAsarDirectoryTypeId, kind: vrnkGroup)
+          parent.children.add directory
+          directories[path] = directory
+          parent = directory
+        else:
+          parent = directories[path]
+    result.resources.roots.add root
+  of vhkAppImageType1:
+    let wrapper = parsedValue[AppImageType1](selectedParsed, vhkAppImageType1)
+    let isoData = @data[wrapper.filesystemOffset ..< data.len]
+    var image = parseIso9660(isoData)
+    let isoSource = VextPayloadSource(data: isoData)
+    let root = VextResourceNode(path: "/appimage", typeId: AppImageType1TypeId,
+      kind: vrnkGroup, metadata: @[
+        integerMetadata("appimage.type", 1),
+        integerMetadata("elf.class", wrapper.elfClass),
+        integerMetadata("elf.endian", wrapper.elfEndian),
+        integerMetadata("elf.machine", wrapper.elfMachine),
+        integerMetadata("filesystem.offset", wrapper.filesystemOffset),
+        stringMetadata("filesystem.type", Iso9660TypeId),
+        stringMetadata("iso9660.layout", image.layout.iso9660LayoutName),
+        stringMetadata("iso9660.volume.identifier", image.volumeIdentifier),
+        stringMetadata("iso9660.system.identifier", image.systemIdentifier),
+        integerMetadata("iso9660.logical-block-size", image.logicalBlockSize),
+        integerMetadata("iso9660.volume.blocks", image.volumeBlocks),
+        integerMetadata("iso9660.entries", image.entries.len)])
+    var directories = {root.path: root}.toTable
+    var inspectionFiles, inspectionBytes: int
+    if image.entries.len > 512: inspectionFiles = 512
+    for entry in image.entries.mitems:
+      addIso9660Entry(root, entry, isoData, isoSource, addr image, depth,
+        ignoreWarnings, pcxChannelOrder, result.warnings, directories,
+        inspectionFiles, inspectionBytes)
+    result.resources.roots.add root
+  of vhkAppImage:
+    let archive = parsedValue[AppImageArchive](selectedParsed, vhkAppImage)
+    let appSource = if backingSource.isNil:
+        VextPayloadSource(data: @data)
+      else: backingSource
+    let root = VextResourceNode(path: "/appimage", typeId: AppImageTypeId,
+      kind: vrnkGroup, metadata: @[
+        integerMetadata("appimage.type", 2),
+        integerMetadata("elf.class", archive.elfClass),
+        integerMetadata("elf.machine", archive.elfMachine),
+        integerMetadata("filesystem.offset", archive.filesystemOffset),
+        integerMetadata("squashfs.block-size", archive.blockSize),
+        integerMetadata("squashfs.compressor", archive.compressor),
+        integerMetadata("entries", archive.entries.len)])
+    var directories = {root.path: root}.toTable
+    for entry in archive.entries:
+      var parent = root
+      var path = root.path
+      for index, segment in entry.segments:
+        path.add "/" & segment
+        let last = index == entry.segments.high
+        if last and entry.kind != aiekDirectory:
+          var node = VextResourceNode(path: path,
+            typeId: if entry.kind == aiekSymlink: AppImageSymlinkTypeId
+              else: AppImageFileTypeId,
+            kind: vrnkOpaque, metadata: @[
+              integerMetadata("posix.permissions", entry.permissions),
+              integerMetadata("posix.uid-index", entry.uidIndex),
+              integerMetadata("posix.gid-index", entry.gidIndex),
+              integerMetadata("posix.uid", entry.uid),
+              integerMetadata("posix.gid", entry.gid),
+              integerMetadata("posix.inode", entry.inodeNumber),
+              integerMetadata("posix.mtime", int(entry.mtime)),
+              integerMetadata("data.length", entry.size),
+              stringMetadata("posix.symlink-target", entry.symlinkTarget)])
+          if entry.kind == aiekFile:
+            node.lazyPayload = appImagePayload(entry, archive, appSource)
+            node.rawDataAvailable = true
+          parent.children.add node
+        elif not directories.hasKey(path):
+          let directory = VextResourceNode(path: path,
+            typeId: AppImageDirectoryTypeId, kind: vrnkGroup)
           parent.children.add directory
           directories[path] = directory
           parent = directory

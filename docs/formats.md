@@ -543,6 +543,30 @@ and never substitutes an export of a recognized nested resource. Unsafe host
 characters are replaced with warnings; names that then collide are rejected
 before any payload is materialized.
 
+## Type 1 and Type 2 AppImage
+
+Type 1 AppImages are identified as `executable.appimage-type1` when a valid ELF
+runtime occupies the reserved system area of a valid ISO 9660 filesystem.
+The appended variant with an `AI01` marker and an ISO beginning exactly at the
+ELF section-table end is also accepted. The AppImage remains the selected outer format and contributes its ELF
+class, byte order, machine, filesystem offset, and type metadata. The embedded
+ISO volume metadata and directory hierarchy are exposed beneath `/appimage`;
+ordinary ISO images remain `filesystem.iso9660` beneath `/disc`.
+
+Type 2 AppImages are identified as `executable.appimage-type2` by a valid ELF
+header, the mandatory `AI02` marker at offset 8, and a SquashFS 4 superblock at
+the exact end of the ELF section-header table. Vexter does not scan executable
+contents for a coincidental SquashFS signature.
+
+The indexed filesystem exposes regular files, directories, symbolic links,
+Unix permissions, UID/GID values, modification times, and inode identity.
+Stored blocks and the zlib and Zstandard compressors used by the supplied
+corpus are supported for metadata, ordinary data, sparse blocks, and fragment
+tails. File content is decompressed only when selected, recursively inspected,
+exported, or extracted. Whole-container extraction writes directories and
+regular files; links and special nodes are retained as metadata and reported
+as skipped rather than created on the host.
+
 ## ISO 9660 data-CD filesystems
 
 ISO 9660 is identified structurally as `filesystem.iso9660`; `.iso` is only

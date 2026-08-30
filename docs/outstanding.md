@@ -180,6 +180,7 @@ formats are not included. Detailed format behavior and evidence remain in
     tilemaps and tilesets, animation tags, slices, profiles, masks, external
     files, and structured user data remain to be decoded from the supplied
     specification.
+
 - **Amiga Hunk executables and LHA self-extractors**
   - Broader Hunk record and executable-variant coverage needs a supplied Hunk
     specification and authentic controls.
@@ -346,6 +347,18 @@ formats are not included. Detailed format behavior and evidence remain in
   - Chained classic icon images are unsupported.
   - Broader authentic controls for classic, NewIcons, and GlowIcons variants
     remain desirable.
+
+- **Type 2 AppImage / SquashFS**
+  - ELF files without a section-header table have no documented payload-boundary
+    rule in the supplied material and are rejected rather than signature-scanned.
+  - SquashFS LZMA, LZO, XZ, and LZ4 compressors are not yet decoded.
+  - Extended attributes, device nodes, FIFOs, sockets, and hard-link restoration
+    are inventoried only; extraction currently writes regular files and directories
+    and skips symbolic links and special nodes.
+  - `.upd_info` and `.sha256_sig` ELF sections are not interpreted or verified.
+  - libzstd.dll remains a runtime dependency to be either resolved with a vendored
+    copy of libzstd or a native implementation of RFC 8878.
+
 - **ISO 9660**
   - Add Joliet and SUSP/Rock Ridge naming and metadata, multi-extent files,
     path-table cross-checking, and broader descriptor semantics.

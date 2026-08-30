@@ -4,7 +4,7 @@
 ## registry is the authoritative bridge from a stable type identifier to the
 ## validation and inspection implementation for that format.
 
-import ./containers/[adobe_swatch_exchange, amiga_8svx, amiga_16sv, amiga_acbm, amiga_adf, amiga_anim, aseprite,
+import ./containers/[adobe_swatch_exchange, amiga_8svx, amiga_16sv, amiga_acbm, amiga_adf, amiga_anim, appimage, aseprite,
   amiga_diskfont, amiga_dms, amiga_hunk_executable, amiga_iff, amiga_ilbm, amiga_lha_sfx,
   amiga_workbench_icon, amos_bank,
   amos_bank_set, amos_program, amos_sprite_icon_bank, ansi_art, bmp, flic, gif_container,
@@ -55,6 +55,8 @@ type
     vhkElectronAsar
     vhkZip
     vhkIso9660
+    vhkAppImageType1
+    vhkAppImage
     vhkOpenRaster
     vhkLha
     vhkAmosProgram
@@ -149,6 +151,8 @@ const FormatHandlers* = [
   VextFormatHandler(typeId: ElectronAsarTypeId, kind: vhkElectronAsar),
   VextFormatHandler(typeId: ZipArchiveTypeId, kind: vhkZip),
   VextFormatHandler(typeId: Iso9660TypeId, kind: vhkIso9660),
+  VextFormatHandler(typeId: AppImageType1TypeId, kind: vhkAppImageType1),
+  VextFormatHandler(typeId: AppImageTypeId, kind: vhkAppImage),
   VextFormatHandler(typeId: OpenRasterTypeId, kind: vhkOpenRaster,
     carrierTypeId: ZipArchiveTypeId),
   VextFormatHandler(typeId: LhaArchiveTypeId, kind: vhkLha),
@@ -265,6 +269,8 @@ proc parse*(handler: VextFormatHandler,
   of vhkElectronAsar: result = parsed(parseElectronAsar(data))
   of vhkZip: result = parsed(parseZipArchive(data))
   of vhkIso9660: result = parsed(parseIso9660(data))
+  of vhkAppImageType1: result = parsed(parseAppImageType1(data))
+  of vhkAppImage: result = parsed(parseAppImage(data))
   of vhkOpenRaster:
     raise newException(Defect,
       "OpenRaster must be parsed through its ZIP carrier refiner")

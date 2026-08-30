@@ -29,7 +29,8 @@ client, and a dependency-free native Windows GUI. It supports:
   Commodore 64 KoalaPainter images,
   Netpbm P1–P7, GIF87a/GIF89a, and FLI/FLC-family animations,
   AmigaDOS ADF filesystems, DMS disk archives, PowerPacker and XPK/SHRI
-  wrappers, ZIP and Electron ASAR archives, ISO 9660 data-CD filesystems,
+  wrappers, Type 1 AppImages with ISO 9660 payloads, Type 2 AppImages with
+  SquashFS 4 payloads, ZIP and Electron ASAR archives, ISO 9660 data-CD filesystems,
   level-0/1 LHA/LZH archives using LH0 or LH5,
   minimally structured Amiga Hunk executables and LHA self-extractors,
   ZX Spectrum raw screen dumps, SNA snapshots,
@@ -62,7 +63,7 @@ client, and a dependency-free native Windows GUI. It supports:
 - byte-identical BIN export for opaque resources that retain raw data; and
 - bulk export of all exportable leaves or a union of segment-wildcard resource
   patterns, preserving a safe resource-path hierarchy; and
-- whole-container extraction for ZIP, Electron ASAR, LHA/LZH, ISO 9660, and ADF, preserving
+- whole-container extraction for Type 1 and Type 2 AppImage, ZIP, Electron ASAR, LHA/LZH, ISO 9660, and ADF, preserving
   member names and directories while materializing one original member at a
   time.
 
@@ -357,7 +358,18 @@ Matching case-insensitive extensions add supporting evidence.
   needed by package-profile refiners;
 - `iso9660.nim` validates ISO 9660 primary volume descriptors and directory
   records in cooked 2048-byte images and raw Mode 1/2352 tracks. File extents
-  are extracted on demand so parsing does not duplicate an entire disc image;
+  are extracted on demand so parsing does not duplicate an entire disc image.
+  Its lazy index recognizes SUSP 1.10 framing and bounded continuation areas,
+  then applies Rock Ridge alternate names, POSIX ownership/modes, symbolic-link
+  targets, and relocated-directory links. Relocated physical records are
+  hidden; symbolic links are inventoried but deliberately not materialized;
+- `appimage.nim` validates 32- or 64-bit ELF framing and the `AI02` marker,
+  requires SquashFS 4 to begin exactly after the bounded ELF section-header
+  table, and indexes its inode, directory, fragment, and ID tables. Stored,
+  zlib, and Zstandard blocks are materialized on demand; regular files,
+  directories, ownership, permissions, modification times, and symbolic-link
+  targets remain visible in the resource tree. Whole-image extraction skips
+  links and special nodes rather than creating host filesystem objects;
 - `openraster.nim` refines a parsed ZIP carrier through the baseline MIME and
   required-member rules, parses its layer-stack XML, and validates referenced
   PNG layers, canonical merged image, and thumbnail;

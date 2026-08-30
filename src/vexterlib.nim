@@ -32,6 +32,7 @@ import vexterlib/containers/iso9660
 import vexterlib/containers/openraster
 import vexterlib/containers/lha_archive
 import vexterlib/containers/electron_asar
+import vexterlib/containers/appimage
 import vexterlib/containers/pcx
 import vexterlib/containers/bmp
 import vexterlib/containers/png_container
@@ -136,6 +137,7 @@ export zip_archive
 export iso9660
 export lha_archive
 export electron_asar
+export appimage
 export pcx
 export bmp
 export png_container

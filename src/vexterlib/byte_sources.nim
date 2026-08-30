@@ -66,6 +66,17 @@ proc memoryByteSource*(data: sink seq[byte], label = ""): VextByteSource =
     label,
     proc() = owned.setLen(0))
 
+proc sliceByteSource*(source: VextByteSource, offset, length: int,
+    label = ""): VextByteSource =
+  ## Presents a bounded, non-owning window over another source. Closing the
+  ## view does not close its parent; the caller must keep the parent alive.
+  if source.isNil or offset < 0 or length < 0 or offset > source.length - length:
+    raise newException(ValueError, "source slice is outside its bounds")
+  newByteSource(length,
+    proc(relativeOffset, readLength: int): seq[byte] =
+      source.readAt(offset + relativeOffset, readLength),
+    label)
+
 proc newSourceCollection*(primary: VextByteSource,
     resolver: VextCompanionSourceResolver = nil): VextSourceCollection =
   if primary.isNil:

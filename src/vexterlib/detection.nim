@@ -5,7 +5,7 @@ import ./handler_registry
 import ./format_detection_types
 export format_detection_types
 import ./containers/[amiga_8svx, amiga_16sv, amiga_acbm, amiga_adf, amiga_anim, amiga_diskfont, amiga_dms, amiga_hunk_executable, amiga_iff, amiga_ilbm, amiga_lha_sfx, amiga_pbm, amiga_workbench_icon, amos_bank, amos_bank_set, amos_program,
-  adobe_swatch_exchange, amos_sprite_icon_bank, ansi_art, aseprite, bmfont, bmp, creative_voice, doom_wad, electron_asar, flic, fzx, gif_container, gimp_palette, iso9660, jpeg, koala_painter, netpbm, paint_net_palette, pcx, png_container, protracker_mod, qoi, tga,
+  adobe_swatch_exchange, amos_sprite_icon_bank, ansi_art, appimage, aseprite, bmfont, bmp, creative_voice, doom_wad, electron_asar, flic, fzx, gif_container, gimp_palette, iso9660, jpeg, koala_painter, netpbm, paint_net_palette, pcx, png_container, protracker_mod, qoi, tga,
   wav, windows_icon, zip_archive, lha_archive, zx_spectrum_screen_dump, zx_spectrum_snapshot, zx_spectrum_tap]
 import ./containers/xpk_shri
 import ./containers/powerpacker
@@ -20,6 +20,39 @@ proc detectBaseFormats(filename: string, data: openArray[byte]):
     seq[VextDetectionCandidate] =
   ## Returns every format candidate recognized from currently available
   ## evidence, ordered from strongest to weakest.
+  if data.len >= 11 and data[0] == 0x7f and data[1] == byte('E') and
+      data[2] == byte('L') and data[3] == byte('F') and
+      not (data[8] == byte('A') and data[9] == byte('I') and data[10] == 2):
+    try:
+      let image = parseAppImageType1(data)
+      var evidence = @[VextDetectionEvidence(description:
+        "file is a valid ELF combined with an ISO 9660 filesystem " &
+        (if image.filesystemOffset == 0: "in a hybrid image" else:
+          "appended after an AI01 marker"))]
+      if filename.hasAppImageExtension:
+        evidence.add VextDetectionEvidence(description:
+          "file extension is .AppImage")
+      return @[VextDetectionCandidate(typeId: AppImageType1TypeId,
+        confidence: vdcCertain, evidence: evidence,
+        derivation: baseDerivation(AppImageType1TypeId))]
+    except ValueError, LibraryError:
+      discard
+  if data.len >= 11 and data[0] == 0x7f and data[1] == byte('E') and
+      data[2] == byte('L') and data[3] == byte('F') and
+      data[8] == byte('A') and data[9] == byte('I') and data[10] == 2:
+    try:
+      discard parseAppImage(data)
+      var evidence = @[VextDetectionEvidence(description:
+        "file is a valid ELF with AI02 marker and an appended SquashFS 4 " &
+        "filesystem containing AppRun")]
+      if filename.hasAppImageExtension:
+        evidence.add VextDetectionEvidence(description:
+          "file extension is .AppImage")
+      return @[VextDetectionCandidate(typeId: AppImageTypeId,
+        confidence: vdcCertain, evidence: evidence,
+        derivation: baseDerivation(AppImageTypeId))]
+    except ValueError, LibraryError:
+      discard
   # A structurally valid disc image is a terminal physical carrier. Recognize
   # it before running probes designed for much smaller standalone files; some
   # of those parsers necessarily allocate candidate output proportional to the

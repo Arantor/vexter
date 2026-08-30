@@ -25,6 +25,9 @@ type
     recordingTime*: string
     fileVersion*: int
     systemUseBytes*: int
+    posixMode*, posixUid*, posixGid*, posixSerial*: int
+    symlinkTarget*: string
+    isSymlink*, rockRidgeRelocated*: bool
     data*: seq[byte]
 
   Iso9660Image* = object
@@ -54,6 +57,14 @@ type
     primaryDescriptorCount*, supplementaryDescriptorCount*: int
     bootDescriptorCount*, partitionDescriptorCount*: int
     rootExtent*, rootLength*: int
+    rockRidge*: bool
+    suspSkip*: int
+
+  SuspInfo = object
+    name, symlinkTarget, extensionId: string
+    linkPending: string
+    nameSeen, symlinkSeen, relocated: bool
+    mode, uid, gid, serial, childExtent: int
 
 proc leWord(data: openArray[byte], offset: int): int {.inline.} =
   int(data[offset]) or (int(data[offset + 1]) shl 8)
@@ -104,6 +115,111 @@ proc recordingTime(data: openArray[byte], offset: int): string =
     align($data[offset + 3], 2, '0') & ":" &
     align($data[offset + 4], 2, '0') & ":" &
     align($data[offset + 5], 2, '0')
+
+proc appendSuspArea(area: openArray[byte], start: int, info: var SuspInfo,
+    continuation: var tuple[blockNumber, offset, length: int]) =
+  var cursor = start
+  while cursor + 4 <= area.len:
+    let fieldLength = int(area[cursor + 2])
+    if fieldLength == 0: break
+    if fieldLength < 4 or cursor > area.len - fieldLength:
+      raise newException(ValueError, "invalid SUSP field bounds")
+    let signature = $char(area[cursor]) & $char(area[cursor + 1])
+    if area[cursor + 3] != 1:
+      cursor += fieldLength
+      continue
+    case signature
+    of "ST":
+      if fieldLength != 4: raise newException(ValueError, "invalid SUSP ST field")
+      break
+    of "CE":
+      if fieldLength != 28: raise newException(ValueError, "invalid SUSP CE field")
+      continuation = (area.bothDword(cursor + 4, "SUSP continuation block"),
+        area.bothDword(cursor + 12, "SUSP continuation offset"),
+        area.bothDword(cursor + 20, "SUSP continuation length"))
+    of "ER":
+      if fieldLength < 8: raise newException(ValueError, "invalid SUSP ER field")
+      let identifierLength = int(area[cursor + 4])
+      if cursor + 8 + identifierLength > cursor + fieldLength:
+        raise newException(ValueError, "truncated SUSP extension identifier")
+      for index in cursor + 8 ..< cursor + 8 + identifierLength:
+        info.extensionId.add char(area[index])
+    of "PX":
+      if fieldLength >= 36:
+        info.mode = area.bothDword(cursor + 4, "Rock Ridge mode")
+        info.uid = area.bothDword(cursor + 20, "Rock Ridge uid")
+        info.gid = area.bothDword(cursor + 28, "Rock Ridge gid")
+        if fieldLength >= 44:
+          info.serial = area.bothDword(cursor + 36, "Rock Ridge serial")
+    of "NM":
+      if fieldLength < 5: raise newException(ValueError, "invalid Rock Ridge NM field")
+      let flags = int(area[cursor + 4])
+      if (flags and 2) != 0: info.name = "."
+      elif (flags and 4) != 0: info.name = ".."
+      else:
+        for index in cursor + 5 ..< cursor + fieldLength:
+          let value = area[index]
+          if value in [0'u8, byte('/'), byte('\\')]:
+            raise newException(ValueError, "unsafe Rock Ridge alternate name")
+          info.name.add char(value)
+      info.nameSeen = true
+    of "SL":
+      if fieldLength < 5: raise newException(ValueError, "invalid Rock Ridge SL field")
+      var component = cursor + 5
+      while component < cursor + fieldLength:
+        if component + 2 > cursor + fieldLength:
+          raise newException(ValueError, "truncated Rock Ridge link component")
+        let flags = int(area[component])
+        let length = int(area[component + 1])
+        if component + 2 + length > cursor + fieldLength:
+          raise newException(ValueError, "truncated Rock Ridge link component")
+        var value = ""
+        if (flags and 8) != 0:
+          value = ""
+          if info.symlinkTarget.len == 0: info.symlinkTarget = "/"
+        elif (flags and 4) != 0: value = ".."
+        elif (flags and 2) != 0: value = "."
+        else:
+          for index in component + 2 ..< component + 2 + length:
+            value.add char(area[index])
+        info.linkPending.add value
+        if (flags and 1) == 0:
+          if info.symlinkTarget.len > 0 and
+              not info.symlinkTarget.endsWith("/"):
+            info.symlinkTarget.add "/"
+          info.symlinkTarget.add info.linkPending
+          info.linkPending.setLen(0)
+        component += 2 + length
+      info.symlinkSeen = true
+    of "CL":
+      if fieldLength != 12: raise newException(ValueError, "invalid Rock Ridge CL field")
+      info.childExtent = area.bothDword(cursor + 4, "Rock Ridge child link")
+    of "RE":
+      if fieldLength != 4: raise newException(ValueError, "invalid Rock Ridge RE field")
+      info.relocated = true
+    else: discard
+    cursor += fieldLength
+
+proc parseSusp(initial: openArray[byte], start, volumeBlocks: int,
+    readContinuation: proc(logicalOffset, length: int): seq[byte] {.closure.}): SuspInfo =
+  var area = @initial
+  var areaStart = start
+  var seen = initHashSet[string]()
+  for depth in 0 .. 16:
+    var continuation = (blockNumber: 0, offset: 0, length: 0)
+    appendSuspArea(area, areaStart, result, continuation)
+    if continuation.length == 0: return
+    if continuation.blockNumber < 0 or continuation.blockNumber >= volumeBlocks or
+        continuation.offset < 0 or continuation.length < 0 or
+        continuation.offset + continuation.length > Iso9660LogicalBlockSize:
+      raise newException(ValueError, "SUSP continuation is outside one logical block")
+    let identity = $continuation.blockNumber & ":" & $continuation.offset & ":" & $continuation.length
+    if identity in seen: raise newException(ValueError, "cyclic SUSP continuation")
+    seen.incl identity
+    area = readContinuation(continuation.blockNumber * Iso9660LogicalBlockSize +
+      continuation.offset, continuation.length)
+    areaStart = 0
+  raise newException(ValueError, "SUSP continuation chain exceeds safety limit")
 
 proc rawSectorValid(data: openArray[byte], sector: int): bool =
   let offset = sector * 2352
@@ -477,6 +593,30 @@ proc indexIso9660*(source: VextByteSource): Iso9660Index =
     result.volumeBlocks)
   result.rootExtent = root.extent
   result.rootLength = root.length
+  # SUSP is announced by SP in the first (self) record of the root directory.
+  # Its final byte applies as a skip before every subsequent System Use area.
+  let rootBytes = source.readLogical(result.layout,
+    result.rootExtent * Iso9660LogicalBlockSize, min(result.rootLength,
+    Iso9660LogicalBlockSize))
+  if rootBytes.len >= 41:
+    let recordLength = int(rootBytes[0])
+    let identifierLength = int(rootBytes[32])
+    let systemUseStart = 33 + identifierLength +
+      (if identifierLength mod 2 == 0: 1 else: 0)
+    if recordLength <= rootBytes.len and systemUseStart + 7 <= recordLength and
+        rootBytes[systemUseStart] == byte('S') and
+        rootBytes[systemUseStart + 1] == byte('P') and
+        rootBytes[systemUseStart + 2] == 7 and
+        rootBytes[systemUseStart + 3] == 1 and
+        rootBytes[systemUseStart + 4] == 0xbe and
+        rootBytes[systemUseStart + 5] == 0xef:
+      result.suspSkip = int(rootBytes[systemUseStart + 6])
+      let suspLayout = result.layout
+      let rootSusp = parseSusp(rootBytes.toOpenArray(0, recordLength - 1),
+        systemUseStart, result.volumeBlocks,
+        proc(logicalOffset, length: int): seq[byte] =
+          source.readLogical(suspLayout, logicalOffset, length))
+      result.rockRidge = rootSusp.extensionId in ["RRIP_1991A", "IEEE_P1282"]
 
 proc listIso9660Directory*(source: VextByteSource, index: Iso9660Index,
     extent, length: int, parent: seq[string]): seq[Iso9660Entry] =
@@ -512,20 +652,35 @@ proc listIso9660Directory*(source: VextByteSource, index: Iso9660Index,
     let special = identifierLength == 1 and record[33] in [0'u8, 1'u8]
     if not special:
       let identifier = decodedIdentifier(record)
+      let padding = if identifierLength mod 2 == 0: 1 else: 0
+      let systemUseStart = 33 + identifierLength + padding
+      var susp: SuspInfo
+      if index.rockRidge and systemUseStart + index.suspSkip < recordLength:
+        susp = parseSusp(record, systemUseStart + index.suspSkip,
+          index.volumeBlocks, proc(logicalOffset, length: int): seq[byte] =
+            source.readLogical(index.layout, logicalOffset, length))
+      if susp.relocated:
+        offset += recordLength
+        continue
+      let presentedName = if susp.nameSeen and susp.name.len > 0:
+          susp.name else: identifier.name
       var segments = parent
-      segments.add identifier.name
+      segments.add presentedName
       let canonical = segments.join("/")
       if canonical in paths:
         raise newException(ValueError, "duplicate ISO 9660 path: " & canonical)
       paths.incl canonical
-      let padding = if identifierLength mod 2 == 0: 1 else: 0
-      let systemUseStart = 33 + identifierLength + padding
+      let presentedExtent = if susp.childExtent > 0: susp.childExtent else: entryExtent
       result.add Iso9660Entry(name: canonical, segments: segments,
-        isDirectory: (flags and 2) != 0, hidden: (flags and 1) != 0,
-        associated: (flags and 4) != 0, extentBlock: entryExtent,
+        isDirectory: (flags and 2) != 0 or susp.childExtent > 0,
+        hidden: (flags and 1) != 0,
+        associated: (flags and 4) != 0, extentBlock: presentedExtent,
         dataLength: entryLength, recordingTime: record.recordingTime(18),
         fileVersion: identifier.version,
-        systemUseBytes: max(0, recordLength - systemUseStart))
+        systemUseBytes: max(0, recordLength - systemUseStart),
+        posixMode: susp.mode, posixUid: susp.uid, posixGid: susp.gid,
+        posixSerial: susp.serial, symlinkTarget: susp.symlinkTarget,
+        isSymlink: susp.symlinkSeen)
     offset += recordLength
 
 proc extractIso9660Entry*(source: VextByteSource, index: Iso9660Index,
