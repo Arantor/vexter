@@ -807,6 +807,9 @@ amos.icon
 zx-spectrum.screen
 zx-spectrum.snapshot
 zx-spectrum.tap
+zx-spectrum.code
+zx-spectrum.number-array
+zx-spectrum.character-array
 zx-spectrum.basic
 ```
 
@@ -1133,8 +1136,9 @@ The routine suites are:
 - `tests/test_zx_spectrum_snapshot.nim`: SNA detection and screen extraction;
 - `tests/test_zx_spectrum_basic.nim`: token, graphics, annotation, boundary,
   and 48K SNA BASIC extraction behavior;
-- `tests/test_zx_spectrum_tap.nim`: TAP validation, extraction, and resource
-  tree shapes;
+- `tests/test_zx_spectrum_tap.nim`: TAP validation, screen/BASIC/CODE
+  and opaque array extraction, BASIC autostart metadata, physical tape
+  ordering, opaque binary export, and resource tree shapes;
 - `tests/test_amos_sprite_icon_bank.nim`: AMOS bank parsing, icon/sprite
   distinctions, planar rendering against controls, hotspots, and malformed
   input;

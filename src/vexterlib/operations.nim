@@ -2315,36 +2315,93 @@ proc inspectSourceDepth(filename: string, data: openArray[byte],
         discard
   of vhkZxSpectrumTap:
     let tap = parsedValue[VextParsedZxTap](selectedParsed, vhkZxSpectrumTap)
-    let screens = tap.screens
-    if screens.len == 1:
-      result.resources.roots.add rasterNode(ZxSpectrumScreenResourcePath,
-        screens[0].data)
-    elif screens.len > 1:
-      let group = VextResourceNode(
-        path: ZxSpectrumScreenResourcePath,
-        kind: vrnkGroup)
-      for index, screen in screens:
-        group.children.add rasterNode(
-          ZxSpectrumScreenResourcePath & "/" & $(index + 1), screen.data)
-      result.resources.roots.add group
-    let listings = tap.listings
-    if listings.len == 1:
-      result.resources.roots.add VextResourceNode(
-        path: ZxSpectrumBasicResourcePath,
-        typeId: ZxSpectrumBasicTypeId,
-        kind: vrnkText,
-        text: decodeZxSpectrumBasic(listings[0].data))
-    elif listings.len > 1:
-      let group = VextResourceNode(
-        path: ZxSpectrumBasicResourcePath,
-        kind: vrnkGroup)
-      for index, listing in listings:
-        group.children.add VextResourceNode(
-          path: ZxSpectrumBasicResourcePath & "/" & $(index + 1),
+    var screenCount, codeCount, listingCount, numberArrayCount,
+      characterArrayCount: int
+    for record in tap.records:
+      case record.kind
+      of ztrkScreen: inc screenCount
+      of ztrkCode: inc codeCount
+      of ztrkProgram: inc listingCount
+      of ztrkNumberArray: inc numberArrayCount
+      of ztrkCharacterArray: inc characterArrayCount
+    var screenIndex, codeIndex, listingIndex, numberArrayIndex,
+      characterArrayIndex: int
+    for record in tap.records:
+      case record.kind
+      of ztrkScreen:
+        inc screenIndex
+        let path = if screenCount == 1: ZxSpectrumScreenResourcePath
+          else: ZxSpectrumScreenResourcePath & "/" & $screenIndex
+        let node = rasterNode(path, record.data)
+        node.metadata = @[
+          stringMetadata("tap.name", record.name),
+          integerMetadata("code.start-address", record.startAddress),
+          integerMetadata("code.length", record.declaredLength),
+          integerMetadata("code.parameter-2", record.parameter2)
+        ]
+        result.resources.roots.add node
+      of ztrkCode:
+        inc codeIndex
+        let path = if codeCount == 1: ZxSpectrumTapCodeResourcePath
+          else: ZxSpectrumTapCodeResourcePath & "/" & $codeIndex
+        result.resources.roots.add VextResourceNode(
+          path: path,
+          typeId: ZxSpectrumTapCodeTypeId,
+          kind: vrnkOpaque,
+          data: record.data,
+          rawDataAvailable: true,
+          metadata: @[
+            stringMetadata("tap.name", record.name),
+            integerMetadata("code.start-address", record.startAddress),
+            integerMetadata("code.length", record.declaredLength),
+            integerMetadata("code.parameter-2", record.parameter2)
+          ])
+      of ztrkProgram:
+        inc listingIndex
+        let path = if listingCount == 1: ZxSpectrumBasicResourcePath
+          else: ZxSpectrumBasicResourcePath & "/" & $listingIndex
+        var metadata = @[
+          stringMetadata("tap.name", record.name),
+          integerMetadata("basic.variable-area-offset", record.parameter2)
+        ]
+        if record.startAddress < 32768:
+          metadata.add integerMetadata("basic.autostart-line",
+            record.startAddress)
+        result.resources.roots.add VextResourceNode(
+          path: path,
           typeId: ZxSpectrumBasicTypeId,
           kind: vrnkText,
-          text: decodeZxSpectrumBasic(listing.data))
-      result.resources.roots.add group
+          text: decodeZxSpectrumBasic(record.data),
+          metadata: metadata)
+      of ztrkNumberArray, ztrkCharacterArray:
+        let
+          isNumberArray = record.kind == ztrkNumberArray
+          count = if isNumberArray: numberArrayCount else: characterArrayCount
+          basePath = if isNumberArray: ZxSpectrumTapNumberArrayResourcePath
+            else: ZxSpectrumTapCharacterArrayResourcePath
+          typeId = if isNumberArray: ZxSpectrumTapNumberArrayTypeId
+            else: ZxSpectrumTapCharacterArrayTypeId
+        var itemIndex: int
+        if isNumberArray:
+          inc numberArrayIndex
+          itemIndex = numberArrayIndex
+        else:
+          inc characterArrayIndex
+          itemIndex = characterArrayIndex
+        let path = if count == 1: basePath
+          else: basePath & "/" & $itemIndex
+        result.resources.roots.add VextResourceNode(
+          path: path,
+          typeId: typeId,
+          kind: vrnkOpaque,
+          data: record.data,
+          rawDataAvailable: true,
+          metadata: @[
+            stringMetadata("tap.name", record.name),
+            integerMetadata("array.parameter-1", record.startAddress),
+            integerMetadata("array.parameter-2", record.parameter2),
+            integerMetadata("data.length", record.declaredLength)
+          ])
 proc inspectSource*(filename: string, data: openArray[byte],
     inputFormat = "", ignoreWarnings = false,
     pcxChannelOrder = pcoRgb,

@@ -289,8 +289,10 @@ formats are not included. Detailed format behavior and evidence remain in
   - BASIC extraction from 128K snapshots awaits confirmed paging semantics.
 
 - **ZX Spectrum TAP containers**
-  - Only qualifying screen CODE records and tokenised Program records are
-    decoded; other records remain unrepresented.
+  - CODE records other than screen dumps are exposed as opaque payloads;
+    disassembly and semantic interpretation remain deferred.
+  - Number and character arrays are exposed as opaque payloads; decoding and
+    displaying their dimensions and elements remains deferred.
   - Full Spectrum filename-character handling is deferred.
 
 - **PCX images**

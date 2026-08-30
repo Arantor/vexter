@@ -103,8 +103,7 @@ type
     glow*: WorkbenchGlowIcon
 
   VextParsedZxTap* = object
-    screens*: seq[ZxSpectrumTapScreen]
-    listings*: seq[ZxSpectrumTapBasic]
+    records*: seq[ZxSpectrumTapRecord]
 
 const FormatHandlers* = [
   VextFormatHandler(typeId: AmigaDiskfontIndexTypeId,
@@ -300,8 +299,7 @@ proc parse*(handler: VextFormatHandler,
   of vhkZxSpectrumTap:
     if not isZxSpectrumTap(data):
       raise newException(ValueError, "invalid ZX Spectrum TAP container")
-    result = parsed(VextParsedZxTap(screens: parseZxSpectrumTapScreens(data),
-      listings: parseZxSpectrumTapBasic(data)))
+    result = parsed(VextParsedZxTap(records: parseZxSpectrumTapRecords(data)))
   of vhkAnsiArt: result = parsed(parseAnsiArt(data))
 
 proc tryParse*(handler: VextFormatHandler,

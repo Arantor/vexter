@@ -1400,11 +1400,29 @@ the flag and content. Vexter validates every block length and checksum and
 requires each 19-byte header block to be followed immediately by the data block
 it describes.
 
-Vexter exposes CODE records whose declared length is 6,912 bytes, start address
-is 16,384, and parameter 2 is 32,768 through the existing screen pathway. One
+Vexter exposes CODE records whose declared length is 6,912 bytes and start
+address is 16,384 through the existing screen pathway; the unused second CODE
+parameter does not affect screen recognition. One
 qualifying record is exposed as `/screen`; multiple records are exposed as
-`/screen/1`, `/screen/2`, and so on. Program records containing structurally
-valid tokenised BASIC are exposed through the listing paths described above.
+`/screen/1`, `/screen/2`, and so on. Other CODE records are exposed as opaque
+`zx-spectrum.code` resources at `/code`, or numbered paths below `/code` when
+there is more than one. Their TAP filename, load address, declared length, and
+second CODE parameter are retained as metadata, and their payload can be
+exported as raw binary data. Program records containing structurally valid
+tokenised BASIC are exposed through the listing paths described above. A
+Program header's first parameter is exposed as `basic.autostart-line` when it
+is below 32,768; values at or above 32,768 mean that the program does not
+autostart. Its second parameter, the start of the variable area relative to the
+start of the saved program, is exposed as `basic.variable-area-offset`.
+Number-array and character-array records are exposed as raw-exportable opaque
+`zx-spectrum.number-array` and `zx-spectrum.character-array` resources. Their
+paths are `/number-array` and `/character-array`, with numbered paths used for
+repeated records of the same kind.
+
+TAP resources are emitted as direct roots in their physical tape order because
+loader programs can depend on that sequence. Repeated resource kinds receive
+numbered paths for disambiguation, but are not collected into type-based group
+nodes.
 
 Header filenames are ten-byte, space-padded fields. ASCII bytes are retained
 and non-ASCII bytes are currently ignored; full Spectrum filename-character
