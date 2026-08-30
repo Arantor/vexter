@@ -496,9 +496,11 @@ containers can expose the same image resources later.
 
 `src/vexterlib/resources/amos_packed_picture_image.nim` converts decompressed
 Pac.Pic. planes and the screen header's `$0RGB` palette into an indexed raster.
-Whole-screen one-through-five-plane pictures are supported. Partial pictures
-without a screen header remain structurally parseable but cannot be rendered
-without an external palette; six-plane Pac.Pic. modes also remain deferred.
+Whole-screen one-through-six-plane pictures are supported. Six-plane pictures
+are rendered as Extra Half-Brite, with palette entries 32 through 63 derived
+by halving the expanded RGB components of entries 0 through 31. Partial
+pictures without a screen header remain structurally parseable but cannot be
+rendered without an external palette.
 
 `src/vexterlib/resources/pcx_image.nim` expands raw or PCX RLE scanlines and
 renders one-through-four-bit indexed planar images, eight-bit indexed images,
@@ -1146,7 +1148,8 @@ The routine suites are:
   resources, metadata, and malformed input;
 - `tests/test_amos_packed_picture.nim`: authentic two-stage decompression and
   planar rendering against the Castle AMOS PNG control, nested `AmBs`
-  exposure, PNG export, and palette-less partial-picture behavior;
+  exposure, six-plane EHB rendering, PNG export, and palette-less
+  partial-picture behavior;
 - `tests/test_amos_bank_set.nim`: mixed adjacent members, nested resource
   paths, prefix length reporting, export, and structural failures;
 - `tests/test_amos_program.nim`: real Basic and synthetic Professional

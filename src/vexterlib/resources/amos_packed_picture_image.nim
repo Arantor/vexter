@@ -15,10 +15,7 @@ proc decodeAmosPackedPicture*(source: AmosPackedPicture): VextIndexedImage =
   if not source.hasScreenHeader:
     raise newException(ValueError,
       "AMOS packed picture has no screen palette")
-  if source.planes > 5:
-    raise newException(ValueError,
-      "six-plane AMOS packed pictures are not yet supported")
-  let requiredColours = 1 shl source.planes
+  let requiredColours = if source.planes == 6: 32 else: 1 shl source.planes
   if source.colourCount < requiredColours or source.colourCount > 32 or
       source.paletteWords.len < requiredColours:
     raise newException(ValueError, "AMOS packed-picture palette is too small")
@@ -33,6 +30,12 @@ proc decodeAmosPackedPicture*(source: AmosPackedPicture): VextIndexedImage =
       r: expandNibble(colour shr 8),
       g: expandNibble(colour shr 4),
       b: expandNibble(colour))
+  if source.planes == 6:
+    result.palette.setLen(32)
+    for index in 0 ..< 32:
+      let colour = result.palette[index]
+      result.palette.add VextRgb(
+        r: colour.r shr 1, g: colour.g shr 1, b: colour.b shr 1)
 
   for y in 0 ..< result.height:
     for x in 0 ..< result.width:

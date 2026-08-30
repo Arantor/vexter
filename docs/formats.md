@@ -1205,6 +1205,14 @@ opaque `amos.bank-data` resource at `/bank`. Inspection reports `bank.number`,
 `bank.flags`, `bank.type`, and `data.length` metadata. The undecoded bank
 payload is retained and defaults to raw `.bin` export.
 
+`Pac.Pic.` banks with a screen header are decoded into indexed rasters. Their
+nested compressed streams are expanded into ordinary planar pixels, and the
+screen header supplies up to 32 `$0RGB` palette entries. One-through-five-plane
+pictures use those colours directly. Six-plane pictures are Extra Half-Brite:
+indices 32 through 63 repeat the first 32 colours with each expanded RGB
+component shifted right once. Partial pictures without a screen header remain
+opaque because they do not carry a palette.
+
 ## AMOS bank sets
 
 Type identifier: `amos.bank-set`

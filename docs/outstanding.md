@@ -278,7 +278,6 @@ formats are not included. Detailed format behavior and evidence remain in
 - **AMOS packed pictures**
   - Partial pictures without a screen header cannot render without an external
     palette.
-  - Six-plane packed-picture modes are unsupported.
 
 - **Generic AMOS banks, bank sets, and programs**
   - Unknown bank types remain opaque rather than decoded.

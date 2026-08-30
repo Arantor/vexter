@@ -12,6 +12,39 @@ proc readBytes(path: string): seq[byte] =
   for index, value in contents:
     result[index] = byte(value)
 
+proc putBeWord(data: var seq[byte], offset, value: int) =
+  data[offset] = byte(value shr 8)
+  data[offset + 1] = byte(value)
+
+proc putBeDword(data: var seq[byte], offset, value: int) =
+  data[offset] = byte(value shr 24)
+  data[offset + 1] = byte(value shr 16)
+  data[offset + 2] = byte(value shr 8)
+  data[offset + 3] = byte(value)
+
+proc sixPlaneBank(): seq[byte] =
+  var payload = newSeq[byte](117)
+  payload[0 .. 3] = @[0x12'u8, 0x03, 0x19, 0x90]
+  payload.putBeWord(4, 8)
+  payload.putBeWord(6, 1)
+  payload.putBeWord(22, 32)
+  payload.putBeWord(24, 6)
+  payload.putBeWord(26, 0x0468)
+  payload[90 .. 93] = @[0x06'u8, 0x07, 0x19, 0x63]
+  payload.putBeWord(98, 1)
+  payload.putBeWord(100, 1)
+  payload.putBeWord(102, 1)
+  payload.putBeWord(104, 6)
+  payload.putBeDword(106, 25)
+  payload.putBeDword(110, 26)
+
+  result = newSeq[byte](20)
+  result[0 .. 3] = @[byte('A'), byte('m'), byte('B'), byte('k')]
+  result.putBeDword(8, payload.len + 8)
+  for index, value in AmosPackedPictureBankType:
+    result[12 + index] = byte(value)
+  result.add payload
+
 proc rgbDigest(image: VextIndexedImage): string =
   var rgb = newStringOfCap(image.width * image.height * 3)
   for paletteIndex in image.pixels:
@@ -61,6 +94,33 @@ suite "AMOS packed pictures":
     check resource.typeId == AmosPackedPictureResourceTypeId
     check rgbDigest(resource.raster.image) ==
       "56A1B401EA53BA116DE7FE61B49020E1692CA3FC"
+
+  test "six-plane pictures use an EHB palette":
+    var palette = newSeq[uint16](32)
+    palette[0] = 0x0468
+    let picture = AmosPackedPicture(
+      hasScreenHeader: true,
+      colourCount: 32,
+      paletteWords: palette,
+      widthBytes: 1,
+      lumps: 1,
+      lumpHeight: 1,
+      planes: 6,
+      planeData: @[0'u8, 0, 0, 0, 0, 0x80])
+    let image = decodeAmosPackedPicture(picture)
+
+    check image.width == 8
+    check image.height == 1
+    check image.palette.len == 64
+    check image.palette[0] == VextRgb(r: 68, g: 102, b: 136)
+    check image.palette[32] == VextRgb(r: 34, g: 51, b: 68)
+    check image.pixelAt(0, 0) == 32
+    check image.pixelAt(1, 0) == 0
+
+    let resources = inspectSource("ehb.abk", sixPlaneBank()).resources.rasterResources
+    check resources.len == 1
+    check resources[0].typeId == AmosPackedPictureResourceTypeId
+    check resources[0].raster.image.palette.len == 64
 
   test "partial packed pictures without a palette remain unrenderable":
     var payload = newSeq[byte](24)

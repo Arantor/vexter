@@ -296,7 +296,7 @@ proc amosBankNode(path: string, bank: AmosBank): VextResourceNode =
     integerMetadata("position.y", picture.yOffset),
     integerMetadata("planes", picture.planes)
   ]
-  if not picture.hasScreenHeader or picture.planes > 5:
+  if not picture.hasScreenHeader:
     return VextResourceNode(
       path: path,
       typeId: AmosPackedPictureResourceTypeId,
