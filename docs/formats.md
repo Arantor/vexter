@@ -1737,6 +1737,36 @@ eight-entry thumbnail IFD, and a two-entry interoperability IFD; it remains an
 uncommitted compatibility control. Attribution and research-source hashes are
 recorded in [`THIRD_PARTY.md`](../THIRD_PARTY.md).
 
+## Commodore 1540/1541 D64 disk images
+
+Container type identifier: `commodore.d64`
+
+File resource type identifier: `commodore.d64-file`
+
+Vexter recognizes the documented 35- and 40-track sector-image sizes, with or
+without one appended error byte per sector. Because D64 has no magic signature,
+detection requires a supported size, consistent BAM free-sector counts and
+bitmaps, a bounded directory chain beginning at track 18 sector 1, and bounded
+acyclic file-sector chains. A `.d64` suffix makes this evidence **probable**;
+the same structure without the suffix is **possible**.
+
+The disk is exposed beneath `/disk`. Root metadata includes the PETSCII disk
+name, ID, DOS type and version, geometry, error-byte presence, and entry count.
+DEL, SEQ, PRG, USR, and REL directory entries retain their closed, locked,
+starting track/sector, declared and observed sector counts, and REL side-sector
+fields. PETSCII bytes without a safe direct path representation use `_XX`
+escapes. Ordinary file data follows its track/sector chain, uses the terminal
+sector byte count, and is available for raw export and recursive inspection.
+This lets the authentic Koala demo disk expose fifteen embedded KoalaPainter
+images directly.
+
+REL side-sector and record semantics, GEOS structures, BAM variants for speeder
+DOS extensions, and interpretation of appended sector error codes are not yet
+implemented. Error bytes and REL metadata are retained structurally; primary
+file chains remain recoverable. The supplied document and the authentic
+`KoalaDemo-Romp.d64` and `TALESOAN.D64` controls are recorded with hashes in
+[`THIRD_PARTY.md`](../THIRD_PARTY.md).
+
 ## Commodore 64 KoalaPainter images
 
 Container type identifier: `commodore64.koala-painter`

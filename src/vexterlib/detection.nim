@@ -5,7 +5,7 @@ import ./handler_registry
 import ./format_detection_types
 export format_detection_types
 import ./containers/[amiga_8svx, amiga_16sv, amiga_acbm, amiga_adf, amiga_anim, amiga_diskfont, amiga_dms, amiga_hunk_executable, amiga_iff, amiga_ilbm, amiga_lha_sfx, amiga_pbm, amiga_workbench_icon, amos_bank, amos_bank_set, amos_program,
-  adobe_swatch_exchange, amos_sprite_icon_bank, ansi_art, appimage, aseprite, bmfont, bmp, creative_voice, doom_wad, electron_asar, flic, fzx, gif_container, gimp_palette, iso9660, jpeg, koala_painter, netpbm, paint_net_palette, pcx, png_container, protracker_mod, qoi, tga,
+  adobe_swatch_exchange, amos_sprite_icon_bank, ansi_art, appimage, aseprite, bmfont, bmp, creative_voice, d64, doom_wad, electron_asar, flic, fzx, gif_container, gimp_palette, iso9660, jpeg, koala_painter, netpbm, paint_net_palette, pcx, png_container, protracker_mod, qoi, tga,
   wav, windows_icon, zip_archive, lha_archive, zx_spectrum_screen_dump, zx_spectrum_snapshot, zx_spectrum_tap]
 import ./containers/xpk_shri
 import ./containers/powerpacker
@@ -69,6 +69,22 @@ proc detectBaseFormats(filename: string, data: openArray[byte]):
       derivation: baseDerivation(Iso9660TypeId))]
   except ValueError:
     discard
+
+  if data.len in [D64StandardSize, D64StandardErrorSize, D64ExtendedSize,
+      D64ExtendedErrorSize]:
+    try:
+      let disk = parseD64(data)
+      var evidence = @[VextDetectionEvidence(description:
+        "file has a valid " & $disk.tracks & "-track D64 BAM, directory, " &
+        "and bounded file-sector chains")]
+      if filename.hasD64Extension:
+        evidence.add VextDetectionEvidence(description:
+          "file extension is .d64")
+      return @[VextDetectionCandidate(typeId: D64TypeId,
+        confidence: if filename.hasD64Extension: vdcProbable else: vdcPossible,
+        evidence: evidence, derivation: baseDerivation(D64TypeId))]
+    except ValueError:
+      discard
 
   if isDoomWad(data):
     let wad = parseDoomWad(data)

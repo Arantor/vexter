@@ -357,6 +357,29 @@ d64acf03e17ff369beaec8b93c32521607655d9ff37e8fabadbb031b3f97150f  tests/fixtures
 76f40724948764fb6168917e6f7baf505f1579e404cfac60e6c203b88616cfd5  tests/fixtures/commodore64.koala-painter/ghost.png
 ```
 
+## Commodore 1541 D64 documentation and disk images
+
+The developer supplied `D64 (Electronic form of a physical 1541 disk).html`,
+document revision 1.9 dated 11 March 2004. It documents 35- and 40-track D64
+geometry, optional per-sector error bytes, the BAM and disk identity fields,
+directory entries and chains, file type flags, and ordinary chained-sector
+payload storage. It credits the book *Inside Commodore DOS* by Immers and
+Neufeld and contributions by Wolfgang Moser. No internet research or
+third-party implementation source was used. The supplied document was obtained
+from [unusedino.de's EC64 D64 format page](http://unusedino.de/ec64/technical/formats/d64.html).
+
+`KoalaDemo-Romp.d64` is the D64 image distributed through
+[CSDb release 256762](https://csdb.dk/release/?id=256762), also used as the
+source of the committed KoalaPainter controls. `TALESOAN.D64` is a separately
+supplied authentic game disk used as a second compatibility control. No source
+URL or separate licence terms were supplied for `TALESOAN.D64`.
+
+```text
+07633faeae9e23843cf63cc8807b1dacee13bd2cf35bab1e464140648d32e5d1  D64 (Electronic form of a physical 1541 disk).html
+7c3cdb291e3622ac26729b4a19e31b13be4d4e1c5e45cc52e9362db45b0903fd  KoalaDemo-Romp.d64
+db57cec2f9745bb67725c87ef216e4b795b1106292909ba83ec9343f88e050d1  TALESOAN.D64
+```
+
 ## ISO 9660 reference
 
 The developer supplied a local copy of Wikipedia's

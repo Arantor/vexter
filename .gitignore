@@ -19,6 +19,7 @@
 /tests/test_iso9660
 /tests/test_electron_asar
 /tests/test_appimage
+/tests/test_d64
 /tests/test_pcx
 /tests/test_bmp
 /tests/test_png

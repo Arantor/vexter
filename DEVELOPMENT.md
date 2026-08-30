@@ -26,7 +26,7 @@ client, and a dependency-free native Windows GUI. It supports:
   OpenRaster layered documents, Windows ICO/CUR collections (including PNG and DIB entries), QOI,
   Paint.NET and GIMP text palettes, Adobe Swatch Exchange palettes, palettes embedded in Aseprite sprites,
   15- and 31-instrument ProTracker-compatible MOD tracker modules,
-  Commodore 64 KoalaPainter images,
+  Commodore 1540/1541 D64 disk images, Commodore 64 KoalaPainter images,
   Netpbm P1–P7, GIF87a/GIF89a, and FLI/FLC-family animations,
   AmigaDOS ADF filesystems, DMS disk archives, PowerPacker and XPK/SHRI
   wrappers, Type 1 AppImages with ISO 9660 payloads, Type 2 AppImages with
@@ -416,6 +416,10 @@ Matching case-insensitive extensions add supporting evidence.
   hotspots plus both directory and payload dimensions;
 - `qoi.nim` validates QOI headers, dimensions, channel and colour-space
   descriptors, chunk framing and pixel coverage, and the exact end marker;
+- `d64.nim` validates supported 35/40-track Commodore disk-image sizes, BAM
+  allocation counts, chained directory sectors, file type entries, and bounded
+  acyclic file-sector payloads, retaining disk, file, REL, and error-table
+  metadata for presentation and recovery;
 - `koala_painter.nim` validates the 10,003-byte KoalaPainter payload and
   bounded component ranges while retaining its little-endian load address,
   bitmap, screen RAM, colour RAM, global background byte, and tolerated
@@ -1068,6 +1072,9 @@ The routine suites are:
 - `tests/test_qoi.nim`: every QOI opcode, colour-index hashing, runs,
   modulo-256 channel differences, alpha, metadata, detection, PNG routing,
   declared pixel coverage, exact termination, and malformed input;
+- `tests/test_d64.nim`: synthetic BAM/directory/file-chain boundaries, size and
+  cycle rejection, detection confidence, both authentic disk directories, and
+  recursive recovery of fifteen KoalaPainter images from the demo disk;
 - `tests/test_koala_painter.nim`: fixed-layout validation, extension and size
   confidence, noncanonical load addresses, tolerated trailing data,
   multicolour selector ordering, doubled pixels, and the Colodore VIC-II

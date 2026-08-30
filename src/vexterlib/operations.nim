@@ -14,7 +14,7 @@ import ./handler_registry
 import ./exporters/[bmfont, gif, gpl, html_report, metadata_json, png, raw, tracker_json, wav]
 import ./resource_tree
 import ./containers/[amiga_8svx, amiga_16sv, amiga_acbm, amiga_adf, amiga_anim, amiga_diskfont, amiga_dms, amiga_hunk_executable, amiga_iff, amiga_ilbm, amiga_lha_sfx, amiga_pbm, amiga_workbench_icon, amos_bank, amos_bank_set, amos_packed_picture, amos_program,
-  amos_sprite_icon_bank, ansi_art, appimage, bmfont, bmp, creative_voice, doom_wad, electron_asar, flic, fzx, gif_container, iso9660, jpeg, netpbm, openraster, pcx, png_container,
+  amos_sprite_icon_bank, ansi_art, appimage, bmfont, bmp, creative_voice, d64, doom_wad, electron_asar, flic, fzx, gif_container, iso9660, jpeg, netpbm, openraster, pcx, png_container,
   adobe_swatch_exchange, aseprite, gimp_palette, koala_painter, paint_net_palette, protracker_mod, qoi, tga, wav, windows_icon, zip_archive, lha_archive, zx_spectrum_snapshot, zx_spectrum_tap]
 import ./containers/xpk_shri
 import ./containers/powerpacker
@@ -1108,6 +1108,36 @@ proc inspectSourceDepth(filename: string, data: openArray[byte],
         integerMetadata("background-byte", int(source.backgroundByte)),
         integerMetadata("background-colour", int(source.backgroundColour)),
         integerMetadata("trailing-bytes", source.trailingByteCount)])
+  of vhkD64:
+    let disk = parsedValue[D64Disk](selectedParsed, vhkD64)
+    let root = VextResourceNode(path: "/disk", typeId: D64TypeId,
+      kind: vrnkGroup, metadata: @[
+        stringMetadata("disk.name", disk.name),
+        stringMetadata("disk.id", disk.diskId),
+        stringMetadata("disk.dos-type", disk.dosType),
+        integerMetadata("disk.dos-version", disk.dosVersion),
+        integerMetadata("tracks", disk.tracks),
+        integerMetadata("sectors", disk.sectorCount),
+        integerMetadata("error-bytes", ord(disk.hasErrorBytes)),
+        integerMetadata("entries", disk.entries.len)])
+    for entry in disk.entries:
+      let metadata = @[
+        stringMetadata("d64.name", entry.name),
+        stringMetadata("d64.file-type", entry.kind.d64FileKindName),
+        integerMetadata("d64.closed", ord(entry.closed)),
+        integerMetadata("d64.locked", ord(entry.locked)),
+        integerMetadata("d64.start-track", entry.startTrack),
+        integerMetadata("d64.start-sector", entry.startSector),
+        integerMetadata("d64.declared-sectors", entry.declaredSectors),
+        integerMetadata("d64.actual-sectors", entry.actualSectors),
+        integerMetadata("d64.side-track", entry.sideTrack),
+        integerMetadata("d64.side-sector", entry.sideSector),
+        integerMetadata("d64.record-length", entry.recordLength),
+        integerMetadata("data.length", entry.data.len)]
+      root.children.add containedFileNode("/disk/" & entry.name, entry.name,
+        D64FileTypeId, entry.data, metadata, depth, ignoreWarnings,
+        pcxChannelOrder, result.warnings)
+    result.resources.roots.add root
   of vhkNetpbm:
     let source = parsedValue[NetpbmSource](selectedParsed, vhkNetpbm)
     let group = VextResourceNode(path: NetpbmImageResourcePath,
