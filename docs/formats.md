@@ -1380,7 +1380,11 @@ in particular `$8F` becomes `█`. Since UDG shapes are runtime-defined, bytes
 `$90` through `$A4` render reversibly as `⟦UDG A⟧` through `⟦UDG U⟧` rather
 than pretending to know their appearance. Display controls embedded in strings
 render as annotations such as `⟦INK 2⟧`, `⟦INVERSE 1⟧`, and `⟦AT 10 5⟧`.
-When annotations occur, explanatory `REM VEXTER:` lines precede the listing.
+`INK`, `PAPER`, `FLASH`, `BRIGHT`, `INVERSE`, `OVER`, and `TAB` consume one
+following parameter byte; `AT` consumes two. These controls are recognized
+wherever they occur in a tokenised line, including quoted text. Truncated
+sequences remain reversible `⟦ZX:$HH⟧` bytes. When annotations occur,
+explanatory `REM VEXTER:` lines precede the listing.
 Other unrecognised bytes remain visible as `⟦ZX:$HH⟧`.
 
 TAP Program header/data pairs expose the same text resource. One listing uses

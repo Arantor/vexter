@@ -40,8 +40,22 @@ suite "ZX Spectrum tokenised BASIC":
       2'u8, 0x14'u8, 1'u8, byte('"')])
     check decodeZxSpectrumBasic(listing) ==
       "REM VEXTER: ⟦UDG A⟧ through ⟦UDG U⟧ denote runtime-defined characters.\n" &
-      "REM VEXTER: ⟦INK n⟧ and similar markers preserve embedded display controls.\n" &
+      "REM VEXTER: ⟦INK n⟧ and similar markers preserve parameterised display controls.\n" &
       "  1 PRINT \"⟦UDG A⟧⟦INK 2⟧⟦INVERSE 1⟧\""
+
+  test "every parameterised display control retains its source values":
+    let listing = basicLine(2, @[0x10'u8, 2, 0x11, 4, 0x12, 1,
+      0x13, 1, 0x14, 0, 0x15, 1, 0x16, 10, 5, 0x17, 20])
+    check decodeZxSpectrumBasic(listing) ==
+      "REM VEXTER: ⟦INK n⟧ and similar markers preserve parameterised display controls.\n" &
+      "  2 ⟦INK 2⟧⟦PAPER 4⟧⟦FLASH 1⟧⟦BRIGHT 1⟧⟦INVERSE 0⟧" &
+      "⟦OVER 1⟧⟦AT 10 5⟧⟦TAB 20⟧"
+
+  test "truncated display controls remain reversible unknown bytes":
+    let listing = basicLine(3, @[byte('A'), 0x16'u8, 9])
+    check decodeZxSpectrumBasic(listing) ==
+      "REM VEXTER: ⟦ZX:$HH⟧ preserves an unrecognised source byte.\n" &
+      "  3 A⟦ZX:$16⟧⟦ZX:$09⟧"
 
   test "line zero is accepted and the variables boundary ends parsing":
     var listing = basicLine(0, @[0xea'u8, byte('C')])

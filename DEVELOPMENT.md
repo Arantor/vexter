@@ -647,7 +647,9 @@ are present and a two-frame `VextIndexedAnimation` when FLASH is present.
 source from tokenised Spectrum BASIC line records. Fixed block graphics use
 Unicode quadrant/block characters. Runtime-defined UDGs and embedded display
 controls use reversible `⟦UDG A⟧` and `⟦INK 2⟧`-style annotations, preceded
-by explanatory `REM VEXTER:` lines only when required. Unknown bytes use
+by explanatory `REM VEXTER:` lines only when required. INK, PAPER, FLASH,
+BRIGHT, INVERSE, OVER, and TAB consume one parameter byte; AT consumes two,
+and truncated sequences never consume the line terminator. Unknown bytes use
 `⟦ZX:$HH⟧`. A line number at or above 32768 marks the variables boundary.
 
 `src/vexterlib/archetypes/raster.nim` contains the generic indexed image,

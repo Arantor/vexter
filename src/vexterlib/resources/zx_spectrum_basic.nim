@@ -79,18 +79,22 @@ proc decodeBody(data: openArray[byte], notes: var DecodeNotes): string =
       # The textual digits are followed by a marker and five-byte calculator
       # representation; only the textual spelling belongs in the listing.
       index += 6
-    elif insideQuote and value in {0x10'u8 .. 0x15'u8} and index + 1 < data.len:
+    elif value in {0x10'u8 .. 0x15'u8} and index + 1 < data.high:
       const names = ["INK", "PAPER", "FLASH", "BRIGHT", "INVERSE", "OVER"]
       result.add annotation(names[int(value) - 0x10], [data[index + 1]])
       notes.hasControls = true
       lastWasNumber = false
       index += 2
-    elif insideQuote and value in {0x16'u8, 0x17'u8} and index + 2 < data.len:
-      result.add annotation(if value == 0x16'u8: "AT" else: "TAB",
-        [data[index + 1], data[index + 2]])
+    elif value == 0x16'u8 and index + 2 < data.high:
+      result.add annotation("AT", [data[index + 1], data[index + 2]])
       notes.hasControls = true
       lastWasNumber = false
       index += 3
+    elif value == 0x17'u8 and index + 1 < data.high:
+      result.add annotation("TAB", [data[index + 1]])
+      notes.hasControls = true
+      lastWasNumber = false
+      index += 2
     elif value >= 32'u8 and value <= 127'u8:
       result.add char(value)
       if value == byte('"'):
@@ -136,7 +140,7 @@ proc decodeZxSpectrumBasic*(data: openArray[byte]): string =
   if notes.hasUdg:
     preamble.add "REM VEXTER: ⟦UDG A⟧ through ⟦UDG U⟧ denote runtime-defined characters."
   if notes.hasControls:
-    preamble.add "REM VEXTER: ⟦INK n⟧ and similar markers preserve embedded display controls."
+    preamble.add "REM VEXTER: ⟦INK n⟧ and similar markers preserve parameterised display controls."
   if notes.hasUnknown:
     preamble.add "REM VEXTER: ⟦ZX:$HH⟧ preserves an unrecognised source byte."
   result = (preamble & lines).join("\n")
