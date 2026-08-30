@@ -1209,6 +1209,16 @@ The space-padded `Asm` and `Code` identifiers both classify their payload as
 an opaque, BIN-exportable `amos.680x0-assembly` resource. Vexter does not yet
 disassemble or otherwise interpret the 680x0 instructions.
 
+The space-padded `Tracker` identifier classifies its payload as a
+ProTracker-compatible module and exposes the same tracker, pattern, sample,
+and derived-audio hierarchy as standalone MOD import, rebased beneath the bank
+path. Exact MOD payloads are accepted directly. AMOS banks may append 32 zero
+bytes after the complete module; these are ignored only when parsing the full
+payload fails, all 32 bytes are zero, and the remaining prefix is a valid MOD.
+The supplied `DragonAmosWithBank.AMOS` establishes this framing: its first
+56,820 tracker-payload bytes are byte-identical to the supplied `mod.mysong`,
+followed by exactly 32 zero bytes.
+
 `Pac.Pic.` banks with a screen header are decoded into indexed rasters. Their
 nested compressed streams are expanded into ordinary planar pixels, and the
 screen header supplies up to 32 `$0RGB` palette entries. One-through-five-plane

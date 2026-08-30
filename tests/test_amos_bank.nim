@@ -21,6 +21,13 @@ proc genericBank(bankType = "Music", payload = @[1'u8, 2, 3]): seq[byte] =
     result.add byte(if index < bankType.len: bankType[index] else: ' ')
   result.add payload
 
+proc empty15SampleMod(): seq[byte] =
+  result = newSeq[byte](600 + 1024)
+  for index, value in "BANKED MODULE":
+    result[index] = byte(value)
+  result[470] = 1
+  result[471] = 127
+
 suite "generic AMOS banks":
   test "header metadata is identified without decoding the payload":
     let
@@ -77,6 +84,30 @@ suite "generic AMOS banks":
         VextExportRequest(suggestedName: bankType))
       check exported.outputFormat == "bin"
       check exported.artifacts.artifacts[0].data == payload
+
+  test "Tracker banks expose exact and AMOS-padded Protracker modules":
+    let moduleData = empty15SampleMod()
+    for paddingLength in [0, 32]:
+      let inspection = inspectSource("tracker.abk",
+        genericBank("Tracker", moduleData & newSeq[byte](paddingLength)))
+      let resource = inspection.resources.roots[0]
+
+      check resource.path == "/bank"
+      check resource.typeId == ProtrackerModTypeId
+      check resource.kind == vrnkTracker
+      check resource.tracker.title == "BANKED MODULE"
+      check resource.tracker.channels.len == 4
+      check resource.tracker.patterns.len == 1
+      check resource.tracker.orders == @[0]
+      check resource.trackerSampleResourcePath == "/bank/samples"
+      check resource.children[0].path == "/bank/patterns"
+      check resource.children[1].path == "/bank/samples"
+      check resource.children[2].path == "/bank/rendered-audio"
+
+      let exported = exportResource(inspection.resources,
+        VextExportRequest(outputFormat: "tracker-json",
+          suggestedName: "tracker"))
+      check exported.outputFormat == "tracker-json"
 
   test "length and type validation reject malformed banks":
     var wrongLength = genericBank()

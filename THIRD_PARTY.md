@@ -1082,3 +1082,14 @@ program created by Peter J. Hickman and shipped with AMOS. It is retained as a
 compatibility fixture for tokenised program boundaries and attached banks.
 Its redistribution or licensing status has not yet been supplied and should
 be confirmed before distributing the fixture outside this development context.
+
+The developer also supplied `DragonAmosWithBank.AMOS` and its source tracker
+module `mod.mysong` as temporary compatibility evidence. The program contains
+one `Tracker` bank whose payload is the complete module followed by 32 zero
+bytes. These files remain in the working directory rather than the routine
+fixture set; their redistribution or licensing status has not been supplied.
+
+```text
+734e07cc9a4be52dd873f9eb2ff0d2fccba1b1085cae09d71776435f9ad896b1  DragonAmosWithBank.AMOS
+9d127fa30eac96d647b64d3c55e525d45ffde2db70650b3dea6ccb75a4c42930  mod.mysong
+```

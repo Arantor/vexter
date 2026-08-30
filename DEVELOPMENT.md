@@ -977,7 +977,9 @@ data. Banks identified as `Asm` or `Code` expose exportable opaque
 `amos.680x0-assembly` payloads. A `Pac.Pic.` bank with its screen palette
 instead exposes an indexed `amos.packed-picture` raster at `/picture`; the same
 bank nested in an `AmBs` or AMOS program uses its numbered `/banks/N` resource
-path.
+path. `Tracker` banks expose the existing `protracker.mod` tracker hierarchy,
+accepting both an exact MOD payload and the fixture-confirmed form with 32
+trailing zero bytes.
 
 ANIM containers expose `/animation`. GIF-compatible indexed animations default
 to GIF, while HAM animations produce
@@ -1004,7 +1006,8 @@ layout.
 
 Generic `AmBk` files expose one opaque, BIN-exportable `/bank` resource with
 header metadata. `Asm` and `Code` payloads are identified as 680x0 assembly;
-other unsupported types retain the generic bank-data identity.
+`Tracker` payloads are decoded as ProTracker-compatible modules; other
+unsupported types retain the generic bank-data identity.
 
 AMOS `AmBs` sets expose a `/banks` group. Generic members are opaque
 `/banks/N` leaves; sprite and icon members expose numbered raster children
@@ -1146,8 +1149,9 @@ The routine suites are:
 - `tests/test_amos_sprite_icon_bank.nim`: AMOS bank parsing, icon/sprite
   distinctions, planar rendering against controls, hotspots, and malformed
   input;
-- `tests/test_amos_bank.nim`: generic bank length masking, labels, opaque
-  resources, metadata, and malformed input;
+- `tests/test_amos_bank.nim`: generic bank length masking, labels, assembly and
+  exact/padded Tracker resource classification, opaque export, metadata, and
+  malformed input;
 - `tests/test_amos_packed_picture.nim`: authentic two-stage decompression and
   planar rendering against the Castle AMOS PNG control, nested `AmBs`
   exposure, six-plane EHB rendering, PNG export, and palette-less

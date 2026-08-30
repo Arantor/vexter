@@ -257,6 +257,104 @@ proc rasterNode(path: string, data: openArray[byte]): VextResourceNode =
     kind: vrnkRaster,
     raster: decodeZxSpectrumScreen(data))
 
+proc protrackerNode(path: string, source: ProtrackerMod,
+    extraMetadata: seq[VextMetadataEntry] = @[]): VextResourceNode =
+  result = VextResourceNode(path: path,
+    typeId: ProtrackerModTypeId, kind: vrnkTracker,
+    defaultExportPriority: 10,
+    tracker: source.module,
+    trackerSampleResourcePath: path & "/samples",
+    metadata: extraMetadata & @[
+      stringMetadata("title", source.module.title),
+      stringMetadata("signature", source.signature),
+      integerMetadata("sample-headers", source.sampleCount),
+      integerMetadata("channels", source.module.channels.len),
+      integerMetadata("patterns", source.module.patterns.len),
+      integerMetadata("orders", source.module.orders.len),
+      integerMetadata("instruments", source.module.instruments.len),
+      integerMetadata("loop-analysis", ord(source.module.loopAnalysis.status))])
+  let patterns = VextResourceNode(
+    path: path & "/patterns",
+    typeId: "protracker.patterns", kind: vrnkGroup,
+    metadata: @[integerMetadata("patterns", source.module.patterns.len)])
+  for pattern in source.module.patterns:
+    var patternModule = source.module
+    patternModule.title = pattern.name
+    patternModule.patterns = @[pattern]
+    patternModule.orders = @[0]
+    patternModule.hasRestartOrder = false
+    patternModule.restartOrder = 0
+    patternModule.loopAnalysis = VextTrackerLoopAnalysis(
+      status: vtlsNotAnalysed)
+    patterns.children.add VextResourceNode(
+      path: path & "/patterns/" & $pattern.sourceIndex,
+      typeId: "protracker.pattern", kind: vrnkTracker,
+      tracker: patternModule,
+      trackerSampleResourcePath: path & "/samples",
+      metadata: @[
+        integerMetadata("source-index", pattern.sourceIndex),
+        integerMetadata("rows", pattern.rows.len),
+        integerMetadata("channels", source.module.channels.len)])
+  result.children.add patterns
+  let samples = VextResourceNode(
+    path: path & "/samples",
+    typeId: "protracker.samples", kind: vrnkGroup,
+    metadata: @[integerMetadata("samples", source.module.instruments.len)])
+  for index, instrument in source.module.instruments:
+    samples.children.add VextResourceNode(
+      path: path & "/samples/" & $(index + 1),
+      typeId: "protracker.sample", kind: vrnkAudio,
+      audioKind: varkSampledInstrument, instrument: instrument.sample,
+      metadata: @[
+        stringMetadata("name", instrument.name),
+        integerMetadata("source-index", instrument.sourceIndex),
+        integerMetadata("reference-note", instrument.referenceNote),
+        integerMetadata("fine-tune-eighth-semitones",
+          int(instrument.fineTuneCents / 12.5)),
+        integerMetadata("samples", instrument.sample.sound.buffer.sampleCount),
+        integerMetadata("one-shot-samples", instrument.sample.oneShotSamples),
+        integerMetadata("repeat-samples", instrument.sample.repeatSamples)])
+  result.children.add samples
+  let replayModule = source.module
+  result.children.add VextResourceNode(
+    path: path & "/rendered-audio",
+    typeId: "protracker.rendered-audio", kind: vrnkAudio,
+    audioKind: varkSound,
+    soundMaterializer: proc(): VextSound =
+      renderProtracker(replayModule).sound,
+    derivedAudioChannels: 2, derivedAudioBitsPerSample: 16,
+    derivedAudioSampleRate: ProtrackerReplaySampleRate,
+    derivedAudioMaximumSamples: ProtrackerReplaySampleRate *
+      MaximumProtrackerReplaySeconds,
+    metadata: @[
+      integerMetadata("sample-rate", ProtrackerReplaySampleRate),
+      integerMetadata("channels", 2),
+      integerMetadata("bits-per-sample", 16),
+      stringMetadata("mixer-headroom", "four-channel fixed gain"),
+      stringMetadata("filter", "initially-on one-pole low-pass"),
+      integerMetadata("filter-cutoff-hz", int(ProtrackerReplayFilterCutoffHz)),
+      stringMetadata("rendering", "derived on demand"),
+      integerMetadata("maximum-seconds", MaximumProtrackerReplaySeconds)])
+
+proc parseAmosTrackerBank(bank: AmosBank): ProtrackerMod =
+  try:
+    return parseProtrackerMod(bank.data)
+  except ValueError as unpaddedError:
+    const paddingLength = 32
+    var padded = bank.data.len > paddingLength
+    if padded:
+      for index in bank.data.len - paddingLength ..< bank.data.len:
+        if bank.data[index] != 0:
+          padded = false
+          break
+    if padded:
+      try:
+        return parseProtrackerMod(
+          bank.data.toOpenArray(0, bank.data.len - paddingLength - 1))
+      except ValueError:
+        discard
+    raise newException(ValueError, unpaddedError.msg)
+
 proc amosRasterNode(path, typeId: string, source: AmosPlanarImage,
     palette: openArray[VextRgb]): VextResourceNode =
   VextResourceNode(
@@ -286,6 +384,12 @@ proc amosGenericNode(path: string, bank: AmosBank): VextResourceNode =
     ])
 
 proc amosBankNode(path: string, bank: AmosBank): VextResourceNode =
+  if bank.bankType == "Tracker":
+    return protrackerNode(path, parseAmosTrackerBank(bank), @[
+      integerMetadata("bank.number", bank.number),
+      integerMetadata("bank.flags", bank.flags),
+      stringMetadata("bank.type", bank.bankType),
+      integerMetadata("data.length", bank.dataLength)])
   if bank.bankType != AmosPackedPictureBankType:
     return amosGenericNode(path, bank)
   let picture = parseAmosPackedPicture(bank.data)
@@ -1346,85 +1450,7 @@ proc inspectSourceDepth(filename: string, data: openArray[byte],
         palette: source.palette, metadata: metadata)
   of vhkProtrackerMod:
     let source = parsedValue[ProtrackerMod](selectedParsed, vhkProtrackerMod)
-    let module = VextResourceNode(path: ProtrackerModResourcePath,
-      typeId: ProtrackerModTypeId, kind: vrnkTracker,
-      defaultExportPriority: 10,
-      tracker: source.module,
-      trackerSampleResourcePath: ProtrackerModResourcePath & "/samples",
-      metadata: @[
-        stringMetadata("title", source.module.title),
-        stringMetadata("signature", source.signature),
-        integerMetadata("sample-headers", source.sampleCount),
-        integerMetadata("channels", source.module.channels.len),
-        integerMetadata("patterns", source.module.patterns.len),
-        integerMetadata("orders", source.module.orders.len),
-        integerMetadata("instruments", source.module.instruments.len),
-        integerMetadata("loop-analysis", ord(source.module.loopAnalysis.status))])
-    let patterns = VextResourceNode(
-      path: ProtrackerModResourcePath & "/patterns",
-      typeId: "protracker.patterns", kind: vrnkGroup,
-      metadata: @[integerMetadata("patterns", source.module.patterns.len)])
-    for pattern in source.module.patterns:
-      var patternModule = source.module
-      patternModule.title = pattern.name
-      patternModule.patterns = @[pattern]
-      patternModule.orders = @[0]
-      patternModule.hasRestartOrder = false
-      patternModule.restartOrder = 0
-      patternModule.loopAnalysis = VextTrackerLoopAnalysis(
-        status: vtlsNotAnalysed)
-      patterns.children.add VextResourceNode(
-        path: ProtrackerModResourcePath & "/patterns/" &
-          $pattern.sourceIndex,
-        typeId: "protracker.pattern", kind: vrnkTracker,
-        tracker: patternModule,
-        trackerSampleResourcePath: ProtrackerModResourcePath & "/samples",
-        metadata: @[
-          integerMetadata("source-index", pattern.sourceIndex),
-          integerMetadata("rows", pattern.rows.len),
-          integerMetadata("channels", source.module.channels.len)])
-    module.children.add patterns
-    let samples = VextResourceNode(
-      path: ProtrackerModResourcePath & "/samples",
-      typeId: "protracker.samples", kind: vrnkGroup,
-      metadata: @[integerMetadata("samples", source.module.instruments.len)])
-    for index, instrument in source.module.instruments:
-      samples.children.add VextResourceNode(
-        path: ProtrackerModResourcePath & "/samples/" & $(index + 1),
-        typeId: "protracker.sample", kind: vrnkAudio,
-        audioKind: varkSampledInstrument, instrument: instrument.sample,
-        metadata: @[
-          stringMetadata("name", instrument.name),
-          integerMetadata("source-index", instrument.sourceIndex),
-          integerMetadata("reference-note", instrument.referenceNote),
-          integerMetadata("fine-tune-eighth-semitones",
-            int(instrument.fineTuneCents / 12.5)),
-          integerMetadata("samples", instrument.sample.sound.buffer.sampleCount),
-          integerMetadata("one-shot-samples", instrument.sample.oneShotSamples),
-          integerMetadata("repeat-samples", instrument.sample.repeatSamples)])
-    module.children.add samples
-    let replayModule = source.module
-    module.children.add VextResourceNode(
-      path: ProtrackerModResourcePath & "/rendered-audio",
-      typeId: "protracker.rendered-audio", kind: vrnkAudio,
-      audioKind: varkSound,
-      soundMaterializer: proc(): VextSound =
-        renderProtracker(replayModule).sound,
-      derivedAudioChannels: 2, derivedAudioBitsPerSample: 16,
-      derivedAudioSampleRate: ProtrackerReplaySampleRate,
-      derivedAudioMaximumSamples: ProtrackerReplaySampleRate *
-        MaximumProtrackerReplaySeconds,
-      metadata: @[
-        integerMetadata("sample-rate", ProtrackerReplaySampleRate),
-        integerMetadata("channels", 2),
-        integerMetadata("bits-per-sample", 16),
-        stringMetadata("mixer-headroom", "four-channel fixed gain"),
-        stringMetadata("filter", "initially-on one-pole low-pass"),
-        integerMetadata("filter-cutoff-hz",
-          int(ProtrackerReplayFilterCutoffHz)),
-        stringMetadata("rendering", "derived on demand"),
-        integerMetadata("maximum-seconds", MaximumProtrackerReplaySeconds)])
-    result.resources.roots.add module
+    result.resources.roots.add protrackerNode(ProtrackerModResourcePath, source)
   of vhkDoomWad:
     let wad = parsedValue[DoomWad](selectedParsed, vhkDoomWad)
     let root = VextResourceNode(path: "/wad", typeId: DoomWadTypeId,
