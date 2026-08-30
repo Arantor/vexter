@@ -31,7 +31,7 @@ proc empty15SampleMod(): seq[byte] =
 suite "generic AMOS banks":
   test "header metadata is identified without decoding the payload":
     let
-      data = genericBank()
+      data = genericBank("Mystery")
       bank = parseAmosBank(data)
       candidates = detectFormats("song.aBK", data)
       inspection = inspectSource("song.aBK", data)
@@ -39,7 +39,7 @@ suite "generic AMOS banks":
 
     check bank.number == 7
     check bank.flags == 0x1234
-    check bank.bankType == "Music"
+    check bank.bankType == "Mystery"
     check bank.dataLength == 3
     check candidates.len == 1
     check candidates[0].typeId == AmosBankTypeId
@@ -51,7 +51,7 @@ suite "generic AMOS banks":
     check resources[0].kind == vrnkOpaque
     check resources[0].metadata[0].value.integerValue == 7
     check resources[0].metadata[1].value.integerValue == 0x1234
-    check resources[0].metadata[2].value.stringValue == "Music"
+    check resources[0].metadata[2].value.stringValue == "Mystery"
     check resources[0].metadata[3].value.integerValue == 3
     check inspection.resources.rasterResources.len == 0
     let exported = exportResource(inspection.resources,
@@ -62,7 +62,7 @@ suite "generic AMOS banks":
 
   test "all currently known type labels remain identifiable":
     for bankType in ["Music", "Tracker", "Amal", "Data", "Datas", "Work",
-        "Asm", "Code", "Pac.Pic.", "Resource", "Samples"]:
+        "Asm", "Code", "Menu", "Pac.Pic.", "Resource", "Samples"]:
       check parseAmosBank(genericBank(bankType)).bankType == bankType
 
   test "Asm and Code banks are exportable 680x0 assembly resources":
@@ -79,6 +79,48 @@ suite "generic AMOS banks":
       check resources[0].kind == vrnkOpaque
       check resources[0].rawDataAvailable
       check resources[0].metadata[2].value.stringValue == bankType
+
+      let exported = exportResource(inspection.resources,
+        VextExportRequest(suggestedName: bankType))
+      check exported.outputFormat == "bin"
+      check exported.artifacts.artifacts[0].data == payload
+
+  test "Data, Datas, and Work banks are exportable opaque binary data":
+    for bankType in ["Data", "Datas", "Work"]:
+      let
+        payload = @[0xde'u8, 0xad, 0xbe, 0xef]
+        inspection = inspectSource(bankType & ".abk",
+          genericBank(bankType, payload))
+        resource = inspection.resources.leafResources[0]
+
+      check resource.path == "/bank"
+      check resource.typeId == AmosDataResourceTypeId
+      check resource.kind == vrnkOpaque
+      check resource.rawDataAvailable
+      check resource.metadata[2].value.stringValue == bankType
+
+      let exported = exportResource(inspection.resources,
+        VextExportRequest(suggestedName: bankType))
+      check exported.outputFormat == "bin"
+      check exported.artifacts.artifacts[0].data == payload
+
+  test "reserved AMOS banks have distinct exportable opaque types":
+    for (bankType, resourceType) in [
+        ("Music", AmosMusicResourceTypeId),
+        ("Amal", AmosAmalResourceTypeId),
+        ("Menu", AmosMenuResourceTypeId),
+        ("Resource", AmosResourceResourceTypeId)]:
+      let
+        payload = @[1'u8, 3, 3, 7]
+        inspection = inspectSource(bankType & ".abk",
+          genericBank(bankType, payload))
+        resource = inspection.resources.leafResources[0]
+
+      check resource.path == "/bank"
+      check resource.typeId == resourceType
+      check resource.kind == vrnkOpaque
+      check resource.rawDataAvailable
+      check resource.metadata[2].value.stringValue == bankType
 
       let exported = exportResource(inspection.resources,
         VextExportRequest(suggestedName: bankType))

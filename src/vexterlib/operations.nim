@@ -13,13 +13,13 @@ import ./detection
 import ./handler_registry
 import ./exporters/[bmfont, gif, gpl, html_report, metadata_json, png, raw, tracker_json, wav]
 import ./resource_tree
-import ./containers/[amiga_8svx, amiga_16sv, amiga_acbm, amiga_adf, amiga_anim, amiga_diskfont, amiga_dms, amiga_hunk_executable, amiga_iff, amiga_ilbm, amiga_lha_sfx, amiga_pbm, amiga_workbench_icon, amos_bank, amos_bank_set, amos_packed_picture, amos_program,
+import ./containers/[amiga_8svx, amiga_16sv, amiga_acbm, amiga_adf, amiga_anim, amiga_diskfont, amiga_dms, amiga_hunk_executable, amiga_iff, amiga_ilbm, amiga_lha_sfx, amiga_pbm, amiga_workbench_icon, amos_bank, amos_bank_set, amos_packed_picture, amos_program, amos_sample_bank,
   amos_sprite_icon_bank, ansi_art, appimage, bmfont, bmp, creative_voice, d64, doom_wad, electron_asar, flic, fzx, gif_container, iso9660, jpeg, netpbm, openraster, pcx, png_container,
   adobe_swatch_exchange, aseprite, gimp_palette, koala_painter, paint_net_palette, protracker_mod, qoi, tga, wav, windows_icon, zip_archive, lha_archive, zx_spectrum_snapshot, zx_spectrum_tap]
 import ./containers/xpk_shri
 import ./containers/powerpacker
 import ./metadata
-import ./resources/[amiga_anim_image, amiga_diskfont_font, amiga_ilbm_image, amiga_pbm_image, amiga_workbench_icon_image, amos_listing, amos_packed_picture_image, amos_planar_image, bmp_image, flic_animation, gif_image, netpbm_image, png_image, zx_spectrum_basic,
+import ./resources/[amiga_anim_image, amiga_diskfont_font, amiga_ilbm_image, amiga_pbm_image, amiga_workbench_icon_image, amos_listing, amos_packed_picture_image, amos_planar_image, amos_sample, bmp_image, flic_animation, gif_image, netpbm_image, png_image, zx_spectrum_basic,
   ansi_art_image, bmfont_font, fzx_font, jpeg_image, koala_painter_image, pcx_image, protracker_replay, qoi_image, tga_image, windows_icon_image, zx_spectrum_screen]
 
 type
@@ -371,8 +371,7 @@ proc amosRasterNode(path, typeId: string, source: AmosPlanarImage,
 proc amosGenericNode(path: string, bank: AmosBank): VextResourceNode =
   VextResourceNode(
     path: path,
-    typeId: if bank.isAmosAssemblyBank:
-        AmosAssemblyResourceTypeId else: AmosBankResourceTypeId,
+    typeId: bank.amosOpaqueResourceTypeId,
     kind: vrnkOpaque,
     data: bank.data,
     rawDataAvailable: true,
@@ -383,7 +382,36 @@ proc amosGenericNode(path: string, bank: AmosBank): VextResourceNode =
       integerMetadata("data.length", bank.dataLength)
     ])
 
+proc amosSampleBankNode(path: string, bank: AmosBank): VextResourceNode =
+  let sampleBank = parseAmosSampleBank(bank.data)
+  result = VextResourceNode(
+    path: path,
+    typeId: AmosSamplesResourceTypeId,
+    kind: vrnkGroup,
+    metadata: @[
+      integerMetadata("bank.number", bank.number),
+      integerMetadata("bank.flags", bank.flags),
+      stringMetadata("bank.type", bank.bankType),
+      integerMetadata("data.length", bank.dataLength),
+      integerMetadata("samples", sampleBank.samples.len)])
+  for index, sample in sampleBank.samples:
+    let instrument = decodeAmosSample(sample)
+    result.children.add VextResourceNode(
+      path: path & "/sample/" & $(index + 1),
+      typeId: AmosSampleResourceTypeId,
+      kind: vrnkAudio,
+      audioKind: varkSampledInstrument,
+      instrument: instrument,
+      metadata: @[
+        stringMetadata("name", sample.name),
+        integerMetadata("source-index", index + 1),
+        integerMetadata("sample-rate", sample.sampleRate),
+        integerMetadata("samples", sample.data.len),
+        integerMetadata("bits-per-sample", 8)])
+
 proc amosBankNode(path: string, bank: AmosBank): VextResourceNode =
+  if bank.bankType == "Samples":
+    return amosSampleBankNode(path, bank)
   if bank.bankType == "Tracker":
     return protrackerNode(path, parseAmosTrackerBank(bank), @[
       integerMetadata("bank.number", bank.number),

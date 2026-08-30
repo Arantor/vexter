@@ -1196,18 +1196,47 @@ contain the payload length plus eight, so Vexter masks the value with
 remaining bytes.
 
 Known labels currently include `Music`, `Tracker`, `Amal`, `Data`, `Datas`,
-`Work`, `Asm`, `Code`, `Pac.Pic.`, `Resource`, and `Samples`. Labels outside
-this list remain reportable because they are descriptive rather than a format
-dispatch mechanism.
+`Work`, `Asm`, `Code`, `Menu`, `Pac.Pic.`, `Resource`, and `Samples`. Labels
+outside this list remain reportable because they are descriptive rather than a
+format dispatch mechanism.
 
 A structurally valid generic bank is detected as **certain** and exposes one
-opaque `amos.bank-data` resource at `/bank`. Inspection reports `bank.number`,
-`bank.flags`, `bank.type`, and `data.length` metadata. The undecoded bank
-payload is retained and defaults to raw `.bin` export.
+resource at `/bank`. Unclassified labels use opaque `amos.bank-data`.
+Inspection reports `bank.number`, `bank.flags`, `bank.type`, and `data.length`
+metadata. Undecoded bank payloads are retained and default to raw `.bin`
+export.
 
 The space-padded `Asm` and `Code` identifiers both classify their payload as
 an opaque, BIN-exportable `amos.680x0-assembly` resource. Vexter does not yet
 disassemble or otherwise interpret the 680x0 instructions.
+
+The `Data`, `Datas`, and `Work` identifiers all classify their payload as an
+opaque, BIN-exportable `amos.binary-data` resource. The labels reflect the
+AMOS context or version that saved the bank, not different payload formats.
+Vexter does not probe these bytes for a nested format: their meaning can depend
+on how an accompanying tokenised listing uses them.
+
+Other reserved identifiers receive distinct opaque, BIN-exportable resource
+types while their internal formats remain pending: `Music` is `amos.music`,
+`Amal` is `amos.amal`, `Menu` is `amos.menu`, and `Resource` is
+`amos.resource`. These classifications make the banks visible without claiming
+that their payload structure has been decoded.
+
+`Samples` banks use `amos.samples` and expose one `amos.sample` audio child per
+record. Their payload begins with a big-endian 16-bit count followed by that
+many big-endian 32-bit offsets. The offset table ends exactly where the first
+record begins. Records are contiguous and contain an eight-byte ASCII name, a
+big-endian 16-bit playback rate, a big-endian 32-bit byte length, and that many
+signed eight-bit mono sample values. Vexter treats the complete sample as a
+one-shot instrument because the bank carries no demonstrated loop fields.
+Children use `/bank/sample/N` for standalone banks or `/banks/N/sample/M` when
+nested and default to WAV export.
+
+The supplied `mysound.abk` contains `DRUMANDL` (1,690 bytes at 8,364 Hz),
+`bobbybas` (1,334 bytes at 8,363 Hz), `ORDERBDR` (3,762 bytes at 8,363 Hz), and
+`ORDERSNA` (2,750 bytes at 8,363 Hz). Its record offsets and lengths account
+for the payload exactly. The supplied `sample1` 8SVX control has a BODY exactly
+equal to the first record's 1,690 sample bytes.
 
 The space-padded `Tracker` identifier classifies its payload as a
 ProTracker-compatible module and exposes the same tracker, pattern, sample,

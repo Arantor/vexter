@@ -467,6 +467,8 @@ Matching case-insensitive extensions add supporting evidence.
   specialized bank resources can be decoded;
 - `amos_packed_picture.nim` parses `Pac.Pic.` screen/picture headers and
   expands its nested PICDATA/RLEDATA/POINTS compression into planar bytes;
+- `amos_sample_bank.nim` validates `Samples` bank record offsets and extracts
+  named signed eight-bit mono sample data with its stored playback rate;
 - `amos_bank_set.nim` validates `AmBs` collections and delimits their adjacent
   generic, sprite, and icon bank members;
 - `amos_program.nim` validates AMOS Basic/Professional headers, locates the
@@ -501,6 +503,11 @@ are rendered as Extra Half-Brite, with palette entries 32 through 63 derived
 by halving the expanded RGB components of entries 0 through 31. Partial
 pictures without a screen header remain structurally parseable but cannot be
 rendered without an external palette.
+
+`src/vexterlib/resources/amos_sample.nim` converts each AMOS sample record into
+a sampled-instrument audio archetype. The stored byte length becomes the
+one-shot region; no loop is inferred. Each sample is independently selectable
+and WAV-exportable.
 
 `src/vexterlib/resources/pcx_image.nim` expands raw or PCX RLE scanlines and
 renders one-through-four-bit indexed planar images, eight-bit indexed images,
@@ -799,6 +806,13 @@ amiga.anim
 amos.bank
 amos.bank-data
 amos.680x0-assembly
+amos.binary-data
+amos.music
+amos.amal
+amos.menu
+amos.samples
+amos.sample
+amos.resource
 amos.bank-set
 amos.packed-picture
 amos.program
@@ -974,12 +988,15 @@ referenced pixel-packing specification.
 
 Generic `AmBk` containers continue to expose unknown bank types as opaque bank
 data. Banks identified as `Asm` or `Code` expose exportable opaque
-`amos.680x0-assembly` payloads. A `Pac.Pic.` bank with its screen palette
-instead exposes an indexed `amos.packed-picture` raster at `/picture`; the same
-bank nested in an `AmBs` or AMOS program uses its numbered `/banks/N` resource
-path. `Tracker` banks expose the existing `protracker.mod` tracker hierarchy,
-accepting both an exact MOD payload and the fixture-confirmed form with 32
-trailing zero bytes.
+`amos.680x0-assembly` payloads. `Data`, `Datas`, and `Work` banks expose
+exportable opaque `amos.binary-data` payloads without inferring an internal
+format. `Music`, `Amal`, `Menu`, and `Resource` banks have distinct opaque AMOS
+resource identities pending their individual decoders. `Samples` banks expose
+named sampled-instrument children. A `Pac.Pic.` bank with its screen palette instead exposes an indexed
+`amos.packed-picture` raster at `/picture`; the same bank nested in an `AmBs`
+or AMOS program uses its numbered `/banks/N` resource path. `Tracker` banks
+expose the existing `protracker.mod` tracker hierarchy, accepting both an
+exact MOD payload and the fixture-confirmed form with 32 trailing zero bytes.
 
 ANIM containers expose `/animation`. GIF-compatible indexed animations default
 to GIF, while HAM animations produce
@@ -1006,8 +1023,11 @@ layout.
 
 Generic `AmBk` files expose one opaque, BIN-exportable `/bank` resource with
 header metadata. `Asm` and `Code` payloads are identified as 680x0 assembly;
-`Tracker` payloads are decoded as ProTracker-compatible modules; other
-unsupported types retain the generic bank-data identity.
+`Data`, `Datas`, and `Work` payloads are identified as generic binary data;
+the other reserved labels retain distinct opaque AMOS identities; `Samples`
+payloads expose signed eight-bit sampled instruments; and `Tracker` payloads
+are decoded as ProTracker-compatible modules. Other unsupported types retain
+the generic bank-data identity.
 
 AMOS `AmBs` sets expose a `/banks` group. Generic members are opaque
 `/banks/N` leaves; sprite and icon members expose numbered raster children
@@ -1149,9 +1169,11 @@ The routine suites are:
 - `tests/test_amos_sprite_icon_bank.nim`: AMOS bank parsing, icon/sprite
   distinctions, planar rendering against controls, hotspots, and malformed
   input;
-- `tests/test_amos_bank.nim`: generic bank length masking, labels, assembly and
-  exact/padded Tracker resource classification, opaque export, metadata, and
-  malformed input;
+- `tests/test_amos_bank.nim`: generic bank length masking, labels, reserved
+  opaque resource identities, assembly, binary-data and exact/padded Tracker
+  classification, export, metadata, and malformed input;
+- `tests/test_amos_sample_bank.nim`: sample table and record validation, signed
+  eight-bit audio conversion, resource paths, metadata, and WAV export;
 - `tests/test_amos_packed_picture.nim`: authentic two-stage decompression and
   planar rendering against the Castle AMOS PNG control, nested `AmBs`
   exposure, six-plane EHB rendering, PNG export, and palette-less

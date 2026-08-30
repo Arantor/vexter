@@ -1093,3 +1093,16 @@ fixture set; their redistribution or licensing status has not been supplied.
 734e07cc9a4be52dd873f9eb2ff0d2fccba1b1085cae09d71776435f9ad896b1  DragonAmosWithBank.AMOS
 9d127fa30eac96d647b64d3c55e525d45ffde2db70650b3dea6ccb75a4c42930  mod.mysong
 ```
+
+## AMOS sample-bank compatibility files
+
+The developer supplied `mysound.abk` and an 8SVX export of its first record as
+`sample1`. They are temporary local evidence for AMOS `Samples` bank framing,
+names, playback rates, lengths, and signed eight-bit audio. They are not part
+of the routine fixture set, and their redistribution or licensing status has
+not been supplied.
+
+```text
+6d95e50c5543ce99ed8577b44fffd1b2ccd4572a897b4373611406201ed72100  mysound.abk
+d37f918aaec622f44de19ca4f48767fb8da25d90751efd85d51eb4d2259d622c  sample1
+```

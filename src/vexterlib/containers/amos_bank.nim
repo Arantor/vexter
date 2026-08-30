@@ -7,6 +7,12 @@ const
   AmosBankTypeId* = "amos.bank"
   AmosBankResourceTypeId* = "amos.bank-data"
   AmosAssemblyResourceTypeId* = "amos.680x0-assembly"
+  AmosDataResourceTypeId* = "amos.binary-data"
+  AmosMusicResourceTypeId* = "amos.music"
+  AmosAmalResourceTypeId* = "amos.amal"
+  AmosMenuResourceTypeId* = "amos.menu"
+  AmosSamplesResourceTypeId* = "amos.samples"
+  AmosResourceResourceTypeId* = "amos.resource"
   AmosBankHeaderSize* = 20
   AmosBankStoredLengthOverhead* = 8
   AmosBankLengthMask* = 0x0fffffff'u32
@@ -78,3 +84,17 @@ proc hasAmosBankExtension*(filename: string): bool =
 
 proc isAmosAssemblyBank*(bank: AmosBank): bool =
   bank.bankType in ["Asm", "Code"]
+
+proc isAmosDataBank*(bank: AmosBank): bool =
+  bank.bankType in ["Data", "Datas", "Work"]
+
+proc amosOpaqueResourceTypeId*(bank: AmosBank): string =
+  case bank.bankType
+  of "Asm", "Code": AmosAssemblyResourceTypeId
+  of "Data", "Datas", "Work": AmosDataResourceTypeId
+  of "Music": AmosMusicResourceTypeId
+  of "Amal": AmosAmalResourceTypeId
+  of "Menu": AmosMenuResourceTypeId
+  of "Samples": AmosSamplesResourceTypeId
+  of "Resource": AmosResourceResourceTypeId
+  else: AmosBankResourceTypeId
