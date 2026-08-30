@@ -579,6 +579,9 @@ Directories use `filesystem.iso9660-directory` and files use
 The base reader validates the primary volume descriptor sequence, duplicated
 little/big-endian numeric fields, root and child directory records, file
 extents, raw-sector framing, cycles, duplicate paths, and bounded traversal.
+The ignored `.` and `..` navigation records are recovery-tolerant: their
+record framing and identifiers remain validated, but stale mismatched endian
+copies of their unused extent and length fields do not prevent traversal.
 File version suffixes such as `;1` are removed for presentation. Contained files
 are detected recursively and failures are isolated to their individual tree
 nodes. File nodes reference extents in one shared source image and materialize

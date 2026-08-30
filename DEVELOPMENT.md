@@ -367,6 +367,9 @@ Matching case-insensitive extensions add supporting evidence.
 - `iso9660.nim` validates ISO 9660 primary volume descriptors and directory
   records in cooked 2048-byte images and raw Mode 1/2352 tracks. File extents
   are extracted on demand so parsing does not duplicate an entire disc image.
+  Ordinary entries retain strict redundant-endian validation, while ignored
+  self/parent navigation records tolerate stale redundant numeric copies found
+  in otherwise mountable media.
   Its lazy index recognizes SUSP 1.10 framing and bounded continuation areas,
   then applies Rock Ridge alternate names, POSIX ownership/modes, symbolic-link
   targets, and relocated-directory links. Relocated physical records are

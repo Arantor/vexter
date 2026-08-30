@@ -256,7 +256,9 @@ suite "ISO 9660 filesystems":
     expect ValueError: discard parseIso9660(endianMismatch)
 
     var badExtent = isoFixture()
-    badExtent[20 * Iso9660LogicalBlockSize + 2] = 40
+    # Damage the first ordinary child record; self/parent navigation aliases
+    # are deliberately recovery-tolerant because they are never followed.
+    badExtent[20 * Iso9660LogicalBlockSize + 68 + 2] = 40
     expect ValueError: discard parseIso9660(badExtent)
 
     var raw = rawMode1(isoFixture())
@@ -267,6 +269,18 @@ suite "ISO 9660 filesystems":
     var data = isoFixture()
     data[16 * Iso9660LogicalBlockSize + 156 + 32] = 0
     check parseIso9660(data).entries.len == 3
+
+  test "stale redundant fields in ignored parent records are tolerated":
+    var data = isoFixture()
+    let parentRecord = 20 * Iso9660LogicalBlockSize + 34
+    data[parentRecord + 6] = 0xff
+    data[parentRecord + 14] = 0xff
+    check parseIso9660(data).entries.len == 3
+    let source = memoryByteSource(data)
+    let index = indexIso9660(source)
+    check listIso9660Directory(source, index, index.rootExtent,
+      index.rootLength, @[]).len == 2
+    source.close()
 
   test "lazy contained resources decode once while retaining raw bytes":
     var screen = newSeq[byte](ZxSpectrumScreenSize)

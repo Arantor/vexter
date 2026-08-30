@@ -387,6 +387,13 @@ proc walkDirectory(data: openArray[byte], layout: Iso9660Layout,
     let identifierLength = int(record[32])
     if 33 + identifierLength > recordLength:
       raise newException(ValueError, "truncated ISO 9660 file identifier")
+    let special = identifierLength == 1 and record[33] in [0'u8, 1'u8]
+    if special:
+      # Some otherwise mountable images contain stale or mismatched redundant
+      # endian fields in the self/parent records. Vexter never follows these
+      # records, so only their framing and special identifier are relevant.
+      offset += recordLength
+      continue
     let entryExtent = record.bothDword(2, "entry extent")
     let entryLength = record.bothDword(10, "entry length")
     discard record.bothWord(28, "entry volume sequence")
@@ -397,7 +404,6 @@ proc walkDirectory(data: openArray[byte], layout: Iso9660Layout,
     if (flags and 0x80) != 0:
       raise newException(ValueError,
         "multi-extent ISO 9660 files are not supported")
-    let special = identifierLength == 1 and record[33] in [0'u8, 1'u8]
     if not special:
       if entries.len >= Iso9660MaximumEntries:
         raise newException(ValueError, "ISO 9660 entry count exceeds safety limit")
@@ -639,6 +645,12 @@ proc listIso9660Directory*(source: VextByteSource, index: Iso9660Index,
     let identifierLength = int(record[32])
     if 33 + identifierLength > recordLength:
       raise newException(ValueError, "truncated ISO 9660 file identifier")
+    let special = identifierLength == 1 and record[33] in [0'u8, 1'u8]
+    if special:
+      # These navigation aliases are not exposed or followed. Accept broken
+      # redundant endian values seen in otherwise valid, mountable media.
+      offset += recordLength
+      continue
     let entryExtent = record.bothDword(2, "entry extent")
     let entryLength = record.bothDword(10, "entry length")
     discard record.bothWord(28, "entry volume sequence")
@@ -649,7 +661,6 @@ proc listIso9660Directory*(source: VextByteSource, index: Iso9660Index,
     if (flags and 0x80) != 0:
       raise newException(ValueError,
         "multi-extent ISO 9660 files are not supported")
-    let special = identifierLength == 1 and record[33] in [0'u8, 1'u8]
     if not special:
       let identifier = decodedIdentifier(record)
       let padding = if identifierLength mod 2 == 0: 1 else: 0
