@@ -36,7 +36,7 @@ suite "AMOS programs":
     listing[10] = listing[10] or 0x20
     check listing != plaintext
     check decodeAmosListing(listing) ==
-      "Proc \nEnd Proc\nEnd Proc\n"
+      "Procedure \nEnd Proc\nEnd Proc\n"
 
   test "Xerxes' Revenge exposes its listing and attached banks":
     let
@@ -130,7 +130,8 @@ suite "AMOS programs":
       "[ext 9 1234]"
     check decodeAmosLine(@[
       0x03'u8, 0x76, 0, 0, 0, 10, 0, 0, 0x20, 0, 0, 0]) ==
-      "Proc [encrypted procedure]"
+      "Procedure [encrypted procedure]"
+    check decodeAmosLine(@[0x03'u8, 0x86, 0, 0]) == "Proc "
 
     expect ValueError:
       discard decodeAmosListing(@[2'u8, 0, 1, 0])

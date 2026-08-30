@@ -283,6 +283,11 @@ formats are not included. Detailed format behavior and evidence remain in
   - Unknown bank types remain opaque rather than decoded.
   - Tokenised listings are diagnostic text rather than a complete AST; unknown
     commands remain explicit hexadecimal forms.
+  - Token listings are still incomplete, and occasionally produce differences
+    between original source and export, e.g. "On Choice(1)Gosub" has no space
+    in between but the renderer should add one.
+  - Extensions also need rounding out, especially more unusual extensions such
+    as the AMOS 3D extension.
 
 - **ZX Spectrum SNA snapshots**
   - BASIC extraction from 128K snapshots awaits confirmed paging semantics.

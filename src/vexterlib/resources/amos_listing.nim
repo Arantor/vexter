@@ -145,13 +145,14 @@ proc decodeAmosLine*(line: openArray[byte]): string =
           value += pow(2.0, float(bit + exponent - 88))
       result.add $value
       position += 6
-    of 0x027e, 0x023c, 0x0250, 0x0268, 0x02be, 0x02d0:
+    of 0x027e, 0x023c, 0x0250, 0x0268, 0x02be, 0x02d0, 0x25a4:
       let keyword = case token
         of 0x027e: "Do "
         of 0x023c: "For "
         of 0x0250: "Repeat "
         of 0x0268: "While "
         of 0x02be: "If "
+        of 0x25a4: "Else If "
         else: "Else "
       line.requireBytes(position, 4)
       result.add keyword
@@ -160,16 +161,24 @@ proc decodeAmosLine*(line: openArray[byte]): string =
       line.requireBytes(position, 6)
       result.add "Exit If "
       position += 6
+    of 0x029e:
+      line.requireBytes(position, 6)
+      result.add "Exit"
+      position += 6
+    of 0x0316:
+      line.requireBytes(position, 6)
+      result.add "On "
+      position += 6
     of 0x0376:
       line.requireBytes(position, 12)
       let bytesToEnd = int(line.dword(position + 2))
       let flags = line[position + 8]
-      result.add "Proc "
+      result.add "Procedure "
       if (flags and 0x20) != 0:
         # TODO: encrypted procedure bodies require AMOS decryption semantics.
         result.add "[encrypted procedure]"
         return
-      position += 12
+      position += 10
       if bytesToEnd < 0: return
     of 0x0404:
       line.requireBytes(position, 4)
