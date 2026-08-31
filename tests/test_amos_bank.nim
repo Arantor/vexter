@@ -108,8 +108,7 @@ suite "generic AMOS banks":
     for (bankType, resourceType) in [
         ("Music", AmosMusicResourceTypeId),
         ("Amal", AmosAmalResourceTypeId),
-        ("Menu", AmosMenuResourceTypeId),
-        ("Resource", AmosResourceResourceTypeId)]:
+        ("Menu", AmosMenuResourceTypeId)]:
       let
         payload = @[1'u8, 3, 3, 7]
         inspection = inspectSource(bankType & ".abk",

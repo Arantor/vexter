@@ -13,7 +13,7 @@ import ./detection
 import ./handler_registry
 import ./exporters/[bmfont, gif, gpl, html_report, metadata_json, png, raw, tracker_json, wav]
 import ./resource_tree
-import ./containers/[amiga_8svx, amiga_16sv, amiga_acbm, amiga_adf, amiga_anim, amiga_diskfont, amiga_dms, amiga_hunk_executable, amiga_iff, amiga_ilbm, amiga_lha_sfx, amiga_pbm, amiga_workbench_icon, amos_bank, amos_bank_set, amos_packed_picture, amos_program, amos_sample_bank,
+import ./containers/[amiga_8svx, amiga_16sv, amiga_acbm, amiga_adf, amiga_anim, amiga_diskfont, amiga_dms, amiga_hunk_executable, amiga_iff, amiga_ilbm, amiga_lha_sfx, amiga_pbm, amiga_workbench_icon, amos_bank, amos_bank_set, amos_packed_picture, amos_program, amos_resource_bank, amos_sample_bank,
   amos_sprite_icon_bank, ansi_art, appimage, bmfont, bmp, creative_voice, d64, doom_wad, electron_asar, flic, fzx, gif_container, iso9660, jpeg, netpbm, openraster, pcx, png_container,
   adobe_swatch_exchange, aseprite, gimp_palette, koala_painter, paint_net_palette, protracker_mod, qoi, tga, wav, windows_icon, zip_archive, lha_archive, zx_spectrum_snapshot, zx_spectrum_tap]
 import ./containers/xpk_shri
@@ -409,7 +409,55 @@ proc amosSampleBankNode(path: string, bank: AmosBank): VextResourceNode =
         integerMetadata("samples", sample.data.len),
         integerMetadata("bits-per-sample", 8)])
 
+proc amosResourceBankNode(path: string, bank: AmosBank): VextResourceNode =
+  let resources = parseAmosResourceBank(bank.data)
+  var populatedStrings = 0
+  for value in resources.strings:
+    if value.len > 0: inc populatedStrings
+  result = VextResourceNode(path: path, typeId: AmosResourceResourceTypeId,
+    kind: vrnkGroup, metadata: @[
+      integerMetadata("bank.number", bank.number),
+      integerMetadata("bank.flags", bank.flags),
+      stringMetadata("bank.type", bank.bankType),
+      integerMetadata("data.length", bank.dataLength),
+      integerMetadata("graphics", resources.graphics.len),
+      integerMetadata("string-slots", resources.strings.len),
+      integerMetadata("strings", populatedStrings),
+      stringMetadata("graphic.source", resources.sourceName)])
+  if resources.graphics.len > 0:
+    let graphics = VextResourceNode(
+      path: path & "/graphics", typeId: AmosResourceGraphicsTypeId,
+      kind: vrnkGroup,
+      metadata: @[integerMetadata("graphics", resources.graphics.len)])
+    for index, graphic in resources.graphics:
+      let image = decodeAmosPackedPictureWithPalette(
+        graphic.picture, resources.paletteWords)
+      graphics.children.add VextResourceNode(
+        path: path & "/graphics/" & $(index + 1),
+        typeId: AmosResourceGraphicTypeId, kind: vrnkRaster,
+        raster: VextRaster(kind: vrkIndexedImage, image: image),
+        metadata: @[
+          integerMetadata("source-index", index + 1),
+          integerMetadata("planes", graphic.picture.planes)])
+    result.children.add graphics
+  let strings = VextResourceNode(
+    path: path & "/strings", typeId: AmosResourceStringsTypeId,
+    kind: vrnkGroup,
+    metadata: @[
+      integerMetadata("slots", resources.strings.len),
+      integerMetadata("strings", populatedStrings)])
+  for index, value in resources.strings:
+    if value.len == 0: continue
+    strings.children.add VextResourceNode(
+      path: path & "/strings/" & $(index + 1),
+      typeId: AmosResourceStringTypeId, kind: vrnkText, text: value,
+      metadata: @[integerMetadata("source-index", index + 1)])
+  if strings.children.len > 0:
+    result.children.add strings
+
 proc amosBankNode(path: string, bank: AmosBank): VextResourceNode =
+  if bank.bankType == "Resource":
+    return amosResourceBankNode(path, bank)
   if bank.bankType == "Samples":
     return amosSampleBankNode(path, bank)
   if bank.bankType == "Tracker":

@@ -469,6 +469,9 @@ Matching case-insensitive extensions add supporting evidence.
   expands its nested PICDATA/RLEDATA/POINTS compression into planar bytes;
 - `amos_sample_bank.nim` validates `Samples` bank record offsets and extracts
   named signed eight-bit mono sample data with its stored playback rate;
+- `amos_resource_bank.nim` parses the fixture-confirmed graphic and string
+  sections of `Resource` banks and delegates embedded graphic decompression to
+  the packed-picture parser;
 - `amos_bank_set.nim` validates `AmBs` collections and delimits their adjacent
   generic, sprite, and icon bank members;
 - `amos_program.nim` validates AMOS Basic/Professional headers, locates the
@@ -508,6 +511,15 @@ rendered without an external palette.
 a sampled-instrument audio archetype. The stored byte length becomes the
 one-shot region; no loop is inferred. Each sample is independently selectable
 and WAV-exportable.
+
+AMOS resource-bank graphics reuse `amos_packed_picture_image.nim` with the
+palette supplied by their containing graphic section. Strings become plain
+text leaves. Zero offset and length denote an absent string section. All
+graphics in one section use its single shared palette; no per-image palette is
+present in the supplied multi-graphic banks. The resource tree groups graphics
+under `/graphics` and populated string slots under `/strings`, preserving their
+source indices. Dialog resources and other resource-directory layouts remain
+unimplemented pending examples.
 
 `src/vexterlib/resources/pcx_image.nim` expands raw or PCX RLE scanlines and
 renders one-through-four-bit indexed planar images, eight-bit indexed images,
@@ -813,6 +825,10 @@ amos.menu
 amos.samples
 amos.sample
 amos.resource
+amos.resource-graphics
+amos.resource-graphic
+amos.resource-strings
+amos.resource-string
 amos.bank-set
 amos.packed-picture
 amos.program
@@ -990,9 +1006,10 @@ Generic `AmBk` containers continue to expose unknown bank types as opaque bank
 data. Banks identified as `Asm` or `Code` expose exportable opaque
 `amos.680x0-assembly` payloads. `Data`, `Datas`, and `Work` banks expose
 exportable opaque `amos.binary-data` payloads without inferring an internal
-format. `Music`, `Amal`, `Menu`, and `Resource` banks have distinct opaque AMOS
-resource identities pending their individual decoders. `Samples` banks expose
-named sampled-instrument children. A `Pac.Pic.` bank with its screen palette instead exposes an indexed
+format. `Music`, `Amal`, and `Menu` banks have distinct opaque AMOS resource
+identities pending their individual decoders. `Samples` banks expose named
+sampled-instrument children, while fixture-confirmed `Resource` banks expose
+graphic and string children. A `Pac.Pic.` bank with its screen palette instead exposes an indexed
 `amos.packed-picture` raster at `/picture`; the same bank nested in an `AmBs`
 or AMOS program uses its numbered `/banks/N` resource path. `Tracker` banks
 expose the existing `protracker.mod` tracker hierarchy, accepting both an
@@ -1174,6 +1191,9 @@ The routine suites are:
   classification, export, metadata, and malformed input;
 - `tests/test_amos_sample_bank.nim`: sample table and record validation, signed
   eight-bit audio conversion, resource paths, metadata, and WAV export;
+- `tests/test_amos_resource_bank.nim`: multiple graphic boundaries, sparse
+  and absent string sections, external-palette packed-picture rendering,
+  resource paths, and PNG/TXT export;
 - `tests/test_amos_packed_picture.nim`: authentic two-stage decompression and
   planar rendering against the Castle AMOS PNG control, nested `AmBs`
   exposure, six-plane EHB rendering, PNG export, and palette-less

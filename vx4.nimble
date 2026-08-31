@@ -67,6 +67,7 @@ task test, "Run the test suite":
   exec "nim c -r --path:src tests/test_zx_spectrum_tap.nim"
   exec "nim c -r --path:src tests/test_amos_bank.nim"
   exec "nim c -r --path:src tests/test_amos_sample_bank.nim"
+  exec "nim c -r --path:src tests/test_amos_resource_bank.nim"
   exec "nim c -r --path:src tests/test_amos_packed_picture.nim"
   exec "nim c -r --path:src tests/test_amos_bank_set.nim"
   exec "nim c -r --path:src tests/test_amos_program.nim"

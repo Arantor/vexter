@@ -1218,9 +1218,9 @@ on how an accompanying tokenised listing uses them.
 
 Other reserved identifiers receive distinct opaque, BIN-exportable resource
 types while their internal formats remain pending: `Music` is `amos.music`,
-`Amal` is `amos.amal`, `Menu` is `amos.menu`, and `Resource` is
-`amos.resource`. These classifications make the banks visible without claiming
-that their payload structure has been decoded.
+`Amal` is `amos.amal`, and `Menu` is `amos.menu`. These classifications make
+the banks visible without claiming that their payload structure has been
+decoded.
 
 `Samples` banks use `amos.samples` and expose one `amos.sample` audio child per
 record. Their payload begins with a big-endian 16-bit count followed by that
@@ -1237,6 +1237,35 @@ The supplied `mysound.abk` contains `DRUMANDL` (1,690 bytes at 8,364 Hz),
 `ORDERSNA` (2,750 bytes at 8,363 Hz). Its record offsets and lengths account
 for the payload exactly. The supplied `sample1` 8SVX control has a BODY exactly
 equal to the first record's 1,690 sample bytes.
+
+The fixture-confirmed `Resource` layout uses `amos.resource` as a group and
+exposes `amos.resource-graphic` rasters and `amos.resource-string` text leaves.
+Its outer directory stores a count followed by parallel big-endian offset and
+length tables. The supplied bank has two populated sections. Its graphic
+section contains a shared 32-entry `$0RGB` palette, a source-path string, and a
+partial packed-picture record; Vexter reuses normal Pac.Pic. decompression with
+that external palette. Its string section starts with a zero marker, followed
+by one-byte lengths and null-terminated ASCII values. Empty slots use `00 00`,
+and `ff 00` terminates the list. Empty nodes are omitted while later
+`/strings/N` paths retain their original slot numbers. The supplied graphic is
+128×16 with three bitplanes (eight addressable
+indices), and its first string is `My String`. No dialog section is present in
+this bank, so dialog parsing and other resource-directory layouts remain
+unsupported pending examples. The tree groups children beneath
+`/bank/graphics/N` and `/bank/strings/N`; leaves default to PNG and TXT
+respectively.
+
+The supplied `resource2.abk` confirms two graphic offsets sharing the section
+palette and sparse string slots. It exposes 128×16 and 96×16 graphics plus
+strings in slots 1, 2, 3, and 5; slot 4 is empty and therefore has no node.
+
+An absent string section is encoded by zero offset and zero length while the
+graphic section extends to the end of the bank. `resource3.abk` confirms this
+with one 288×24 five-plane graphic. `resource4.abk` confirms the same boundary
+rule with 80×49 and 288×24 four-plane graphics. The latter bank stores only
+one shared 32-word palette in its graphic-section header; its individual image
+records contain no additional palettes, so both images use the palette the
+bank actually retains.
 
 The space-padded `Tracker` identifier classifies its payload as a
 ProTracker-compatible module and exposes the same tracker, pattern, sample,

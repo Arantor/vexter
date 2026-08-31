@@ -11,21 +11,19 @@ proc expandNibble(value: uint16): uint8 {.inline.} =
   let nibble = uint8(value and 0xf)
   (nibble shl 4) or nibble
 
-proc decodeAmosPackedPicture*(source: AmosPackedPicture): VextIndexedImage =
-  if not source.hasScreenHeader:
-    raise newException(ValueError,
-      "AMOS packed picture has no screen palette")
+proc decodeWithPalette(source: AmosPackedPicture,
+    paletteWords: openArray[uint16], colourCount: int): VextIndexedImage =
   let requiredColours = if source.planes == 6: 32 else: 1 shl source.planes
-  if source.colourCount < requiredColours or source.colourCount > 32 or
-      source.paletteWords.len < requiredColours:
+  if colourCount < requiredColours or colourCount > 32 or
+      paletteWords.len < requiredColours:
     raise newException(ValueError, "AMOS packed-picture palette is too small")
 
   result.width = source.widthBytes * 8
   result.height = source.lumps * source.lumpHeight
   result.pixels = newSeq[uint8](result.width * result.height)
-  for index in 0 ..< source.colourCount:
-    if index >= source.paletteWords.len: break
-    let colour = source.paletteWords[index]
+  for index in 0 ..< colourCount:
+    if index >= paletteWords.len: break
+    let colour = paletteWords[index]
     result.palette.add VextRgb(
       r: expandNibble(colour shr 8),
       g: expandNibble(colour shr 4),
@@ -46,3 +44,13 @@ proc decodeAmosPackedPicture*(source: AmosPackedPicture): VextIndexedImage =
         if (value and (0x80'u8 shr (x mod 8))) != 0:
           colour = colour or uint8(1 shl plane)
       result.pixels[y * result.width + x] = colour
+
+proc decodeAmosPackedPictureWithPalette*(source: AmosPackedPicture,
+    paletteWords: openArray[uint16]): VextIndexedImage =
+  decodeWithPalette(source, paletteWords, min(paletteWords.len, 32))
+
+proc decodeAmosPackedPicture*(source: AmosPackedPicture): VextIndexedImage =
+  if not source.hasScreenHeader:
+    raise newException(ValueError,
+      "AMOS packed picture has no screen palette")
+  decodeWithPalette(source, source.paletteWords, source.colourCount)

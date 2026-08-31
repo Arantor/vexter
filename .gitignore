@@ -48,6 +48,7 @@
 /tests/test_amos_packed_picture
 /tests/test_amos_bank_set
 /tests/test_amos_program
+/tests/test_amos_resource_bank
 /tests/test_amos_sample_bank
 /tests/test_amos_sprite_icon_bank
 /tests/test_operations

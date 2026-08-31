@@ -281,6 +281,8 @@ formats are not included. Detailed format behavior and evidence remain in
 
 - **Generic AMOS banks, bank sets, and programs**
   - Unknown bank types remain opaque rather than decoded.
+  - Resource-bank dialog programs are unsupported pending a verified example
+    of their stored structure and behavior.
   - Tokenised listings are diagnostic text rather than a complete AST; unknown
     commands remain explicit hexadecimal forms.
   - Token listings are still incomplete, and occasionally produce differences

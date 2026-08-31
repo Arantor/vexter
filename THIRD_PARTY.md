@@ -1106,3 +1106,18 @@ not been supplied.
 6d95e50c5543ce99ed8577b44fffd1b2ccd4572a897b4373611406201ed72100  mysound.abk
 d37f918aaec622f44de19ca4f48767fb8da25d90751efd85d51eb4d2259d622c  sample1
 ```
+
+## AMOS resource-bank compatibility file
+
+The developer supplied `resource.abk` through `resource4.abk` as temporary
+local evidence for AMOS `Resource` banks containing graphics, strings, sparse
+or absent string sections, shared palettes, and no dialogs. They are not part
+of the routine fixture set, and their redistribution or licensing status has
+not been supplied.
+
+```text
+916e069ba30418ae2b5e30efe187b067c1ff2bf3c830cb058dfaee6e77c9f7ce  resource.abk
+269c0850d3e9e53f4749154640c3bf3ec2c97e93fa76564635a8d4ce37e64e0c  resource2.abk
+d7d7d057dcc5d8269adca32b293e3eeb4402e3f69ef084798a606114da9bebba  resource3.abk
+2382cf1fa09fa13d370dc163fe487925f9c4818499a3c90a4e5b31371c7b49ec  resource4.abk
+```

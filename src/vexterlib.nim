@@ -24,6 +24,7 @@ import vexterlib/containers/amiga_8svx
 import vexterlib/containers/amiga_16sv
 import vexterlib/containers/amos_packed_picture
 import vexterlib/containers/amos_sample_bank
+import vexterlib/containers/amos_resource_bank
 import vexterlib/containers/amiga_iff
 import vexterlib/containers/amiga_ilbm
 import vexterlib/containers/amiga_anim
@@ -131,6 +132,7 @@ export amiga_8svx
 export amiga_16sv
 export amos_packed_picture
 export amos_sample_bank
+export amos_resource_bank
 export amiga_iff
 export amiga_ilbm
 export amiga_ilbm_image
