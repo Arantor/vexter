@@ -96,7 +96,10 @@ suite "AMOS programs":
       check program.header == header.strip(leading = false)
       check program.listingLength == 0
       check program.bankSet.banks.len == 0
-      let listing = inspectSource("empty.amos", data).resources.leafResources[0]
+      let inspection = inspectSource("empty.amos", data)
+      check inspection.resources.roots.len == 1
+      check inspection.resources.roots[0].path == "/listing"
+      let listing = inspection.resources.leafResources[0]
       check listing.kind == vrnkText
       check listing.text.len == 0
 

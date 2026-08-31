@@ -2386,7 +2386,8 @@ proc inspectSourceDepth(filename: string, data: openArray[byte],
         stringMetadata("amos.header", program.header),
         integerMetadata("data.length", program.listingLength)
       ])
-    result.resources.roots.add amosBankSetGroup(program.bankSet)
+    if program.bankSet.banks.len > 0:
+      result.resources.roots.add amosBankSetGroup(program.bankSet)
   of vhkAmosBankSet:
     let bankSet = parsedValue[AmosBankSet](selectedParsed, vhkAmosBankSet)
     result.resources.roots.add amosBankSetGroup(bankSet)

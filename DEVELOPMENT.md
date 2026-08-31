@@ -1200,6 +1200,8 @@ The routine suites are:
   partial-picture behavior;
 - `tests/test_amos_bank_set.nim`: mixed adjacent members, nested resource
   paths, prefix length reporting, export, and structural failures;
+- AMOS programs retain their mandatory closing empty `AmBs` appendix for
+  validation but omit an empty `/banks` group from the resource tree;
 - `tests/test_amos_program.nim`: real Basic and synthetic Professional
   headers, listing boundaries, mandatory appendices, nested bank resources,
   export, and malformed input;

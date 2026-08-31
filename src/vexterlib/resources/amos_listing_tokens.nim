@@ -60,6 +60,7 @@ proc amosSimpleToken*(token: int): string =
   of 0x04b2: "Input #"
   of 0x04d0: "Input "
   of 0x04dc: "Line Input "
+  of 0x04ec: "Run "
   of 0x04fe: "Set Buffer "
   of 0x050e: "Mid$"
   of 0x051e: "Mid$"
