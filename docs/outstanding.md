@@ -280,7 +280,11 @@ formats are not included. Detailed format behavior and evidence remain in
     palette.
 
 - **Generic AMOS banks, bank sets, and programs**
-  - Unknown bank types remain opaque rather than decoded.
+  - Unknown bank types plus `Amal` and `Menu` remain opaque rather than
+    decoded.
+  - AMOS Music replay uses a deterministic software approximation of Paula
+    output and the analogue low-pass filter; hardware-exact emulation and an
+    independent rendered-audio control remain outstanding.
   - Resource-bank dialog programs are unsupported pending a verified example
     of their stored structure and behavior.
   - Tokenised listings are diagnostic text rather than a complete AST; unknown

@@ -25,7 +25,8 @@ client, and a dependency-free native Windows GUI. It supports:
   PNG, baseline/extended-sequential Huffman JPEG with EXIF orientation,
   OpenRaster layered documents, Windows ICO/CUR collections (including PNG and DIB entries), QOI,
   Paint.NET and GIMP text palettes, Adobe Swatch Exchange palettes, palettes embedded in Aseprite sprites,
-  15- and 31-instrument ProTracker-compatible MOD tracker modules,
+  15- and 31-instrument ProTracker-compatible MOD tracker modules and AMOS
+  Music banks with four independent channel playlists and bounded replay,
   Commodore 1540/1541 D64 disk images, Commodore 64 KoalaPainter images,
   Netpbm P1–P7, GIF87a/GIF89a, and FLI/FLC-family animations,
   AmigaDOS ADF filesystems, DMS disk archives, PowerPacker and XPK/SHRI
@@ -120,6 +121,9 @@ The normal `nimble gui` task is a release build. ProTracker replay uses 32.32
 fixed-point sample positions and borrows sample slices in its inner mixer;
 copying reference-counted sampled-instrument values per output frame causes a
 severe ARC/ORC performance regression and must not be reintroduced.
+AMOS Music replay likewise borrows its instrument sample slices in the inner
+mixer; materializing sampled-instrument or channel sequences per output frame
+causes the same severe ARC/ORC performance regression.
 The mixer reserves fixed four-channel headroom. Its `E0x` behavior is an
 initially enabled, stateful one-pole 4.5 kHz stereo low-pass because the
 supplied MOD references define only the on/off command, not an analogue
@@ -820,6 +824,11 @@ amos.bank-data
 amos.680x0-assembly
 amos.binary-data
 amos.music
+amos.music-song
+amos.music-patterns
+amos.music-pattern
+amos.music-sample
+amos.music-rendered-audio
 amos.amal
 amos.menu
 amos.samples
@@ -1006,7 +1015,8 @@ Generic `AmBk` containers continue to expose unknown bank types as opaque bank
 data. Banks identified as `Asm` or `Code` expose exportable opaque
 `amos.680x0-assembly` payloads. `Data`, `Datas`, and `Work` banks expose
 exportable opaque `amos.binary-data` payloads without inferring an internal
-format. `Music`, `Amal`, and `Menu` banks have distinct opaque AMOS resource
+format. `Music` banks expose songs, tracker projections, samples, and bounded
+derived audio. `Amal` and `Menu` retain distinct opaque AMOS resource
 identities pending their individual decoders. `Samples` banks expose named
 sampled-instrument children, while fixture-confirmed `Resource` banks expose
 graphic and string children. A `Pac.Pic.` bank with its screen palette instead exposes an indexed
@@ -1189,6 +1199,10 @@ The routine suites are:
 - `tests/test_amos_bank.nim`: generic bank length masking, labels, reserved
   opaque resource identities, assembly, binary-data and exact/padded Tracker
   classification, export, metadata, and malformed input;
+- `tests/test_amos_music_bank.nim`: section offsets, fixture-confirmed song
+  header ordering, independent playlists, sample lengths and loops, command
+  streams including compact `$7Fxx` delays, tracker projection, bounded replay,
+  WAV/JSON export, and malformed input;
 - `tests/test_amos_sample_bank.nim`: sample table and record validation, signed
   eight-bit audio conversion, resource paths, metadata, and WAV export;
 - `tests/test_amos_resource_bank.nim`: multiple graphic boundaries, sparse

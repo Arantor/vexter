@@ -9,8 +9,10 @@ import vexterlib/transformations/colour_cycle
 import vexterlib/transformations/palette_swatch
 import vexterlib/resources/font_preview
 import vexterlib/resources/protracker_replay
+import vexterlib/resources/amos_music_replay
 import vexterlib/artifacts
 import vexterlib/containers/amos_bank
+import vexterlib/containers/amos_music_bank
 import vexterlib/containers/amiga_adf
 import vexterlib/containers/amiga_dms
 import vexterlib/containers/amiga_hunk_executable
@@ -111,6 +113,7 @@ export colour_cycle
 export palette_swatch
 export font_preview
 export protracker_replay
+export amos_music_replay
 export artifacts
 export openraster
 export jpeg
@@ -119,6 +122,7 @@ export ansi_art
 export doom_wad
 export ansi_art_image
 export amos_bank
+export amos_music_bank
 export amiga_adf
 export amiga_dms
 export amiga_hunk_executable

@@ -13,13 +13,13 @@ import ./detection
 import ./handler_registry
 import ./exporters/[bmfont, gif, gpl, html_report, metadata_json, png, raw, tracker_json, wav]
 import ./resource_tree
-import ./containers/[amiga_8svx, amiga_16sv, amiga_acbm, amiga_adf, amiga_anim, amiga_diskfont, amiga_dms, amiga_hunk_executable, amiga_iff, amiga_ilbm, amiga_lha_sfx, amiga_pbm, amiga_workbench_icon, amos_bank, amos_bank_set, amos_packed_picture, amos_program, amos_resource_bank, amos_sample_bank,
+import ./containers/[amiga_8svx, amiga_16sv, amiga_acbm, amiga_adf, amiga_anim, amiga_diskfont, amiga_dms, amiga_hunk_executable, amiga_iff, amiga_ilbm, amiga_lha_sfx, amiga_pbm, amiga_workbench_icon, amos_bank, amos_bank_set, amos_music_bank, amos_packed_picture, amos_program, amos_resource_bank, amos_sample_bank,
   amos_sprite_icon_bank, ansi_art, appimage, bmfont, bmp, creative_voice, d64, doom_wad, electron_asar, flic, fzx, gif_container, iso9660, jpeg, netpbm, openraster, pcx, png_container,
   adobe_swatch_exchange, aseprite, gimp_palette, koala_painter, paint_net_palette, protracker_mod, qoi, tga, wav, windows_icon, zip_archive, lha_archive, zx_spectrum_snapshot, zx_spectrum_tap]
 import ./containers/xpk_shri
 import ./containers/powerpacker
 import ./metadata
-import ./resources/[amiga_anim_image, amiga_diskfont_font, amiga_ilbm_image, amiga_pbm_image, amiga_workbench_icon_image, amos_listing, amos_packed_picture_image, amos_planar_image, amos_sample, bmp_image, flic_animation, gif_image, netpbm_image, png_image, zx_spectrum_basic,
+import ./resources/[amiga_anim_image, amiga_diskfont_font, amiga_ilbm_image, amiga_pbm_image, amiga_workbench_icon_image, amos_listing, amos_music_replay, amos_packed_picture_image, amos_planar_image, amos_sample, bmp_image, flic_animation, gif_image, netpbm_image, png_image, zx_spectrum_basic,
   ansi_art_image, bmfont_font, fzx_font, jpeg_image, koala_painter_image, pcx_image, protracker_replay, qoi_image, tga_image, windows_icon_image, zx_spectrum_screen]
 
 type
@@ -355,6 +355,96 @@ proc parseAmosTrackerBank(bank: AmosBank): ProtrackerMod =
         discard
     raise newException(ValueError, unpaddedError.msg)
 
+proc amosMusicBankNode(path: string, bank: AmosBank): VextResourceNode =
+  let music = parseAmosMusicBank(bank.data)
+  result = VextResourceNode(path: path, typeId: AmosMusicTypeId,
+    kind: vrnkOpaque, data: bank.data, rawDataAvailable: true,
+    metadata: @[
+      integerMetadata("bank.number", bank.number),
+      integerMetadata("bank.flags", bank.flags),
+      stringMetadata("bank.type", bank.bankType),
+      integerMetadata("data.length", bank.dataLength),
+      integerMetadata("songs", music.songs.len),
+      integerMetadata("patterns", music.patterns.len),
+      integerMetadata("instruments", music.instruments.len)])
+  let songs = VextResourceNode(path: path & "/songs",
+    typeId: "amos.music-songs", kind: vrnkGroup,
+    metadata: @[integerMetadata("songs", music.songs.len)])
+  for songIndex, song in music.songs:
+    let songPath = path & "/songs/" & $(songIndex + 1)
+    let module = music.toTrackerModule(songIndex)
+    let songNode = VextResourceNode(path: songPath,
+      typeId: AmosMusicSongTypeId, kind: vrnkTracker,
+      defaultExportPriority: 10, tracker: module,
+      trackerSampleResourcePath: path & "/samples",
+      metadata: @[
+        stringMetadata("name", song.name),
+        integerMetadata("source-index", songIndex + 1),
+        integerMetadata("default-tempo", song.defaultTempo),
+        integerMetadata("channels", AmosMusicChannelCount),
+        integerMetadata("positions", module.orders.len)])
+    let patterns = VextResourceNode(path: songPath & "/patterns",
+      typeId: AmosMusicPatternsTypeId, kind: vrnkGroup,
+      metadata: @[integerMetadata("patterns", module.patterns.len)])
+    for pattern in module.patterns:
+      var patternModule = module
+      patternModule.title = pattern.name
+      patternModule.patterns = @[pattern]
+      patternModule.orders = @[0]
+      patternModule.hasRestartOrder = false
+      patternModule.restartOrder = 0
+      patternModule.loopAnalysis = VextTrackerLoopAnalysis(
+        status: vtlsNotAnalysed)
+      patterns.children.add VextResourceNode(
+        path: songPath & "/patterns/" & $pattern.sourceIndex,
+        typeId: AmosMusicPatternTypeId, kind: vrnkTracker,
+        tracker: patternModule,
+        trackerSampleResourcePath: path & "/samples",
+        metadata: @[
+          integerMetadata("source-index", pattern.sourceIndex),
+          integerMetadata("rows", pattern.rows.len),
+          integerMetadata("channels", module.channels.len)])
+    songNode.children.add patterns
+    let replayBank = music
+    let replaySong = songIndex
+    songNode.children.add VextResourceNode(
+      path: songPath & "/rendered-audio",
+      typeId: AmosMusicRenderedAudioTypeId, kind: vrnkAudio,
+      audioKind: varkSound,
+      soundMaterializer: proc(): VextSound =
+        renderAmosMusic(replayBank, replaySong).sound,
+      derivedAudioChannels: 2, derivedAudioBitsPerSample: 16,
+      derivedAudioSampleRate: AmosMusicReplaySampleRate,
+      derivedAudioMaximumSamples: AmosMusicReplaySampleRate *
+        MaximumAmosMusicReplaySeconds,
+      metadata: @[
+        integerMetadata("sample-rate", AmosMusicReplaySampleRate),
+        integerMetadata("channels", 2),
+        integerMetadata("bits-per-sample", 16),
+        stringMetadata("timing", "50 Hz AMOS tempo accumulator"),
+        stringMetadata("rendering", "derived on demand"),
+        integerMetadata("maximum-seconds", MaximumAmosMusicReplaySeconds)])
+    songs.children.add songNode
+  result.children.add songs
+  let samples = VextResourceNode(path: path & "/samples",
+    typeId: "amos.music-samples", kind: vrnkGroup,
+    metadata: @[integerMetadata("samples", music.instruments.len)])
+  for index, instrument in music.instruments:
+    samples.children.add VextResourceNode(
+      path: path & "/samples/" & $(index + 1),
+      typeId: AmosMusicSampleTypeId, kind: vrnkAudio,
+      audioKind: varkSampledInstrument, instrument: instrument.sample,
+      metadata: @[
+        stringMetadata("name", instrument.name),
+        integerMetadata("source-index", index + 1),
+        integerMetadata("samples",
+          instrument.sample.sound.buffer.sampleCount),
+        integerMetadata("declared-samples", instrument.declaredLength),
+        integerMetadata("one-shot-samples", instrument.sample.oneShotSamples),
+        integerMetadata("repeat-samples", instrument.sample.repeatSamples),
+        integerMetadata("volume", instrument.volume)])
+  result.children.add samples
+
 proc amosRasterNode(path, typeId: string, source: AmosPlanarImage,
     palette: openArray[VextRgb]): VextResourceNode =
   VextResourceNode(
@@ -460,6 +550,8 @@ proc amosBankNode(path: string, bank: AmosBank): VextResourceNode =
     return amosResourceBankNode(path, bank)
   if bank.bankType == "Samples":
     return amosSampleBankNode(path, bank)
+  if bank.bankType == "Music" and isAmosMusicBank(bank.data):
+    return amosMusicBankNode(path, bank)
   if bank.bankType == "Tracker":
     return protrackerNode(path, parseAmosTrackerBank(bank), @[
       integerMetadata("bank.number", bank.number),

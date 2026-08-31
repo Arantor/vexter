@@ -1094,6 +1094,32 @@ fixture set; their redistribution or licensing status has not been supplied.
 9d127fa30eac96d647b64d3c55e525d45ffde2db70650b3dea6ccb75a4c42930  mod.mysong
 ```
 
+## AMOS Music bank documentation and compatibility files
+
+`AMOS Music Bank format - ExoticA.html` is a locally saved copy of the
+ExoticA wiki page <https://www.exotica.org.uk/wiki/AMOS_Music_Bank_format>,
+revision 91470. It is the supplied structural and command reference for AMOS
+Music bank support; no online format research was used. Its page table places
+the song tempo before the channel offsets, but all three authentic banks below
+instead store four channel offsets first and the tempo at byte 8. The parser
+follows that repeated fixture evidence.
+
+`Funkey.Abk`, `Amosteroids_Title.Abk`, and
+`Amosteroids_Intermediate.Abk` are music tracks supplied with AMOS and were
+provided as temporary compatibility evidence. They establish main-section
+offsets, independent channel playlists, command streams, unreliable declared
+sample lengths, sample looping, and the `$7Fxx` compact delay words. They
+remain in the working directory
+rather than the routine fixture set; their redistribution or licensing status
+has not been supplied.
+
+```text
+0129ad121712829d466ab3d85f6fde39b6ab0eebe44dad928a5cb2f1fe301fa3  AMOS Music Bank format - ExoticA.html
+7ffa7accb80be1d52c0cfc0a61ce75ce43bc5b0ec538b4699ba4bf390d1dc1e8  Funkey.Abk
+867b1b4a4edffbe414475bfb088e1cd7cb7d1c0a5a4f940ebfdadcf640c9f060  Amosteroids_Title.Abk
+622d0dc08de0a65602d8abce45c686d626f9a729f3b91647a28c549ee04a8fa5  Amosteroids_Intermediate.Abk
+```
+
 ## AMOS sample-bank compatibility files
 
 The developer supplied `mysound.abk` and an 8SVX export of its first record as

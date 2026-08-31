@@ -78,7 +78,7 @@ suite "vexter CLI":
     check document["selectedFormat"].getStr == "amos.bank"
     check document["resources"].len == 1
     check document["resources"][0]["path"].getStr == "/bank"
-    check document["resources"][0]["type"].getStr == "amos.bank-data"
+    check document["resources"][0]["type"].getStr == "amos.music"
     check document["resources"][0]["kind"].getStr == "opaque"
     check document["resources"][0]["metadata"]["bank.number"].getInt == 7
     check document["resources"][0]["metadata"]["bank.type"].getStr == "Music"

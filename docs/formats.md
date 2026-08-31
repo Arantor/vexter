@@ -1216,11 +1216,58 @@ AMOS context or version that saved the bank, not different payload formats.
 Vexter does not probe these bytes for a nested format: their meaning can depend
 on how an accompanying tokenised listing uses them.
 
-Other reserved identifiers receive distinct opaque, BIN-exportable resource
-types while their internal formats remain pending: `Music` is `amos.music`,
-`Amal` is `amos.amal`, and `Menu` is `amos.menu`. These classifications make
-the banks visible without claiming that their payload structure has been
-decoded.
+`Amal` and `Menu` receive distinct opaque, BIN-exportable resource types while
+their internal formats remain pending. `Music` banks are decoded as described
+below.
+
+### AMOS Music banks
+
+A `Music` payload is an `amos.music` opaque root, retaining BIN export of the
+original bank payload while exposing decoded children. Its 16-byte main header
+contains big-endian offsets to instrument, song, and pattern sections followed
+by a zero reserved dword; sections need not occur in that order.
+
+The instrument section contains 32-byte records and signed eight-bit sample
+data. Vexter derives actual sample lengths by sorting the sample offsets and
+using the next offset or section boundary, rather than trusting the frequently
+incorrect declared length. Valid repeating regions become sampled-instrument
+loops. Extracted instruments appear beneath `/bank/samples/N` as
+`amos.music-sample` audio and export to WAV.
+
+Each song has four independent pattern playlists, one per Amiga audio channel.
+The three supplied AMOS banks consistently place their four 16-bit playlist
+offsets at song-header bytes 0–7, the default tempo at byte 8, a zero word at
+byte 10, and the 16-byte name at byte 12. This differs from the ordering in the
+saved ExoticA table, so the fixture-confirmed layout is normative here.
+Playlists end with `$fffe` or `$ffff`; each pattern number selects a distinct
+command stream for each channel.
+
+The supplied banks also establish a compact `$7Fxx` delay word that appears
+before the note whose following wait it controls. Although it lacks the high
+command bit described by the saved reference and is separate from documented
+`$90xx`, it must be decoded as delay rather than as a note period; treating it
+as a note causes an immediate spurious sample retrigger.
+Delay countdown reaches the following event on the position that reduces the
+counter to zero; it does not insert an additional position afterward.
+End-of-pattern and position-jump commands enter the selected next stream in
+that same position, avoiding an artificial silent position between blocks.
+
+Songs appear beneath `/bank/songs/N` as `amos.music-song` tracker resources.
+Their tracker view combines the independent playlists by song position while
+retaining source periods, instruments, and raw AMOS commands. It is an
+inspection/export projection rather than a claim that AMOS has MOD's shared
+pattern/order model. Tracker JSON is available from each song.
+Each combined playlist-position block is also selectable as a tracker beneath
+`/bank/songs/N/patterns/P`, matching the per-pattern navigation available for
+ProTracker modules.
+
+`/bank/songs/N/rendered-audio` is derived lazily using AMOS's 50 Hz playback
+model and tempo accumulator. Replay supports instrument and volume changes,
+pattern termination, repeat marks, filter switching, tempo, arpeggio, tone
+portamento, vibrato, volume slide, pitch slides, delay, and position jumps.
+It uses four-channel Paula-style period playback, conventional hard panning,
+an initially enabled 4.5 kHz one-pole filter approximation, and a five-minute
+safety bound. Rendered songs and individual samples export to WAV.
 
 `Samples` banks use `amos.samples` and expose one `amos.sample` audio child per
 record. Their payload begins with a big-endian 16-bit count followed by that
