@@ -42,6 +42,23 @@ proc syntheticIconBank(paletteFirst = false): seq[byte] =
     for index in 0 ..< AmosPaletteEntries:
       result.addWord(if index == 1: 0x0f00 else: 0)
 
+proc syntheticSparseSpriteBank(): seq[byte] =
+  for value in AmosSpriteBankMagic:
+    result.add byte(value)
+  result.addWord(3)
+  # Slot zero is unused.
+  for unused in 0 ..< 5:
+    result.addWord(0)
+  for slot in 1 .. 2:
+    result.addWord(1)
+    result.addWord(1)
+    result.addWord(1)
+    result.addWord(0)
+    result.addWord(0)
+    result.addWord(if slot == 1: 0x8000 else: 0)
+  for index in 0 ..< AmosPaletteEntries:
+    result.addWord(if index == 1: 0x0f00 else: 0)
+
 suite "AMOS sprite and icon banks":
   test "DRAGON is detected and exposed as numbered sprite resources":
     let
@@ -109,6 +126,18 @@ suite "AMOS sprite and icon banks":
     check paletteFirst.images.len == 1
     check paletteFirst.images[0].hotspotX == -2
     check paletteFirst.palette[1] == VextRgb(r: 255, g: 0, b: 0)
+
+  test "unused slots retain the numbering of later sprite resources":
+    let
+      bank = parseAmosSpriteIconBank(syntheticSparseSpriteBank())
+      resources = inspectSource("sparse.abk",
+        syntheticSparseSpriteBank()).resources.rasterResources
+
+    check bank.images.len == 2
+    check bank.imageNumbers == @[1, 2]
+    check resources.len == 2
+    check resources[0].path == "/sprite/1"
+    check resources[1].path == "/sprite/2"
 
   test "truncated and structurally inconsistent banks are rejected":
     let valid = readBytes(FixturePath)

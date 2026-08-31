@@ -503,8 +503,10 @@ proc amosSpriteIconGroup(groupPath, resourceBase: string,
     typeId: bank.amosSpriteIconBankTypeId,
     kind: vrnkGroup)
   for index, image in bank.images:
+    let imageNumber =
+      if index < bank.imageNumbers.len: bank.imageNumbers[index] else: index
     result.children.add amosRasterNode(
-      resourceBase & "/" & $index, resourceTypeId, image, bank.palette)
+      resourceBase & "/" & $imageNumber, resourceTypeId, image, bank.palette)
 
 proc amosBankSetGroup(bankSet: AmosBankSet): VextResourceNode =
   result = VextResourceNode(

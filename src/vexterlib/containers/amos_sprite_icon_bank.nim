@@ -20,6 +20,7 @@ type
   AmosSpriteIconBank* = object
     kind*: AmosSpriteIconBankKind
     images*: seq[AmosPlanarImage]
+    imageNumbers*: seq[int]
     palette*: seq[VextRgb]
 
   AmosSpriteIconBankParseResult* = object
@@ -28,6 +29,7 @@ type
 
   AmosImageRecords = object
     images: seq[AmosPlanarImage]
+    imageNumbers: seq[int]
     endOffset: int
 
 proc bigEndianWord(data: openArray[byte], offset: int): int {.inline.} =
@@ -56,6 +58,10 @@ proc parseRecords(data: openArray[byte], imageCount,
       depth = bigEndianWord(data, offset + 4)
       hotspotX = signedBigEndianWord(data, offset + 6)
       hotspotY = signedBigEndianWord(data, offset + 8)
+    if widthWords == 0 and height == 0 and depth == 0 and
+        hotspotX == 0 and hotspotY == 0:
+      offset += AmosBankImageHeaderSize
+      continue
     if widthWords <= 0 or height <= 0:
       raise newException(ValueError, "AMOS image dimensions must be positive")
     if depth < 1 or depth > 5:
@@ -71,6 +77,7 @@ proc parseRecords(data: openArray[byte], imageCount,
       hotspotX: hotspotX,
       hotspotY: hotspotY,
       planeData: @data[offset ..< offset + planeDataSize])
+    result.imageNumbers.add imageIndex
     offset += planeDataSize
   result.endOffset = offset
 
@@ -100,6 +107,7 @@ proc parseAmosSpriteIconBankPrefix*(data: openArray[byte]):
     result.bank = AmosSpriteIconBank(
       kind: kind,
       images: records.images,
+      imageNumbers: records.imageNumbers,
       palette: parsePalette(data, records.endOffset))
     result.bytesRead = records.endOffset + AmosBankPaletteSize
   except ValueError:
@@ -107,6 +115,7 @@ proc parseAmosSpriteIconBankPrefix*(data: openArray[byte]):
     result.bank = AmosSpriteIconBank(
       kind: kind,
       images: records.images,
+      imageNumbers: records.imageNumbers,
       palette: parsePalette(data, 6))
     result.bytesRead = records.endOffset
 

@@ -1184,8 +1184,8 @@ The routine suites are:
   and opaque array extraction, BASIC autostart metadata, physical tape
   ordering, opaque binary export, and resource tree shapes;
 - `tests/test_amos_sprite_icon_bank.nim`: AMOS bank parsing, icon/sprite
-  distinctions, planar rendering against controls, hotspots, and malformed
-  input;
+  distinctions, planar rendering against controls, hotspots, sparse slot
+  numbering, and malformed input;
 - `tests/test_amos_bank.nim`: generic bank length masking, labels, reserved
   opaque resource identities, assembly, binary-data and exact/padded Tracker
   classification, export, metadata, and malformed input;
