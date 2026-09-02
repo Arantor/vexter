@@ -9,7 +9,8 @@ import ./containers/[adobe_swatch_exchange, amiga_8svx, amiga_16sv, amiga_acbm, 
   amiga_workbench_icon, amos_bank,
   amos_bank_set, amos_program, amos_sprite_icon_bank, ansi_art, bmp, flic, gif_container,
   bmfont, creative_voice, d64, doom_wad, electron_asar, fzx, gimp_palette, iso9660, jpeg, koala_painter, lha_archive, netpbm, openraster, paint_net_palette, pcx, png_container, powerpacker, protracker_mod, qoi, tga, wav, windows_icon, zip_archive,
-  zx_spectrum_screen_dump, zx_spectrum_snapshot, zx_spectrum_tap, xpk_shri]
+  zx_spectrum_screen_dump, zx_spectrum_snapshot, zx_spectrum_tap,
+  zx_spectrum_tzx, xpk_shri]
 import ./containers/amiga_pbm
 import ./format_detection_types
 type
@@ -68,6 +69,7 @@ type
     vhkZxSpectrumScreen
     vhkZxSpectrumSnapshot
     vhkZxSpectrumTap
+    vhkZxSpectrumTzx
     vhkAnsiArt
 
   VextFormatHandler* = object
@@ -167,6 +169,7 @@ const FormatHandlers* = [
   VextFormatHandler(typeId: ZxSpectrumSnapshotTypeId,
     kind: vhkZxSpectrumSnapshot),
   VextFormatHandler(typeId: ZxSpectrumTapTypeId, kind: vhkZxSpectrumTap),
+  VextFormatHandler(typeId: ZxSpectrumTzxTypeId, kind: vhkZxSpectrumTzx),
   VextFormatHandler(typeId: AnsiArtTypeId, kind: vhkAnsiArt)
 ]
 
@@ -300,6 +303,8 @@ proc parse*(handler: VextFormatHandler,
     if not isZxSpectrumTap(data):
       raise newException(ValueError, "invalid ZX Spectrum TAP container")
     result = parsed(VextParsedZxTap(records: parseZxSpectrumTapRecords(data)))
+  of vhkZxSpectrumTzx:
+    result = parsed(VextParsedZxTap(records: parseZxSpectrumTzx(data).records))
   of vhkAnsiArt: result = parsed(parseAnsiArt(data))
 
 proc tryParse*(handler: VextFormatHandler,

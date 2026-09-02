@@ -6,6 +6,12 @@ being listed does not imply priority, and unsupported historical or proposed
 formats are not included. Detailed format behavior and evidence remain in
 [`formats.md`](formats.md).
 
+- **ZX Spectrum TZX tapes**
+  - Standard-speed blocks reuse TAP decoding. Timing and waveform playback,
+    control-flow execution, turbo and pure-data loader decoding, descriptive
+    resources, deprecated blocks, and unknown extension blocks remain
+    unsupported.
+
 - **Container loading and resource materialization**
   - The current mixture of eager tree construction, bounded recursive probing,
     and payload extraction on first selection does not yet form a satisfactory

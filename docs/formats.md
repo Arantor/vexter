@@ -1558,6 +1558,31 @@ handling remains deferred.
 Structurally valid block framing and checksums identify the format as
 **probable**, strengthened by a case-insensitive `.tap` extension.
 
+## ZX Spectrum TZX container
+
+Type identifier: `zx-spectrum.tzx`
+
+The implementation is based on the locally supplied World of Spectrum
+technical specification: the Internet Archive capture dated 25 October 2020,
+which identifies the underlying specification revision as 19 December 2006.
+
+Vexter validates the `ZXTape!` signature, supported major version, and the
+boundaries of every recognized TZX block. Standard-speed data blocks (ID
+`0x10`) contain data in TAP form, so their checksums and adjacent Spectrum
+header/data relationships are validated and decoded through the existing TAP
+pathway. Programs, screens, CODE payloads, and arrays consequently use the
+same resources, metadata, ordering, and exports described above for TAP.
+
+The first pass structurally recognizes the standard TZX 1.20 block set. It
+skips timing, waveform, pause, grouping, control-flow, descriptive, hardware,
+custom-information, and glue blocks after validating their declared bounds.
+It does not yet simulate tape playback or control flow, decode turbo/pure-data
+loaders, or expose descriptive blocks as resources. Deprecated block IDs and
+unknown extensions are rejected rather than guessed.
+
+The signature and fully validated block stream identify TZX as **certain**;
+a case-insensitive `.tzx` extension is retained as additional evidence.
+
 ## PCX images
 
 Container type identifier: `pcx`

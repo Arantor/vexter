@@ -35,7 +35,7 @@ client, and a dependency-free native Windows GUI. It supports:
   level-0/1 LHA/LZH archives using LH0 or LH5,
   minimally structured Amiga Hunk executables and LHA self-extractors,
   ZX Spectrum raw screen dumps, SNA snapshots,
-  TAP containers, tokenised BASIC resources, BMFont text descriptors, FZX and Amiga bitmap diskfonts
+  TAP and first-pass TZX containers, tokenised BASIC resources, BMFont text descriptors, FZX and Amiga bitmap diskfonts
   (including ColorFonts), standalone AMOS banks, AMOS bank
   sets, and AMOS programs;
 - a resource tree containing decoded raster, palette, bitmap-font, audio, and text resources,

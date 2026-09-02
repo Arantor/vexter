@@ -56,6 +56,9 @@ type
     parameter2*: int
     data*: seq[byte]
 
+proc parseZxSpectrumTapRecords*(data: openArray[byte]):
+    seq[ZxSpectrumTapRecord]
+
 proc littleEndianWord(data: openArray[byte], offset: int): int {.inline.} =
   int(data[offset]) or (int(data[offset + 1]) shl 8)
 
@@ -83,6 +86,21 @@ proc parseBlocks(data: openArray[byte]): seq[ZxSpectrumTapBlock] =
 
   if result.len == 0:
     raise newException(ValueError, "ZX Spectrum TAP contains no blocks")
+
+proc parseZxSpectrumTapeBlocks*(blocks: openArray[seq[byte]]):
+    seq[ZxSpectrumTapRecord] =
+  ## Interprets checksum-bearing TAP-style blocks already separated by a
+  ## container such as TZX.
+  if blocks.len == 0:
+    return
+  var tap: seq[byte]
+  for tapeBlock in blocks:
+    if tapeBlock.len > 0xffff:
+      raise newException(ValueError, "ZX Spectrum tape block is too large")
+    tap.add byte(tapeBlock.len and 0xff)
+    tap.add byte(tapeBlock.len shr 8)
+    tap.add tapeBlock
+  result = parseZxSpectrumTapRecords(tap)
 
 proc asciiName(headerBytes: openArray[byte]): string =
   ## Non-ASCII filename bytes are ignored until Spectrum tokenising is added.

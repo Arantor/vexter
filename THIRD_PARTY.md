@@ -848,6 +848,31 @@ Selected SHA-256 values from the supplied distribution were:
 be62cf1d63c8c31ff5db90a19857ceecfff484e1e7d431290e0221ce5fcfe2f2  fonts/GenevaMono/GenevaMonoCyrillic.fzx
 ```
 
+## ZX Spectrum TZX format specification
+
+The developer supplied `TZX technical specifications.html` on 2 September
+2026. It is an Internet Archive capture dated 25 October 2020 of the World of
+Spectrum TZX technical specification at
+`worldofspectrum.net/features/TZXformat.html`; the page identifies the
+underlying specification revision as 19 December 2006. It is the format
+authority for Vexter's TZX signature and version handling, block identifiers,
+field layouts, length framing, and the TAP-compatible contents of standard
+speed data blocks.
+
+Source URLs:
+* https://worldofspectrum.net/features/TZXformat.html
+* https://web.archive.org/web/20201025045313/https://worldofspectrum.net/features/TZXformat.html
+
+The saved page is temporary supplied research material and is not copied into
+the committed fixture corpus. Its page text does not state a redistribution
+licence. Vexter uses the specification as a behavioral reference and does not
+incorporate third-party implementation code. Routine coverage uses compact
+synthetic TZX streams constructed from the documented layouts.
+
+```text
+92f37ad839b8d1215d236677d138f35266aed7e445c530289d4d92c86e46f4ce  TZX technical specifications.html
+```
+
 ## TGA format specification
 
 The developer supplied `TGA format specification.html`, sourced from

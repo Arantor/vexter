@@ -2511,8 +2511,8 @@ proc inspectSourceDepth(filename: string, data: openArray[byte],
           text: extractZxSpectrumSnapshotBasic(snapshotData))
       except ValueError:
         discard
-  of vhkZxSpectrumTap:
-    let tap = parsedValue[VextParsedZxTap](selectedParsed, vhkZxSpectrumTap)
+  of vhkZxSpectrumTap, vhkZxSpectrumTzx:
+    let tap = parsedValue[VextParsedZxTap](selectedParsed, selectedHandler.kind)
     var screenCount, codeCount, listingCount, numberArrayCount,
       characterArrayCount: int
     for record in tap.records:
