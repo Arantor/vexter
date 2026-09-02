@@ -776,6 +776,22 @@ Synthetic tests establish the maintained behavior;
 `COMPA180.VOC` is used only for temporary ad-hoc compatibility testing and is
 not part of the formal fixture corpus.
 
+## Generic RGBA8 palette files
+
+Type identifier: `rgba8.palette`
+
+This deliberately generic format begins with a four-byte little-endian colour
+count followed by exactly that many RGBA8 quads. At least one and at most
+65,536 colours are accepted, and no trailing bytes are permitted. It exposes
+an ordered palette at `/palette`, including alpha, with palette-swatch as its
+default export.
+
+Because the format has no magic identifier, automatic detection requires a
+case-insensitive `.pal` extension as well as valid structure and reports only
+**possible** confidence. The detector runs after stronger format detectors so
+magic-backed candidates remain preferred. Callers can force `rgba8.palette`
+for correctly structured data with another filename extension.
+
 ## Paint.NET palette files
 
 Paint.NET text palettes are identified by the exact opening line

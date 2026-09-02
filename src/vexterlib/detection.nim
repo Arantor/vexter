@@ -5,7 +5,7 @@ import ./handler_registry
 import ./format_detection_types
 export format_detection_types
 import ./containers/[amiga_8svx, amiga_16sv, amiga_acbm, amiga_adf, amiga_anim, amiga_diskfont, amiga_dms, amiga_hunk_executable, amiga_iff, amiga_ilbm, amiga_lha_sfx, amiga_pbm, amiga_workbench_icon, amos_bank, amos_bank_set, amos_program,
-  adobe_swatch_exchange, amos_sprite_icon_bank, ansi_art, appimage, aseprite, bmfont, bmp, creative_voice, d64, doom_wad, electron_asar, flic, fzx, gif_container, gimp_palette, iso9660, jpeg, koala_painter, netpbm, paint_net_palette, pcx, png_container, protracker_mod, qoi, tga,
+  adobe_swatch_exchange, amos_sprite_icon_bank, ansi_art, appimage, aseprite, bmfont, bmp, creative_voice, d64, doom_wad, electron_asar, flic, fzx, gif_container, gimp_palette, iso9660, jpeg, koala_painter, netpbm, paint_net_palette, pcx, png_container, protracker_mod, qoi, rgba8_palette, tga,
   wav, windows_icon, zip_archive, lha_archive, zx_spectrum_screen_dump,
   zx_spectrum_snapshot, zx_spectrum_tap, zx_spectrum_tzx]
 import ./containers/xpk_shri
@@ -661,6 +661,19 @@ proc detectBaseFormats(filename: string, data: openArray[byte]):
       typeId: ZxSpectrumTzxTypeId,
       confidence: vdcCertain,
       evidence: evidence)
+
+  # This deliberately weak, extension-dependent detector stays last so a
+  # stronger format remains the preferred candidate for ambiguous bytes.
+  if filename.hasRgba8PaletteExtension and isRgba8Palette(data):
+    let palette = parseRgba8Palette(data)
+    result.add VextDetectionCandidate(
+      typeId: Rgba8PaletteTypeId,
+      confidence: vdcPossible,
+      evidence: @[
+        VextDetectionEvidence(description: "file extension is .pal"),
+        VextDetectionEvidence(description: "little-endian colour count and " &
+          "exact RGBA8 payload size describe " & $palette.colours.len &
+          " colours")])
 
   for candidate in result:
     if formatHandler(candidate.typeId).isNil:

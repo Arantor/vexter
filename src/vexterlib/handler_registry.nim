@@ -8,7 +8,7 @@ import ./containers/[adobe_swatch_exchange, amiga_8svx, amiga_16sv, amiga_acbm, 
   amiga_diskfont, amiga_dms, amiga_hunk_executable, amiga_iff, amiga_ilbm, amiga_lha_sfx,
   amiga_workbench_icon, amos_bank,
   amos_bank_set, amos_program, amos_sprite_icon_bank, ansi_art, bmp, flic, gif_container,
-  bmfont, creative_voice, d64, doom_wad, electron_asar, fzx, gimp_palette, iso9660, jpeg, koala_painter, lha_archive, netpbm, openraster, paint_net_palette, pcx, png_container, powerpacker, protracker_mod, qoi, tga, wav, windows_icon, zip_archive,
+  bmfont, creative_voice, d64, doom_wad, electron_asar, fzx, gimp_palette, iso9660, jpeg, koala_painter, lha_archive, netpbm, openraster, paint_net_palette, pcx, png_container, powerpacker, protracker_mod, qoi, rgba8_palette, tga, wav, windows_icon, zip_archive,
   zx_spectrum_screen_dump, zx_spectrum_snapshot, zx_spectrum_tap,
   zx_spectrum_tzx, xpk_shri]
 import ./containers/amiga_pbm
@@ -52,6 +52,7 @@ type
     vhkGimpPalette
     vhkAseprite
     vhkAdobeSwatchExchange
+    vhkRgba8Palette
     vhkProtrackerMod
     vhkDoomWad
     vhkElectronAsar
@@ -149,6 +150,7 @@ const FormatHandlers* = [
   VextFormatHandler(typeId: AsepriteTypeId, kind: vhkAseprite),
   VextFormatHandler(typeId: AdobeSwatchExchangeTypeId,
     kind: vhkAdobeSwatchExchange),
+  VextFormatHandler(typeId: Rgba8PaletteTypeId, kind: vhkRgba8Palette),
   VextFormatHandler(typeId: ProtrackerModTypeId, kind: vhkProtrackerMod),
   VextFormatHandler(typeId: DoomWadTypeId, kind: vhkDoomWad),
   VextFormatHandler(typeId: ElectronAsarTypeId, kind: vhkElectronAsar),
@@ -269,6 +271,7 @@ proc parse*(handler: VextFormatHandler,
   of vhkAseprite: result = parsed(parseAseprite(data))
   of vhkAdobeSwatchExchange:
     result = parsed(parseAdobeSwatchExchange(data))
+  of vhkRgba8Palette: result = parsed(parseRgba8Palette(data))
   of vhkProtrackerMod: result = parsed(parseProtrackerMod(data))
   of vhkDoomWad: result = parsed(parseDoomWad(data))
   of vhkElectronAsar: result = parsed(parseElectronAsar(data))

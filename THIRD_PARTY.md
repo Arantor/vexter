@@ -1,5 +1,14 @@
 # Third-party material
 
+## Generic RGBA8 palette format details
+
+On 3 September 2026 the developer directly supplied the complete format
+description for the generic `.pal` possibility: a four-byte little-endian
+colour count followed by that many RGBA8 quads. This supplied description is
+the sole format authority for the parser; no external documentation or
+third-party implementation code was used. Routine tests use compact synthetic
+palettes constructed from that description.
+
 ## ProTracker MOD documentation and compatibility corpus
 
 The developer supplied `mod-form-3rd.txt` and

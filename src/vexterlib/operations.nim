@@ -15,7 +15,7 @@ import ./exporters/[bmfont, gif, gpl, html_report, metadata_json, png, raw, trac
 import ./resource_tree
 import ./containers/[amiga_8svx, amiga_16sv, amiga_acbm, amiga_adf, amiga_anim, amiga_diskfont, amiga_dms, amiga_hunk_executable, amiga_iff, amiga_ilbm, amiga_lha_sfx, amiga_pbm, amiga_workbench_icon, amos_bank, amos_bank_set, amos_music_bank, amos_packed_picture, amos_program, amos_resource_bank, amos_sample_bank,
   amos_sprite_icon_bank, ansi_art, appimage, bmfont, bmp, creative_voice, d64, doom_wad, electron_asar, flic, fzx, gif_container, iso9660, jpeg, netpbm, openraster, pcx, png_container,
-  adobe_swatch_exchange, aseprite, gimp_palette, koala_painter, paint_net_palette, protracker_mod, qoi, tga, wav, windows_icon, zip_archive, lha_archive, zx_spectrum_snapshot, zx_spectrum_tap]
+  adobe_swatch_exchange, aseprite, gimp_palette, koala_painter, paint_net_palette, protracker_mod, qoi, rgba8_palette, tga, wav, windows_icon, zip_archive, lha_archive, zx_spectrum_snapshot, zx_spectrum_tap]
 import ./containers/xpk_shri
 import ./containers/powerpacker
 import ./metadata
@@ -1618,6 +1618,14 @@ proc inspectSourceDepth(filename: string, data: openArray[byte],
         path: AdobeSwatchExchangeResourcePath,
         typeId: AdobeSwatchExchangeTypeId, kind: vrnkPalette,
         palette: source.palette, metadata: metadata)
+  of vhkRgba8Palette:
+    let palette = parsedValue[VextPalette](selectedParsed, vhkRgba8Palette)
+    result.resources.roots.add VextResourceNode(
+      path: Rgba8PaletteResourcePath,
+      typeId: Rgba8PaletteTypeId,
+      kind: vrnkPalette,
+      palette: palette,
+      metadata: @[integerMetadata("colours", palette.colours.len)])
   of vhkProtrackerMod:
     let source = parsedValue[ProtrackerMod](selectedParsed, vhkProtrackerMod)
     result.resources.roots.add protrackerNode(ProtrackerModResourcePath, source)

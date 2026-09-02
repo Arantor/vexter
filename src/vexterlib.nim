@@ -65,6 +65,7 @@ import vexterlib/containers/zx_spectrum_screen_dump
 import vexterlib/containers/zx_spectrum_snapshot
 import vexterlib/containers/zx_spectrum_tap
 import vexterlib/containers/zx_spectrum_tzx
+import vexterlib/containers/rgba8_palette
 import vexterlib/containers/ansi_art
 import vexterlib/containers/doom_wad
 import vexterlib/resources/amos_planar_image
@@ -197,6 +198,7 @@ export bmfont_font
 export zx_spectrum_snapshot
 export zx_spectrum_tap
 export zx_spectrum_tzx
+export rgba8_palette
 export detection
 export byte_sources
 export inspection_sessions
