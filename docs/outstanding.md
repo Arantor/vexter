@@ -94,10 +94,10 @@ formats are not included. Detailed format behavior and evidence remain in
     interpreted.
 
 - **JPEG**
-  - Progressive, lossless, arithmetic-coded, hierarchical, and multi-scan
-    sequential JPEG processes are recognized only as unsupported or rejected;
-    the native decoder currently handles one baseline or extended-sequential
-    Huffman scan.
+  - Lossless and hierarchical JPEG processes are recognized only as
+    unsupported or rejected. Eight-bit baseline, extended-sequential,
+    multi-scan sequential, and progressive Huffman or arithmetic DCT images
+    are decoded.
   - Four-component CMYK/YCCK images and uncommon component interpretations are
     unsupported. Three components are currently interpreted as YCbCr.
   - Chroma upsampling is nearest-neighbour, and ICC profiles, EXIF fields other

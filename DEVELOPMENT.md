@@ -417,7 +417,9 @@ Matching case-insensitive extensions add supporting evidence.
   image properties, palettes, transparency, and concatenated IDAT data while
   retaining every known or unknown chunk for metadata;
 - `jpeg.nim` validates JPEG marker framing, eight-bit DCT frame dimensions and
-  component sampling, retains JFIF density information, and parses bounded
+  one- through four-component sampling, recognizes Huffman and arithmetic
+  sequential or progressive processes, retains JFIF density information, and
+  parses bounded
   little- or big-endian EXIF IFD0, photographic, GPS, interoperability, and
   thumbnail directories, including orientation and readable standard fields;
 - `windows_icon.nim` validates ICO/CUR directories and bounded image entries,
@@ -552,12 +554,15 @@ palette or `tRNS` alpha, and reconstructs Adam7 passes. APNG and unknown chunks
 are distinguished: valid APNG frame streams are decomposed and composited into
 a true-colour animation, while unknown chunks remain metadata-only.
 
-`src/vexterlib/resources/jpeg_image.nim` natively decodes eight-bit baseline
-and extended-sequential Huffman scans, including quantization and Huffman
-tables, restart intervals, grayscale and YCbCr component sampling, and inverse
-DCT reconstruction. It applies EXIF orientations 1 through 8 to the decoded
-image before preview or export. No JPEG C library or runtime dependency is
-linked into Vexter.
+`src/vexterlib/resources/jpeg_image.nim` natively decodes eight-bit baseline,
+extended-sequential, multi-scan sequential, and progressive Huffman or
+arithmetic scans, including DAC conditioning and adaptive probability states.
+Progressive coefficients persist across spectral-selection and successive-
+approximation scans until final inverse-DCT reconstruction. Decoding includes
+quantization, Huffman and arithmetic tables, restart intervals, grayscale and YCbCr
+component sampling, and inverse DCT reconstruction. It applies EXIF
+orientations 1 through 8 to the decoded image before preview or export. No
+JPEG C library or runtime dependency is linked into Vexter.
 
 `src/vexterlib/resources/qoi_image.nim` decodes every QOI RGB, RGBA, INDEX,
 DIFF, LUMA, and RUN operation into a true-colour image with optional alpha,
@@ -1128,12 +1133,14 @@ The routine suites are:
   export round trips, private chunk tolerance, metadata retention, CRCs,
   malformed required chunks, and every existing independently encoded PNG
   control;
-- `tests/test_jpeg.nim`: self-contained baseline Huffman decoding, structural
-  detection, PNG routing, both EXIF TIFF byte orders, all eight orientation
-  mappings, photographic sub-IFD values, medium-image component-plane scaling,
-  malformed EXIF isolation, malformed JPEG framing, and explicit progressive
-  decoding rejection; separately supplied IJG and camera JPEGs are also used
-  as uncommitted compatibility controls;
+- `tests/test_jpeg.nim`: self-contained baseline, multi-scan sequential, and
+  progressive Huffman decoding, local sequential/progressive arithmetic
+  compatibility controls, structural detection, PNG routing, both EXIF
+  TIFF byte orders, all eight orientation mappings, photographic sub-IFD
+  values, medium-image component-plane scaling, malformed EXIF isolation,
+  malformed JPEG framing, and invalid progressive scan rejection; separately
+  supplied IJG, camera, and real-world progressive JPEGs are also used as
+  uncommitted compatibility controls;
 - `tests/test_qoi.nim`: every QOI opcode, colour-index hashing, runs,
   modulo-256 channel differences, alpha, metadata, detection, PNG routing,
   declared pixel coverage, exact termination, and malformed input;

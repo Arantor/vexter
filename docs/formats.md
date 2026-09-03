@@ -1896,11 +1896,27 @@ one scan. Valid data is detected as **certain** independently of its filename;
 `.jpg`, `.jpeg`, and `.jpe` add supporting evidence. The decoded true-colour
 image is exposed at `/image` and naturally exports as PNG.
 
-The dependency-free Nim decoder supports baseline and extended-sequential
-Huffman coding with one grayscale or three YCbCr components. It reads 8- or
-16-bit quantization tables, canonical Huffman tables, restart intervals,
-component sampling, DC prediction, AC runs, dequantization, and inverse DCT.
-Chroma planes are currently expanded with nearest-neighbour sampling.
+Inspection metadata reports the semantic `jpeg.process` and `jpeg.coding`
+names plus `jpeg.progressive` as zero or one. The numeric `jpeg.frame-marker`
+is retained alongside them for exact structural identification. Huffman frames
+with four components are structurally recognized even though they cannot yet
+be decoded. They expose an opaque `/image` with retained source data, process
+and component metadata, and an explicit `decode.warning` rather than being
+reported as an unknown format.
+
+The dependency-free Nim decoder supports baseline, extended-sequential, and
+progressive Huffman or arithmetic coding with one grayscale or three YCbCr
+components. Arithmetic decoding implements DAC DC/AC conditioning, adaptive
+probability-state transitions, magnitude contexts, and fixed-probability sign
+and refinement decisions.
+Sequential components may occupy one interleaved scan or separate scans.
+Progressive decoding supports DC and AC first scans, spectral selection,
+successive-approximation refinement, and end-of-band runs. Quantized DCT
+coefficients are retained across scans and reconstructed only after the final
+scan. The decoder also reads 8- or 16-bit quantization tables, canonical
+Huffman tables, restart intervals, component sampling, DC prediction, AC runs,
+dequantization, and inverse DCT. Chroma planes are currently expanded with
+nearest-neighbour sampling.
 
 JFIF version, density units, and density values are exposed as metadata. An
 EXIF APP1 segment is parsed as bounded TIFF in either byte order. IFD0,

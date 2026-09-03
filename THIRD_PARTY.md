@@ -665,6 +665,14 @@ and Y/YCbCr interpretation. `Exif.php` and `ExifTag.php` are developer-authored
 TIFF byte order, IFD entry framing, and EXIF orientation tag `0x0112`. They are
 references only and are not incorporated as PHP or redistributed.
 
+The developer supplied additional untracked JPEG compatibility controls in
+September 2026. `1775669464381.jpeg` is a regular progressive JPEG believed to
+have originated from LinkedIn. The four `dice-*.jpeg` controls were made in
+GIMP from one of the QOI sample images by adding a background, flattening the
+image, and exporting baseline arithmetic, progressive arithmetic, progressive
+Huffman, and four-component variants. They are local behavioral controls and
+are not redistributed with Vexter.
+
 Relevant SHA-256 hashes are:
 
 ```text
@@ -672,6 +680,11 @@ Relevant SHA-256 hashes are:
 0bdc0e108e92a0abd3e37262a230dd09ddb854b26c8a0bb61e723e90c2ff8d2b  JPEG File Interchange Format - Wikipedia.html
 bebd171da0521564ce9301cc5a5b0295f53e4b6aa9f89d1116ce200d9adf8ba8  Exif.php
 4c490f2f51a4379452091a9828c82b7b2f4a162c596ec2f53fd3b779ab62a2fd  ExifTag.php
+796d140520f0e9c680f7e3910ed096cdb33c62dfc925d10a43487cf3215b1a73  1775669464381.jpeg
+99e4c215b027fb251ab596ba8e2abb157aeaff40568ac172372adc150e25407e  dice-arithmetic.jpeg
+2bbef46b79bc7c750a5dee50bd054a6e30645dff9b35a3b426e1b8173f96f0c7  dice-cymk.jpeg
+fdd848da2e01794f495e43137654a1792ebed34e803a85413399af6c5b8edb49  dice-progressive-arithmetic.jpeg
+038ac2ef990cf6574c81b9edb2d83361ea08a0515ed891fcac3cfcc5c2d20186  dice-progressive-nonarithmetic.jpeg
 ```
 
 ## Temporary 16colo.rs ANSI and character-art compatibility controls

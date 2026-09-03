@@ -1347,6 +1347,11 @@ proc inspectSourceDepth(filename: string, data: openArray[byte],
     var metadata = @[
       integerMetadata("jpeg.precision", source.precision),
       integerMetadata("jpeg.frame-marker", source.frameMarker),
+      stringMetadata("jpeg.process", source.jpegProcessName),
+      stringMetadata("jpeg.coding", source.jpegCodingName),
+      integerMetadata("jpeg.progressive", int(source.isProgressive)),
+      stringMetadata("jpeg.component-interpretation",
+        source.jpegComponentInterpretation),
       integerMetadata("jpeg.components", source.components.len),
       integerMetadata("exif.present", int(source.hasExif)),
       integerMetadata("exif.valid", int(source.exifValid)),
@@ -1362,9 +1367,19 @@ proc inspectSourceDepth(filename: string, data: openArray[byte],
       metadata.add integerMetadata("jfif.density-units", source.densityUnits)
       metadata.add integerMetadata("jfif.density.x", source.xDensity)
       metadata.add integerMetadata("jfif.density.y", source.yDensity)
-    result.resources.roots.add VextResourceNode(path: JpegImageResourcePath,
-      typeId: JpegImageTypeId, kind: vrnkRaster, raster: decodeJpeg(source),
-      metadata: metadata)
+    let supportError = source.jpegDecodeSupportError
+    if supportError.len == 0:
+      result.resources.roots.add VextResourceNode(path: JpegImageResourcePath,
+        typeId: JpegImageTypeId, kind: vrnkRaster, raster: decodeJpeg(source),
+        metadata: metadata)
+    else:
+      metadata.add stringMetadata("decode.warning", supportError)
+      result.warnings.add VextInspectionWarning(path: JpegImageResourcePath,
+        format: JpegTypeId, message: supportError)
+      result.resources.roots.add VextResourceNode(path: JpegImageResourcePath,
+        typeId: JpegImageTypeId, kind: vrnkOpaque, data: source.data,
+        rawDataAvailable: true, failureFormat: JpegTypeId,
+        failureMessage: supportError, metadata: metadata)
   of vhkQoi:
     let source = parsedValue[QoiImageSource](selectedParsed, vhkQoi)
     result.resources.roots.add VextResourceNode(

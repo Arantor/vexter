@@ -463,7 +463,7 @@ proc parseJpeg*(data: openArray[byte]): JpegSource =
           result.exifValid = true
         except ValueError as error:
           result.exifError = error.msg
-    of 0xc0, 0xc1, 0xc2:
+    of 0xc0, 0xc1, 0xc2, 0xc9, 0xca:
       if sawFrame or length < 8:
         raise newException(ValueError, "invalid or duplicate JPEG frame header")
       sawFrame = true
@@ -472,7 +472,7 @@ proc parseJpeg*(data: openArray[byte]): JpegSource =
       result.height = data.beWord(start + 1)
       result.width = data.beWord(start + 3)
       let count = int(data[start + 5])
-      if count notin [1, 3] or length != 8 + count * 3 or
+      if count notin 1 .. 4 or length != 8 + count * 3 or
           result.width <= 0 or result.height <= 0 or
           result.width > 65535 or result.height > 65535 or
           result.width > 100_000_000 div result.height:
@@ -493,10 +493,43 @@ proc parseJpeg*(data: openArray[byte]): JpegSource =
     offset = finish
   if not sawFrame or not sawScan or not sawEnd:
     raise newException(ValueError, "JPEG is missing a frame, scan, or end marker")
-  if result.precision != 8 or result.frameMarker notin [0xc0, 0xc1, 0xc2]:
+  if result.precision != 8 or
+      result.frameMarker notin [0xc0, 0xc1, 0xc2, 0xc9, 0xca]:
     raise newException(ValueError, "unsupported JPEG coding process")
 
 proc hasJpegExtension*(filename: string): bool =
   filename.toLowerAscii.endsWith(".jpg") or
     filename.toLowerAscii.endsWith(".jpeg") or
     filename.toLowerAscii.endsWith(".jpe")
+
+proc jpegProcessName*(source: JpegSource): string =
+  case source.frameMarker
+  of 0xc0: "baseline-dct"
+  of 0xc1, 0xc9: "extended-sequential-dct"
+  of 0xc2, 0xca: "progressive-dct"
+  else: "unknown"
+
+proc jpegCodingName*(source: JpegSource): string =
+  case source.frameMarker
+  of 0xc0 .. 0xc2: "huffman"
+  of 0xc9, 0xca: "arithmetic"
+  else: "unknown"
+
+proc isProgressive*(source: JpegSource): bool =
+  source.frameMarker in [0xc2, 0xca]
+
+proc jpegComponentInterpretation*(source: JpegSource): string =
+  case source.components.len
+  of 1: "grayscale"
+  of 3: "ycbcr"
+  of 4: "cmyk-or-ycck"
+  else: "unknown"
+
+proc jpegDecodeSupportError*(source: JpegSource): string =
+  if source.components.len == 4:
+    return "four-component CMYK/YCCK JPEG decoding requires colour-managed raster support"
+  if source.components.len notin [1, 3]:
+    return "unsupported JPEG component count"
+
+proc canDecodeJpeg*(source: JpegSource): bool =
+  source.jpegDecodeSupportError.len == 0
