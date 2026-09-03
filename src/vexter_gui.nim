@@ -138,6 +138,7 @@ type
     iImage: int32
 
   ViewKind = enum vkNone, vkRaster, vkFont, vkAudio, vkText
+  AlternateViewKind = enum avkNone, avkMetadata, avkHexdump
   TreeBinding = ref object
     node: VextResourceNode
     descriptor: VextResourceDescriptor
@@ -366,7 +367,8 @@ var
   playButton, formatCombo, exportButton, extractButton, progressBar: HWND
   bindings: seq[TreeBinding]
   selected: TreeBinding
-  metadataViewBinding: TreeBinding
+  alternateViewBinding: TreeBinding
+  alternateViewKind = avkNone
   currentFilename: string
   currentSession: VextInspectionSession
   currentView = vkNone
@@ -449,6 +451,34 @@ proc metadataString(item: VextResourceDescriptor): string =
       of vmvkString: entry.value.stringValue
     result.add &"{entry.key}: {value}\r\n"
 
+proc bindingCanShowHexdump(binding: TreeBinding): bool =
+  not binding.isNil and not binding.node.isNil and canShowHexdump(
+    binding.node.kind == vrnkOpaque, binding.node.rawDataAvailable,
+    binding.node.retainedByteLength)
+
+proc showAlternateText(binding: TreeBinding, kind: AlternateViewKind) =
+  stopAudio()
+  selected = binding
+  alternateViewBinding = binding
+  alternateViewKind = kind
+  currentView = vkText
+  let details = case kind
+    of avkMetadata:
+      if not binding.node.isNil: metadataString(binding.node)
+      else: metadataString(binding.descriptor)
+    of avkHexdump: formatHexdump(binding.node.resourceBytes)
+    of avkNone: ""
+  discard SetWindowTextW(textView, w(details))
+  discard ShowWindow(textView, SW_SHOW)
+  discard ShowWindow(preview, 0)
+  discard ShowWindow(fontModeCombo, 0)
+  discard ShowWindow(fontSample, 0)
+  discard ShowWindow(fontGlyphCombo, 0)
+  discard ShowWindow(fontDetails, 0)
+  discard EnableWindow(playButton, 0)
+  discard EnableWindow(exportButton, 0)
+  layout(mainWindow)
+
 proc showTreeMetadataMenu() =
   var cursor: POINT
   if GetCursorPos(addr cursor) == 0: return
@@ -464,35 +494,29 @@ proc showTreeMetadataMenu() =
   if binding.isNil or binding.placeholder: return
   let menu = CreatePopupMenu()
   if menu == nil: return
-  let showingMetadata = metadataViewBinding == binding
+  let showingAlternate = alternateViewBinding == binding and
+    alternateViewKind != avkNone
   discard AppendMenuW(menu, 0, 1,
-    w(if showingMetadata and not binding.node.isNil: "Show preview"
+    w(if showingAlternate and not binding.node.isNil: "Show preview"
       else: "Show metadata"))
+  if binding.bindingCanShowHexdump and
+      not (showingAlternate and alternateViewKind == avkHexdump):
+    discard AppendMenuW(menu, 0, 2, w("Show hexdump"))
   var screenPoint: POINT
   discard GetCursorPos(addr screenPoint)
   let command = TrackPopupMenu(menu, 0x0102, screenPoint.x, screenPoint.y,
     0, mainWindow, nil)
   discard DestroyMenu(menu)
   if command == 1:
-    if showingMetadata and not binding.node.isNil:
+    if showingAlternate and not binding.node.isNil:
       selectBinding(binding)
     else:
-      stopAudio()
-      selected = binding
-      metadataViewBinding = binding
-      currentView = vkText
-      let details = if not binding.node.isNil: metadataString(binding.node)
-        else: metadataString(binding.descriptor)
-      discard SetWindowTextW(textView, w(details))
-      discard ShowWindow(textView, SW_SHOW)
-      discard ShowWindow(preview, 0)
-      discard ShowWindow(fontModeCombo, 0)
-      discard ShowWindow(fontSample, 0)
-      discard ShowWindow(fontGlyphCombo, 0)
-      discard ShowWindow(fontDetails, 0)
-      discard EnableWindow(playButton, 0)
-      discard EnableWindow(exportButton, 0)
-      layout(mainWindow)
+      showAlternateText(binding, avkMetadata)
+  elif command == 2:
+    try:
+      showAlternateText(binding, avkHexdump)
+    except CatchableError as error:
+      showError("Could not read this resource for the hexdump.\n\n" & error.msg)
 
 proc failureString(node: VextResourceNode): string =
   &"This contained file could not be decoded.\r\n\r\n" &
@@ -966,7 +990,8 @@ proc selectBinding(binding: TreeBinding) =
   stopAudio()
   resetPreviewScrollPosition()
   selected = binding
-  metadataViewBinding = nil
+  alternateViewBinding = nil
+  alternateViewKind = avkNone
   animationFrame = 0
   colourCycleElapsedMs = 0
   animationPlaying = false

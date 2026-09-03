@@ -166,6 +166,11 @@ lane (left above right for stereo) rather than collapsing the display to the
 first channel. The resource TreeView uses persistent inactive selection so the
 current item remains visible while a playback or export control has focus.
 
+The resource TreeView context menu can show metadata for every item and a
+textual hexdump for undecoded opaque resources retaining at most 1 MiB of raw
+data. Hexdump rows use eight-digit offsets, sixteen hexadecimal bytes, and a
+printable seven-bit ASCII column in the existing monospace text view.
+
 Contained resources carrying decode failures use the standard Windows warning
 icon in the TreeView. Their ancestor groups expand automatically, and selecting
 one shows its suspected format and decoder message in the text view.

@@ -20,3 +20,27 @@ suite "GUI raster preview policy":
   test "true-colour previews use filtering in either direction":
     check previewResampling(false, 16, 16, 80, 80) == vprFiltered
     check previewResampling(false, 1600, 1200, 800, 600) == vprFiltered
+
+suite "GUI raw-resource hexdump preview":
+  test "sixteen-byte rows have aligned hexadecimal and ASCII columns":
+    var data: seq[byte]
+    for value in 0 .. 19: data.add byte(value + 30)
+    check formatHexdump(data) ==
+      "00000000  1E 1F 20 21 22 23 24 25 26 27 28 29 2A 2B 2C 2D  " &
+      ".. !\"#$%&'()*+,-\r\n" &
+      "00000010  2E 2F 30 31                                      " &
+      "./01"
+
+  test "only bytes 32 through 126 are rendered as ASCII":
+    check formatHexdump(@[31'u8, 32, 65, 126, 127, 255]) ==
+      "00000000  1F 20 41 7E 7F FF                              " &
+      "  . A~.."
+
+  test "availability is limited to small raw opaque resources":
+    check canShowHexdump(true, true, 0)
+    check canShowHexdump(true, true, MaximumHexdumpPreviewBytes)
+    check not canShowHexdump(true, true, MaximumHexdumpPreviewBytes + 1)
+    check not canShowHexdump(false, true, 16)
+    check not canShowHexdump(true, false, 16)
+    expect ValueError:
+      discard formatHexdump(newSeq[byte](MaximumHexdumpPreviewBytes + 1))
