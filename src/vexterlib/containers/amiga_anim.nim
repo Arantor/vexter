@@ -1,6 +1,6 @@
 ## Structural parser for IFF FORM ANIM containers.
 
-import std/[os, strutils]
+import std/[os, sequtils, strutils]
 import ./[amiga_iff, amiga_ilbm]
 
 const
@@ -26,6 +26,10 @@ type
     camg*: uint32
     hasCamg*: bool
 
+  AmigaAnimSequenceEntry* = object
+    deltaIndex*: int
+    jiffies*: int
+
   AmigaAnim* = object
     initial*: AmigaIlbm
     initialHeader*: AmigaAnimHeader
@@ -33,6 +37,8 @@ type
     dpanVersion*, logicalFrameCount*, framesPerSecond*: int
     hasDpan*: bool
     frames*: seq[AmigaAnimDeltaFrame]
+    sequence*: seq[AmigaAnimSequenceEntry]
+    hasSequence*: bool
 
 proc beWord(data: openArray[byte], offset: int): int {.inline.} =
   (int(data[offset]) shl 8) or int(data[offset + 1])
@@ -43,6 +49,15 @@ proc beLong(data: openArray[byte], offset: int): uint32 {.inline.} =
 
 proc signedWord(data: openArray[byte], offset: int): int {.inline.} =
   int(cast[int16](uint16(beWord(data, offset))))
+
+proc parseAnimSequence(data: openArray[byte]): seq[AmigaAnimSequenceEntry] =
+  if data.len mod 4 != 0:
+    raise newException(ValueError,
+      "ANIM ANSQ chunk length must be divisible by four")
+  for offset in countup(0, data.len - 1, 4):
+    result.add AmigaAnimSequenceEntry(
+      deltaIndex: signedWord(data, offset),
+      jiffies: signedWord(data, offset + 2))
 
 proc parseAnimHeader(data: openArray[byte]): AmigaAnimHeader =
   if data.len != 40:
@@ -117,6 +132,11 @@ proc parseAmigaAnim*(data: openArray[byte]): AmigaAnim =
   for chunk in outer.chunks:
     if chunk.id == "FORM":
       forms.add parseAmigaIffFormPayload(chunk.data)
+    elif chunk.id == "ANSQ":
+      if result.hasSequence:
+        raise newException(ValueError, "ANIM contains more than one ANSQ chunk")
+      result.sequence = parseAnimSequence(chunk.data)
+      result.hasSequence = true
   if forms.len == 0:
     raise newException(ValueError, "ANIM contains no frame FORMs")
   result.initial = parseAmigaIlbmForm(forms[0])
@@ -127,6 +147,18 @@ proc parseAmigaAnim*(data: openArray[byte]): AmigaAnim =
       "DLTA-compressed first ANIM frames are not supported yet")
   for index in 1 ..< forms.len:
     result.frames.add parseDeltaFrame(forms[index])
+  let isAnimJ = result.frames.anyIt(it.header.operation == 74)
+  if isAnimJ:
+    if result.frames.anyIt(it.header.operation != 74):
+      raise newException(ValueError, "ANIM-J cannot mix delta methods")
+    if not result.hasSequence:
+      raise newException(ValueError, "ANIM-J requires an ANSQ chunk")
+    if result.frames.len == 0:
+      raise newException(ValueError, "ANIM-J requires at least one delta")
+    for entry in result.sequence:
+      if entry.jiffies >= 0 and
+          (entry.deltaIndex < 0 or entry.deltaIndex >= result.frames.len):
+        raise newException(ValueError, "ANIM-J sequence delta index is invalid")
   if result.hasDpan and result.logicalFrameCount > result.frames.len + 1:
     raise newException(ValueError, "ANIM DPAN frame count exceeds stored frames")
 

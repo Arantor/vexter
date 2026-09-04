@@ -473,7 +473,8 @@ Matching case-insensitive extensions add supporting evidence.
 - `amiga_pbm.nim` provisionally interprets `FORM PBM ` as an eight-bit chunky
   indexed image using BMHD, CMAP, and BODY chunks;
 - `amiga_anim.nim` parses nested ILBM frame forms, their ANHD/DLTA records,
-  and DPAN logical frame-count and playback-rate metadata;
+  DPAN logical frame-count and playback-rate metadata, and ANIM-J ANSQ
+  timelines;
 - `amos_bank.nim` validates generic `AmBk` headers and lengths and identifies
   otherwise unsupported bank payloads, retaining those bytes so nested
   specialized bank resources can be decoded;
@@ -640,12 +641,14 @@ even-width, unmasked images, but committed fixtures remain pending and the raw,
 odd-width, and transparency assumptions are still synthetic-only.
 
 `src/vexterlib/resources/amiga_anim_image.nim` reconstructs retained planar
-buffers with ANIM delta methods 1 through 5, 7, and 8, including interleave references
+buffers with ANIM delta methods 1 through 5, 7, 8, and ANIM-J/type 74,
+including interleave references
 and method-5 XOR used by Deluxe Paint animation brushes. It then renders each
 frame through the same indexed/EHB/HAM ILBM path as still images. Method 1
 supports plane-masked rectangular BODY XOR, while method 4 supports all six
-documented option bits. Methods 6 and 74 are identified but report explicit
-unsupported-method errors.
+documented option bits. Method 74 follows its outer ANSQ delta selection and
+alternating two-frame buffers. Method 6 is identified but reports an explicit
+unsupported-method error.
 
 ANHD relative times use 50 Hz for explicit PAL CAMG monitor IDs and 60 Hz for
 explicit NTSC or unspecified monitor IDs.

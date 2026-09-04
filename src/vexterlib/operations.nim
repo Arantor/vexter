@@ -2318,9 +2318,12 @@ proc inspectSourceDepth(filename: string, data: openArray[byte],
     let
       anim = parsedValue[AmigaAnim](selectedParsed, vhkAmigaAnim)
       raster = decodeAmigaAnim(anim)
+      frameCount = if raster.kind == vrkIndexedAnimation:
+          raster.animation.frames.len
+        else:
+          raster.trueColourAnimation.frames.len
     var animMetadata = @[
-      integerMetadata("frames", if anim.hasDpan: anim.logicalFrameCount
-        else: anim.frames.len + 1),
+      integerMetadata("frames", frameCount),
       integerMetadata("stored-frames", anim.frames.len + 1),
       integerMetadata("colour-cycle-ranges", raster.colourCycleRanges.len),
       integerMetadata("planes", anim.initial.image.header.planes),
@@ -2329,6 +2332,8 @@ proc inspectSourceDepth(filename: string, data: openArray[byte],
       animMetadata.add integerMetadata("dpan-version", anim.dpanVersion)
       animMetadata.add integerMetadata("frames-per-second",
         anim.framesPerSecond)
+    if anim.hasSequence:
+      animMetadata.add integerMetadata("ansq-entries", anim.sequence.len)
     result.resources.roots.add VextResourceNode(
       path: AmigaAnimResourcePath,
       typeId: AmigaAnimTypeId,

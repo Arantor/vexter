@@ -1,4 +1,4 @@
-## Raster reconstruction for IFF ANIM methods 1 through 5, 7, and 8.
+## Raster reconstruction for IFF ANIM methods 1 through 5, 7, 8, and 74.
 
 import ../archetypes/raster
 import ../containers/amiga_anim
@@ -338,11 +338,86 @@ proc applyMethod8(planes: var seq[byte], delta: openArray[byte],
         dec opCount
       column += unitSize
 
+proc applyMethod74(planes: var seq[byte], delta: openArray[byte],
+    rowBytes, height, planeCount: int) =
+  ## Applies one ANIM-J delta to a plane-major frame buffer. ANIM-J block
+  ## offsets address a contiguous plane, while block bytes are ordered by
+  ## row, plane, then byte column.
+  let planeSize = rowBytes * height
+  var position = 0
+  while true:
+    if delta.len - position < 2:
+      raise newException(ValueError, "ANIM-J delta has no terminator")
+    let blockType = int(beUnit(delta, position, 2))
+    position += 2
+    if blockType == 0:
+      if position != delta.len:
+        raise newException(ValueError, "ANIM-J delta has trailing data")
+      return
+
+    var direction, blockHeight, blockWidth, blockCount: int
+    case blockType
+    of 1:
+      if delta.len - position < 6:
+        raise newException(ValueError, "truncated ANIM-J type-1 header")
+      direction = int(beUnit(delta, position, 2))
+      blockHeight = int(beUnit(delta, position + 2, 2))
+      blockCount = int(beUnit(delta, position + 4, 2))
+      blockWidth = 1
+      position += 6
+    of 2:
+      if delta.len - position < 8:
+        raise newException(ValueError, "truncated ANIM-J type-2 header")
+      direction = int(beUnit(delta, position, 2))
+      blockHeight = int(beUnit(delta, position + 2, 2))
+      blockWidth = int(beUnit(delta, position + 4, 2))
+      blockCount = int(beUnit(delta, position + 6, 2))
+      position += 8
+    else:
+      raise newException(ValueError, "unsupported ANIM-J block type: " &
+        $blockType)
+
+    if blockHeight <= 0 or blockWidth <= 0 or blockCount <= 0:
+      raise newException(ValueError, "invalid ANIM-J block header")
+    let bytesPerBlock = blockHeight * planeCount * blockWidth
+    if planeCount <= 0 or
+        bytesPerBlock div planeCount div blockWidth != blockHeight:
+      raise newException(ValueError, "ANIM-J block size overflows")
+    for unused in 0 ..< blockCount:
+      if delta.len - position < 2:
+        raise newException(ValueError, "truncated ANIM-J block offset")
+      let
+        offset = int(beUnit(delta, position, 2))
+        blockY = offset div rowBytes
+        blockX = offset mod rowBytes
+      position += 2
+      if blockY >= height or blockWidth > rowBytes - blockX or
+          bytesPerBlock > delta.len - position or
+          blockHeight > height - blockY:
+        raise newException(ValueError, "ANIM-J block exceeds its bitmap")
+      for row in 0 ..< blockHeight:
+        for plane in 0 ..< planeCount:
+          let target = plane * planeSize + (blockY + row) * rowBytes + blockX
+          for column in 0 ..< blockWidth:
+            if direction == 0:
+              planes[target + column] = delta[position]
+            else:
+              planes[target + column] =
+                planes[target + column] xor delta[position]
+            inc position
+    if (blockCount * bytesPerBlock) mod 2 != 0:
+      if position >= delta.len:
+        raise newException(ValueError, "missing ANIM-J block padding")
+      inc position
+
 proc durationMs(header: AmigaAnimHeader, camg: uint32): int =
   let tickRate =
     if (camg and AmigaIlbmCamgMonitorMask) == AmigaIlbmCamgPalMonitor: 50
     else: 60
   max(1, (int(header.relativeTime) * 1000 + tickRate div 2) div tickRate)
+
+proc animJDurationMs(jiffies: int): int =
+  max(1, (jiffies * 1000 + 30) div 60)
 
 proc decodeAmigaAnim*(anim: AmigaAnim): VextRaster =
   let
@@ -360,7 +435,40 @@ proc decodeAmigaAnim*(anim: AmigaAnim): VextRaster =
                   else: 17]
     palettes = @[source.colourMap]
 
+  if anim.frames.len > 0 and anim.frames[0].header.operation == 74:
+    if anim.hasDpan:
+      raise newException(ValueError, "ANIM-J does not support DPAN timing")
+    for frame in anim.frames:
+      if frame.hasColourMap or (frame.hasCamg and frame.camg != source.camg):
+        raise newException(ValueError,
+          "ANIM-J per-delta display changes are unsupported")
+    var
+      front = planarFrames[0]
+      back = front
+      jFrames = @[front]
+      jDurations = @[animJDurationMs(2)]
+    applyMethod74(back, anim.frames[0].delta, rowBytes,
+      header.height, header.planes)
+    swap(front, back)
+    jFrames.add front
+    jDurations.add animJDurationMs(2)
+    for entry in anim.sequence:
+      if entry.jiffies < 0:
+        break
+      applyMethod74(back, anim.frames[entry.deltaIndex].delta, rowBytes,
+        header.height, header.planes)
+      swap(front, back)
+      jFrames.add front
+      jDurations.add animJDurationMs(entry.jiffies)
+    planarFrames = jFrames
+    palettes = newSeq[seq[byte]](jFrames.len)
+    for palette in palettes.mitems:
+      palette = source.colourMap
+    durations = jDurations
+
   for frameIndex, frame in anim.frames:
+    if frame.header.operation == 74:
+      break
     let distance = if frame.header.interleave == 0: 2
                    else: frame.header.interleave
     let referenceIndex = max(0, frameIndex + 1 - distance)

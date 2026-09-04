@@ -1077,7 +1077,9 @@ Implemented delta operations are:
 - method 7, byte opcodes with separate short/long data lists, clipping the
   padded tail of a final longword when the ILBM row is only word-aligned; and
 - method 8, embedded short/long vertical operations, including a final short
-  column when a row is not longword-aligned.
+  column when a row is not longword-aligned; and
+- method 74 (`J`), ANIM-J assignment/XOR blocks selected by an outer `ANSQ`
+  timeline and applied through its alternating two-frame buffers.
 
 Method 1 decodes its BODY with the initial ILBM compression mode and XORs only
 the rectangle and planes selected by ANHD. Methods 2 and 3 use eight plane
@@ -1088,9 +1090,12 @@ the previous destination; a following count introduces that many contiguous
 replacement units and leaves the cursor on the last one. Minus one terminates
 the plane. Method 5 also honors the XOR convention and interleave-one layout
 documented for Deluxe Paint animation brushes. This provides implementation support for
-brushes, pending authentic sample verification. Stereo method 6 and reserved
-method 74 remain structurally identifiable but explicitly
-unsupported; their behavior is not inferred beyond the supplied specification.
+brushes, pending authentic sample verification. ANIM-J emits its initial frame,
+applies delta zero for the second frame, then follows zero-based `ANSQ` delta
+indices. Sequence durations are signed 60 Hz jiffies; a negative duration is a
+loop marker and ends the finite Vext timeline. Its first two implicit frames use
+the reference converter's two-jiffy timing. Stereo method 6 remains
+structurally identifiable but explicitly unsupported.
 Delta-compressed first frames are likewise deferred.
 
 Indexed ANIMs produce `VextIndexedAnimation`. GIF-compatible animations default
@@ -1105,8 +1110,9 @@ indexed animation that GIF cannot represent naturally defaults to APNG, while
 GIF remains preferred whenever both formats are viable. GIF export of
 true-colour animation remains unavailable without quantization.
 
-Synthetic tests cover methods 1 through 5, 7, and 8, brush-style XOR, interleave
-behavior, and APNG structure. The authentic `TheTour.anim` method-5 fixture
+Synthetic tests cover methods 1 through 5, 7, 8, and 74, brush-style XOR,
+interleave and ANIM-J two-buffer behavior, sequence timing, bounds failures,
+and APNG structure. The authentic `TheTour.anim` method-5 fixture
 contains 34 reconstructed frames; after normalizing its GIF control's legacy
 `$x0` palette components to `$xx`, every expanded RGB pixel matches. Its last
 two frames reproduce frames zero and one for conventional continuous looping.

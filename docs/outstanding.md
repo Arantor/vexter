@@ -275,7 +275,9 @@ formats are not included. Detailed format behavior and evidence remain in
     representation has not been established.
 
 - **Amiga IFF ANIM animations**
-  - Delta methods 6 and 74 are identifiable but unsupported.
+  - Stereo delta method 6 is identifiable but unsupported.
+  - ANIM-J/type-74 decoding has synthetic coverage; authentic files and
+    independent rendering controls remain outstanding.
   - Delta-compressed first frames are unsupported pending authentic examples.
   - Animation-brush method-5 behavior still needs an authentic control.
   - Automatic versus user-toggleable colour cycling during playback remains a

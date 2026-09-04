@@ -1122,6 +1122,21 @@ Arts, consistent with the other supplied Deluxe Paint samples. Its precise
 redistribution or licensing status has not yet been supplied and should be
 established before distribution outside this development context.
 
+## Ernie Wright ANIM-J loader reference
+
+The developer supplied Ernie Wright's 2012 C source for `cvtmovie`, obtained
+from `http://www.etwright.org/cghist/cvtmovie.html`. The files remain working
+reference material rather than compiled Vexter sources. They document the
+ANIM-J/type-74 block decoder, alternating frame buffers, and outer `ANSQ`
+sequence behavior used by Vexter's independent bounded Nim implementation.
+
+```text
+1bba87beefa38d2fac6f0c1dcc84f10a5788159d823c5d51003bb0a9d3e06583  cvt.c.c
+d06ee2823249a6aabe6404e131b82ba43083201ea11d9d06f10adeaf154e73df  iff.h.h
+eabdae1efda52414d3b7d0f277519c0362ccaa25a3d9b56424512ff33105e1e2  load.c.c
+b67634390dc59e314413a76318f76bc6070f04b3e879fcc6c05be7332a78fab0  util.c.c
+```
+
 ## AMOS program fixture
 
 `tests/fixtures/amos.program/Xerxes' Revenge.AMOS` is an AMOS Basic demo

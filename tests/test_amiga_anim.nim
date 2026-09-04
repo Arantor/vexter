@@ -174,6 +174,28 @@ proc method8Delta(): seq[byte] =
   result = pointerTable(64)
   result.add @[0'u8, 1, 0x80, 1, 0x80, 0]
 
+proc animJDelta(direction, offset, value: int, blockType = 1): seq[byte] =
+  result.add @[0'u8, byte(blockType), 0, byte(direction), 0, 1]
+  if blockType == 2:
+    result.add @[0'u8, 1, 0, 1]
+  else:
+    result.add @[0'u8, 1]
+  result.add @[byte(offset shr 8), byte(offset), byte(value), 0, 0, 0]
+
+proc ansq(entries: openArray[(int, int)]): seq[byte] =
+  var payload: seq[byte]
+  for (deltaIndex, jiffies) in entries:
+    payload.add @[byte(deltaIndex shr 8), byte(deltaIndex),
+      byte(jiffies shr 8), byte(jiffies)]
+  chunk("ANSQ", payload)
+
+proc animJ(sequence: openArray[(int, int)]): seq[byte] =
+  let deltas = [animJDelta(0, 0, 0x80), animJDelta(1, 2, 0x80, 2)]
+  form("ANIM", [initialForm(),
+    form("ILBM", [chunk("ANHD", anhd(74)), chunk("DLTA", deltas[0])]),
+    form("ILBM", [chunk("ANHD", anhd(74)), chunk("DLTA", deltas[1])]),
+    ansq(sequence)])
+
 proc ham6Delta(): seq[byte] =
   result = newSeq[byte](64)
   var offset = 64
@@ -355,6 +377,35 @@ suite "Amiga IFF ANIM":
     check detectFormats("stereo.anim", data)[0].typeId == AmigaAnimTypeId
     expect ValueError:
       discard inspectSource("stereo.anim", data)
+
+  test "ANIM-J sequences select deltas and alternate frame buffers":
+    let
+      parsed = parseAmigaAnim(animJ([(1, 3), (0, -1)]))
+      animation = decodeAmigaAnim(parsed).animation
+    check parsed.hasSequence
+    check parsed.sequence.len == 2
+    check animation.frames.len == 3
+    check animation.frames[0].image.pixelAt(0, 0) == 0
+    check animation.frames[1].image.pixelAt(0, 0) == 1
+    check animation.frames[2].image.pixelAt(0, 0) == 0
+    check animation.frames[2].image.pixelAt(0, 1) == 1
+    check animation.frames[0].durationMs == 33
+    check animation.frames[1].durationMs == 33
+    check animation.frames[2].durationMs == 50
+
+  test "malformed ANIM-J sequences and blocks are rejected":
+    expect ValueError:
+      discard parseAmigaAnim(form("ANIM", [initialForm(),
+        form("ILBM", [chunk("ANHD", anhd(74)),
+          chunk("DLTA", animJDelta(0, 0, 0x80))])]))
+    expect ValueError:
+      discard parseAmigaAnim(animJ([(2, 1)]))
+    var badBlock = animJDelta(0, 0, 0x80)
+    badBlock.setLen(badBlock.len - 2)
+    expect ValueError:
+      discard decodeAmigaAnim(parseAmigaAnim(form("ANIM", [initialForm(),
+        form("ILBM", [chunk("ANHD", anhd(74)), chunk("DLTA", badBlock)]),
+        ansq([])])))
 
   test "malformed nested forms and delta pointers are rejected":
     check not isAmigaAnim(form("ANIM", []))
