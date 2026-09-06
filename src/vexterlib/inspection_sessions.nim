@@ -422,7 +422,7 @@ proc openInspectionSession*(filename: string, sources: VextSourceCollection,
     let preferZip = leading.len >= 4 and leading[0] == byte('P') and
       leading[1] == byte('K') and leading[2] in [1'u8, 3'u8, 5'u8, 7'u8] and
       leading[3] in [2'u8, 4'u8, 6'u8, 8'u8]
-    let preferLha = leading.len == 7 and leading[2] == byte('-') and
+    let preferLha = leading.len >= 7 and leading[2] == byte('-') and
       leading[6] == byte('-')
     let preferAsar = filename.hasElectronAsarExtension and leading.len >= 4 and
       leading[0] == 4 and leading[1] == 0 and leading[2] == 0 and
