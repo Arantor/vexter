@@ -442,8 +442,8 @@ the supplied public-domain-source IFFSpecs bundle, as recorded in
 Level-0 and level-1 LHA archives expose a host-independent hierarchy below `/archive`.
 Both `.lha` and `.lzh` extensions are recognized. Header byte sums, member
 bounds, uncompressed sizes, and CRC-16 values are validated. Amiga backslash
-paths are canonicalized to resource-path separators, while absolute, empty,
-dot, parent, duplicate, and conflicting paths are rejected.
+and byte `0xff` paths are canonicalized to resource-path separators, while
+absolute, empty, dot, parent, duplicate, and conflicting paths are rejected.
 
 Stored `-lh0-` and static-Huffman/LZ `-lh5-` members are reconstructed and
 recognized contents are inspected recursively through the shared eight-layer

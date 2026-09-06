@@ -13,6 +13,7 @@
 /tests/test_amiga_hunk
 /tests/test_amiga_workbench_icon
 /tests/test_zip_archive
+/tests/test_lha_amiga_paths
 /tests/test_lha_archive
 /tests/test_powerpacker
 /tests/test_xpk_shri

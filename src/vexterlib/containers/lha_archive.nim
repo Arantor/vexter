@@ -201,6 +201,9 @@ proc decodeLh5(source: openArray[byte], expectedSize: int): seq[byte] =
 
 proc validatedSegments(name: string, directory: bool): seq[string] =
   var canonical = name.replace('\\', '/')
+  for index in 0 ..< canonical.len:
+    if byte(canonical[index]) == 0xff'u8:
+      canonical[index] = '/'
   if canonical.len == 0 or canonical[0] == '/':
     raise newException(ValueError, "invalid absolute or empty LHA entry name")
   if directory and canonical.endsWith('/'):
