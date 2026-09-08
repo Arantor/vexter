@@ -79,6 +79,11 @@ task test, "Run the test suite":
   exec "nim c -r --path:src tests/test_amos_program.nim"
   exec "nim c -r --path:src tests/test_amos_sprite_icon_bank.nim"
   exec "nim c -r --path:src tests/test_operations.nim"
+  exec "nim c -r --path:src tests/test_adversarial.nim"
   exec "nim c -r --path:src tests/test_format_refinement.nim"
   exec "nim c -r --path:src tests/test_openraster.nim"
   exec "nim c -r --path:src -d:VexterCliPath=build/linux/vexter tests/test_cli.nim"
+
+task adversarialHarness, "Build the dependency-free external fuzzing target":
+  mkDir "build/linux"
+  exec "nim c --path:src -o:build/linux/vexter-fuzz-target tools/vexter_fuzz_target.nim"

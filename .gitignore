@@ -55,6 +55,7 @@
 /tests/test_amos_resource_bank
 /tests/test_amos_sample_bank
 /tests/test_amos_sprite_icon_bank
+/tests/test_adversarial
 /tests/test_operations
 /tests/test_gui_preview
 /tests/test_zx_spectrum_screen

@@ -1248,8 +1248,15 @@ The routine suites are:
   export, and malformed input;
 - `tests/test_operations.nim`: direct high-level library and resource-tree
   behavior; and
+- `tests/test_adversarial.nim`: registry-complete hostile-input smoke tests,
+  deterministic detection, named fixed-size boundary violations, and global
+  working-limit enforcement; and
 - `tests/test_cli.nim`: end-to-end CLI inspection, export, defaults, and file
   collision behavior.
+
+The process fuzzing contract, private-corpus boundary, campaign schedule, and
+security audit checklist are documented in
+[`docs/adversarial-testing.md`](docs/adversarial-testing.md).
 
 `vx4.nimble` builds the Linux CLI before running these suites. Authentic and
 project-produced fixtures live under `tests/fixtures/`, with provenance and
