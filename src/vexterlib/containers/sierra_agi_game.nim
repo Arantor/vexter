@@ -3,9 +3,11 @@
 
 import std/[algorithm, strutils]
 import ../byte_sources
+import ../archetypes/raster
 import ../metadata
 import ../resource_tree
 import ../resources/sierra_agi_view
+import ../resources/sierra_agi_picture
 
 const SierraAgiGameTypeId* = "sierra.agi-game"
 
@@ -217,16 +219,26 @@ proc agiLzwDecode*(input: openArray[byte], expected: int): seq[byte] =
     raise newException(ValueError, "AGI LZW output length mismatch")
 
 proc unpackV3Picture*(input: openArray[byte], expected: int): seq[byte] =
-  var low = false
-  for value in input:
-    if result.len >= expected: break
-    if not low:
-      result.add value
-      if value >= 0xf0 and value <= 0xf9: low = true
-    else:
-      result.add value shr 4
-      if result.len < expected: result.add value and 0x0f
-      low = false
+  var bit = 0
+  template take(width: int): int =
+    block:
+      var decoded = -1
+      if bit + width <= input.len * 8:
+        decoded = 0
+        for offset in 0 ..< width:
+          decoded = (decoded shl 1) or
+            ((int(input[(bit + offset) shr 3]) shr
+              (7 - ((bit + offset) and 7))) and 1)
+        bit += width
+      decoded
+  while result.len < expected:
+    let command = take(8)
+    if command < 0: break
+    result.add byte(command)
+    if command in [0xf0, 0xf2] and result.len < expected:
+      let colour = take(4)
+      if colour < 0: break
+      result.add byte(colour)
   if result.len != expected:
     raise newException(ValueError, "AGI packed-picture output length mismatch")
 
@@ -243,6 +255,12 @@ proc resourceBytes*(sources: VextSourceCollection, game: AgiGame,
 proc resourceMaterializer(sources: VextSourceCollection, game: AgiGame,
     entry: AgiEntry): VextPayloadMaterializer =
   result = proc(): seq[byte] = resourceBytes(sources, game, entry)
+
+proc pictureGifMaterializer(sources: VextSourceCollection, game: AgiGame,
+    entry: AgiEntry, drawingSteps: int): VextRasterMaterializer =
+  result = proc(): VextRaster =
+    renderAgiPicture(resourceBytes(sources, game, entry), true,
+      drawingSteps).drawing
 
 proc decodeWordsTok*(data: openArray[byte]): string =
   if data.len < 52: raise newException(ValueError, "truncated WORDS.TOK header")
@@ -342,7 +360,33 @@ proc gameResourceTree*(sources: VextSourceCollection, game: AgiGame): VextResour
     if e.valid:
       node.lazyPayload = VextPayloadRef(length: e.unpackedSize,
         materializer: resourceMaterializer(sources, game, e))
-    if e.valid and e.kind == arkView:
+    if e.valid and e.kind == arkPicture:
+      try:
+        let picture = renderAgiPicture(resourceBytes(sources, game, e))
+        node.kind = vrnkGroup
+        node.typeId = SierraAgiGameTypeId & ".picture"
+        node.rawDataAvailable = false
+        node.lazyPayload = VextPayloadRef()
+        node.children = @[
+          VextResourceNode(path: path & "/visual",
+            typeId: SierraAgiGameTypeId & ".picture-visual", kind: vrnkRaster,
+            raster: picture.visual,
+            gifRasterMaterializer: pictureGifMaterializer(sources, game, e,
+              picture.drawingSteps),
+            defaultExportPriority: 10),
+          VextResourceNode(path: path & "/priority",
+            typeId: SierraAgiGameTypeId & ".picture-priority", kind: vrnkRaster,
+            raster: picture.priority, defaultExportPriority: 10),
+          VextResourceNode(path: path & "/raw",
+            typeId: SierraAgiGameTypeId & ".picture-data", kind: vrnkOpaque,
+            rawDataAvailable: true, lazyPayload: VextPayloadRef(length: e.unpackedSize,
+              materializer: resourceMaterializer(sources, game, e)),
+            defaultExportPriority: 10)]
+      except ValueError as error:
+        node.failureFormat = SierraAgiGameTypeId & ".picture"
+        node.failureMessage = error.msg
+        node.metadata.add stringMetadata("decode.warning", error.msg)
+    elif e.valid and e.kind == arkView:
       try:
         let view = parseAgiView(resourceBytes(sources, game, e))
         node.kind = vrnkGroup

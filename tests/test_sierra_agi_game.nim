@@ -42,8 +42,8 @@ suite "Sierra AGI game packages":
     check discoverAgiGames(sources).len == 0
 
   test "v3 packed picture nibbles expand after command parameters":
-    check unpackV3Picture(@[0xf0'u8, 0x3a, 0xff], 4) ==
-      @[0xf0'u8, 3, 10, 0xff]
+    check unpackV3Picture(@[0xf0'u8, 0x3f, 0x24, 0xff], 5) ==
+      @[0xf0'u8, 3, 0xf2, 4, 0xff]
 
   test "VIEW cels decode RLE, transparency, display aspect, and mirroring":
     # Two loops share equivalent cel data. Loop 1 declares loop 0 as the
@@ -59,6 +59,43 @@ suite "Sierra AGI game packages":
     check (image.width, image.height) == (4, 1)
     check image.pixels == @[1'u8, 1, 2, 2]
     check image.alpha == @[255'u8, 255, 255, 255]
+
+  test "PIC draws lines and bounded fills on visual and priority planes":
+    let picture = renderAgiPicture(@[
+      0xf0'u8, 2, 0xf2, 6,
+      0xf6, 1, 1, 3, 1, 3, 3, 1, 3, 1, 1,
+      0xf8, 2, 2, 0xff])
+    let visual = picture.visual.image
+    let priority = picture.priority.image
+    check (visual.width, visual.height) == (320, 168)
+    check visual.pixelAt(0, 0) == 15
+    check visual.pixelAt(4, 2) == 2
+    check priority.pixelAt(4, 2) == 6
+    check visual.pixelAt(8, 2) == 15
+
+    let progress = renderAgiPicture(@[
+      0xf0'u8, 2, 0xf6, 1, 1, 3, 1, 0xff], true).drawing.animation
+    check progress.frames.len == 3 # initial, line command, final hold
+    check progress.frames[0].image.pixelAt(2, 1) == 15
+    check progress.frames[^1].image.pixelAt(2, 1) == 2
+    check progress.frames[^1].durationMs == 800
+
+  test "PIC visual uses its completed image for PNG and progress for GIF":
+    let finalImage = renderAgiPicture(@[
+      0xf0'u8, 2, 0xf6, 1, 1, 3, 1, 0xff]).visual
+    var materializations = 0
+    let node = VextResourceNode(path: "/picture", kind: vrnkRaster,
+      raster: finalImage, gifRasterMaterializer: proc(): VextRaster =
+        inc materializations
+        renderAgiPicture(@[0xf0'u8, 2, 0xf6, 1, 1, 3, 1, 0xff], true).drawing)
+    let tree = VextResourceTree(roots: @[node])
+    discard exportResource(tree, VextExportRequest(resourcePath: "/picture",
+      outputFormat: "png", suggestedName: "picture"))
+    check materializations == 0
+    let gif = exportResource(tree, VextExportRequest(resourcePath: "/picture",
+      outputFormat: "gif", suggestedName: "picture"))
+    check materializations == 1
+    check parseGif(gif.artifacts.artifacts[0].data).frames.len == 3
 
   test "WORDS.TOK is prefix-decoded with big-endian identifiers":
     var words = newSeq[byte](52)

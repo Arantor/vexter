@@ -387,7 +387,12 @@ formats are not included. Detailed format behavior and evidence remain in
     above; its eventual behavior should not be specified independently here.
 # Sierra AGI
 
-- Decode and render picture primitives and drawing-progress animations.
+- Verify exact interpreter-specific picture brush masks against any future
+  supplied references.
+- Remove the 80-frame cap and whole-sequence sampling from AGI PIC drawing
+  animations once GIF export efficiently encodes changed rectangles or other
+  delta frames. Large Manhunter pictures may contain more than 80 meaningful
+  drawing steps that should ultimately be preserved in full.
 - Compose decoded view cels into loop-level animations or sprite sheets.
 - Add the PSG sequence archetype, JSON recovery output, and bounded WAV preview.
 - Provide conservative annotated logic disassembly.

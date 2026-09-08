@@ -122,7 +122,9 @@ proc exportFormatsFor*(resource: VextResourceNode): seq[VextExportFormat] =
       result = @[
         VextExportFormat(id: "png", displayName: "PNG image",
           extensions: @["png"], mediaTypes: @["image/png"], isDefault: true),
-        VextExportFormat(id: "gif", displayName: "GIF image",
+        VextExportFormat(id: "gif", displayName:
+          (if resource.gifRasterMaterializer != nil:
+            "Animated GIF (derived)" else: "GIF image"),
           extensions: @["gif"], mediaTypes: @["image/gif"])]
       if resource.raster.image.colourCycles.len > 0:
         result.add VextExportFormat(id: "gif-cycled",
@@ -2899,11 +2901,13 @@ proc exportResource*(tree: VextResourceTree,
           exportPng(resource.raster.naturalImage,
             request.suggestedName & ".png")
       of "gif":
-        if resource.raster.kind in {vrkTrueColourImage,
+        let gifRaster = if resource.gifRasterMaterializer != nil:
+          resource.gifRasterMaterializer() else: resource.raster
+        if gifRaster.kind in {vrkTrueColourImage,
             vrkTrueColourAnimation}:
           raise newException(ValueError,
             "GIF export requires indexed colour; quantization is not implemented")
-        exportGif(resource.raster.asIndexedAnimation,
+        exportGif(gifRaster.asIndexedAnimation,
           request.suggestedName & ".gif")
       of "apng":
         case resource.raster.kind

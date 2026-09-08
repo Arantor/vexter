@@ -1091,6 +1091,17 @@ horizontal mirroring, and doubles source pixels horizontally for AGI's display
 aspect. Malformed views remain BIN-exportable opaque resources with a decoder
 warning rather than aborting package inspection.
 
+Sierra AGI PIC resources similarly expose `/game/pictures/N/visual`,
+`/priority`, and `/raw`. The 160x168 command interpreter renders colour-state
+changes, X/Y corners, absolute and relative lines, bounded fills, and solid or
+textured pen plots to visual and priority planes, then doubles horizontal pixels
+for display. Version 3's continuous packed bitstream is expanded by treating
+only the colour arguments following `F0` and `F2` as four-bit values.
+The visual node remains a completed still for preview and PNG export. Its GIF
+export uses an optional resource-level raster materializer to rerun the command
+stream only on demand, sampling the entire construction into at most 80 frames
+and retaining the completed image as a longer final frame.
+
 AMOS `AmBs` sets expose a `/banks` group. Generic members are opaque
 `/banks/N` leaves; sprite and icon members expose numbered raster children
 beneath their member path. Prefix-aware member and set parsers also delimit
@@ -1118,8 +1129,8 @@ indexed raster that can be sent to GIF.
 The routine suites are:
 
 - `tests/test_sierra_agi_game.nim`: v2/v3 package discovery, bounded lazy
-  resource access, LZW and packed-picture expansion, VIEW cel RLE and
-  mirroring, vocabulary text, and encrypted inventory variants;
+  resource access, LZW and packed-picture expansion, PIC line/fill rendering,
+  VIEW cel RLE and mirroring, vocabulary text, and encrypted inventory variants;
 - `tests/test_amiga_adf.nim`: synthetic FFS directory traversal, OFS and FFS
   file reconstruction, nested format decoding, and structural corruption;
 - `tests/test_zip_archive.nim`: stored/DEFLATE expansion, hierarchy and nested

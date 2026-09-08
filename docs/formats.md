@@ -2354,6 +2354,12 @@ volumes; individual native resources are opened and decompressed on demand.
 VIEW resources expose their original bytes and a loop/cel hierarchy. Cels
 decode the documented nibble RLE, transparent colour, and cross-loop mirroring
 into indexed rasters using the standard 16-colour EGA palette. Their horizontal
-dimension is doubled for the documented AGI display-pixel aspect. Picture
-rendering, loop-level animation sheets, PSG rendering, and logic disassembly
-remain listed as outstanding rather than being claimed as implemented.
+dimension is doubled for the documented AGI display-pixel aspect. PIC resources
+expose rendered visual and priority/control planes plus their original bytes.
+The renderer supports colour state, X/Y corners, absolute and relative lines,
+bounded flood filling, and solid or textured pen plots; v3 colour-nibble packing
+is expanded before rendering. PNG export of a visual plane writes the completed
+still. GIF export lazily replays drawing commands and writes the blank canvas,
+evenly sampled construction states, and a longer final hold, with at most 80
+frames. Loop-level VIEW animation sheets, PSG rendering, and logic disassembly
+remain outstanding.

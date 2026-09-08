@@ -10,6 +10,7 @@ import ./metadata
 type
   VextPayloadMaterializer* = proc(): seq[byte] {.closure.}
   VextSoundMaterializer* = proc(): VextSound {.closure.}
+  VextRasterMaterializer* = proc(): VextRaster {.closure.}
 
   VextPayloadSource* = ref object
     ## Shared immutable bytes retained once for lazy container members.
@@ -43,6 +44,8 @@ type
     typeId*: string
     kind*: VextResourceNodeKind
     raster*: VextRaster
+    ## Optional expensive derived animation used only when GIF is requested.
+    gifRasterMaterializer*: VextRasterMaterializer
     text*: string
     audioKind*: VextAudioResourceKind
     sound*: VextSound
