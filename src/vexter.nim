@@ -105,6 +105,31 @@ proc companionResolverFor(path: string): VextCompanionResolver =
       candidate = match
     if candidate.fileExists: readBytes(candidate) else: @[]
 
+proc sourceOpenerFor(path: string): VextRelatedSourceOpen =
+  result = proc(): VextByteSource = fileByteSource(path)
+
+proc sourceCollectionFor(path: string): VextSourceCollection =
+  let directory = if path.dirExists: path else: path.parentDir
+  var related: seq[VextRelatedSource]
+  proc addDirectory(base: string, prefix = "") =
+    for kind, item in base.walkDir:
+      if kind == pcFile:
+        let fullPath = item
+        let relative = if prefix.len == 0: item.extractFilename
+          else: prefix & "/" & item.extractFilename
+        related.add VextRelatedSource(relativePath: relative,
+          size: int(item.getFileSize),
+          open: sourceOpenerFor(fullPath))
+  directory.addDirectory()
+  # Launchers may sit beside a single immediate child data directory (notably
+  # Amiga installations). Deeper traversal remains deliberately out of scope.
+  for kind, item in directory.walkDir:
+    if kind == pcDir: item.addDirectory(item.extractFilename)
+  let primary = if path.fileExists: fileByteSource(path) else: nil
+  newSourceCollection(primary, if path.fileExists:
+      companionSourceResolverFor(path) else: nil,
+    related, if path.fileExists: path.extractFilename else: "")
+
 proc parseOptions(arguments: seq[string]): CliOptions =
   var index = 0
   while index < arguments.len:
@@ -174,8 +199,7 @@ proc descriptorKind(item: VextResourceDescriptor): string =
   of vrnkOpaque: "opaque"
 
 proc inspect(options: CliOptions) =
-  let sources = newSourceCollection(fileByteSource(options.input),
-    companionSourceResolverFor(options.input))
+  let sources = sourceCollectionFor(options.input)
   let progress: VextSessionProgressCallback =
     if stderr.isatty:
       proc(event: VextSessionProgressEvent): bool =
@@ -322,15 +346,27 @@ proc exportResource(options: CliOptions) =
   if options.resources.len > 1:
     raise newException(CliError,
       "--resource may be repeated only with export-all")
-  var data = readBytes(options.input)
-  let inspection = inspectOwnedSource(options.input, move(data), options.inputFormat,
-    options.ignoreWarnings, options.pcxChannelOrder,
-    options.ansiLetterSpacing, options.ansiAspect,
-    companionResolver = companionResolverFor(options.input))
-  for warning in inspection.warnings:
+  let session = openInspectionSession(options.input, sourceCollectionFor(options.input),
+    options.inputFormat, options.ignoreWarnings, options.pcxChannelOrder,
+    options.ansiLetterSpacing, options.ansiAspect)
+  defer: session.close()
+  var tree: VextResourceTree
+  var exportWarnings: seq[VextInspectionWarning]
+  if session.selectedFormat.typeId == SierraAgiGameTypeId:
+    tree = session.resourceTree
+    exportWarnings = session.warnings
+  else:
+    session.close()
+    var bytes = readBytes(options.input)
+    let legacy = inspectOwnedSource(options.input, move(bytes), options.inputFormat,
+      options.ignoreWarnings, options.pcxChannelOrder, options.ansiLetterSpacing,
+      options.ansiAspect, companionResolver = companionResolverFor(options.input))
+    tree = legacy.resources
+    exportWarnings = legacy.warnings
+  for warning in exportWarnings:
     stderr.writeLine(&"vexter: warning: {warning.path} " &
       &"({warning.format}): {warning.message}")
-  let exported = vexterlib.exportResource(inspection.resources,
+  let exported = vexterlib.exportResource(tree,
     VextExportRequest(
       resourcePath: (if options.resources.len == 1: options.resources[0]
                      else: ""),
@@ -382,15 +418,27 @@ proc exportAllResources(options: CliOptions) =
     raise newException(CliError,
       "export-all output is not a directory: " & options.output)
 
-  var data = readBytes(options.input)
-  let inspection = inspectOwnedSource(options.input, move(data), options.inputFormat,
-    options.ignoreWarnings, options.pcxChannelOrder,
-    options.ansiLetterSpacing, options.ansiAspect,
-    companionResolver = companionResolverFor(options.input))
-  for warning in inspection.warnings:
+  let session = openInspectionSession(options.input, sourceCollectionFor(options.input),
+    options.inputFormat, options.ignoreWarnings, options.pcxChannelOrder,
+    options.ansiLetterSpacing, options.ansiAspect)
+  defer: session.close()
+  var tree: VextResourceTree
+  var exportWarnings: seq[VextInspectionWarning]
+  if session.selectedFormat.typeId == SierraAgiGameTypeId:
+    tree = session.resourceTree
+    exportWarnings = session.warnings
+  else:
+    session.close()
+    var bytes = readBytes(options.input)
+    let legacy = inspectOwnedSource(options.input, move(bytes), options.inputFormat,
+      options.ignoreWarnings, options.pcxChannelOrder, options.ansiLetterSpacing,
+      options.ansiAspect, companionResolver = companionResolverFor(options.input))
+    tree = legacy.resources
+    exportWarnings = legacy.warnings
+  for warning in exportWarnings:
     stderr.writeLine(&"vexter: warning: {warning.path} " &
       &"({warning.format}): {warning.message}")
-  let exported = vexterlib.exportAllResources(inspection.resources,
+  let exported = vexterlib.exportAllResources(tree,
     VextExportAllRequest(
       resourcePatterns: options.resources,
       outputFormat: options.outputFormat,
@@ -449,8 +497,7 @@ proc extractContainer(options: CliOptions) =
     raise newException(CliError,
       "extraction output is not a directory: " & options.output)
   let session = openInspectionSession(options.input,
-    newSourceCollection(fileByteSource(options.input),
-      companionSourceResolverFor(options.input)), options.inputFormat)
+    sourceCollectionFor(options.input), options.inputFormat)
   defer: session.close()
   let plan = session.extractionPlan()
   for warning in plan.warnings:

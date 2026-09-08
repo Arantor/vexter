@@ -1246,3 +1246,12 @@ not been supplied.
 d7d7d057dcc5d8269adca32b293e3eeb4402e3f69ef084798a606114da9bebba  resource3.abk
 2382cf1fa09fa13d370dc163fe487925f9c4818499a3c90a4e5b31371c7b49ec  resource4.abk
 ```
+# Supplied AGI format documentation
+
+The Sierra AGI implementation was informed by the locally supplied cached
+“AGI Specifications” chapters 1–9 and 11 from AGI Wiki in `agi-spec/`. The
+cached pages identify their revisions in page metadata (including chapter 5
+revision 10358 and chapter 7 revision 10360).
+
+Source:
+* https://agiwiki.sierrahelp.com/index.php/Adventure_Game_Interpreter_Specifications

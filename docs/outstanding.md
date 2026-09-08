@@ -385,3 +385,9 @@ formats are not included. Detailed format behavior and evidence remain in
   - Demand decoding currently occurs synchronously on first GUI selection.
     This is one instance of the unresolved cross-container loading design
     above; its eventual behavior should not be specified independently here.
+# Sierra AGI
+
+- Decode and render picture primitives and drawing-progress animations.
+- Compose decoded view cels into loop-level animations or sprite sheets.
+- Add the PSG sequence archetype, JSON recovery output, and bounded WAV preview.
+- Provide conservative annotated logic disassembly.

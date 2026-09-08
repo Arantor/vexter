@@ -12,6 +12,10 @@ is the single concise index of known gaps in formats already recognized.
 Vexter currently consists of a reusable Nim library, a thin command-line
 client, and a dependency-free native Windows GUI. It supports:
 
+- directory-backed Sierra AGI v2/v3 packages, including case-independent
+  package/member discovery, lazy independently exportable native resources,
+  adaptive LZW and v3 picture-packing decompression, and vocabulary text;
+
 - classic Amiga Workbench `.info` DiskObjects, including metadata and both
   planar icon states;
 - detection and inspection of generic IFF FORM containers, indexed Amiga ILBM
@@ -106,7 +110,8 @@ hierarchies to a chosen directory on a worker thread. It exports
 through the library's discoverable per-resource format list. It targets the
 Windows 7 API baseline and cross-compiles from Linux with MinGW-w64.
 
-The GUI creates and owns explicit fonts rather than inheriting the legacy
+The GUI can open either individual files or directory-backed packages through
+its Open Folder action. It creates and owns explicit fonts rather than inheriting the legacy
 stock control font: Segoe UI is used for ordinary controls, while Consolas is
 used for textual resources and diagnostic detail panes. The latter keeps
 tracker columns and source listings aligned and supports the block characters
@@ -1078,6 +1083,14 @@ payloads expose signed eight-bit sampled instruments; and `Tracker` payloads
 are decoded as ProTracker-compatible modules. Other unsupported types retain
 the generic bank-data identity.
 
+Sierra AGI VIEW resources expose a group per native view, its lazy original
+bytes at `/game/views/N/raw`, and indexed raster cels below
+`/game/views/N/loops/L/cels/C`. Cel decoding validates the loop and cel offset
+tables, expands nibble RLE with transparent scanline tails, applies cross-loop
+horizontal mirroring, and doubles source pixels horizontally for AGI's display
+aspect. Malformed views remain BIN-exportable opaque resources with a decoder
+warning rather than aborting package inspection.
+
 AMOS `AmBs` sets expose a `/banks` group. Generic members are opaque
 `/banks/N` leaves; sprite and icon members expose numbered raster children
 beneath their member path. Prefix-aware member and set parsers also delimit
@@ -1104,6 +1117,9 @@ indexed raster that can be sent to GIF.
 
 The routine suites are:
 
+- `tests/test_sierra_agi_game.nim`: v2/v3 package discovery, bounded lazy
+  resource access, LZW and packed-picture expansion, VIEW cel RLE and
+  mirroring, vocabulary text, and encrypted inventory variants;
 - `tests/test_amiga_adf.nim`: synthetic FFS directory traversal, OFS and FFS
   file reconstruction, nested format decoding, and structural corruption;
 - `tests/test_zip_archive.nim`: stored/DEFLATE expansion, hierarchy and nested

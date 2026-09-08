@@ -10,7 +10,7 @@ import ./metadata
 import ./operations
 import ./resource_tree
 import ./containers/[amiga_adf, amiga_dms, appimage, electron_asar, inno_setup, iso9660, lha_archive, openraster,
-  powerpacker, xpk_shri, zip_archive]
+  powerpacker, sierra_agi_game, xpk_shri, zip_archive]
 import ./resources/[ansi_art_image, pcx_image]
 
 type
@@ -436,11 +436,35 @@ proc openInspectionSession*(filename: string, sources: VextSourceCollection,
     ansiAspect = apaAuto, limits = defaultWorkLimits(),
     progress: VextSessionProgressCallback = nil):
     VextInspectionSession =
-  if sources.isNil or sources.primary.isNil:
-    raise newException(ValueError, "inspection requires a primary source")
+  if sources.isNil:
+    raise newException(ValueError, "inspection requires a source collection")
   result = VextInspectionSession(filename: filename, sources: sources,
     limits: limits, nextId: 0)
   try:
+    if inputFormat.len == 0 or inputFormat == SierraAgiGameTypeId:
+      let games = discoverAgiGames(sources)
+      if games.len > 1:
+        var candidates: seq[string]
+        for game in games: candidates.add(if game.root.len == 0: "." else: game.root)
+        raise newException(ValueError, "multiple AGI packages found; select one of: " &
+          candidates.join(", "))
+      if games.len == 1:
+        result.selectedFormat = candidate(SierraAgiGameTypeId, vdcCertain,
+          "AGI directory framing, volume references, resource signatures, and bounds validate")
+        result.candidates = @[result.selectedFormat]
+        result.legacyTree = gameResourceTree(sources, games[0])
+        result.kind = vskLegacy
+        for root in result.legacyTree.roots:
+          result.addLegacyNode(root, VextResourceId(0))
+        progress.report(VextSessionProgressEvent(phase: vsppComplete,
+          path: filename, completed: result.descriptors.len,
+          discovered: result.descriptors.len, totalState: vptsFinal,
+          message: "AGI inspection session ready"))
+        return
+      if inputFormat == SierraAgiGameTypeId:
+        raise newException(ValueError, "source collection is not a valid AGI v2/v3 package")
+    if sources.primary.isNil:
+      raise newException(ValueError, "no supported package was found in the directory")
     progress.report(VextSessionProgressEvent(phase: vsppDetecting,
       path: filename, totalState: vptsUnknown,
       message: "Detecting input format"))
@@ -1380,6 +1404,13 @@ proc walkTopology*(session: VextInspectionSession,
   progress.report(VextSessionProgressEvent(phase: vsppComplete,
     completed: completed, discovered: completed, pending: 0,
     totalState: vptsFinal, message: "Resource topology complete"))
+
+proc resourceTree*(session: VextInspectionSession): VextResourceTree =
+  session.ensureOpen()
+  if session.kind != vskLegacy:
+    raise newException(ValueError,
+      "this incremental container must be loaded resource by resource")
+  session.legacyTree
 
 const ExtractionDeviceNames = [
   "con", "prn", "aux", "nul", "com1", "com2", "com3", "com4", "com5",

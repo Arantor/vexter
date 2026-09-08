@@ -2343,3 +2343,17 @@ The previous implementation covered formats including:
 
 This is retained only as historical context. Relationships to future formats
 will be specified when those formats are deliberately added.
+# Sierra AGI game packages
+
+`sierra.agi-game` recognizes structurally validated v2 four-directory and v3
+combined-directory packages, including consistently prefixed volumes and the
+Amiga `Data/dirs` layout. Directory entries are indexed without retaining the
+volumes; individual native resources are opened and decompressed on demand.
+`WORDS.TOK` and structurally validated plaintext, `Avis Durgan`, or AGDS
+`Alex Simkin` OBJECT inventories are available as deterministic tabular text.
+VIEW resources expose their original bytes and a loop/cel hierarchy. Cels
+decode the documented nibble RLE, transparent colour, and cross-loop mirroring
+into indexed rasters using the standard 16-colour EGA palette. Their horizontal
+dimension is doubled for the documented AGI display-pixel aspect. Picture
+rendering, loop-level animation sheets, PSG rendering, and logic disassembly
+remain listed as outstanding rather than being claimed as implemented.

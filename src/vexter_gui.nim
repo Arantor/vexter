@@ -362,7 +362,7 @@ proc waveOutClose(handle: HWAVEOUT): uint32 {.stdcall, importc.}
 
 var
   instance: HINSTANCE
-  mainWindow, treeView, preview, textView, openButton, scaleCombo: HWND
+  mainWindow, treeView, preview, textView, openButton, openFolderButton, scaleCombo: HWND
   fontModeCombo, fontSample, fontGlyphCombo, fontDetails: HWND
   playButton, formatCombo, exportButton, extractButton, progressBar: HWND
   bindings: seq[TreeBinding]
@@ -1102,6 +1102,7 @@ proc launchSessionJob(kind: SessionJobKind, binding: TreeBinding,
     item: HTREEITEM, maximumWorkingBytes: int) =
   sessionJobActive = true
   discard EnableWindow(openButton, 0)
+  discard EnableWindow(openFolderButton, 0)
   discard ShowWindow(progressBar, SW_SHOW)
   discard SendMessageW(progressBar, PBM_SETPOS, 0, 0)
   discard SendMessageW(progressBar, PBM_SETMARQUEE, 1, 30)
@@ -1243,6 +1244,7 @@ proc finishSessionJob(result: ptr SessionResult) =
     discard SendMessageW(progressBar, PBM_SETMARQUEE, 0, 0)
     discard ShowWindow(progressBar, 0)
     discard EnableWindow(openButton, 1)
+    discard EnableWindow(openFolderButton, 1)
 
 proc selectedFrameDuration(): int =
   if selected.isNil or selected.node.kind != vrnkRaster: return 0
@@ -1330,11 +1332,11 @@ proc chooseFile(save: bool, extension = "", filter = "All files\0*.*\0\0"): stri
   let accepted = if save: GetSaveFileNameW(addr info) else: GetOpenFileNameW(addr info)
   if accepted != 0: $buffer else: ""
 
-proc chooseFolder(): string =
+proc chooseFolder(title = "Choose a directory for the extracted files"): string =
   var displayName = newWideCString("", 32768)
   var info = BROWSEINFOW(hwndOwner: mainWindow,
     pszDisplayName: displayName,
-    lpszTitle: w("Choose a directory for the extracted files"),
+    lpszTitle: w(title),
     ulFlags: BIF_RETURNONLYFSDIRS or BIF_NEWDIALOGSTYLE)
   let item = SHBrowseForFolderW(addr info)
   if item == nil: return
@@ -1428,6 +1430,7 @@ proc startExtraction() =
     overwrite = true
   extractionActive = true
   discard EnableWindow(openButton, 0)
+  discard EnableWindow(openFolderButton, 0)
   discard EnableWindow(extractButton, 0)
   discard EnableWindow(exportButton, 0)
   discard EnableWindow(treeView, 0)
@@ -1447,6 +1450,7 @@ proc finishExtraction(result: ptr ExtractionResult) =
   discard SendMessageW(progressBar, PBM_SETMARQUEE, 0, 0)
   discard ShowWindow(progressBar, 0)
   discard EnableWindow(openButton, 1)
+  discard EnableWindow(openFolderButton, 1)
   discard EnableWindow(treeView, 1)
   discard EnableWindow(extractButton,
     if canExtractCurrentSession(): 1 else: 0)
@@ -1482,13 +1486,36 @@ proc guiCompanionResolver(path: string): VextCompanionSourceResolver =
     let companionPath = directory / relativePath
     if companionPath.fileExists: guiFileSource(companionPath) else: nil
 
+proc guiSourceOpener(path: string): VextRelatedSourceOpen =
+  result = proc(): VextByteSource = guiFileSource(path)
+
+proc guiSourceCollection(path: string): VextSourceCollection =
+  let directory = if path.dirExists: path else: path.parentDir
+  var related: seq[VextRelatedSource]
+  proc addDirectory(base: string, prefix = "") =
+    for kind, item in base.walkDir:
+      if kind == pcFile:
+        # Snapshot the iterator value before putting it in a lazy closure.
+        # Capturing `item` directly can make every opener refer to the final
+        # directory entry, depending on the compiler/backend.
+        let fullPath = item
+        let relative = if prefix.len == 0: item.extractFilename
+          else: prefix & "/" & item.extractFilename
+        related.add VextRelatedSource(relativePath: relative,
+          size: int(fullPath.getFileSize), open: guiSourceOpener(fullPath))
+  directory.addDirectory()
+  for kind, item in directory.walkDir:
+    if kind == pcDir: item.addDirectory(item.extractFilename)
+  newSourceCollection(if path.fileExists: guiFileSource(path) else: nil,
+    if path.fileExists: guiCompanionResolver(path) else: nil, related,
+    if path.fileExists: path.extractFilename else: "")
+
 proc loadWorker(job: LoadJob) {.thread.} =
   var loaded = LoadResult(filename: job.filename)
   try:
     {.cast(gcsafe).}:
       loaded.session = openInspectionSession(job.filename,
-        newSourceCollection(guiFileSource(job.filename),
-          guiCompanionResolver(job.filename)))
+        guiSourceCollection(job.filename))
   except CatchableError as error:
     loaded.error = error.msg
   job.result[] = loaded
@@ -1496,6 +1523,7 @@ proc loadWorker(job: LoadJob) {.thread.} =
 
 proc startLoad(filename: string) =
   discard EnableWindow(openButton, 0)
+  discard EnableWindow(openFolderButton, 0)
   discard ShowWindow(progressBar, SW_SHOW)
   discard SendMessageW(progressBar, PBM_SETMARQUEE, 1, 30)
   let result = cast[ptr LoadResult](allocShared0(sizeof(LoadResult)))
@@ -1509,6 +1537,7 @@ proc finishLoad(result: ptr LoadResult) =
   discard SendMessageW(progressBar, PBM_SETMARQUEE, 0, 0)
   discard ShowWindow(progressBar, 0)
   discard EnableWindow(openButton, 1)
+  discard EnableWindow(openFolderButton, 1)
   if loaded.error.len > 0:
     showError(loaded.error)
   else:
@@ -1588,8 +1617,9 @@ proc layout(hwnd: HWND) =
   let toolbar = 34
   let treeWidth = max(180, width div 3)
   discard MoveWindow(openButton, 6, 5, 70, 24, 1)
-  discard MoveWindow(extractButton, 82, 5, 78, 24, 1)
-  discard MoveWindow(progressBar, 168, 8, 136, 18, 1)
+  discard MoveWindow(openFolderButton, 82, 5, 92, 24, 1)
+  discard MoveWindow(extractButton, 180, 5, 78, 24, 1)
+  discard MoveWindow(progressBar, 266, 8, 80, 18, 1)
   discard MoveWindow(treeView, 6, int32(toolbar), int32(treeWidth-9), int32(height-toolbar-6), 1)
   discard MoveWindow(scaleCombo, int32(treeWidth+5), 5, 80, 200, 1)
   discard MoveWindow(playButton, int32(treeWidth+91), 5, 70, 24, 1)
@@ -1619,6 +1649,9 @@ proc mainProc(hwnd: HWND, msg: UINT, wp: WPARAM, lp: LPARAM): LRESULT {.stdcall.
     mainWindow = hwnd
     openButton = CreateWindowExW(0, w("BUTTON"), w("Open..."), WS_CHILD or WS_VISIBLE,
       0, 0, 0, 0, hwnd, cast[HMENU](1001), instance, nil)
+    openFolderButton = CreateWindowExW(0, w("BUTTON"), w("Open Folder..."),
+      WS_CHILD or WS_VISIBLE, 0, 0, 0, 0, hwnd,
+      cast[HMENU](1015), instance, nil)
     extractButton = CreateWindowExW(0, w("BUTTON"), w("Extract..."),
       WS_CHILD or WS_VISIBLE, 0, 0, 0, 0, hwnd,
       cast[HMENU](1014), instance, nil)
@@ -1677,7 +1710,7 @@ proc mainProc(hwnd: HWND, msg: UINT, wp: WPARAM, lp: LPARAM): LRESULT {.stdcall.
       w("Segoe UI"))
     textFont = CreateFontW(-13, 0, 0, 0, 400, 0, 0, 0, 1, 0, 0, 0, 1,
       w("Consolas"))
-    for control in [openButton, extractButton, treeView, fontModeCombo, fontSample,
+    for control in [openButton, openFolderButton, extractButton, treeView, fontModeCombo, fontSample,
         fontGlyphCombo, scaleCombo, playButton, formatCombo, exportButton]:
       control.setControlFont(uiFont)
     for control in [textView, fontDetails]:
@@ -1697,6 +1730,9 @@ proc mainProc(hwnd: HWND, msg: UINT, wp: WPARAM, lp: LPARAM): LRESULT {.stdcall.
     of 1001:
       let filename = chooseFile(false)
       if filename.len > 0: startLoad(filename)
+    of 1015:
+      let directory = chooseFolder("Choose a game or package directory")
+      if directory.len > 0: startLoad(directory)
     of 1005:
       if highWord(wp) == 1:
         scaleChoice = int(SendMessageW(scaleCombo, CB_GETCURSEL, 0, 0))

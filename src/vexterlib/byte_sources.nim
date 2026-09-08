@@ -4,6 +4,8 @@
 ## bounded reader (and, where applicable, a companion resolver), while tests
 ## and embedders can use the owned in-memory adapter below.
 
+import std/strutils
+
 type
   VextSourceRead* = proc(offset, length: int): seq[byte] {.closure.}
   VextSourceClose* = proc() {.closure.}
@@ -17,9 +19,19 @@ type
 
   VextCompanionSourceResolver* = proc(relativePath: string): VextByteSource
     {.closure.}
+  VextRelatedSourceOpen* = proc(): VextByteSource {.closure.}
+
+  VextRelatedSource* = object
+    ## A frontend-validated, collection-relative file. Paths always use '/'
+    ## separators and contain no empty, dot, or parent segments.
+    relativePath*: string
+    size*: int
+    open*: VextRelatedSourceOpen
 
   VextSourceCollection* = ref object
     primary*: VextByteSource
+    selectedMember*: string
+    relatedSources*: seq[VextRelatedSource]
     resolveCompanion*: VextCompanionSourceResolver
     companions: seq[VextByteSource]
     closed: bool
@@ -77,23 +89,48 @@ proc sliceByteSource*(source: VextByteSource, offset, length: int,
       source.readAt(offset + relativeOffset, readLength),
     label)
 
-proc newSourceCollection*(primary: VextByteSource,
-    resolver: VextCompanionSourceResolver = nil): VextSourceCollection =
-  if primary.isNil:
-    raise newException(ValueError, "a primary source is required")
-  VextSourceCollection(primary: primary, resolveCompanion: resolver)
+proc safeRelatedPath(path: string): bool =
+  if path.len == 0 or path[0] in {'/', '\\'} or '\\' in path: return false
+  for segment in path.split('/'):
+    if segment.len == 0 or segment in [".", ".."]: return false
+  true
+
+proc newSourceCollection*(primary: VextByteSource = nil,
+    resolver: VextCompanionSourceResolver = nil,
+    relatedSources: seq[VextRelatedSource] = @[],
+    selectedMember = ""): VextSourceCollection =
+  for item in relatedSources:
+    if not item.relativePath.safeRelatedPath or item.size < 0 or item.open.isNil:
+      raise newException(ValueError, "invalid related-source manifest entry")
+  VextSourceCollection(primary: primary, resolveCompanion: resolver,
+    relatedSources: relatedSources, selectedMember: selectedMember)
+
+proc companion*(collection: VextSourceCollection,
+    relativePath: string): VextByteSource
+
+proc related*(collection: VextSourceCollection,
+    relativePath: string): VextByteSource =
+  ## Resolves one manifest member case-insensitively, rejecting ambiguity.
+  collection.companion(relativePath)
 
 proc companion*(collection: VextSourceCollection,
     relativePath: string): VextByteSource =
-  if collection.isNil or collection.closed:
+  if collection.isNil or collection.closed or not relativePath.safeRelatedPath:
     raise newException(ValueError, "source collection is not available")
-  if collection.resolveCompanion.isNil: return
-  result = collection.resolveCompanion(relativePath)
+  var found = -1
+  for index, item in collection.relatedSources:
+    if item.relativePath.cmpIgnoreCase(relativePath) == 0:
+      if found >= 0: return nil
+      found = index
+  if found >= 0:
+    result = collection.relatedSources[found].open()
+  elif not collection.resolveCompanion.isNil:
+    result = collection.resolveCompanion(relativePath)
   if not result.isNil: collection.companions.add result
 
 proc close*(collection: VextSourceCollection) =
   if collection.isNil or collection.closed: return
   collection.closed = true
-  collection.primary.close()
+  if not collection.primary.isNil: collection.primary.close()
   for source in collection.companions: source.close()
   collection.companions.setLen(0)

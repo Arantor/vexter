@@ -98,13 +98,14 @@ proc payloadBytes*(payload: VextPayloadRef): seq[byte] =
 proc resourceBytes*(node: VextResourceNode): seq[byte] =
   if node.isNil:
     raise newException(ValueError, "cannot read a missing resource")
-  if not node.lazyPayload.source.isNil:
+  if not node.lazyPayload.source.isNil or node.lazyPayload.materializer != nil:
     return node.lazyPayload.payloadBytes
   node.data
 
 proc retainedByteLength*(node: VextResourceNode): int =
   if node.isNil: 0
-  elif not node.lazyPayload.source.isNil: node.lazyPayload.length
+  elif not node.lazyPayload.source.isNil or node.lazyPayload.materializer != nil:
+    node.lazyPayload.length
   else: node.data.len
 
 proc audioSound*(node: VextResourceNode): VextSound =

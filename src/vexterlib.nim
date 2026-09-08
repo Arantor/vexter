@@ -70,9 +70,11 @@ import vexterlib/containers/rgba8_palette
 import vexterlib/containers/ansi_art
 import vexterlib/containers/doom_wad
 import vexterlib/containers/inno_setup
+import vexterlib/containers/sierra_agi_game
 import vexterlib/resources/amos_planar_image
 import vexterlib/resources/amos_packed_picture_image
 import vexterlib/resources/amos_sample
+import vexterlib/resources/sierra_agi_view
 import vexterlib/resources/amiga_ilbm_image
 import vexterlib/resources/amiga_pbm_image
 import vexterlib/resources/amiga_anim_image
@@ -126,6 +128,8 @@ export jpeg_image
 export ansi_art
 export doom_wad
 export inno_setup
+export sierra_agi_game
+export sierra_agi_view
 export ansi_art_image
 export amos_bank
 export amos_music_bank
