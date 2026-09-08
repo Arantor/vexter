@@ -11,6 +11,7 @@ import vexterlib/resources/font_preview
 import vexterlib/resources/protracker_replay
 import vexterlib/resources/amos_music_replay
 import vexterlib/artifacts
+import vexterlib/compression/lzma
 import vexterlib/containers/amos_bank
 import vexterlib/containers/amos_music_bank
 import vexterlib/containers/amiga_adf
@@ -68,6 +69,7 @@ import vexterlib/containers/zx_spectrum_tzx
 import vexterlib/containers/rgba8_palette
 import vexterlib/containers/ansi_art
 import vexterlib/containers/doom_wad
+import vexterlib/containers/inno_setup
 import vexterlib/resources/amos_planar_image
 import vexterlib/resources/amos_packed_picture_image
 import vexterlib/resources/amos_sample
@@ -117,11 +119,13 @@ export font_preview
 export protracker_replay
 export amos_music_replay
 export artifacts
+export lzma
 export openraster
 export jpeg
 export jpeg_image
 export ansi_art
 export doom_wad
+export inno_setup
 export ansi_art_image
 export amos_bank
 export amos_music_bank

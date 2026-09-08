@@ -1,5 +1,42 @@
 # Third-party material
 
+## innoextract source reference
+
+The developer supplied a checkout of Daniel Scharrer's `innoextract` repository
+under `innoextract/`, from `git@github.com:dscharrer/innoextract.git`. Vexter's
+Inno Setup handler is informed by its loader-offset discovery, versioned loader
+signatures, PE resource lookup, and setup-data version markers. Vexter's handler
+is an independent Nim implementation; the C++ sources are not built or
+distributed as part of Vexter.
+
+The inspected checkout was commit
+`6e9e34ed0876014fdb46e684103ef8c3605e382e` (authored by Daniel Scharrer,
+6 February 2025). `innoextract` is Copyright (C) 2011-2020 Daniel Scharrer and
+uses the zlib licence. This permissive licence allows commercial use,
+alteration, and redistribution and is compatible with Vexter's BSD-3-Clause
+licence when its source-distribution notice and origin requirements are kept.
+The required notice follows:
+
+```text
+Copyright (C) 2011-2020 Daniel Scharrer <daniel@constexpr.org>
+
+This software is provided 'as-is', without any express or implied
+warranty.  In no event will the author(s) be held liable for any damages
+arising from the use of this software.
+
+Permission is granted to anyone to use this software for any purpose,
+including commercial applications, and to alter it and redistribute it
+freely, subject to the following restrictions:
+
+1. The origin of this software must not be misrepresented; you must not
+   claim that you wrote the original software. If you use this software
+   in a product, an acknowledgment in the product documentation would be
+   appreciated but is not required.
+2. Altered source versions must be plainly marked as such, and must not be
+   misrepresented as being the original software.
+3. This notice may not be removed or altered from any source distribution.
+```
+
 ## Generic RGBA8 palette format details
 
 On 3 September 2026 the developer directly supplied the complete format

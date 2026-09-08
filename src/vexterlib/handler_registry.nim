@@ -4,11 +4,17 @@
 ## registry is the authoritative bridge from a stable type identifier to the
 ## validation and inspection implementation for that format.
 
-import ./containers/[adobe_swatch_exchange, amiga_8svx, amiga_16sv, amiga_acbm, amiga_adf, amiga_anim, appimage, aseprite,
-  amiga_diskfont, amiga_dms, amiga_hunk_executable, amiga_iff, amiga_ilbm, amiga_lha_sfx,
+import ./containers/[adobe_swatch_exchange, amiga_8svx, amiga_16sv, amiga_acbm,
+  amiga_adf, amiga_anim, appimage, aseprite,
+  amiga_diskfont, amiga_dms, amiga_hunk_executable, amiga_iff, amiga_ilbm,
+  amiga_lha_sfx,
   amiga_workbench_icon, amos_bank,
-  amos_bank_set, amos_program, amos_sprite_icon_bank, ansi_art, bmp, flic, gif_container,
-  bmfont, creative_voice, d64, doom_wad, electron_asar, fzx, gimp_palette, iso9660, jpeg, koala_painter, lha_archive, netpbm, openraster, paint_net_palette, pcx, png_container, powerpacker, protracker_mod, qoi, rgba8_palette, tga, wav, windows_icon, zip_archive,
+  amos_bank_set, amos_program, amos_sprite_icon_bank, ansi_art, bmp, flic,
+  gif_container,
+  bmfont, creative_voice, d64, doom_wad, electron_asar, fzx, gimp_palette,
+  inno_setup, iso9660, jpeg, koala_painter, lha_archive, netpbm, openraster,
+  paint_net_palette, pcx, png_container, powerpacker, protracker_mod, qoi,
+  rgba8_palette, tga, wav, windows_icon, zip_archive,
   zx_spectrum_screen_dump, zx_spectrum_snapshot, zx_spectrum_tap,
   zx_spectrum_tzx, xpk_shri]
 import ./containers/amiga_pbm
@@ -55,6 +61,7 @@ type
     vhkRgba8Palette
     vhkProtrackerMod
     vhkDoomWad
+    vhkInnoSetup
     vhkElectronAsar
     vhkZip
     vhkIso9660
@@ -153,6 +160,7 @@ const FormatHandlers* = [
   VextFormatHandler(typeId: Rgba8PaletteTypeId, kind: vhkRgba8Palette),
   VextFormatHandler(typeId: ProtrackerModTypeId, kind: vhkProtrackerMod),
   VextFormatHandler(typeId: DoomWadTypeId, kind: vhkDoomWad),
+  VextFormatHandler(typeId: InnoSetupTypeId, kind: vhkInnoSetup),
   VextFormatHandler(typeId: ElectronAsarTypeId, kind: vhkElectronAsar),
   VextFormatHandler(typeId: ZipArchiveTypeId, kind: vhkZip),
   VextFormatHandler(typeId: Iso9660TypeId, kind: vhkIso9660),
@@ -205,15 +213,15 @@ proc formatRefiners*(): seq[VextFormatRefiner] =
     carrierTypeId: ZipArchiveTypeId,
     probe: proc(filename: string, data: openArray[byte],
         carrier: VextParsedContainer): VextRefinementMatch =
-      let archive = parsedValue[ZipArchive](carrier, vhkZip)
-      if not archive.hasOpenRasterMimeMarker(data): return
-      let document = parseOpenRaster(archive, data)
-      result = VextRefinementMatch(confidence: vdcCertain,
-        evidence: @[VextDetectionEvidence(description:
-          "ZIP begins with the stored image/openraster MIME marker and " &
-          "contains a valid baseline OpenRaster document")],
-        parsed: VextParsedValue[OpenRasterDocument](kind: vhkOpenRaster,
-          value: document))) ]
+    let archive = parsedValue[ZipArchive](carrier, vhkZip)
+    if not archive.hasOpenRasterMimeMarker(data): return
+    let document = parseOpenRaster(archive, data)
+    result = VextRefinementMatch(confidence: vdcCertain,
+      evidence: @[VextDetectionEvidence(description:
+      "ZIP begins with the stored image/openraster MIME marker and " &
+      "contains a valid baseline OpenRaster document")],
+      parsed: VextParsedValue[OpenRasterDocument](kind: vhkOpenRaster,
+        value: document)))]
 
 proc parse*(handler: VextFormatHandler,
     data: openArray[byte]): VextParsedContainer =
@@ -274,6 +282,7 @@ proc parse*(handler: VextFormatHandler,
   of vhkRgba8Palette: result = parsed(parseRgba8Palette(data))
   of vhkProtrackerMod: result = parsed(parseProtrackerMod(data))
   of vhkDoomWad: result = parsed(parseDoomWad(data))
+  of vhkInnoSetup: result = parsed(parseInnoSetup(data))
   of vhkElectronAsar: result = parsed(parseElectronAsar(data))
   of vhkZip: result = parsed(parseZipArchive(data))
   of vhkIso9660: result = parsed(parseIso9660(data))

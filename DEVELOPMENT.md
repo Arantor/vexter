@@ -35,6 +35,9 @@ client, and a dependency-free native Windows GUI. It supports:
   SquashFS 4 payloads, ZIP and Electron ASAR archives, ISO 9660 data-CD filesystems,
   level-0/1 LHA/LZH archives using LH0 or LH5,
   minimally structured Amiga Hunk executables and LHA self-extractors,
+  structurally recognized Inno Setup executables with bounded loader,
+  decoded 5.5/5.6 Unicode file tables, dependency-free LZMA1/LZMA2 payload
+  decoding, common split-data resolution, and named whole-container extraction,
   ZX Spectrum raw screen dumps, SNA snapshots,
   TAP and first-pass TZX containers, tokenised BASIC resources, BMFont text descriptors, FZX and Amiga bitmap diskfonts
   (including ColorFonts), standalone AMOS banks, AMOS bank
@@ -786,6 +789,11 @@ amiga.adf-link
 archive.zip
 archive.zip-directory
 archive.zip-file
+windows.inno-setup
+windows.inno-setup-loader
+windows.inno-setup-headers
+windows.inno-setup-data
+windows.inno-setup-embedded-executable
 image.openraster
 openraster.image
 openraster.thumbnail
@@ -1104,6 +1112,9 @@ The routine suites are:
 - `tests/test_electron_asar.nim`: synthetic Pickle and JSON-manifest framing,
   lazy hierarchy and member reads, dotfile preservation, external-member
   warnings, payload bounds, and whole-container extraction planning;
+- `tests/test_inno_setup.nim`: fixed-pointer and PE-resource loader discovery,
+  bounded region exposure, setup-version metadata, false-positive rejection,
+  and constant-memory source-backed inspection above the global eager limit;
 - `tests/test_openraster.nim`: synthetic ZIP-profile refinement, required MIME
   placement and members, layer-stack metadata and raster exposure, derivation
   reporting, and forced generic-carrier inspection;

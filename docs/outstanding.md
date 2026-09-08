@@ -6,6 +6,22 @@ being listed does not imply priority, and unsupported historical or proposed
 formats are not included. Detailed format behavior and evidence remain in
 [`formats.md`](formats.md).
 
+- **Inno Setup**
+  - `windows.inno-setup` currently decodes the supplied 5.5/5.6 Unicode table
+    layouts and stored, LZMA1, and LZMA2 chunks. Older layouts, zlib/bzip2
+    chunks, encrypted chunks, payload SHA-1 validation, and multipart slice
+    sets beyond the common single `-1.bin` case remain outstanding.
+  - Modern PE-resource installers are detected through bounded source reads,
+    so primary executables larger than the generic 512 MiB working limit can
+    be inspected and inventoried. Payload extraction currently materializes
+    one shared compressed chunk; a streaming dictionary/output fan-out is
+    still needed when one solid chunk expands beyond the working limit.
+  - Newer GOG Galaxy installers describe the eventual names and zlib-wrapped
+    multipart assembly in `before_install`/`after_install` calls. Vexter
+    currently exposes their literal Inno temporary part names; parsing those
+    calls, native Deflate decoding, and multipart reconstruction are needed to
+    recover the final GOG install tree.
+
 - **ZX Spectrum TZX tapes**
   - Standard-speed blocks reuse TAP decoding. Timing and waveform playback,
     control-flow execution, turbo and pure-data loader decoding, descriptive

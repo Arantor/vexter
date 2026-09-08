@@ -4,8 +4,14 @@ import std/[os, strutils]
 import ./handler_registry
 import ./format_detection_types
 export format_detection_types
-import ./containers/[amiga_8svx, amiga_16sv, amiga_acbm, amiga_adf, amiga_anim, amiga_diskfont, amiga_dms, amiga_hunk_executable, amiga_iff, amiga_ilbm, amiga_lha_sfx, amiga_pbm, amiga_workbench_icon, amos_bank, amos_bank_set, amos_program,
-  adobe_swatch_exchange, amos_sprite_icon_bank, ansi_art, appimage, aseprite, bmfont, bmp, creative_voice, d64, doom_wad, electron_asar, flic, fzx, gif_container, gimp_palette, iso9660, jpeg, koala_painter, netpbm, paint_net_palette, pcx, png_container, protracker_mod, qoi, rgba8_palette, tga,
+import ./containers/[amiga_8svx, amiga_16sv, amiga_acbm, amiga_adf, amiga_anim,
+  amiga_diskfont, amiga_dms, amiga_hunk_executable, amiga_iff, amiga_ilbm,
+  amiga_lha_sfx, amiga_pbm, amiga_workbench_icon, amos_bank, amos_bank_set,
+  amos_program,
+  adobe_swatch_exchange, amos_sprite_icon_bank, ansi_art, appimage, aseprite,
+  bmfont, bmp, creative_voice, d64, doom_wad, electron_asar, flic, fzx,
+  gif_container, gimp_palette, inno_setup, iso9660, jpeg, koala_painter, netpbm,
+  paint_net_palette, pcx, png_container, protracker_mod, qoi, rgba8_palette, tga,
   wav, windows_icon, zip_archive, lha_archive, zx_spectrum_screen_dump,
   zx_spectrum_snapshot, zx_spectrum_tap, zx_spectrum_tzx]
 import ./containers/xpk_shri
@@ -21,6 +27,18 @@ proc detectBaseFormats(filename: string, data: openArray[byte]):
     seq[VextDetectionCandidate] =
   ## Returns every format candidate recognized from currently available
   ## evidence, ordered from strongest to weakest.
+  try:
+    let installer = parseInnoSetup(data)
+    var evidence = @[VextDetectionEvidence(description:
+      "executable contains a recognized Inno Setup " & installer.loaderVersion &
+      " loader and bounded setup data version " & installer.setupVersion)]
+    if filename.hasInnoSetupExtension:
+      evidence.add VextDetectionEvidence(description: "file extension is .exe")
+    return @[VextDetectionCandidate(typeId: InnoSetupTypeId,
+      confidence: vdcCertain, evidence: evidence,
+      derivation: baseDerivation(InnoSetupTypeId))]
+  except ValueError:
+    discard
   if data.len >= 11 and data[0] == 0x7f and data[1] == byte('E') and
       data[2] == byte('L') and data[3] == byte('F') and
       not (data[8] == byte('A') and data[9] == byte('I') and data[10] == 2):
@@ -111,7 +129,8 @@ proc detectBaseFormats(filename: string, data: openArray[byte]):
     let index = parseAmigaDiskfontIndex(data)
     var evidence = @[VextDetectionEvidence(description:
       "file has a valid " & (if index.tagged: "TFCH_ID" else: "FCH_ID") &
-      " bitmap font index with " & $index.entries.len & " size entry or entries")]
+      " bitmap font index with " & $index.entries.len &
+          " size entry or entries")]
     if filename.splitFile.ext.toLowerAscii == ".font":
       evidence.add VextDetectionEvidence(description: "file extension is .font")
     result.add VextDetectionCandidate(typeId: AmigaDiskfontIndexTypeId,
@@ -122,20 +141,20 @@ proc detectBaseFormats(filename: string, data: openArray[byte]):
     result.add VextDetectionCandidate(typeId: AmigaDiskfontTypeId,
       confidence: vdcCertain, evidence: @[
         VextDetectionEvidence(description:
-          "file has a loadable Amiga hunk containing a valid DFH_ID bitmap " &
-          "font descriptor with " & $font.glyphs.len & " bounded glyphs")])
+      "file has a loadable Amiga hunk containing a valid DFH_ID bitmap " &
+      "font descriptor with " & $font.glyphs.len & " bounded glyphs")])
 
   if isAmigaLhaSfx(data):
     result.add VextDetectionCandidate(typeId: AmigaLhaSfxTypeId,
       confidence: vdcCertain, evidence: @[
         VextDetectionEvidence(description:
-          "file is a valid Amiga Hunk executable with appended LHA archives")])
+      "file is a valid Amiga Hunk executable with appended LHA archives")])
 
   if isAmigaHunkExecutable(data):
     result.add VextDetectionCandidate(typeId: AmigaHunkExecutableTypeId,
       confidence: vdcCertain, evidence: @[
         VextDetectionEvidence(description:
-          "file has a valid Amiga HUNK_HEADER and loadable hunk sequence")])
+      "file has a valid Amiga HUNK_HEADER and loadable hunk sequence")])
 
   if isWorkbenchIcon(data):
     var evidence = @[VextDetectionEvidence(
@@ -265,7 +284,8 @@ proc detectBaseFormats(filename: string, data: openArray[byte]):
     let icon = parseWindowsIcon(data)
     var evidence = @[VextDetectionEvidence(description:
       "file has a valid " & (if icon.kind == wikIcon: "ICO" else: "CUR") &
-      " directory with " & $icon.entries.len & " bounded image entry or entries")]
+      " directory with " & $icon.entries.len &
+          " bounded image entry or entries")]
     if hasWindowsIconExtension(filename, icon.kind):
       evidence.add VextDetectionEvidence(description:
         "file extension matches the container type")
@@ -702,7 +722,8 @@ proc applyFormatRefiners*(filename: string, data: openArray[byte],
     let refined = VextDetectedFormat(candidate: VextDetectionCandidate(
       typeId: refiner.typeId, confidence: matched.confidence,
       evidence: matched.evidence,
-      derivation: carrier.candidate.derivation.refinedDerivation(refiner.typeId)),
+      derivation: carrier.candidate.derivation.refinedDerivation(
+          refiner.typeId)),
       parsed: matched.parsed)
     result.add applyFormatRefiners(filename, data, refined, refiners, depth + 1)
     result.add refined
@@ -745,7 +766,8 @@ proc forceFormatWithDepth(filename: string, data: openArray[byte],
       "format refinement exceeds the maximum derivation depth")
   let direct = formatHandler(typeId)
   if not direct.isNil and direct[].carrierTypeId.len == 0:
-    result = VextDetectedFormat(candidate: VextDetectionCandidate(typeId: typeId,
+    result = VextDetectedFormat(candidate: VextDetectionCandidate(
+      typeId: typeId,
       confidence: vdcProbable, evidence: @[VextDetectionEvidence(
         description: "format selected by the caller")],
       derivation: baseDerivation(typeId)), parsed: direct[].parse(data))

@@ -493,10 +493,16 @@ proc extractContainer(options: CliOptions) =
       createDir(destination)
       continue
     if destination.parentDir.len > 0: createDir(destination.parentDir)
-    let data = session.materializePayload(entry.descriptor.id,
-      maximumWorkingBytes = max(session.limits.maximumWorkingBytes,
-        entry.descriptor.estimatedBytes))
-    writeFile(destination, bytesToString(data))
+    var output: File
+    if not open(output, destination, fmWrite):
+      raise newException(CliError, "could not create extraction file: " & destination)
+    try:
+      session.streamPayload(entry.descriptor.id,
+        proc(data: openArray[byte]) =
+          if data.len > 0 and output.writeBuffer(unsafeAddr data[0], data.len) != data.len:
+            raise newException(IOError, "short write extracting: " & destination))
+    finally:
+      output.close()
     echo destination
 
 proc main() =

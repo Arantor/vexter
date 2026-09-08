@@ -43,6 +43,8 @@ task test, "Run the test suite":
   exec "nim c -r --path:src tests/test_electron_asar.nim"
   exec "nim c -r --path:src tests/test_iso9660.nim"
   exec "nim c -r --path:src tests/test_appimage.nim"
+  exec "nim c -r --path:src tests/test_inno_setup.nim"
+  exec "nim c -r --path:src tests/test_lzma.nim"
   exec "nim c -r --path:src tests/test_gui_preview.nim"
   exec "nim c -r --path:src tests/test_lha_archive.nim"
   exec "nim c -r --path:src tests/test_lha_amiga_paths.nim"

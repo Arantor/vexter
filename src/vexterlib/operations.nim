@@ -11,16 +11,29 @@ import ./transformations/colour_cycle
 import ./transformations/palette_swatch
 import ./detection
 import ./handler_registry
-import ./exporters/[bmfont, gif, gpl, html_report, metadata_json, png, raw, tracker_json, wav]
+import ./exporters/[bmfont, gif, gpl, html_report, metadata_json, png, raw,
+    tracker_json, wav]
 import ./resource_tree
-import ./containers/[amiga_8svx, amiga_16sv, amiga_acbm, amiga_adf, amiga_anim, amiga_diskfont, amiga_dms, amiga_hunk_executable, amiga_iff, amiga_ilbm, amiga_lha_sfx, amiga_pbm, amiga_workbench_icon, amos_bank, amos_bank_set, amos_music_bank, amos_packed_picture, amos_program, amos_resource_bank, amos_sample_bank,
-  amos_sprite_icon_bank, ansi_art, appimage, bmfont, bmp, creative_voice, d64, doom_wad, electron_asar, flic, fzx, gif_container, iso9660, jpeg, netpbm, openraster, pcx, png_container,
-  adobe_swatch_exchange, aseprite, gimp_palette, koala_painter, paint_net_palette, protracker_mod, qoi, rgba8_palette, tga, wav, windows_icon, zip_archive, lha_archive, zx_spectrum_snapshot, zx_spectrum_tap]
+import ./containers/[amiga_8svx, amiga_16sv, amiga_acbm, amiga_adf, amiga_anim,
+  amiga_diskfont, amiga_dms, amiga_hunk_executable, amiga_iff, amiga_ilbm,
+  amiga_lha_sfx, amiga_pbm, amiga_workbench_icon, amos_bank, amos_bank_set,
+  amos_music_bank, amos_packed_picture, amos_program, amos_resource_bank,
+  amos_sample_bank,
+  amos_sprite_icon_bank, ansi_art, appimage, bmfont, bmp, creative_voice, d64,
+  doom_wad, electron_asar, flic, fzx, gif_container, inno_setup, iso9660, jpeg,
+  netpbm, openraster, pcx, png_container,
+  adobe_swatch_exchange, aseprite, gimp_palette, koala_painter,
+  paint_net_palette, protracker_mod, qoi, rgba8_palette, tga, wav, windows_icon,
+  zip_archive, lha_archive, zx_spectrum_snapshot, zx_spectrum_tap]
 import ./containers/xpk_shri
 import ./containers/powerpacker
 import ./metadata
-import ./resources/[amiga_anim_image, amiga_diskfont_font, amiga_ilbm_image, amiga_pbm_image, amiga_workbench_icon_image, amos_listing, amos_music_replay, amos_packed_picture_image, amos_planar_image, amos_sample, bmp_image, flic_animation, gif_image, netpbm_image, png_image, zx_spectrum_basic,
-  ansi_art_image, bmfont_font, fzx_font, jpeg_image, koala_painter_image, pcx_image, protracker_replay, qoi_image, tga_image, windows_icon_image, zx_spectrum_screen]
+import ./resources/[amiga_anim_image, amiga_diskfont_font, amiga_ilbm_image,
+  amiga_pbm_image, amiga_workbench_icon_image, amos_listing, amos_music_replay,
+  amos_packed_picture_image, amos_planar_image, amos_sample, bmp_image,
+  flic_animation, gif_image, netpbm_image, png_image, zx_spectrum_basic,
+  ansi_art_image, bmfont_font, fzx_font, jpeg_image, koala_painter_image,
+  pcx_image, protracker_replay, qoi_image, tga_image, windows_icon_image, zx_spectrum_screen]
 
 type
   VextOperationCancelledError* = object of CatchableError
@@ -321,7 +334,7 @@ proc protrackerNode(path: string, source: ProtrackerMod,
     typeId: "protracker.rendered-audio", kind: vrnkAudio,
     audioKind: varkSound,
     soundMaterializer: proc(): VextSound =
-      renderProtracker(replayModule).sound,
+    renderProtracker(replayModule).sound,
     derivedAudioChannels: 2, derivedAudioBitsPerSample: 16,
     derivedAudioSampleRate: ProtrackerReplaySampleRate,
     derivedAudioMaximumSamples: ProtrackerReplaySampleRate *
@@ -412,7 +425,7 @@ proc amosMusicBankNode(path: string, bank: AmosBank): VextResourceNode =
       typeId: AmosMusicRenderedAudioTypeId, kind: vrnkAudio,
       audioKind: varkSound,
       soundMaterializer: proc(): VextSound =
-        renderAmosMusic(replayBank, replaySong).sound,
+      renderAmosMusic(replayBank, replaySong).sound,
       derivedAudioChannels: 2, derivedAudioBitsPerSample: 16,
       derivedAudioSampleRate: AmosMusicReplaySampleRate,
       derivedAudioMaximumSamples: AmosMusicReplaySampleRate *
@@ -738,7 +751,7 @@ proc zipPayload(entry: ZipEntry,
   let capturedEntry = entry
   result = VextPayloadRef(source: source, length: entry.uncompressedSize,
     materializer: proc(): seq[byte] =
-      extractZipEntry(source.data, capturedEntry))
+    extractZipEntry(source.data, capturedEntry))
 
 proc appImagePayload(entry: AppImageEntry, archive: AppImageArchive,
     source: VextPayloadSource): VextPayloadRef =
@@ -746,12 +759,12 @@ proc appImagePayload(entry: AppImageEntry, archive: AppImageArchive,
   let capturedArchive = archive
   result = VextPayloadRef(source: source, length: entry.size,
     materializer: proc(): seq[byte] =
-      let byteSource = newByteSource(source.data.len,
-        proc(offset, length: int): seq[byte] =
-          source.data[offset ..< offset + length])
-      try: result = extractAppImageEntry(byteSource, capturedArchive,
-        capturedEntry)
-      finally: byteSource.close())
+    let byteSource = newByteSource(source.data.len,
+      proc(offset, length: int): seq[byte] =
+      source.data[offset ..< offset + length])
+    try: result = extractAppImageEntry(byteSource, capturedArchive,
+      capturedEntry)
+    finally: byteSource.close())
 
 proc addZipEntry(root: VextResourceNode, entry: ZipEntry,
     source: VextPayloadSource,
@@ -811,7 +824,8 @@ proc addIso9660Entry(root: VextResourceNode, entry: var Iso9660Entry,
         stringMetadata("iso9660.recording-time", entry.recordingTime)]
       var retainedMetadata = metadata
       let lazyPayload = iso9660Payload(entry, image[].layout, backingSource)
-      let inspectContained = entry.dataLength <= Iso9660RecursiveInspectionLimit and
+      let inspectContained = entry.dataLength <=
+          Iso9660RecursiveInspectionLimit and
         inspectionFiles < 512 and
         inspectionBytes <= 128 * 1024 * 1024 - entry.dataLength
       if not inspectContained:
@@ -1048,13 +1062,54 @@ proc inspectSourceDepth(filename: string, data: openArray[byte],
     raise newException(ValueError,
       "unsupported input format: " & result.selectedFormat.typeId)
   case selectedHandler.kind
+  of vhkInnoSetup:
+    let installer = parsedValue[InnoSetupInstaller](selectedParsed,
+      vhkInnoSetup)
+    let source = if backingSource.isNil: VextPayloadSource(data: @data)
+      else: backingSource
+    let root = VextResourceNode(path: "/installer", typeId: InnoSetupTypeId,
+      kind: vrnkGroup, metadata: @[
+        stringMetadata("loader.version", installer.loaderVersion),
+        stringMetadata("setup.version", installer.setupVersion),
+        integerMetadata("loader.offset", installer.loaderOffset),
+        integerMetadata("header.offset", installer.headerOffset),
+        integerMetadata("data.offset", installer.dataOffset),
+        integerMetadata("loader.pe-resource", ord(
+            installer.loaderInPeResource)),
+        integerMetadata("embedded-executable.uncompressed-length",
+          installer.embeddedExeUncompressedSize)])
+    proc addRegion(path, typeId: string, offset, length: int) =
+      if length <= 0: return
+      root.children.add VextResourceNode(path: path, typeId: typeId,
+        kind: vrnkOpaque, rawDataAvailable: true,
+        lazyPayload: VextPayloadRef(source: source,
+          spans: @[VextPayloadSpan(offset: offset, length: length)],
+          length: length), metadata: @[
+            integerMetadata("source.offset", offset),
+            integerMetadata("data.length", length)])
+    addRegion("/installer/loader", InnoSetupLoaderTypeId,
+      installer.loaderOffset, installer.loaderLength)
+    if installer.embeddedExeCompressedSize > 0 and
+        installer.embeddedExeOffset + installer.embeddedExeCompressedSize <= data.len:
+      addRegion("/installer/embedded-executable",
+        InnoSetupEmbeddedExeTypeId, installer.embeddedExeOffset,
+        installer.embeddedExeCompressedSize)
+    addRegion("/installer/setup-headers", InnoSetupHeaderTypeId,
+      installer.headerOffset, installer.headerLength)
+    if installer.dataOffset > 0:
+      addRegion("/installer/setup-data", InnoSetupDataTypeId,
+        installer.dataOffset, data.len - installer.dataOffset)
+    result.resources.roots.add root
   of vhkAnsiArt:
     let source = parsedValue[AnsiArtSource](selectedParsed, vhkAnsiArt)
     var metadata = @[
-      integerMetadata("ansi.columns", if source.sauce.present and source.sauce.info1 > 0: int(source.sauce.info1) else: 80),
+      integerMetadata("ansi.columns", if source.sauce.present and
+          source.sauce.info1 > 0: int(source.sauce.info1) else: 80),
       integerMetadata("ansi.control-sequences", source.meaningfulSequences),
-      integerMetadata("ansi.glyph-width", source.ansiGlyphWidth(ansiLetterSpacing)),
-      stringMetadata("ansi.aspect", if source.ansiLegacyAspect(ansiAspect): "legacy" else: "square"),
+      integerMetadata("ansi.glyph-width", source.ansiGlyphWidth(
+          ansiLetterSpacing)),
+      stringMetadata("ansi.aspect", if source.ansiLegacyAspect(
+          ansiAspect): "legacy" else: "square"),
       integerMetadata("sauce.present", int(source.sauce.present))]
     if source.sauce.present:
       metadata.add stringMetadata("sauce.title", source.sauce.title)
@@ -1063,7 +1118,8 @@ proc inspectSourceDepth(filename: string, data: openArray[byte],
       metadata.add stringMetadata("sauce.date", source.sauce.date)
       metadata.add stringMetadata("sauce.font", source.sauce.fontName)
       metadata.add integerMetadata("sauce.flags", int(source.sauce.flags))
-      metadata.add integerMetadata("sauce.declared-lines", int(source.sauce.info2))
+      metadata.add integerMetadata("sauce.declared-lines", int(
+          source.sauce.info2))
       for index, line in source.sauce.commentLines:
         metadata.add stringMetadata("sauce.comment." & $index, line)
     result.resources.roots.add VextResourceNode(path: AnsiImageResourcePath,
@@ -1114,7 +1170,8 @@ proc inspectSourceDepth(filename: string, data: openArray[byte],
           ((source.style xor entry.style) and FsfColorFont) != 0:
         result.warnings.add VextInspectionWarning(path: warningPath,
           format: AmigaDiskfontTypeId,
-          message: "companion metrics do not match index entry: " & entry.filename)
+          message: "companion metrics do not match index entry: " &
+          entry.filename)
         continue
       var metadata = @[
         stringMetadata("index.filename", entry.filename),
@@ -1296,9 +1353,9 @@ proc inspectSourceDepth(filename: string, data: openArray[byte],
         metadata: @[
           stringMetadata("encoding",
             case source.encoding
-            of bfeText: "text"
-            of bfeXml: "xml"
-            of bfeBinary: "binary"),
+        of bfeText: "text"
+        of bfeXml: "xml"
+        of bfeBinary: "binary"),
           stringMetadata("font.face", source.face),
           integerMetadata("font.size", source.size),
           integerMetadata("font.bold", source.bold),
@@ -1338,7 +1395,8 @@ proc inspectSourceDepth(filename: string, data: openArray[byte],
       integerMetadata("chunks", source.chunks.len)]
     for index, chunk in source.chunks:
       metadata.add stringMetadata("chunk." & $index & ".type", chunk.kind)
-      metadata.add integerMetadata("chunk." & $index & ".length", chunk.data.len)
+      metadata.add integerMetadata("chunk." & $index & ".length",
+          chunk.data.len)
     result.resources.roots.add VextResourceNode(path: PngImageResourcePath,
       typeId: PngImageTypeId, kind: vrnkRaster, raster: decodePngOrApng(source),
       metadata: metadata)
@@ -1463,7 +1521,8 @@ proc inspectSourceDepth(filename: string, data: openArray[byte],
     let rootPath = if icon.kind == wikIcon: "/icon" else: "/cursor"
     let group = VextResourceNode(path: rootPath,
       typeId: icon.windowsIconTypeId, kind: vrnkGroup, metadata: @[
-        stringMetadata("container.kind", if icon.kind == wikIcon: "icon" else: "cursor"),
+        stringMetadata("container.kind", if icon.kind ==
+            wikIcon: "icon" else: "cursor"),
         integerMetadata("images", icon.entries.len)])
     for index, entry in icon.entries:
       let path = rootPath & "/" & $index
@@ -1474,9 +1533,9 @@ proc inspectSourceDepth(filename: string, data: openArray[byte],
         integerMetadata("data.offset", entry.dataOffset),
         integerMetadata("data.length", entry.dataLength),
         stringMetadata("encoding", case entry.encoding
-          of wieDib: "dib"
-          of wiePng: "png"
-          of wieUnknown: "unknown")]
+        of wieDib: "dib"
+        of wiePng: "png"
+        of wieUnknown: "unknown")]
       if icon.kind == wikCursor:
         metadata.add integerMetadata("hotspot.x", entry.hotspotX)
         metadata.add integerMetadata("hotspot.y", entry.hotspotY)
@@ -1487,7 +1546,8 @@ proc inspectSourceDepth(filename: string, data: openArray[byte],
       of wieDib:
         metadata.add integerMetadata("image.width", entry.dib.width)
         metadata.add integerMetadata("image.height", entry.dib.height)
-        metadata.add integerMetadata("image.bits-per-pixel", entry.dib.bitsPerPixel)
+        metadata.add integerMetadata("image.bits-per-pixel",
+            entry.dib.bitsPerPixel)
         metadata.add integerMetadata("image.compression", entry.dib.compression)
         metadata.add integerMetadata("mask.bits-per-pixel", 1)
         group.children.add VextResourceNode(path: path,
@@ -1900,7 +1960,8 @@ proc inspectSourceDepth(filename: string, data: openArray[byte],
             format: DoomWadPatchTypeId, message: error.msg)
       elif paletteZero.len == DoomPaletteColours and entry.size > 0 and
           entry.name notin nonPictureNames and
-          not entry.name.startsWith("DS") and not entry.name.startsWith("DP") and
+          not entry.name.startsWith("DS") and not entry.name.startsWith(
+              "DP") and
           not entry.name.startsWith("D_") and
           not entry.name.startsWith("DEMO") and isDoomPatch(lumpData):
         let patch = parseDoomPatch(lumpData)
@@ -1949,7 +2010,8 @@ proc inspectSourceDepth(filename: string, data: openArray[byte],
           metadata.add integerMetadata(key & ".index", mapLumps[item.name])
           metadata.add integerMetadata(key & ".bytes", entry.size)
           if entry.size mod item.size == 0:
-            metadata.add integerMetadata(key & ".records", entry.size div item.size)
+            metadata.add integerMetadata(key & ".records",
+                entry.size div item.size)
       for name in ["REJECT", "BLOCKMAP"]:
         if mapLumps.hasKey(name):
           let entry = wad.entries[mapLumps[name]]
@@ -2351,12 +2413,14 @@ proc inspectSourceDepth(filename: string, data: openArray[byte],
       instrument: instrument,
       metadata: @[
         integerMetadata("channels", instrument.sound.buffer.channels.len),
-        integerMetadata("bits-per-sample", instrument.sound.buffer.bitsPerSample),
+        integerMetadata("bits-per-sample",
+            instrument.sound.buffer.bitsPerSample),
         integerMetadata("samples", instrument.sound.buffer.sampleCount),
         integerMetadata("sample-rate", instrument.sound.sampleRate),
         integerMetadata("one-shot-samples", instrument.oneShotSamples),
         integerMetadata("repeat-samples", instrument.repeatSamples),
-        integerMetadata("samples-per-high-cycle", instrument.samplesPerHighCycle),
+        integerMetadata("samples-per-high-cycle",
+            instrument.samplesPerHighCycle),
         integerMetadata("octaves", source.octaves),
         integerMetadata("compression", ord(source.compression)),
         integerMetadata("volume", int(source.volumeRaw)),
@@ -2375,12 +2439,14 @@ proc inspectSourceDepth(filename: string, data: openArray[byte],
       instrument: instrument,
       metadata: @[
         integerMetadata("channels", instrument.sound.buffer.channels.len),
-        integerMetadata("bits-per-sample", instrument.sound.buffer.bitsPerSample),
+        integerMetadata("bits-per-sample",
+            instrument.sound.buffer.bitsPerSample),
         integerMetadata("samples", instrument.sound.buffer.sampleCount),
         integerMetadata("sample-rate", instrument.sound.sampleRate),
         integerMetadata("one-shot-samples", instrument.oneShotSamples),
         integerMetadata("repeat-samples", instrument.repeatSamples),
-        integerMetadata("samples-per-high-cycle", instrument.samplesPerHighCycle),
+        integerMetadata("samples-per-high-cycle",
+            instrument.samplesPerHighCycle),
         integerMetadata("octaves", source.octaves),
         integerMetadata("compression", source.compression),
         integerMetadata("volume", int(source.volumeRaw)),

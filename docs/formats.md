@@ -543,6 +543,57 @@ and never substitutes an export of a recognized nested resource. Unsafe host
 characters are replaced with warnings; names that then collide are rejected
 before any payload is materialized.
 
+## Inno Setup installers
+
+Inno Setup executables are identified structurally as `windows.inno-setup`.
+For loaders through 4.x, Vexter follows the `Inno` pointer and its bitwise
+complement at the fixed executable offset. For loaders from 5.1.5 onward it
+walks the PE section and resource directories to `RT_RCDATA` resource 11111.
+The referenced loader must have one of the seven supplied innoextract loader
+signatures, independently bounded header/data offsets, and a recognizable setup-data version
+marker; filename extension alone is never sufficient.
+
+Inspection exposes the loader, two exactly framed encoded setup-header streams, setup-data
+region, and—where its stored length is supplied by older loaders—the embedded
+setup executable as lazily materialized opaque resources beneath `/installer`.
+These regions can be exported byte-identically as BIN data. The setup and
+loader versions and source offsets are retained as metadata.
+
+Header streams are expanded with Vexter's dependency-free raw LZMA1 decoder.
+It implements the reusable range coder, literal/matched-literal states,
+repeated matches, length/distance models, and bounded dictionary copying in
+pure Nim. Inno's five-byte property prefix remains container-specific; no
+liblzma, C++ runtime, or subprocess is used.
+
+The supplied Inno 5.5 and 5.6 Unicode layouts are decoded into named file and
+data-entry tables. Whole-container extraction expands stored, raw LZMA1, and
+LZMA2 chunks, reverses Inno's 5.3.9 executable-call transform, and reads the
+common external `-1.bin` slice through the caller-owned companion resolver.
+The LZMA2 framing layer reuses the same LZMA probability/range engine while
+retaining coder state and dictionary history between subblocks. A decoded
+chunk is cached while its member files are emitted, so it is not repeatedly
+expanded for every file.
+
+Literal Inno destinations are used as member names, with common constants
+such as `{app}` and `{tmp}` mapped to portable top-level directories. Newer
+GOG Galaxy packages require an additional semantic reconstruction step: their
+Inno entries are zlib-wrapped hash-named parts and the final filename/part
+mapping is encoded in install callbacks. Those packages are inventoried and
+their literal parts are recoverable, but final GOG names and multipart files
+are not yet reconstructed. Encrypted and non-LZMA compressed chunks also
+remain unsupported.
+
+Modern PE-resource installers use source-backed inspection. Loader discovery
+reads at most a 1 MiB bootstrap window followed by the 64-byte version marker
+and two nine-byte block headers at their referenced offsets. Multi-gigabyte
+primary executables can therefore be identified and inventoried without
+materializing their payload.
+
+Raw structural spans still stream in 1 MiB reads. Named extraction currently
+materializes one shared decoded chunk at a time, bounded by the active working
+limit; it does not materialize the entire executable merely to identify or
+inventory it.
+
 ## Type 1 and Type 2 AppImage
 
 Type 1 AppImages are identified as `executable.appimage-type1` when a valid ELF

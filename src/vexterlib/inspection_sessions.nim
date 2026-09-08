@@ -1,6 +1,6 @@
 ## Incremental inspection sessions over random-access source collections.
 
-import std/[hashes, sets, strutils, tables]
+import std/[hashes, os, sequtils, sets, strutils, tables]
 import ./byte_sources
 import ./archetypes/raster
 import ./archetypes/audio
@@ -9,7 +9,7 @@ import ./format_detection_types
 import ./metadata
 import ./operations
 import ./resource_tree
-import ./containers/[amiga_adf, amiga_dms, appimage, electron_asar, iso9660, lha_archive, openraster,
+import ./containers/[amiga_adf, amiga_dms, appimage, electron_asar, inno_setup, iso9660, lha_archive, openraster,
   powerpacker, xpk_shri, zip_archive]
 import ./resources/[ansi_art_image, pcx_image]
 
@@ -80,6 +80,7 @@ type
 
   VextSessionProgressCallback* = proc(event: VextSessionProgressEvent): bool
     {.closure.}
+  VextPayloadChunkCallback* = proc(data: openArray[byte]) {.closure.}
 
   VextSessionCancelledError* = object of CatchableError
   VextWorkLimitError* = object of ValueError
@@ -120,6 +121,7 @@ type
     vskLha
     vskElectronAsar
     vskAmigaAdf
+    vskInnoSetup
     vskDeferredWrapper
 
   VextInspectionSession* = ref object
@@ -154,6 +156,13 @@ type
     adf: AmigaAdfIndex
     adfEntryById: Table[VextResourceId, AmigaAdfEntry]
     adfVisited: HashSet[int]
+    inno: InnoSetupInstaller
+    innoCounts: InnoSetupHeaderCounts
+    innoManifest: InnoSetupManifest
+    innoFileById: Table[VextResourceId, int]
+    innoSpanById: Table[VextResourceId, VextPayloadSpan]
+    innoCachedChunk: seq[byte]
+    innoCachedSlice, innoCachedOffset: int
     deferredData: seq[byte]
     deferredFormat: string
     deferredRootPath: string
@@ -385,6 +394,26 @@ proc selectAmigaAdf(session: VextInspectionSession) =
   session.candidates = @[adfCandidate]
   session.kind = vskAmigaAdf
 
+proc selectInnoSetup(session: VextInspectionSession) =
+  session.inno = indexInnoSetup(session.sources.primary)
+  try:
+    var headers = decodeInnoSetupHeaders(session.sources.primary, session.inno,
+      session.limits.maximumManifestBytes)
+    session.innoManifest = parseInnoSetupManifest(move(headers),
+      session.inno.setupVersion)
+    session.innoCounts = session.innoManifest.counts
+    session.innoCachedSlice = -1
+    session.innoCachedOffset = -1
+  except ValueError as error:
+    session.warnings.add VextInspectionWarning(path: "/installer",
+      format: InnoSetupHeaderTypeId, message: error.msg)
+  let item = candidate(InnoSetupTypeId, vdcCertain,
+    "source contains a recognized PE-resource Inno Setup loader and bounded " &
+    "setup header streams for " & session.inno.setupVersion)
+  session.selectedFormat = item
+  session.candidates = @[item]
+  session.kind = vskInnoSetup
+
 proc selectDeferredWrapper(session: VextInspectionSession, typeId,
     rootPath, description: string) =
   session.deferredData = session.sources.primary.readAll(
@@ -439,6 +468,8 @@ proc openInspectionSession*(filename: string, sources: VextSourceCollection,
     let preferPowerPacker = leading.len >= 4 and leading[0] == byte('P') and
       leading[1] == byte('P') and leading[2] in [byte('1'), byte('2')] and
       leading[3] in [byte('1'), byte('0')]
+    let preferInno = leading.len >= 2 and leading[0] == byte('M') and
+      leading[1] == byte('Z') and filename.hasInnoSetupExtension
     template selectLegacy() =
       let data = sources.primary.readAll(limits.maximumWorkingBytes)
       let legacy = inspectSource(filename, data, inputFormat, ignoreWarnings,
@@ -462,6 +493,7 @@ proc openInspectionSession*(filename: string, sources: VextSourceCollection,
       of LhaArchiveTypeId: result.selectLha()
       of ElectronAsarTypeId: result.selectElectronAsar()
       of AmigaAdfTypeId: result.selectAmigaAdf()
+      of InnoSetupTypeId: result.selectInnoSetup()
       of AmigaDmsTypeId:
         result.selectDeferredWrapper(AmigaDmsTypeId, "/disk",
           "source has valid checksummed DMS track framing")
@@ -472,6 +504,9 @@ proc openInspectionSession*(filename: string, sources: VextSourceCollection,
         result.selectDeferredWrapper(PowerPackerTypeId, "/content",
           "source has valid PowerPacker framing")
       else: selectLegacy()
+    elif preferInno:
+      try: result.selectInnoSetup()
+      except ValueError: selectLegacy()
     elif preferAppImage:
       try:
         if leading[8] == byte('A') and leading[9] == byte('I') and
@@ -625,6 +660,90 @@ proc openInspectionSession*(filename: string, sources: VextSourceCollection,
       result.commit(root)
       result.roots.add root.id
       result.adfVisited.incl result.adf.rootBlock
+    of vskInnoSetup:
+      let root = result.allocateDescriptor("/installer", InnoSetupTypeId,
+        vrnkGroup, {vrcEnumerateChildren, vrcExtractTree}, vvlStructural,
+        metadata = @[
+          stringMetadata("loader.version", result.inno.loaderVersion),
+          stringMetadata("setup.version", result.inno.setupVersion),
+          integerMetadata("loader.offset", result.inno.loaderOffset),
+          integerMetadata("header.offset", result.inno.headerOffset),
+          integerMetadata("data.offset", result.inno.dataOffset),
+          stringMetadata("application.name", result.innoCounts.appName),
+          stringMetadata("application.default-directory",
+            result.innoCounts.defaultDirectory),
+          integerMetadata("entries.directories", result.innoCounts.directories),
+          integerMetadata("entries.files", result.innoCounts.files),
+          integerMetadata("entries.data", result.innoCounts.dataEntries)])
+      result.commit(root)
+      result.roots.add root.id
+      template addSpan(path, typeId: string, spanOffset, spanLength: int) =
+        if spanLength <= 0: return
+        let item = result.allocateDescriptor(path, typeId, vrnkOpaque,
+          {vrcMaterializePayload}, vvlStructural, spanLength, @[
+            integerMetadata("source.offset", spanOffset),
+            integerMetadata("data.length", spanLength)])
+        result.commit(item)
+        result.children.mgetOrPut(root.id, @[]).add item.id
+        result.innoSpanById[item.id] = VextPayloadSpan(offset: spanOffset,
+          length: spanLength)
+      addSpan("/installer/loader", InnoSetupLoaderTypeId,
+        result.inno.loaderOffset, result.inno.loaderLength)
+      addSpan("/installer/setup-headers", InnoSetupHeaderTypeId,
+        result.inno.headerOffset, result.inno.headerLength)
+      if result.inno.dataOffset > 0:
+        addSpan("/installer/setup-data", InnoSetupDataTypeId,
+          result.inno.dataOffset,
+          result.sources.primary.length - result.inno.dataOffset)
+      if result.innoManifest.files.len > 0:
+        let files = result.allocateDescriptor("/installer/files",
+          InnoSetupTypeId & "-files", vrnkGroup, {vrcEnumerateChildren},
+          vvlManifest)
+        result.commit(files)
+        result.children.mgetOrPut(root.id, @[]).add files.id
+        var used = initHashSet[string]()
+        var directoryIds = initTable[string, VextResourceId]()
+        directoryIds[""] = files.id
+        for index, entry in result.innoManifest.files:
+          if entry.location < 0 or entry.destination.len == 0:
+            continue
+          var normalized = entry.destination.replace('\\', '/')
+          normalized = normalized.replace("{app}", "app")
+            .replace("{tmp}", "tmp").replace("{sys}", "system")
+            .replace("{win}", "windows")
+          normalized = normalized.strip(chars = {'/'})
+          if normalized.len == 0 or normalized.toLowerAscii in used: continue
+          used.incl normalized.toLowerAscii
+          let segments = normalized.split('/').filterIt(it.len > 0)
+          if segments.len == 0: continue
+          var relative = ""
+          var parent = files.id
+          for partIndex in 0 ..< segments.high:
+            relative = if relative.len == 0: segments[partIndex]
+              else: relative & "/" & segments[partIndex]
+            if not directoryIds.hasKey(relative):
+              let directory = result.allocateDescriptor(
+                "/installer/files/" & relative,
+                InnoSetupTypeId & "-directory", vrnkGroup,
+                {vrcEnumerateChildren}, vvlManifest)
+              result.commit(directory)
+              result.children.mgetOrPut(parent, @[]).add directory.id
+              directoryIds[relative] = directory.id
+              result.expanded.incl directory.id
+            parent = directoryIds[relative]
+          let item = result.allocateDescriptor("/installer/files/" & normalized,
+            InnoSetupTypeId & "-file", vrnkOpaque, {vrcMaterializePayload},
+            vvlManifest,
+            int(result.innoManifest.dataEntries[entry.location].fileSize), @[
+              stringMetadata("inno.source", entry.source),
+              integerMetadata("inno.location", entry.location),
+              integerMetadata("data.length", int(
+                result.innoManifest.dataEntries[entry.location].fileSize))])
+          result.commit(item)
+          result.children.mgetOrPut(parent, @[]).add item.id
+          result.innoFileById[item.id] = index
+        result.expanded.incl files.id
+      result.expanded.incl root.id
     of vskDeferredWrapper:
       let isDisk = result.deferredFormat == AmigaDmsTypeId
       let root = result.allocateDescriptor(result.deferredRootPath,
@@ -1084,12 +1203,77 @@ proc materializePayload*(session: VextInspectionSession, id: VextResourceId,
       raise newException(ValueError, "resource has no ADF payload")
     result = extractAmigaAdfFile(session.sources.primary, session.adf,
       session.adfEntryById[id], workingLimit)
+  of vskInnoSetup:
+    if session.innoFileById.hasKey(id):
+      let file = session.innoManifest.files[session.innoFileById[id]]
+      let entry = session.innoManifest.dataEntries[file.location]
+      if session.innoCachedSlice != entry.firstSlice or
+          session.innoCachedOffset != entry.chunkOffset:
+        var chunkSource = session.sources.primary
+        var sourceOffset = session.inno.dataOffset
+        if sourceOffset == 0:
+          let stem = session.filename.extractFilename.changeFileExt("")
+          let sliceName = stem & "-" & $(entry.firstSlice + 1) & ".bin"
+          chunkSource = session.sources.companion(sliceName)
+          if chunkSource.isNil:
+            raise newException(ValueError, "missing Inno Setup data slice: " & sliceName)
+          sourceOffset = 0
+        var maximum = 0'i64
+        for dataEntry in session.innoManifest.dataEntries:
+          if dataEntry.firstSlice == entry.firstSlice and
+              dataEntry.chunkOffset == entry.chunkOffset:
+            maximum = max(maximum, dataEntry.fileOffset + dataEntry.fileSize)
+        if maximum > int64(workingLimit):
+          raise newException(VextWorkLimitError,
+            "Inno Setup chunk exceeds the active working-data limit")
+        session.innoCachedChunk = decodeInnoSetupChunk(chunkSource, sourceOffset,
+          entry, int(maximum))
+        session.innoCachedSlice = entry.firstSlice
+        session.innoCachedOffset = entry.chunkOffset
+      result = extractInnoSetupFile(session.innoCachedChunk, file, entry)
+    elif session.innoSpanById.hasKey(id):
+      let span = session.innoSpanById[id]
+      result = session.sources.primary.readAt(span.offset, span.length)
+    else:
+      raise newException(ValueError, "resource has no Inno Setup payload")
   of vskDeferredWrapper, vskLegacy:
     raise newException(ValueError, "resource has no extractable payload: " &
       descriptor.path)
   progress.report(VextSessionProgressEvent(phase: vsppComplete,
     path: descriptor.path, completed: 1, discovered: 1,
     totalState: vptsFinal, message: "Payload materialized"))
+
+proc streamPayload*(session: VextInspectionSession, id: VextResourceId,
+    consume: VextPayloadChunkCallback, chunkSize = 1024 * 1024,
+    progress: VextSessionProgressCallback = nil) =
+  ## Sends a payload to a frontend-owned sink without requiring one contiguous
+  ## allocation. Source-backed Inno spans use bounded reads; other formats
+  ## currently retain their existing materializer behind the same interface.
+  session.ensureOpen()
+  if consume.isNil or chunkSize <= 0:
+    raise newException(ValueError, "payload stream requires a valid sink and chunk size")
+  let descriptor = session.descriptor(id)
+  if vrcMaterializePayload notin descriptor.capabilities:
+    raise newException(ValueError, "resource has no extractable payload: " &
+      descriptor.path)
+  if session.kind == vskInnoSetup and session.innoSpanById.hasKey(id):
+    if not session.innoSpanById.hasKey(id):
+      raise newException(ValueError, "resource has no Inno Setup payload")
+    let span = session.innoSpanById[id]
+    var completed = 0
+    while completed < span.length:
+      let amount = min(chunkSize, span.length - completed)
+      let bytes = session.sources.primary.readAt(span.offset + completed, amount)
+      consume(bytes)
+      completed += amount
+      progress.report(VextSessionProgressEvent(phase: vsppMaterializing,
+        path: descriptor.path, completed: completed,
+        discovered: span.length, pending: span.length - completed,
+        totalState: vptsFinal, message: "Streaming payload"))
+    return
+  let bytes = session.materializePayload(id, progress,
+    max(session.limits.maximumWorkingBytes, descriptor.estimatedBytes))
+  consume(bytes)
 
 proc loadResource*(session: VextInspectionSession, id: VextResourceId,
     progress: VextSessionProgressCallback = nil,
@@ -1265,7 +1449,18 @@ proc extractionPlan*(session: VextInspectionSession,
       else:
         planned.warnings.add "skipped non-materializable member '" &
           childSource.join("/") & "'"
-  visit(selectedId, @[], @[])
+  if session.kind == vskInnoSetup:
+    var filesRoot = VextResourceId(0)
+    for childId in session.children.getOrDefault(selectedId):
+      if session.descriptors[childId].path == "/installer/files":
+        filesRoot = childId
+        break
+    if uint64(filesRoot) == 0:
+      planned.warnings.add "Inno Setup file table could not be decoded"
+    else:
+      visit(filesRoot, @[], @[])
+  else:
+    visit(selectedId, @[], @[])
   progress.report(VextSessionProgressEvent(phase: vsppComplete,
     path: planned.root.path, completed: planned.entries.len,
     discovered: planned.entries.len, pending: 0,
@@ -1280,5 +1475,7 @@ proc close*(session: VextInspectionSession) =
   session.children.clear()
   session.idsByPath.clear()
   session.asarEntryById.clear()
+  session.innoFileById.clear()
+  session.innoCachedChunk.setLen(0)
   session.appImageEntryById.clear()
   session.legacyNodeById.clear()
