@@ -1,5 +1,9 @@
 # Vexter development state
 
+The current build baseline is Nim 2.2.12. This is the version installed by the
+active `nimble gui` toolchain; routine CLI and test builds should use the same
+2.2.x compiler line.
+
 This document describes the repository as it exists now. It is the starting
 point for maintenance and implementation work. [`PLAN.md`](PLAN.md) describes
 the intended trajectory and must not be read as a list of implemented
