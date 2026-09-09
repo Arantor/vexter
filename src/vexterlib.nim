@@ -76,6 +76,7 @@ import vexterlib/resources/amos_packed_picture_image
 import vexterlib/resources/amos_sample
 import vexterlib/resources/sierra_agi_view
 import vexterlib/resources/sierra_agi_picture
+import vexterlib/resources/sierra_agi_logic
 import vexterlib/resources/amiga_ilbm_image
 import vexterlib/resources/amiga_pbm_image
 import vexterlib/resources/amiga_anim_image
@@ -132,6 +133,7 @@ export inno_setup
 export sierra_agi_game
 export sierra_agi_view
 export sierra_agi_picture
+export sierra_agi_logic
 export ansi_art_image
 export amos_bank
 export amos_music_bank

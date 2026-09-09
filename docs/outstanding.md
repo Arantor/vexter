@@ -395,4 +395,6 @@ formats are not included. Detailed format behavior and evidence remain in
   drawing steps that should ultimately be preserved in full.
 - Compose decoded view cels into loop-level animations or sprite sheets.
 - Add the PSG sequence archetype, JSON recovery output, and bounded WAV preview.
-- Provide conservative annotated logic disassembly.
+- Deepen LOGIC listings beyond the current typed operand and literal-message
+  notation with labels/control-flow structure, vocabulary word resolution, and
+  documented interpreter-version opcode-table variants.

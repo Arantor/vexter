@@ -8,6 +8,7 @@ import ../metadata
 import ../resource_tree
 import ../resources/sierra_agi_view
 import ../resources/sierra_agi_picture
+import ../resources/sierra_agi_logic
 
 const SierraAgiGameTypeId* = "sierra.agi-game"
 
@@ -360,7 +361,28 @@ proc gameResourceTree*(sources: VextSourceCollection, game: AgiGame): VextResour
     if e.valid:
       node.lazyPayload = VextPayloadRef(length: e.unpackedSize,
         materializer: resourceMaterializer(sources, game, e))
-    if e.valid and e.kind == arkPicture:
+    if e.valid and e.kind == arkLogic:
+      try:
+        let listing = decodeAgiLogic(resourceBytes(sources, game, e),
+          not e.compressed)
+        node.kind = vrnkGroup
+        node.typeId = SierraAgiGameTypeId & ".logic"
+        node.rawDataAvailable = false
+        node.lazyPayload = VextPayloadRef()
+        node.children = @[
+          VextResourceNode(path: path & "/listing",
+            typeId: SierraAgiGameTypeId & ".logic-listing", kind: vrnkText,
+            text: listing, defaultExportPriority: 10),
+          VextResourceNode(path: path & "/raw",
+            typeId: SierraAgiGameTypeId & ".logic-data", kind: vrnkOpaque,
+            rawDataAvailable: true, lazyPayload: VextPayloadRef(length: e.unpackedSize,
+              materializer: resourceMaterializer(sources, game, e)),
+            defaultExportPriority: 10)]
+      except ValueError as error:
+        node.failureFormat = SierraAgiGameTypeId & ".logic"
+        node.failureMessage = error.msg
+        node.metadata.add stringMetadata("decode.warning", error.msg)
+    elif e.valid and e.kind == arkPicture:
       try:
         let picture = renderAgiPicture(resourceBytes(sources, game, e))
         node.kind = vrnkGroup

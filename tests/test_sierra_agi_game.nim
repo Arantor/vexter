@@ -1,4 +1,4 @@
-import std/unittest
+import std/[strutils, unittest]
 import vexterlib
 
 proc member(path: string, data: seq[byte]): VextRelatedSource =
@@ -110,3 +110,25 @@ suite "Sierra AGI game packages":
     let key = "Avis Durgan"
     for index, value in plain: encrypted[index] = value xor byte(key[index mod key.len])
     check decodeObject(encrypted) == decodeObject(plain)
+
+  test "LOGIC disassembly preserves offsets, branches, and messages":
+    let code = @[0x03'u8, 1, 42, 0xff, 7, 5, 0xff, 0, 0, 0, 0x65, 1]
+    var data = @[byte(code.len), 0]
+    data.add code
+    data.add @[1'u8, 7, 0, 4, 0,
+      byte('H') xor byte('A'), byte('i') xor byte('v'), 0'u8 xor byte('i')]
+    let listing = decodeAgiLogic(data)
+    check "0000  assignn(v1, 42)" in listing
+    check "0003  if isset(f5) else goto 0009" in listing
+    check "0009  return()" in listing
+    check "000A  print(\"Hi\")  ; message 1" in listing
+    check "1  \"Hi\"" in listing
+
+    let grouped = decodeAgiLogic(@[12'u8, 0, 0xff, 0xfc, 7, 6, 7, 12,
+      0xfc, 0xff, 0, 0, 0xb1, 1])
+    check "if (isset(f6) || isset(f12)) else goto 000A" in grouped
+    check "unknown177(1)  ; enable menu access" in grouped
+
+    let pictureUse = decodeAgiLogic(@[5'u8, 0, 3, 32, 12, 24, 32])
+    check "assignn(v32, 12)" in pictureUse
+    check "load.pic(v32)  ; PIC 12" in pictureUse

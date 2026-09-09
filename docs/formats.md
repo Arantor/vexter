@@ -2361,5 +2361,19 @@ bounded flood filling, and solid or textured pen plots; v3 colour-nibble packing
 is expanded before rendering. PNG export of a visual plane writes the completed
 still. GIF export lazily replays drawing commands and writes the blank canvas,
 evenly sampled construction states, and a longer final hold, with at most 80
-frames. Loop-level VIEW animation sheets, PSG rendering, and logic disassembly
-remain outstanding.
+frames. Loop-level VIEW animation sheets and PSG rendering remain outstanding.
+
+LOGIC resources expose their original bytes and a deterministic textual
+listing. The listing validates the code/message boundary, uses the supplied
+action and test opcode arities to preserve instruction alignment, reports
+bytecode offsets and absolute conditional/unconditional branch targets, and
+represents `not`, `or`, and variable-length `said` conditions. Its message
+table is decoded with `Avis Durgan` for uncompressed resources and as plaintext
+after v3 LZW expansion. Statically addressed messages are quoted inline in
+commands and retain their original message number in a comment. Typed prefixes
+distinguish variables, flags, objects, controllers, strings, words, and direct
+resource identifiers. Straight-line picture assignment/load/draw sequences also
+carry a conservative resolved `PIC N` comment. This is readable intermediate
+recovery, not source reconstruction or execution. The supplied command table's
+`unknown177` name is retained, with Chapter 4's established zero/nonzero menu
+access effect added as a listing comment.

@@ -1106,6 +1106,21 @@ export uses an optional resource-level raster materializer to rerun the command
 stream only on demand, sampling the entire construction into at most 80 frames
 and retaining the completed image as a longer final frame.
 
+Sierra AGI LOGIC resources expose deterministic text at
+`/game/logics/N/listing` and lazy original bytes at `/raw`. The conservative
+disassembler validates code and message bounds, follows the supplied action and
+test opcode arities, handles `if`, `goto`, `not`, `or`, and variable-length
+`said`, and emits bytecode offsets and branch targets. Uncompressed message
+text uses `Avis Durgan`; v3 LZW-expanded message text is already plaintext.
+Literal message operands are replaced by quoted decoded text, with their
+one-based message number retained in a comment. Variables, flags, screen and
+inventory objects, controllers, strings, words, and direct resource identifiers
+use typed prefixes. A directly preceding assignment to a picture-number variable
+is conservatively carried into picture operations as a `PIC N` comment. OR
+delimiters produce parenthesized `||` expressions. Opcode `B1` retains the
+supplied `unknown177` name but is annotated with its documented menu-access
+effect.
+
 AMOS `AmBs` sets expose a `/banks` group. Generic members are opaque
 `/banks/N` leaves; sprite and icon members expose numbered raster children
 beneath their member path. Prefix-aware member and set parsers also delimit
@@ -1134,7 +1149,8 @@ The routine suites are:
 
 - `tests/test_sierra_agi_game.nim`: v2/v3 package discovery, bounded lazy
   resource access, LZW and packed-picture expansion, PIC line/fill rendering,
-  VIEW cel RLE and mirroring, vocabulary text, and encrypted inventory variants;
+  drawing GIF selection, VIEW cel RLE and mirroring, LOGIC instructions,
+  branches and encrypted messages, vocabulary text, and inventory variants;
 - `tests/test_amiga_adf.nim`: synthetic FFS directory traversal, OFS and FFS
   file reconstruction, nested format decoding, and structural corruption;
 - `tests/test_zip_archive.nim`: stored/DEFLATE expansion, hierarchy and nested
