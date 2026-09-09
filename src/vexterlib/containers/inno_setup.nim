@@ -226,12 +226,7 @@ proc parseInnoSetupHeaderCounts*(primary: sink seq[byte],
 
 proc skipString(reader: var InnoReader) = discard reader.binaryString()
 
-proc skipWinVersion(reader: var InnoReader) = reader.skip(10)
 proc skipWinVersionRange(reader: var InnoReader) = reader.skip(20)
-
-proc packedBytes(bits: int): int =
-  result = (bits + 7) div 8
-  if result == 3: result = 4
 
 proc skipMainHeaderTail(reader: var InnoReader, version: InnoSetupVersion,
     compression: var InnoSetupCompression, slicesPerDisk: var int) =
