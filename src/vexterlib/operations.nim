@@ -1666,12 +1666,39 @@ proc inspectSourceDepth(filename: string, data: openArray[byte],
       integerMetadata("colour-depth", source.colourDepth),
       integerMetadata("chunks", source.chunkCount),
       integerMetadata("palette-chunks", source.paletteChunkCount),
+      integerMetadata("layers", source.layers.len),
+      integerMetadata("cels", source.cels.len),
+      integerMetadata("unsupported-blend-modes", source.unsupportedBlendModes),
+      integerMetadata("unsupported-group-compositing", source.unsupportedGroupCompositing),
+      integerMetadata("tilemap-layers", source.tilemapLayers),
+      integerMetadata("tilemap-cels", source.tilemapCels),
       integerMetadata("transparent-index", source.transparentIndex),
       integerMetadata("declared-colours", source.declaredColours)]
-    if source.palette.colours.len == 0:
-      result.resources.roots.add VextResourceNode(path: "/sprite",
+    var hasSprite = false
+    for cel in source.cels:
+      if cel.celType in 0 .. 2:
+        hasSprite = true
+        break
+    if hasSprite:
+      if source.unsupportedBlendModes > 0:
+        result.warnings.add VextInspectionWarning(path: AsepriteSpriteResourcePath,
+          format: AsepriteTypeId,
+          message: "non-normal Aseprite blend modes are omitted from the composite")
+      if source.unsupportedGroupCompositing > 0:
+        result.warnings.add VextInspectionWarning(path: AsepriteSpriteResourcePath,
+          format: AsepriteTypeId,
+          message: "Aseprite group blend mode or opacity is not applied")
+      if source.tilemapCels > 0:
+        result.warnings.add VextInspectionWarning(path: AsepriteSpriteResourcePath,
+          format: AsepriteTypeId,
+          message: "Aseprite tilemap cels are omitted from the composite")
+      result.resources.roots.add VextResourceNode(
+        path: AsepriteSpriteResourcePath, typeId: AsepriteTypeId,
+        kind: vrnkRaster, raster: decodeAseprite(source), metadata: metadata)
+    elif source.palette.colours.len == 0:
+      result.resources.roots.add VextResourceNode(path: AsepriteSpriteResourcePath,
         typeId: AsepriteTypeId, kind: vrnkOpaque, metadata: metadata)
-    else:
+    if source.palette.colours.len > 0:
       metadata.add integerMetadata("colours", source.palette.colours.len)
       result.resources.roots.add VextResourceNode(
         path: AsepritePaletteResourcePath, typeId: AsepriteTypeId,

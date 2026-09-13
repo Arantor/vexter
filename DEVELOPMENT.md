@@ -33,7 +33,8 @@ client, and a dependency-free native Windows GUI. It supports:
   PNG, baseline/extended-sequential Huffman JPEG with EXIF orientation,
   OpenRaster layered documents, Windows ICO/CUR collections (including PNG and DIB entries), QOI,
   generic count-prefixed RGBA8 palettes, Paint.NET and GIMP text palettes,
-  Adobe Swatch Exchange palettes, palettes embedded in Aseprite sprites,
+  Adobe Swatch Exchange palettes, layered Aseprite sprites with raw,
+  compressed, and linked image cels using normal compositing,
   15- and 31-instrument ProTracker-compatible MOD tracker modules and AMOS
   Music banks with four independent channel playlists and bounded replay,
   Commodore 1540/1541 D64 disk images, Commodore 64 KoalaPainter images,

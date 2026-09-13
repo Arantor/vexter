@@ -183,10 +183,13 @@ formats are not included. Detailed format behavior and evidence remain in
     begin.
 
 - **Aseprite sprites**
-  - File, frame, and chunk structure plus old and current palette chunks are
-    recognized. Layer/cel compositing, linked and compressed cels, blend modes,
-    tilemaps and tilesets, animation tags, slices, profiles, masks, external
-    files, and structured user data remain to be decoded from the supplied
+  - Raw, zlib-compressed, and linked image cels are decoded at indexed,
+    grayscale, and RGBA depths. Visible normal layers are composited with
+    positions, z-index, parent visibility, layer/cel opacity, per-frame palette
+    state, transparent-index handling, and frame timing.
+  - Non-normal blend modes, isolated group opacity/blending, tilemaps and
+    tilesets, animation tags, slices, profiles, masks, external files, cel
+    extras, and structured user data remain to be decoded from the supplied
     specification.
 
 - **Amiga Hunk executables and LHA self-extractors**

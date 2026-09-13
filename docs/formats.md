@@ -922,15 +922,31 @@ as required by the supplied specification. Otherwise old palette packets are
 applied in order; six-bit `0x0011` components are expanded to eight bits.
 
 The final palette state is exposed as an ordered RGBA palette and naturally
-exports as a PNG swatch. Other valid chunk types are currently skipped within
-their checked boundaries. Layer/cel compositing, animation rendering, tags,
-slices, tilesets, profiles, masks, and user properties are not yet decoded.
-An Aseprite file without a palette is identified structurally but has no
-exportable decoded media yet.
+exports as a PNG swatch. Palette state is also retained per frame for indexed
+cel rendering.
+
+Normal image layers and their raw, zlib-compressed, or linked cels decode at
+all three documented depths: indexed, grayscale with alpha, and RGBA. Visible
+layers are clipped to the canvas and composited back-to-front using documented
+cel positions and z-index ordering, normal source-over alpha, and valid layer
+and cel opacity. Hidden parent groups hide their descendants. Indexed
+non-background layers honor the header's transparent palette index, while
+background layers treat that index as an ordinary colour. Frame-header
+durations override the legacy file speed; a zero duration falls back to that
+speed. One frame produces a true-colour still at `/sprite`, while multiple
+frames produce a true-colour animation available for GIF and APNG export.
+
+Non-normal blend layers and tilemap cels are omitted from the composite with
+inspection warnings. Group-isolated blend and opacity are not yet applied and
+also produce a warning when their values would affect the result. Tags,
+slices, tilesets, profiles, masks, external files, cel extras, and user
+properties remain uninterpreted within their checked chunk envelopes.
 
 Type identifier: `aseprite.sprite`
 
 Palette resource path: `/palette`
+
+Sprite resource path: `/sprite`
 
 ## Adobe Swatch Exchange palette files
 
