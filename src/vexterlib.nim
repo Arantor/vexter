@@ -2,6 +2,7 @@
 
 import vexterlib/archetypes/raster
 import vexterlib/archetypes/audio
+import vexterlib/archetypes/document
 import vexterlib/archetypes/font
 import vexterlib/archetypes/palette
 import vexterlib/archetypes/tracker
@@ -71,6 +72,7 @@ import vexterlib/containers/rgba8_palette
 import vexterlib/containers/ansi_art
 import vexterlib/containers/doom_wad
 import vexterlib/containers/inno_setup
+import vexterlib/containers/wordstar
 import vexterlib/containers/sierra_agi_game
 import vexterlib/resources/amos_planar_image
 import vexterlib/resources/amos_packed_picture_image
@@ -109,13 +111,15 @@ import vexterlib/operations
 import vexterlib/resource_tree
 import vexterlib/byte_sources
 import vexterlib/inspection_sessions
-import vexterlib/exporters/[gif, html_report, metadata_json, png, raw, wav]
+import vexterlib/exporters/[gif, html_report, markdown, metadata_json, png, raw,
+  wav]
 import vexterlib/exporters/gpl
 import vexterlib/exporters/tracker_json
 import vexterlib/exporters/bmfont
 
 export raster
 export audio
+export document
 export font
 export palette
 export tracker
@@ -132,6 +136,7 @@ export jpeg_image
 export ansi_art
 export doom_wad
 export inno_setup
+export wordstar
 export sierra_agi_game
 export sierra_agi_view
 export sierra_agi_picture
@@ -232,3 +237,4 @@ export metadata_json
 export html_report
 export gpl
 export tracker_json
+export markdown

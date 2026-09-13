@@ -2,6 +2,7 @@
 
 import ./archetypes/raster
 import ./archetypes/audio
+import ./archetypes/document
 import ./archetypes/font
 import ./archetypes/palette
 import ./archetypes/tracker
@@ -29,6 +30,7 @@ type
     vrnkGroup
     vrnkRaster
     vrnkText
+    vrnkDocument
     vrnkAudio
     vrnkFont
     vrnkPalette
@@ -47,6 +49,7 @@ type
     ## Optional expensive derived animation used only when GIF is requested.
     gifRasterMaterializer*: VextRasterMaterializer
     text*: string
+    document*: VextFlowDocument
     audioKind*: VextAudioResourceKind
     sound*: VextSound
     soundMaterializer*: VextSoundMaterializer

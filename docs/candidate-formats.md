@@ -55,7 +55,7 @@ representation but should not replace recoverable musical structure.
 
 ### Documents, outlines, and publishing
 
-- WordStar and other control-code-oriented word-processing formats.
+- further control-code-oriented word-processing formats.
 - GrandView, PC-OUTLINE, MORE!, and related outline and dot-command formats.
 - Early WordPerfect and Microsoft Word generations.
 - AmigaWriter, ProWrite, Final Writer, Excellence!, PageStream, Professional

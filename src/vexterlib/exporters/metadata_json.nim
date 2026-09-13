@@ -1,7 +1,7 @@
 ## Machine-readable metadata export for any resource node.
 
 import std/json
-import ../archetypes/[audio, font, palette, raster, tracker]
+import ../archetypes/[audio, document, font, palette, raster, tracker]
 import ../[artifacts, metadata, resource_tree]
 
 proc textBytes(value: string): seq[byte] =
@@ -162,6 +162,41 @@ proc trackerNode(module: VextTrackerModule): JsonNode =
       "rows": pattern.rows.len}
   result["patternSummaries"] = patterns
 
+proc documentNode(document: VextFlowDocument): JsonNode =
+  var paragraphs, pageBreaks, retainedControls, textRuns: int
+  var controls = newJArray()
+  for documentBlock in document.blocks:
+    case documentBlock.kind
+    of vdbkParagraph:
+      inc paragraphs
+      for item in documentBlock.content:
+        case item.kind
+        of vdikText: inc textRuns
+        of vdikRetainedControl:
+          inc retainedControls
+          controls.add %*{"name": item.control.name,
+            "description": item.control.description,
+            "argument": item.control.argument,
+            "interpreted": item.control.interpreted,
+            "sourceOffset": (if item.source.present: item.source.offset else: -1),
+            "sourceLength": (if item.source.present: item.source.length else: 0)}
+        else: discard
+    of vdbkPageBreak: inc pageBreaks
+    of vdbkRetainedControl:
+      inc retainedControls
+      controls.add %*{"name": documentBlock.blockControl.name,
+        "description": documentBlock.blockControl.description,
+        "argument": documentBlock.blockControl.argument,
+        "interpreted": documentBlock.blockControl.interpreted,
+        "sourceOffset": (if documentBlock.source.present:
+          documentBlock.source.offset else: -1),
+        "sourceLength": (if documentBlock.source.present:
+          documentBlock.source.length else: 0)}
+  result = %*{"archetype": "VextFlowDocument", "blocks": document.blocks.len,
+    "paragraphs": paragraphs, "textRuns": textRuns,
+    "pageBreaks": pageBreaks, "retainedControls": retainedControls}
+  result["controlSummaries"] = controls
+
 proc exportMetadataJson*(resource: VextResourceNode,
     suggestedFilename = "metadata.json"): VextArtifactSet =
   if resource.isNil:
@@ -170,6 +205,7 @@ proc exportMetadataJson*(resource: VextResourceNode,
     of vrnkGroup: "group"
     of vrnkRaster: "raster"
     of vrnkText: "text"
+    of vrnkDocument: "document"
     of vrnkAudio: "audio"
     of vrnkFont: "font"
     of vrnkPalette: "palette"
@@ -194,6 +230,7 @@ proc exportMetadataJson*(resource: VextResourceNode,
     of vrnkTracker: trackerNode(resource.tracker)
     of vrnkAudio: audioNode(resource)
     of vrnkText: %*{"archetype": "text", "utf8Bytes": resource.text.len}
+    of vrnkDocument: documentNode(resource.document)
     of vrnkOpaque: %*{"archetype": "opaque",
       "rawDataAvailable": resource.rawDataAvailable,
       "bytes": (if resource.rawDataAvailable: resource.data.len else: 0)}

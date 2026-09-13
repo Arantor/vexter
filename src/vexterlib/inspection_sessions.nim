@@ -282,6 +282,8 @@ proc addLegacyNode(session: VextInspectionSession, node: VextResourceNode,
   of vrnkTracker:
     described.archetype = "VextTrackerModule"
     described.channels = node.tracker.channels.len
+  of vrnkDocument:
+    described.archetype = "VextFlowDocument"
   else: discard
   described.failureFormat = node.failureFormat
   described.failureMessage = node.failureMessage

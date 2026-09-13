@@ -13,7 +13,7 @@ The currently implemented formats use this subset of the intended CLI:
 vexter inspect [--json] [--all-candidates] [--ignore-warnings]
                [--input-format FORMAT] [--pcx-channel-order rgb|bgr] INPUT
 
-vexter export [--format png|gif|apng|gif-cycled|apng-cycled|palette-swatch|gpl|bmfont|tracker-json|html-report|metadata-json|txt|wav|bin]
+vexter export [--format png|gif|apng|gif-cycled|apng-cycled|palette-swatch|gpl|bmfont|tracker-json|html-report|metadata-json|md|txt|wav|bin]
               [--resource PATH] [--allow-large-animation]
               [--input-format FORMAT] [-o OUTPUT] [--force]
               [--ignore-warnings] [--pcx-channel-order rgb|bgr] INPUT
@@ -34,6 +34,69 @@ Tracker resources retain module timing, order lists, channel layout,
 instrument and pattern summaries, and bounded loop-analysis status. Dedicated
 `tracker-json` export preserves complete pattern cells and effects rather than
 overloading resource metadata JSON.
+
+## Flow documents and Markdown export
+
+`VextFlowDocument` is the logical document archetype for future word-processor
+and other flowing-text importers. It retains paragraphs, effective character
+formatting on text runs, tabs, forced line and page breaks, optional paragraph
+layout, source byte ranges, and named uninterpreted controls with their raw
+bytes. It deliberately does not model a source format's state-changing control
+stream or use an export format as its internal shape.
+
+Document resources use the `document` resource kind and default to `--format
+md`. Markdown preserves text, paragraph separation, forced line breaks, and
+basic bold, italic, and strikeout styling. It emits comments for page breaks
+and retained controls and reports warnings for layout, typography, tabs, and
+other properties that Markdown cannot reliably reproduce.
+
+## WordStar documents
+
+Container type identifier: `wordstar.document`
+
+The importer recognizes the documented version-5-or-later 128-byte header
+symmetrical sequence with certain confidence. Its BCD version byte, printer
+driver, and bounded sector-aligned style-library pointer are exposed as
+metadata. Headerless documents require a WordStar-associated extension for
+probable confidence; matching content without one is only possible. Recognized
+extensions are `.ws`, `.ws2` through `.ws9`, and `.wsd`.
+
+The initial content decoder strips the pre-5 high-bit microjustification marker
+while retaining its count, including high-bit forms of formatting and line-feed
+controls observed in the supplied WordStar 4/CP/M samples. It distinguishes
+hard paragraph returns, soft wrapping returns, soft layout spaces, hard tabs,
+binding spaces, forced line and page breaks, and active or inactive
+discretionary hyphens. Bold, underline, superscript, subscript, strikeout, and
+italic toggles become effective styles on text runs. Repeated `1A` EOF padding
+is excluded from document content and reported as metadata.
+
+`.PA` dot commands and form feeds become page-break blocks. Other documented
+dot-command lines, extended characters whose character mapping is not yet
+known, unmodeled low controls, and structurally bounded version-5-or-later
+symmetrical sequences remain named controls with their exact source bytes and
+source ranges. Dot controls also retain a separated argument and whether the
+initial importer interpreted it. `.LM` and `.RM` establish margins for following
+paragraphs: bare values remain character columns, while explicit inch or point
+values become millipoints. `.OJ` establishes left, right, centred, or justified
+alignment, and `.UJ` records word-space, microspacing, or device-selected
+justification. Symmetrical records embedded in a dot-command line are skipped
+as framed binary data while locating that line's terminator. Arguments may
+immediately follow command names, as in `.LM10`, `.PSON`, and ruler payloads.
+
+The Markdown projection escapes inline Markdown delimiters but leaves ordinary
+punctuation readable. Consecutive WordStar soft layout spaces collapse to one
+space (and leading soft spaces disappear); their original distinctions and
+source ranges remain available in the flow document. Ordinary source spaces
+are retained because WordStar documents can use them intentionally for tabular
+or preformatted text. Normal Markdown omits all WordStar dot-command controls
+after applying supported effects and reports one projection warning; metadata
+JSON includes summaries of retained controls and their parsed arguments.
+
+This is recovery-oriented support rather than complete WordStar 7 rendering.
+The embedded paragraph-style library is bounded but not decoded; notes, font
+and colour sequences, fields, graphics references, headers and footers remain
+retained controls; and extended-character bytes await supplied mapping tables.
+The Markdown exporter reports the corresponding projection losses.
 
 ## ProTracker-compatible MOD import
 

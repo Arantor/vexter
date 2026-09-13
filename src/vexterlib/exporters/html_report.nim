@@ -1,7 +1,7 @@
 ## Self-contained, dependency-free HTML report for one resource.
 
 import std/base64
-import ../archetypes/[font, raster]
+import ../archetypes/[document, font, raster]
 import ../artifacts
 import ../resource_tree
 import ../resources/font_preview
@@ -81,6 +81,9 @@ proc exportHtmlReport*(resource: VextResourceNode,
   of vrnkText:
     body.add "<section><h2>Text</h2><pre>" & resource.text.escaped &
       "</pre></section>"
+  of vrnkDocument:
+    body.add "<section><h2>Document text</h2><pre>" &
+      resource.document.plainText.escaped & "</pre></section>"
   of vrnkGroup:
     body.add "<section><h2>Children</h2><ul>"
     for child in resource.children:

@@ -20,6 +20,8 @@ task test, "Run the test suite":
   exec "nim c --path:src -o:build/linux/vexter src/vexter.nim"
   exec "nim c -r --path:src tests/test_sierra_agi_game.nim"
   exec "nim c -r --path:src tests/test_tracker_archetype.nim"
+  exec "nim c -r --path:src tests/test_document_archetype.nim"
+  exec "nim c -r --path:src tests/test_wordstar.nim"
   exec "nim c -r --path:src tests/test_protracker_mod.nim"
   exec "nim c -r --path:src tests/test_amiga_iff_ilbm.nim"
   exec "nim c -r --path:src tests/test_amiga_8svx.nim"

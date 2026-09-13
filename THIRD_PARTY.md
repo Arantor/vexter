@@ -1,5 +1,42 @@
 # Third-party material
 
+## WordStar documentation and compatibility corpus
+
+On 13 September 2026 the developer supplied three locally saved documents
+under `wordstar/`. The Library of Congress format-family record was obtained
+from `https://www.loc.gov/preservation/digital/formats/fdd/fdd000552.shtml`.
+The hosted `wsformat.txt`, obtained from `https://www.sfwriter.com/wsformat.txt`,
+contains a modern preface followed by WordStar International Incorporated's
+*File Format for WordStar Release 7.0*, dated 17 March 1992. That specification
+is the primary authority for Vexter's initial structural decoder. Jim Hall's
+secondary article, *Exploring the WordStar file format*, was obtained from
+`https://technicallywewrite.com/2024/06/26/wordstarfiles` and supplies observed
+WordStar 4 behavior, including high-bit closing controls and 128-byte EOF
+padding. No linked material was fetched by Vexter development.
+
+```text
+e88bfc9aa16cd5bb05a797f66d68f578eecd872dbef8b95d2e09a739e5f7813e  WordStar File Format Family.html
+16d9b7ddfc6519a8e6c0a2659792c5f4410b3ba976373b929aabc667ade6b8f4  wsformat.txt
+d070a51e9d3dbbd315659d63804560da2370e5d9d1d3f01dbd4c2b903ad8bf26  Technically We Write.html
+```
+
+The developer also supplied `wordstar-samples/`. `WS4/ARRAVALE.WS4` and
+`WS4/DEITHA.WS4` were explicitly created with WordStar 4 for CP/M-80 and, to
+the developer's knowledge, never opened with a newer version. They establish
+headerless high-bit text, soft and hard returns, soft spaces, high-bit control
+forms, formatting toggles, and CP/M record padding. The `WS7/` and `ARTICLES/`
+files came from Robert J. Sawyer's WordStar 7 bundle at `sfwriter.com`; their
+ordinary documents have version-7 headers. `WS7/BOX.WS` is a small headerless
+extended-character document fragment. Routine tests use synthetic byte streams;
+`WS4-PROGRAM/` contains the PROGRAM disk from WordStar 4 for DOS, whose `.DOC`
+files provide additional contemporary WordStar 4 compatibility samples. The
+supplied corpus remains uncommitted compatibility material.
+
+```text
+12007f3fa09d4aa67fe376f5bd3018b41df48a42c20aa3b48f88be633e3410cc  WS4/ARRAVALE.WS4
+4d8623ce22457580f0a80d014b533ac5e7b35ca2a17d67c12bda678fd8fc1954  WS4/DEITHA.WS4
+```
+
 ## zx_giga_view Gigascreen samples
 
 The developer supplied a checkout of mistificator's `zx_giga_view` repository

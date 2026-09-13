@@ -50,9 +50,13 @@ client, and a dependency-free native Windows GUI. It supports:
   ZX Spectrum raw screen dumps, ZX Gigascreen images, SNA snapshots,
   TAP and first-pass TZX containers, tokenised BASIC resources, BMFont text descriptors, FZX and Amiga bitmap diskfonts
   (including ColorFonts), standalone AMOS banks, AMOS bank
-  sets, and AMOS programs;
+  sets, AMOS programs, and headerless WordStar documents plus the version
+  5-or-later headered family;
 - a resource tree containing decoded raster, palette, bitmap-font, audio, and text resources,
   identified opaque resources, and metadata;
+- a flow-document archetype with paragraphs, styled text runs, tabs, forced
+  line and page breaks, source byte ranges, source-column or physical margins,
+  justification policy, and retained controls with structured arguments;
 - indexed still-image, indexed-animation, and true-colour image raster
   archetypes;
 - an ordered palette archetype whose entries are complete RGBA colours and
@@ -72,6 +76,7 @@ client, and a dependency-free native Windows GUI. It supports:
 - metadata JSON export for every resource kind, including groups;
 - complete tracker JSON export for tracker modules and WAV extraction of their
   sampled instruments;
+- Markdown projection of flow documents with explicit loss warnings;
 - self-contained HTML reports with embedded normalized media and metadata;
 - optional CRNG/CCRT colour-cycle expansion with a 1,000-frame safety limit;
 - byte-identical BIN export for opaque resources that retain raw data; and
@@ -89,14 +94,14 @@ vexter inspect [--json] [--all-candidates] [--ignore-warnings]
                [--ansi-letter-spacing auto|8|9]
                [--ansi-aspect auto|legacy|square] INPUT
 
-vexter export [--format png|gif|apng|gif-cycled|apng-cycled|palette-swatch|gpl|bmfont|tracker-json|html-report|metadata-json|txt|wav|bin]
+vexter export [--format png|gif|apng|gif-cycled|apng-cycled|palette-swatch|gpl|bmfont|tracker-json|html-report|metadata-json|md|txt|wav|bin]
               [--resource PATH] [--allow-large-animation]
               [--input-format FORMAT] [-o OUTPUT] [--force]
               [--ignore-warnings] [--pcx-channel-order rgb|bgr]
               [--ansi-letter-spacing auto|8|9]
               [--ansi-aspect auto|legacy|square] INPUT
 
-vexter export-all [--format png|gif|apng|gif-cycled|apng-cycled|palette-swatch|gpl|bmfont|txt|wav|bin]
+vexter export-all [--format png|gif|apng|gif-cycled|apng-cycled|palette-swatch|gpl|bmfont|md|txt|wav|bin]
                   [--resource PATH-PATTERN]... [--input-format FORMAT]
                   -o DIRECTORY [--force] [--ignore-warnings]
                   [--pcx-channel-order rgb|bgr] [--allow-large-animation]

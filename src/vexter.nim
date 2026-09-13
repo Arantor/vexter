@@ -27,13 +27,13 @@ proc usage(): string =
                  [--input-format FORMAT] [--pcx-channel-order rgb|bgr]
                  [--ansi-letter-spacing auto|8|9]
                  [--ansi-aspect auto|legacy|square] INPUT
-  vexter export [--format png|gif|apng|gif-cycled|apng-cycled|palette-swatch|gpl|bmfont|tracker-json|html-report|metadata-json|txt|wav|bin]
+  vexter export [--format png|gif|apng|gif-cycled|apng-cycled|palette-swatch|gpl|bmfont|tracker-json|html-report|metadata-json|md|txt|wav|bin]
                 [--resource PATH] [--allow-large-animation]
                 [--input-format FORMAT] [-o OUTPUT] [--force]
                 [--ignore-warnings] [--pcx-channel-order rgb|bgr]
                 [--ansi-letter-spacing auto|8|9]
                 [--ansi-aspect auto|legacy|square] INPUT
-  vexter export-all [--format png|gif|apng|gif-cycled|apng-cycled|palette-swatch|gpl|bmfont|tracker-json|html-report|metadata-json|txt|wav|bin]
+  vexter export-all [--format png|gif|apng|gif-cycled|apng-cycled|palette-swatch|gpl|bmfont|tracker-json|html-report|metadata-json|md|txt|wav|bin]
                     [--resource PATH-PATTERN]... [--input-format FORMAT]
                     -o DIRECTORY [--force] [--ignore-warnings]
                     [--allow-large-animation]
@@ -192,6 +192,7 @@ proc descriptorKind(item: VextResourceDescriptor): string =
   of vrnkGroup: "group"
   of vrnkRaster: "raster"
   of vrnkText: "text"
+  of vrnkDocument: "document"
   of vrnkAudio: "audio"
   of vrnkFont: "font"
   of vrnkPalette: "palette"
@@ -314,6 +315,8 @@ proc inspect(options: CliOptions) =
         if item.frames > 0: description.add &", {item.frames} frame(s)"
       elif item.kind == vrnkText:
         description.add " (text)"
+      elif item.kind == vrnkDocument:
+        description.add " -> VextFlowDocument"
       elif item.kind == vrnkAudio:
         description.add &" -> {item.archetype} {item.channels} channel(s), " &
           &"{item.bitsPerSample}-bit, {item.sampleRate} Hz"

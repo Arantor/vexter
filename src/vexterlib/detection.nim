@@ -14,7 +14,7 @@ import ./containers/[amiga_8svx, amiga_16sv, amiga_acbm, amiga_adf, amiga_anim,
   paint_net_palette, pcx, png_container, protracker_mod, qoi, rgba8_palette, tga,
   wav, windows_icon, zip_archive, lha_archive, zx_spectrum_gigascreen_dump,
   zx_spectrum_screen_dump,
-  zx_spectrum_snapshot, zx_spectrum_tap, zx_spectrum_tzx]
+  wordstar, zx_spectrum_snapshot, zx_spectrum_tap, zx_spectrum_tzx]
 import ./containers/xpk_shri
 import ./containers/powerpacker
 import ./resources/zx_spectrum_screen
@@ -692,6 +692,32 @@ proc detectBaseFormats(filename: string, data: openArray[byte]):
     result.add VextDetectionCandidate(
       typeId: ZxSpectrumTzxTypeId,
       confidence: vdcCertain,
+      evidence: evidence)
+
+  # Headerless WordStar is necessarily heuristic and remains behind stronger
+  # fixed-layout formats. A valid version-5-or-later header is independently
+  # strong even though this probe shares the same late position.
+  if isWordStar(data):
+    let source = parseWordStar(data)
+    var evidence: seq[VextDetectionEvidence]
+    if source.hasHeader:
+      evidence.add VextDetectionEvidence(description:
+        "valid WordStar " & source.versionName &
+        " symmetrical header and bounded document stream")
+    else:
+      evidence.add VextDetectionEvidence(description:
+        "headerless stream has WordStar returns and format-specific " &
+        "high-bit or control semantics")
+    if source.eofPaddingBytes > 0:
+      evidence.add VextDetectionEvidence(description:
+        "document ends with " & $source.eofPaddingBytes &
+        " WordStar/CP/M EOF padding byte(s)")
+    if filename.hasWordStarExtension:
+      evidence.add VextDetectionEvidence(description:
+        "filename uses a WordStar-associated extension")
+    result.add VextDetectionCandidate(typeId: WordStarTypeId,
+      confidence: if source.hasHeader: vdcCertain
+        elif filename.hasWordStarExtension: vdcProbable else: vdcPossible,
       evidence: evidence)
 
   # This deliberately weak, extension-dependent detector stays last so a

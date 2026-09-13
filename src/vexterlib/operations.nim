@@ -11,8 +11,8 @@ import ./transformations/colour_cycle
 import ./transformations/palette_swatch
 import ./detection
 import ./handler_registry
-import ./exporters/[bmfont, gif, gpl, html_report, metadata_json, png, raw,
-    tracker_json, wav]
+import ./exporters/[bmfont, gif, gpl, html_report, markdown, metadata_json, png,
+    raw, tracker_json, wav]
 import ./resource_tree
 import ./containers/[amiga_8svx, amiga_16sv, amiga_acbm, amiga_adf, amiga_anim,
   amiga_diskfont, amiga_dms, amiga_hunk_executable, amiga_iff, amiga_ilbm,
@@ -24,7 +24,8 @@ import ./containers/[amiga_8svx, amiga_16sv, amiga_acbm, amiga_adf, amiga_anim,
   netpbm, openraster, pcx, png_container,
   adobe_swatch_exchange, aseprite, gimp_palette, koala_painter,
   paint_net_palette, protracker_mod, qoi, rgba8_palette, tga, wav, windows_icon,
-  zip_archive, lha_archive, zx_spectrum_gigascreen_dump, zx_spectrum_snapshot,
+  wordstar, zip_archive, lha_archive, zx_spectrum_gigascreen_dump,
+  zx_spectrum_snapshot,
   zx_spectrum_tap]
 import ./containers/xpk_shri
 import ./containers/powerpacker
@@ -191,6 +192,9 @@ proc exportFormatsFor*(resource: VextResourceNode): seq[VextExportFormat] =
   of vrnkText:
     result = @[VextExportFormat(id: "txt", displayName: "Plain text",
       extensions: @["txt"], mediaTypes: @["text/plain"], isDefault: true)]
+  of vrnkDocument:
+    result = @[VextExportFormat(id: "md", displayName: "Markdown document",
+      extensions: @["md"], mediaTypes: @["text/markdown"], isDefault: true)]
   of vrnkOpaque:
     if resource.rawDataAvailable:
       result = @[VextExportFormat(id: "bin", displayName: "Raw binary",
@@ -1131,6 +1135,31 @@ proc inspectSourceDepth(filename: string, data: openArray[byte],
       raster: VextRaster(kind: vrkIndexedImage,
         image: renderAnsiArt(source, ansiLetterSpacing, ansiAspect)),
       metadata: metadata)
+  of vhkWordStar:
+    let source = parsedValue[WordStarSource](selectedParsed, vhkWordStar)
+    var metadata = @[
+      stringMetadata("wordstar.version", source.versionName),
+      integerMetadata("wordstar.header.present", int(source.hasHeader)),
+      integerMetadata("wordstar.content.offset", source.contentOffset),
+      integerMetadata("wordstar.content.length",
+        source.contentEnd - source.contentOffset),
+      integerMetadata("wordstar.hard-returns", source.hardReturns),
+      integerMetadata("wordstar.soft-returns", source.softReturns),
+      integerMetadata("wordstar.soft-spaces", source.softSpaces),
+      integerMetadata("wordstar.high-bit-bytes", source.highBitBytes),
+      integerMetadata("wordstar.formatting-controls",
+        source.formattingControls),
+      integerMetadata("wordstar.dot-commands", source.dotCommands),
+      integerMetadata("wordstar.retained-controls", source.retainedControls),
+      integerMetadata("wordstar.eof-padding", source.eofPaddingBytes)]
+    if source.hasHeader:
+      metadata.add stringMetadata("wordstar.printer-driver", source.driverName)
+      metadata.add integerMetadata("wordstar.style-library.offset",
+        source.styleLibraryOffset)
+    result.resources.roots.add VextResourceNode(
+      path: WordStarResourcePath, typeId: WordStarTypeId,
+      kind: vrnkDocument, document: source.document, metadata: metadata,
+      defaultExportPriority: 10)
   of vhkAmigaDiskfontIndex:
     let index = parsedValue[AmigaDiskfontIndex](selectedParsed,
       vhkAmigaDiskfontIndex)
@@ -2834,8 +2863,8 @@ proc exportResource*(tree: VextResourceTree,
     available = tree.allResources
   else:
     for item in tree.leafResources:
-      if item.kind in {vrnkRaster, vrnkText, vrnkAudio, vrnkFont, vrnkPalette,
-          vrnkTracker} or
+      if item.kind in {vrnkRaster, vrnkText, vrnkDocument, vrnkAudio, vrnkFont,
+          vrnkPalette, vrnkTracker} or
           (item.kind == vrnkOpaque and item.rawDataAvailable):
         available.add item
   var resource: VextResourceNode
@@ -2931,6 +2960,14 @@ proc exportResource*(tree: VextResourceTree,
       suggestedFilename: request.suggestedName & ".txt",
       mediaType: "text/plain; charset=utf-8",
       data: bytes)
+  of vrnkDocument:
+    if result.outputFormat != "md":
+      raise newException(ValueError,
+        "unsupported output format: " & result.outputFormat)
+    let exported = exportMarkdown(resource.document,
+      request.suggestedName & ".md")
+    result.artifacts = exported.artifacts
+    result.warnings = exported.warnings
   of vrnkRaster:
     let frameLimit = if request.colourCycleFrameLimit > 0:
         request.colourCycleFrameLimit
@@ -3013,8 +3050,8 @@ proc exportAllResources*(tree: VextResourceTree,
       tree.allResources else: tree.leafResources
   for resource in candidates:
     if request.outputFormat notin ["metadata-json", "html-report"] and
-        not (resource.kind in {vrnkRaster, vrnkText, vrnkAudio, vrnkFont,
-          vrnkPalette, vrnkTracker} or
+        not (resource.kind in {vrnkRaster, vrnkText, vrnkDocument, vrnkAudio,
+          vrnkFont, vrnkPalette, vrnkTracker} or
         (resource.kind == vrnkOpaque and resource.rawDataAvailable)):
       continue
     if patterns.len == 0:

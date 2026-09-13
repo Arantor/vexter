@@ -401,6 +401,16 @@ proc lowWord(value: WPARAM): int = int(value and 0xffff)
 proc highWord(value: WPARAM): int = int((value shr 16) and 0xffff)
 proc w(value: string): WideCStringObj = newWideCString(value)
 
+proc artifactText(artifact: VextArtifact): string =
+  result = newString(artifact.data.len)
+  for index, value in artifact.data:
+    result[index] = char(value)
+
+proc markdownPreview(document: VextFlowDocument): string =
+  let exported = exportMarkdown(document)
+  if exported.artifacts.artifacts.len > 0:
+    result = exported.artifacts.artifacts[0].artifactText
+
 proc setControlFont(control: HWND, font: HFONT) =
   if control != nil and font != nil:
     discard SendMessageW(control, WM_SETFONT, cast[WPARAM](font), 1)
@@ -1015,6 +1025,10 @@ proc selectBinding(binding: TreeBinding) =
   elif binding.node.kind == vrnkText:
     currentView = vkText
     discard SetWindowTextW(textView, w(binding.node.text))
+  elif binding.node.kind == vrnkDocument:
+    currentView = vkText
+    discard SetWindowTextW(textView,
+      w(binding.node.document.markdownPreview))
   elif binding.node.kind == vrnkTracker:
     currentView = vkText
     discard SetWindowTextW(textView, w(trackerDetails(binding.node.tracker)))
@@ -1603,9 +1617,7 @@ proc doExport() =
     for artifactIndex, artifact in exported.artifacts.artifacts:
       let artifactDestination = if artifactIndex == 0: destination
         else: destination.parentDir / artifact.suggestedFilename
-      var contents = newString(artifact.data.len)
-      for i, value in artifact.data: contents[i] = char(value)
-      writeFile(artifactDestination, contents)
+      writeFile(artifactDestination, artifact.artifactText)
   except CatchableError as error:
     showError(error.msg)
 

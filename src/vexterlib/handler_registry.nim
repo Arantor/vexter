@@ -17,7 +17,7 @@ import ./containers/[adobe_swatch_exchange, amiga_8svx, amiga_16sv, amiga_acbm,
   rgba8_palette, tga, wav, windows_icon, zip_archive,
   zx_spectrum_gigascreen_dump, zx_spectrum_screen_dump, zx_spectrum_snapshot,
   zx_spectrum_tap,
-  zx_spectrum_tzx, xpk_shri]
+  wordstar, zx_spectrum_tzx, xpk_shri]
 import ./containers/amiga_pbm
 import ./format_detection_types
 type
@@ -81,6 +81,7 @@ type
     vhkZxSpectrumTap
     vhkZxSpectrumTzx
     vhkAnsiArt
+    vhkWordStar
 
   VextFormatHandler* = object
     typeId*: string
@@ -184,7 +185,8 @@ const FormatHandlers* = [
     kind: vhkZxSpectrumSnapshot),
   VextFormatHandler(typeId: ZxSpectrumTapTypeId, kind: vhkZxSpectrumTap),
   VextFormatHandler(typeId: ZxSpectrumTzxTypeId, kind: vhkZxSpectrumTzx),
-  VextFormatHandler(typeId: AnsiArtTypeId, kind: vhkAnsiArt)
+  VextFormatHandler(typeId: AnsiArtTypeId, kind: vhkAnsiArt),
+  VextFormatHandler(typeId: WordStarTypeId, kind: vhkWordStar)
 ]
 
 proc formatHandler*(typeId: string): ptr VextFormatHandler =
@@ -324,6 +326,7 @@ proc parse*(handler: VextFormatHandler,
   of vhkZxSpectrumTzx:
     result = parsed(VextParsedZxTap(records: parseZxSpectrumTzx(data).records))
   of vhkAnsiArt: result = parsed(parseAnsiArt(data))
+  of vhkWordStar: result = parsed(parseWordStar(data))
 
 proc tryParse*(handler: VextFormatHandler,
     data: openArray[byte]): VextParsedContainer =
