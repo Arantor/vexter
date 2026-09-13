@@ -498,16 +498,8 @@ Neufeld and contributions by Wolfgang Moser. No internet research or
 third-party implementation source was used. The supplied document was obtained
 from [unusedino.de's EC64 D64 format page](http://unusedino.de/ec64/technical/formats/d64.html).
 
-`KoalaDemo-Romp.d64` is the D64 image distributed through
-[CSDb release 256762](https://csdb.dk/release/?id=256762), also used as the
-source of the committed KoalaPainter controls. `TALESOAN.D64` is a separately
-supplied authentic game disk used as a second compatibility control. No source
-URL or separate licence terms were supplied for `TALESOAN.D64`.
-
 ```text
 07633faeae9e23843cf63cc8807b1dacee13bd2cf35bab1e464140648d32e5d1  D64 (Electronic form of a physical 1541 disk).html
-7c3cdb291e3622ac26729b4a19e31b13be4d4e1c5e45cc52e9362db45b0903fd  KoalaDemo-Romp.d64
-db57cec2f9745bb67725c87ef216e4b795b1106292909ba83ec9343f88e050d1  TALESOAN.D64
 ```
 
 ## ISO 9660 reference

@@ -2160,15 +2160,14 @@ starting track/sector, declared and observed sector counts, and REL side-sector
 fields. PETSCII bytes without a safe direct path representation use `_XX`
 escapes. Ordinary file data follows its track/sector chain, uses the terminal
 sector byte count, and is available for raw export and recursive inspection.
-This lets the authentic Koala demo disk expose fifteen embedded KoalaPainter
-images directly.
+Recognized embedded files can consequently proceed through ordinary recursive
+inspection.
 
 REL side-sector and record semantics, GEOS structures, BAM variants for speeder
 DOS extensions, and interpretation of appended sector error codes are not yet
 implemented. Error bytes and REL metadata are retained structurally; primary
-file chains remain recoverable. The supplied document and the authentic
-`KoalaDemo-Romp.d64` and `TALESOAN.D64` controls are recorded with hashes in
-[`THIRD_PARTY.md`](../THIRD_PARTY.md).
+file chains remain recoverable. The supplied format document is recorded with
+its hash in [`THIRD_PARTY.md`](../THIRD_PARTY.md).
 
 ## Commodore 64 KoalaPainter images
 

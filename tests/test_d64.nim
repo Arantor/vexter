@@ -1,13 +1,6 @@
 import std/unittest
 import vexterlib
 
-const FixtureDirectory = "d64/"
-
-proc readBytes(path: string): seq[byte] =
-  let contents = readFile(path)
-  result = newSeq[byte](contents.len)
-  for index, value in contents: result[index] = byte(value)
-
 proc d64Fixture(): seq[byte] =
   result = newSeq[byte](D64StandardSize)
   const bam = 0x16500
@@ -53,28 +46,3 @@ suite "Commodore 1541 D64 disk images":
     var cyclic = d64Fixture()
     cyclic[0] = 1; cyclic[1] = 0
     expect ValueError: discard parseD64(cyclic)
-
-  test "authentic demo disk exposes and recursively decodes Koala images":
-    let path = FixtureDirectory & "KoalaDemo-Romp.d64"
-    let data = readBytes(path)
-    let disk = parseD64(data)
-    check disk.name == "KOALA DEMO"
-    check disk.entries.len == 16
-    check disk.entries[0].name == "KOALA DEMO"
-    let inspection = inspectSource(path, data)
-    check inspection.selectedFormat.typeId == D64TypeId
-    check inspection.resources.rasterResources.len == 15
-    for resource in inspection.resources.rasterResources:
-      check resource.typeId == KoalaPainterImageTypeId
-      check resource.raster.width == 320
-      check resource.raster.height == 200
-
-  test "authentic game disk exposes its two program files":
-    let path = FixtureDirectory & "TALESOAN.D64"
-    let disk = parseD64(readBytes(path))
-    check disk.name == "ASS PRESENTS:"
-    check disk.entries.len == 2
-    check disk.entries[0].name == "ARABIAN NIGHTS+"
-    check disk.entries[0].kind == dfkProgram
-    check disk.entries[1].name == "ARABIAN HIGH_2FREM"
-    check disk.entries[1].kind == dfkProgram
