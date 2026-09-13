@@ -460,9 +460,11 @@ framing, but leave these format-evidence gaps:
   operations 2 through 8 (monochrome, direct colour, embedded cels, and priority
   bands), and for SCI1 and later picture/palette resources.
 - Chapter 4 expressly covers SCI0 IBM sound only. SCI1, hybrid-interpreter,
-  non-DOS, digital-audio, sync, and speech formats need documentation. SCI0's
-  multi-device MIDI-like stream also needs the planned sequenced-music
-  archetype rather than premature sampled-audio flattening.
+  non-DOS, standalone digital-audio, sync, and speech formats need
+  documentation. Its documented SCI0 appended unsigned-PCM effects are now
+  playable and WAV-exportable. SCI0's multi-device MIDI-like stream still needs
+  the planned sequenced-music archetype rather than premature sampled-audio
+  flattening.
 
 Implementation improvements which do not require more format evidence:
 

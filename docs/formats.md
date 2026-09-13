@@ -2558,6 +2558,19 @@ character-index mappings, advance widths, and documented line height as
 because the supplied specification says their format remained unchanged
 through SCI32.
 
+SCI sound resources are grouped by data form: original device-oriented streams
+appear under `/game/sounds/sequences`, while extracted PCM appears separately
+under `/game/sounds/samples`. The samples branch is omitted when no playable
+sample exists. An SCI0 resource with the documented appended-sample flag thus
+appears in both branches: the complete original sequence/container remains BIN
+exportable and the digital effect is independently playable. Both the
+big-endian direct header offset and the zero-offset search
+for one or two `FC` stop statuses are supported. The 44-byte sample header's
+little-endian rate and length are bounded against the resource, and its
+unsigned 8-bit PCM becomes normal signed archetype samples and WAV export.
+The supplied KQ1 SCI and SQ3 corpora currently expose 13 and 37 such resource
+entries respectively (including repeated volume copies).
+
 SCI0 pictures expose visual, priority, and control rasters plus their original
 bytes. The renderer implements plane and colour selection, absolute and both
 relative line forms, four-way flood fill over the documented 190-line drawing

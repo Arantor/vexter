@@ -57,6 +57,42 @@ suite "Sierra SCI game packages":
     check sciCursorHotspot(cursor) == (8, 8)
     check sciCursorHotspot(cursor, true) == (0, 3)
 
+  test "SCI0 appended digital samples decode as unsigned eight-bit PCM":
+    var data = newSeq[byte](33)
+    data[0] = 2
+    data.add 0xfc
+    let headerAt = data.len
+    data.setLen(data.len + 44)
+    data[headerAt + 14] = 0xa6
+    data[headerAt + 15] = 0x0e # 3750 Hz
+    data[headerAt + 32] = 3
+    data.add @[0'u8, 128, 255]
+    let sample = parseSci0DigitalSample(data)
+    check sample.headerOffset == 34
+    check sample.sampleRate == 3750
+    check sample.sound.buffer.channels[0] == @[-128'i32, 0, 127]
+    var directlyLocated = data
+    directlyLocated[31] = 0
+    directlyLocated[32] = 33
+    check parseSci0DigitalSample(directlyLocated).headerOffset == 34
+
+    let map = @[0x50'u8, 0x20, 0, 0, 0, 0,
+      0xff, 0xff, 0xff, 0xff, 0xff, 0xff]
+    var volume = @[0x50'u8, 0x20]
+    volume.add leBytes(data.len + 4)
+    volume.add leBytes(data.len)
+    volume.add @[0'u8, 0]
+    volume.add data
+    let sources = newSourceCollection(relatedSources = @[
+      member("RESOURCE.MAP", map), member("RESOURCE.000", volume)])
+    let session = openInspectionSession("synthetic-sci-sound", sources)
+    defer: session.close()
+    let sequence = session.resourceAtPath("/game/sounds/sequences/80")
+    check sequence.kind == vrnkOpaque
+    let playable = session.resourceAtPath("/game/sounds/samples/80")
+    check playable.kind == vrnkAudio
+    check playable.sampleRate == 3750
+
   test "SCI font decodes MSB-first glyph rows":
     var fontData = @[0'u8, 0, 1, 0, 6, 0, 8, 0, 3, 2, 0xa0, 0x40]
     let font = decodeSciFont(fontData)

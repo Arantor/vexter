@@ -7,6 +7,7 @@ import ../metadata
 import ../resource_tree
 import ../resources/sierra_sci_graphics
 import ../resources/sierra_sci_picture
+import ../resources/sierra_sci_sound
 
 const SierraSciGameTypeId* = "sierra.sci-game"
 
@@ -337,13 +338,22 @@ proc gameResourceTree*(sources: VextSourceCollection, game: SciGame): VextResour
       stringMetadata("sci.resource-map", if game.version == srmvSci0: "SCI0" else: "SCI1"),
       integerMetadata("resource.count", game.entries.len)])
   var groups: array[SciResourceKind, VextResourceNode]
+  var soundsGroup, samplesGroup: VextResourceNode
   var present: set[SciResourceKind]
   for entry in game.entries: present.incl entry.kind
   for kind in SciResourceKind:
     if kind notin present: continue
-    groups[kind] = VextResourceNode(path: root.path & "/" & ResourceKindNames[ord(kind)],
-      typeId: SierraSciGameTypeId & "." & ResourceKindNames[ord(kind)], kind: vrnkGroup)
-    root.children.add groups[kind]
+    if kind == srkSound:
+      soundsGroup = VextResourceNode(path: root.path & "/sounds",
+        typeId: SierraSciGameTypeId & ".sounds", kind: vrnkGroup)
+      groups[kind] = VextResourceNode(path: soundsGroup.path & "/sequences",
+        typeId: SierraSciGameTypeId & ".sound-sequences", kind: vrnkGroup)
+      soundsGroup.children.add groups[kind]
+      root.children.add soundsGroup
+    else:
+      groups[kind] = VextResourceNode(path: root.path & "/" & ResourceKindNames[ord(kind)],
+        typeId: SierraSciGameTypeId & "." & ResourceKindNames[ord(kind)], kind: vrnkGroup)
+      root.children.add groups[kind]
   var totals, encountered: Table[(int, int), int]
   for entry in game.entries:
     totals[(entry.typeNumber, entry.number)] =
@@ -368,7 +378,9 @@ proc gameResourceTree*(sources: VextSourceCollection, game: SciGame): VextResour
       stringMetadata("payload.representation", if supportedCompression:
         "decompressed" else: "stored-compressed")]
     if warning.len > 0: metadata.add stringMetadata("decode.warning", warning)
-    let node = VextResourceNode(path: path, typeId: SierraSciGameTypeId & ".resource",
+    let node = VextResourceNode(path: path,
+      typeId: SierraSciGameTypeId &
+        (if e.kind == srkSound: ".sound-sequence" else: ".resource"),
       kind: vrnkOpaque, rawDataAvailable: e.valid,
       failureFormat: if warning.len > 0: SierraSciGameTypeId else: "",
       failureMessage: warning, metadata: metadata, defaultExportPriority: 10)
@@ -416,6 +428,25 @@ proc gameResourceTree*(sources: VextSourceCollection, game: SciGame): VextResour
               rawDataAvailable: true, lazyPayload: node.lazyPayload,
               defaultExportPriority: 10)]
           node.lazyPayload = VextPayloadRef()
+        elif e.kind == srkSound and game.version == srmvSci0 and
+            bytes.len > 0 and bytes[0] == 2:
+          let sample = parseSci0DigitalSample(bytes)
+          if samplesGroup.isNil:
+            samplesGroup = VextResourceNode(path: soundsGroup.path & "/samples",
+              typeId: SierraSciGameTypeId & ".digital-samples", kind: vrnkGroup)
+            soundsGroup.children.add samplesGroup
+          samplesGroup.children.add VextResourceNode(
+            path: samplesGroup.path & "/" & $e.number &
+              (if totals[key] > 1: "-copy-" & $copyIndex else: ""),
+            typeId: SierraSciGameTypeId & ".digital-sample", kind: vrnkAudio,
+            audioKind: varkSound, sound: sample.sound, metadata: @[
+              integerMetadata("source.resource", e.number),
+              integerMetadata("sample-rate", sample.sampleRate),
+              integerMetadata("samples", sample.pcm.len),
+              integerMetadata("duration-ms",
+                sample.pcm.len * 1000 div sample.sampleRate),
+              integerMetadata("sample-header.offset", sample.headerOffset)],
+            defaultExportPriority: 10)
         elif e.kind == srkView and game.version == srmvSci0:
           let view = parseSci0View(bytes)
           node.kind = vrnkGroup; node.rawDataAvailable = false
