@@ -46,6 +46,7 @@
 /tests/test_aseprite
 /tests/test_adobe_swatch_exchange
 /tests/test_gpl_exporter
+/tests/test_rgba8_palette
 /tests/test_doom_wad
 /tests/test_amos_bank
 /tests/test_amos_packed_picture
@@ -58,12 +59,17 @@
 /tests/test_adversarial
 /tests/test_operations
 /tests/test_gui_preview
+/tests/test_fat_disk_image
+/tests/test_wordstar
 /tests/test_zx_spectrum_screen
+/tests/test_zx_spectrum_gigascreen
 /tests/test_zx_spectrum_snapshot
 /tests/test_zx_spectrum_basic
 /tests/test_zx_spectrum_tap
+/tests/test_zx_spectrum_tzx
 /tests/test_format_refinement
 /tests/test_tracker_archetype
+/tests/test_document_archetype
 /tests/test_protracker_mod
 /tests/test_sierra_agi_game
 /tests/probe_agi_windows
