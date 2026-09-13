@@ -50,9 +50,12 @@ suite "Sierra SCI game packages":
     cursor[4] = 0x00; cursor[5] = 0x80
     cursor[36] = 0x00; cursor[37] = 0x80
     let image = decodeSciCursor(cursor).image
-    check image.alpha[0] == 255
-    check image.pixels[0] == 15
-    check image.alpha[1] == 0
+    check image.alpha[0] == 0
+    check image.alpha[1] == 255
+    check image.pixels[1] == 0
+    cursor[2] = 3
+    check sciCursorHotspot(cursor) == (8, 8)
+    check sciCursorHotspot(cursor, true) == (0, 3)
 
   test "SCI font decodes MSB-first glyph rows":
     var fontData = @[0'u8, 0, 1, 0, 6, 0, 8, 0, 3, 2, 0xa0, 0x40]

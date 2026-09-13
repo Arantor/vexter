@@ -2548,7 +2548,11 @@ Cels decode bounded nibble RLE, including zero no-op bytes observed in the
 supplied authentic corpus, colour-key transparency, signed placement, and loop
 mirroring into native-scale 16-colour indexed rasters. Fixed 68-byte cursor
 resources expose 16x16 images, transparency, SCI0 or SCI1 colour mapping, and
-hotspot metadata. SCI bitmap fonts expose MSB-first monochrome glyphs, native
+hotspot metadata. Authentic SCI0 cursors from KQ4, Leisure Suit Larry 2 and 3,
+and Colonel's Bequest establish that a set bit in the first plane marks the
+transparent exterior; this conflicts with the SCI0 truth table in the supplied
+chapter and is retained as cross-game corpus-backed compatibility behavior.
+SCI bitmap fonts expose MSB-first monochrome glyphs, native
 character-index mappings, advance widths, and documented line height as
 `VextBitmapFont`. Fonts are accepted with either supported map generation
 because the supplied specification says their format remained unchanged

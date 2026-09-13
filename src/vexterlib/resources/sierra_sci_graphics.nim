@@ -22,6 +22,16 @@ proc le16(data: openArray[byte], at: int): int =
 proc signedByte(value: byte): int =
   if value < 0x80: int(value) else: int(value) - 256
 
+proc sciCursorHotspot*(data: openArray[byte], sci1 = false): tuple[x, y: int] =
+  if data.len != 68:
+    raise newException(ValueError, "SCI cursor resource must be exactly 68 bytes")
+  if sci1:
+    (le16(data, 0), le16(data, 2))
+  elif le16(data, 2) == 3:
+    (8, 8)
+  else:
+    (0, 0)
+
 proc decodeSciCursor*(data: openArray[byte], sci1Colours = false): VextRaster =
   if data.len != 68:
     raise newException(ValueError, "SCI cursor resource must be exactly 68 bytes")
@@ -36,7 +46,11 @@ proc decodeSciCursor*(data: openArray[byte], sci1Colours = false): VextRaster =
       let a = (transparency and mask) != 0
       let b = (colour and mask) != 0
       let pixel = y * 16 + x
-      if not a and (not sci1Colours or not b):
+      # Authentic SCI0 cursors in the supplied KQ4, LSL2, LSL3, and Colonel's
+      # Bequest corpora use set first-plane bits for their transparent exterior,
+      # contrary to the SCI0 truth table in the supplied chapter. SCI01/SCI1
+      # retains the documented table.
+      if (not sci1Colours and a) or (sci1Colours and not a and not b):
         image.alpha[pixel] = 0
       else:
         image.alpha[pixel] = 255

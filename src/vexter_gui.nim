@@ -604,9 +604,13 @@ proc paintPreview(hwnd: HWND) =
         let alpha = if image.alpha.len == pixels.len div 4: image.alpha[i] else: 255'u8
         let x = i mod image.width
         let y = i div image.width
-        let background = if currentView == vkFont:
+        let background =
+          if currentView == vkFont:
             (if (x div 8 + y div 8) mod 2 == 0: 56 else: 88)
-          else: 255
+          elif image.alpha.len == pixels.len div 4:
+            (if (x div 8 + y div 8) mod 2 == 0: 192 else: 224)
+          else:
+            255
         pixels[i * 4] = byte((int(colour.b) * int(alpha) + background * (255-int(alpha))) div 255)
         pixels[i * 4 + 1] = byte((int(colour.g) * int(alpha) + background * (255-int(alpha))) div 255)
         pixels[i * 4 + 2] = byte((int(colour.r) * int(alpha) + background * (255-int(alpha))) div 255)

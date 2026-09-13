@@ -442,6 +442,13 @@ framing, but leave these format-evidence gaps:
 - Chapter 3 documents SCI0 VIEWs only. SCI1 and later view headers, palettes,
   RLE variants, mirrored-loop rules, scaling metadata, and VGA/true-colour
   variants are needed.
+- Resolve the supplied cursor chapter's SCI0 truth-table conflict: its table
+  makes a clear-bit first plane transparent, while recognizable cursors across
+  KQ4, Leisure Suit Larry 2 and 3, and Colonel's Bequest require set bits to be
+  transparent. The latter is Vexter's current cross-game corpus-backed behavior.
+  SCI01/SCI1 reverse-screen cursor pixels also need a preview policy because
+  they depend on the pixels underneath the cursor rather than containing a
+  fixed colour.
 - The supplemental SCI0 Picture Resource page resolves the main command set,
   OPX opcode, palette operations, line and fill algorithms, dither phase, and
   texture tables. Its circular-brush diagram is absent from the saved page, so

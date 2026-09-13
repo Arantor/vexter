@@ -388,15 +388,12 @@ proc gameResourceTree*(sources: VextSourceCollection, game: SciGame): VextResour
               kind: vrnkOpaque, rawDataAvailable: true, lazyPayload: node.lazyPayload, defaultExportPriority: 10)]
           node.lazyPayload = VextPayloadRef()
         elif e.kind == srkCursor:
-          let hotspotX = if game.version == srmvSci0 and bytes[3] != 0: 8
-            elif game.version == srmvSci0: 0 else: le16(bytes, 0)
-          let hotspotY = if game.version == srmvSci0 and bytes[3] != 0: 8
-            elif game.version == srmvSci0: 0 else: le16(bytes, 2)
+          let hotspot = sciCursorHotspot(bytes, game.version == srmvSci1)
           node.kind = vrnkGroup; node.rawDataAvailable = false
           node.children = @[
             VextResourceNode(path: path & "/image", typeId: SierraSciGameTypeId & ".cursor",
               kind: vrnkRaster, raster: decodeSciCursor(bytes, game.version == srmvSci1), metadata: @[
-                integerMetadata("hotspot.x", hotspotX), integerMetadata("hotspot.y", hotspotY)],
+                integerMetadata("hotspot.x", hotspot.x), integerMetadata("hotspot.y", hotspot.y)],
               defaultExportPriority: 10),
             VextResourceNode(path: path & "/raw", typeId: SierraSciGameTypeId & ".cursor-data",
               kind: vrnkOpaque, rawDataAvailable: true, lazyPayload: node.lazyPayload, defaultExportPriority: 10)]
