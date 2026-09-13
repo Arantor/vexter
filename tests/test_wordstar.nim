@@ -114,3 +114,8 @@ suite "WordStar documents":
     expect ValueError:
       discard parseWordStar(ws7Document(@[0x1d'u8, 0x10, 0x00, 0x02,
         0x1a]))
+    expect ValueError:
+      discard parseWordStar(@[
+        byte('t'), byte('e'), byte('x'), byte('t'), 0x0d, 0x0a, 0xa0,
+        0x1a, byte('n'), byte('o'), byte('t'), byte(' '),
+        byte('p'), byte('a'), byte('d'), byte('d'), byte('i'), byte('n'), byte('g')])

@@ -230,6 +230,9 @@ proc parseWordStar*(data: openArray[byte]): WordStarSource =
       var padding = position
       while padding < parsingLimit and data[padding] == 0x1a:
         inc padding
+      if not result.hasHeader and padding != parsingLimit:
+        raise newException(ValueError,
+          "headerless WordStar EOF marker is followed by non-padding data")
       result.eofPaddingBytes = padding - position
       break
 
