@@ -9,7 +9,7 @@ import ./format_detection_types
 import ./metadata
 import ./operations
 import ./resource_tree
-import ./containers/[amiga_adf, amiga_dms, appimage, electron_asar, inno_setup, iso9660, lha_archive, openraster,
+import ./containers/[amiga_adf, amiga_dms, appimage, electron_asar, fat_disk_image, inno_setup, iso9660, lha_archive, openraster,
   powerpacker, sierra_agi_game, xpk_shri, zip_archive]
 import ./resources/[ansi_art_image, pcx_image]
 
@@ -234,10 +234,12 @@ proc rootDescriptors*(session: VextInspectionSession):
 
 proc addLegacyNode(session: VextInspectionSession, node: VextResourceNode,
     parent: VextResourceId) =
-  let capabilities = if node.children.len > 0: {vrcEnumerateChildren}
+  var capabilities = if node.kind == vrnkGroup: {vrcEnumerateChildren}
     elif node.kind == vrnkOpaque and node.rawDataAvailable:
       {vrcMaterializePayload, vrcProbeNested}
     else: {vrcDecodeRepresentation}
+  if node.typeId == FatDiskImageTypeId:
+    capabilities.incl vrcExtractTree
   let estimatedBytes =
     if node.kind == vrnkAudio and node.soundMaterializer != nil:
       node.derivedAudioMaximumSamples * node.derivedAudioChannels *
@@ -1317,6 +1319,9 @@ proc loadResource*(session: VextInspectionSession, id: VextResourceId,
     let node = session.legacyNodeById[id]
     if node.kind == vrnkAudio and node.soundMaterializer != nil:
       discard node.audioSound
+    if node.typeId == FatFileTypeId and node.kind == vrnkOpaque and
+        not node.nestedInspectionAttempted:
+      discard decodeResourceOnDemand(node)
     result.data = node.resourceBytes
     result.resources = VextResourceTree(roots: @[node])
     return

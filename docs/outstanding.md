@@ -42,6 +42,18 @@ formats are not included. Detailed format behavior and evidence remain in
     this is deliberately deferred rather than treated as an implementation
     task.
 
+- **FAT raw disk images**
+  - The current handler supports unpartitioned FAT12/FAT16 filesystems whose
+    volume begins at sector zero. Partition tables, extended partitions,
+    FAT32, and raw images containing leading or trailing carrier data remain
+    unsupported.
+  - VFAT long filenames, DOS code-page filename conversion, timestamps,
+    deleted-file recovery, cross-linked allocation diagnostics, and tolerant
+    recovery from damaged or divergent FAT copies remain outstanding.
+  - Files are reconstructed eagerly in the legacy resource tree. Large
+    hard-disk images will require the common lazy filesystem loading model
+    before their support can be practical.
+
 - **GUI regression coverage for incremental inspection**
   - Define a regression matrix for transitions where a session initially
     exposes a generic descriptor and materialization later changes what the

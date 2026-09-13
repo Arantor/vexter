@@ -345,6 +345,34 @@ supplied Amiga `Fonts` folder decoded (102 monochrome and 15 ColorFonts). Agfa
 Compugraphic `.otag` material was ignored. The collection is not redistributed;
 synthetic tests cover the serialized structures and decoding rules.
 
+## FAT raw disk images
+
+Container type identifier: `filesystem.fat-disk-image`
+
+Vexter initially supports unpartitioned FAT12 and FAT16 raw sector images,
+including the common `.img`, `.ima`, and `.dsk` suffixes. IMG has no universal
+magic signature, so an extension alone never identifies it. Detection requires
+a mutually consistent BIOS parameter block and exact declared image length,
+valid reserved FAT entries, byte-identical FAT copies, bounded root and nested
+directories, and valid acyclic file and directory cluster chains. A matching
+extension raises a structurally valid image from possible to probable.
+
+The filesystem appears beneath `/disk`. DOS 8.3 files retain byte-exact payloads
+as `filesystem.fat-file` resources; directories are
+`filesystem.fat-directory` groups. Selecting an opaque file may decode its
+contents on demand, while whole-container extraction always writes the original
+filesystem bytes and preserves the directory hierarchy. Volume labels and
+long-filename directory slots are ignored rather than exposed as files.
+In the GUI, FAT files advertise an expansion affordance. Expanding one performs
+a bounded nested-format probe; recognized content is added beneath the file,
+so a WordStar member exposes its flow document without replacing the original
+extractable file bytes. Unrecognized members remain ordinary FAT file leaves.
+
+Current support is deliberately limited to a filesystem beginning at sector
+zero. Partitioned hard-disk images, FAT32, long filenames, deleted-file
+recovery, code-page-aware filename conversion, timestamps, and tolerance for
+damaged or divergent FAT copies remain future work.
+
 ## Amiga ADF filesystems
 
 Container type identifier: `amiga.adf`

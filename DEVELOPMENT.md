@@ -37,7 +37,8 @@ client, and a dependency-free native Windows GUI. It supports:
   compressed, and linked image cels using normal compositing,
   15- and 31-instrument ProTracker-compatible MOD tracker modules and AMOS
   Music banks with four independent channel playlists and bounded replay,
-  Commodore 1540/1541 D64 disk images, Commodore 64 KoalaPainter images,
+  unpartitioned FAT12/FAT16 raw disk images, Commodore 1540/1541 D64 disk
+  images, Commodore 64 KoalaPainter images,
   Netpbm P1–P7, GIF87a/GIF89a, and FLI/FLC-family animations,
   AmigaDOS ADF filesystems, DMS disk archives, PowerPacker and XPK/SHRI
   wrappers, Type 1 AppImages with ISO 9660 payloads, Type 2 AppImages with
@@ -188,6 +189,11 @@ The resource TreeView context menu can show metadata for every item and a
 textual hexdump for undecoded opaque resources retaining at most 1 MiB of raw
 data. Hexdump rows use eight-digit offsets, sixteen hexadecimal bytes, and a
 printable seven-bit ASCII column in the existing monospace text view.
+
+FAT disk members initially appear as extractable filesystem files with an
+expansion affordance. Expanding a member runs nested detection on the session
+worker; recognized content is inserted beneath it while its original bytes
+remain the materialized extraction payload.
 
 Contained resources carrying decode failures use the standard Windows warning
 icon in the TreeView. Their ancestor groups expand automatically, and selecting

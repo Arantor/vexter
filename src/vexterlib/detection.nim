@@ -9,7 +9,7 @@ import ./containers/[amiga_8svx, amiga_16sv, amiga_acbm, amiga_adf, amiga_anim,
   amiga_lha_sfx, amiga_pbm, amiga_workbench_icon, amos_bank, amos_bank_set,
   amos_program,
   adobe_swatch_exchange, amos_sprite_icon_bank, ansi_art, appimage, aseprite,
-  bmfont, bmp, creative_voice, d64, doom_wad, electron_asar, flic, fzx,
+  bmfont, bmp, creative_voice, d64, doom_wad, electron_asar, fat_disk_image, flic, fzx,
   gif_container, gimp_palette, inno_setup, iso9660, jpeg, koala_painter, netpbm,
   paint_net_palette, pcx, png_container, protracker_mod, qoi, rgba8_palette, tga,
   wav, windows_icon, zip_archive, lha_archive, zx_spectrum_gigascreen_dump,
@@ -87,6 +87,23 @@ proc detectBaseFormats(filename: string, data: openArray[byte]):
     return @[VextDetectionCandidate(typeId: Iso9660TypeId,
       confidence: vdcCertain, evidence: evidence,
       derivation: baseDerivation(Iso9660TypeId))]
+  except ValueError:
+    discard
+
+  # Raw IMG has no universal magic. A complete FAT filesystem validation is
+  # therefore the primary signal; the extension only strengthens confidence.
+  try:
+    let volume = parseFatDiskImage(data)
+    var evidence = @[VextDetectionEvidence(description:
+      "file has a consistent " & volume.kind.fatKindName &
+      " BIOS parameter block, reserved FAT entries, " &
+      "matching FAT copies, bounded directories, and valid cluster chains")]
+    if filename.hasImgExtension:
+      evidence.add VextDetectionEvidence(description:
+        "file extension is .img, .ima, or .dsk")
+    return @[VextDetectionCandidate(typeId: FatDiskImageTypeId,
+      confidence: if filename.hasImgExtension: vdcProbable else: vdcPossible,
+      evidence: evidence, derivation: baseDerivation(FatDiskImageTypeId))]
   except ValueError:
     discard
 

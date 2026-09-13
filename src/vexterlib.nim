@@ -73,6 +73,7 @@ import vexterlib/containers/ansi_art
 import vexterlib/containers/doom_wad
 import vexterlib/containers/inno_setup
 import vexterlib/containers/wordstar
+import vexterlib/containers/fat_disk_image
 import vexterlib/containers/sierra_agi_game
 import vexterlib/resources/amos_planar_image
 import vexterlib/resources/amos_packed_picture_image
@@ -137,6 +138,7 @@ export ansi_art
 export doom_wad
 export inno_setup
 export wordstar
+export fat_disk_image
 export sierra_agi_game
 export sierra_agi_view
 export sierra_agi_picture

@@ -468,6 +468,25 @@ d64acf03e17ff369beaec8b93c32521607655d9ff37e8fabadbb031b3f97150f  tests/fixtures
 76f40724948764fb6168917e6f7baf505f1579e404cfac60e6c203b88616cfd5  tests/fixtures/commodore64.koala-painter/ghost.png
 ```
 
+## FAT filesystem documentation and raw disk images
+
+The developer supplied a local copy of Wikipedia's *Design of the FAT file
+system*, obtained from
+`https://en.wikipedia.org/wiki/Design_of_the_FAT_file_system`, together with
+four raw DOS floppy images under `img-disk/`. The article informed the initial
+BIOS parameter block, FAT12/FAT16 cluster classification and packing, directory
+entry, and cluster-chain implementation. No additional internet research or
+third-party implementation source was used. The supplied images are
+uncommitted compatibility material.
+
+```text
+315377f9c92965ced1e3dc8d4b0521cf3f38310730e2d8cccc9fdaf8caae3b9f  Design of the FAT file system - Wikipedia.html
+b3b2d53c9c387b6417308d30bc28f482c4568b0be99c97bb61576726ea81a3e4  img-disk/622C.IMG
+bbaccb4c29fcefafd99229281ab4b206b4d5be421e4f707e947afc258a07cc23  img-disk/PCDOS320-DISK1.img
+e486c53ad9d5e52963bf0380264034690364749df616f7744e5a145a7f2aadd6  img-disk/WS400-DISK1-INST.img
+b51a5aeea65dda394e3efd674dccee10a0c170b6ba18d265d13e6a5f385866eb  img-disk/WS400-DISK2-PROG.img
+```
+
 ## Commodore 1541 D64 documentation and disk images
 
 The developer supplied `D64 (Electronic form of a physical 1541 disk).html`,

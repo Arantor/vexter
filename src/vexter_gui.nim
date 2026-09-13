@@ -758,7 +758,8 @@ proc addDescriptorNode(item: VextResourceDescriptor,
         failureImageIndex else: I_IMAGENONE, lParam: cast[LPARAM](binding)))
   result = cast[HTREEITEM](SendMessageW(treeView, TVM_INSERTITEMW, 0,
     cast[LPARAM](addr insert)))
-  if vrcEnumerateChildren in item.capabilities:
+  if vrcEnumerateChildren in item.capabilities or
+      (item.typeId == FatFileTypeId and vrcProbeNested in item.capabilities):
     let placeholder = TreeBinding(placeholder: true)
     bindings.add placeholder
     let placeholderLabel = w("Loading…")
@@ -1183,6 +1184,9 @@ proc startExpandBinding(binding: TreeBinding, item: HTREEITEM): bool =
       discard addLoadedNode(child, item)
     binding.childrenLoaded = true
     return true
+  if binding.node.isNil and binding.descriptor.typeId == FatFileTypeId and
+      vrcProbeNested in binding.descriptor.capabilities:
+    return startLoadBinding(binding, item)
   if vrcEnumerateChildren notin binding.descriptor.capabilities:
     return false
   startSessionJob(sjkExpand, binding, item)
@@ -1229,11 +1233,21 @@ proc finishSessionJob(result: ptr SessionResult) =
       if not completed.binding.node.isNil and
           completed.binding.node.failureMessage.len > 0:
         showTreeItemFailure(completed.item)
-      if not completed.binding.node.isNil and
-          completed.binding.node.children.len > 0:
-        if vrcEnumerateChildren notin completed.binding.descriptor.capabilities:
-          completed.binding.childrenLoaded = false
-          ensureLoadingPlaceholder(completed.item)
+      if completed.binding.descriptor.typeId == FatFileTypeId:
+        let firstChild = cast[HTREEITEM](SendMessageW(treeView,
+          TVM_GETNEXTITEM, TVGN_CHILD, cast[LPARAM](completed.item)))
+        if firstChild != nil:
+          discard SendMessageW(treeView, TVM_DELETEITEM, 0,
+            cast[LPARAM](firstChild))
+        if not completed.binding.node.isNil:
+          for child in completed.binding.node.children:
+            discard addLoadedNode(child, completed.item)
+        completed.binding.childrenLoaded = true
+      elif not completed.binding.node.isNil and
+          completed.binding.node.children.len > 0 and
+          vrcEnumerateChildren notin completed.binding.descriptor.capabilities:
+        completed.binding.childrenLoaded = false
+        ensureLoadingPlaceholder(completed.item)
       if selected == completed.binding:
         selectBinding(completed.binding)
     of sjkDecodeLoaded:

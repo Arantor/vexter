@@ -20,6 +20,7 @@ import ./containers/[amiga_8svx, amiga_16sv, amiga_acbm, amiga_adf, amiga_anim,
   amos_music_bank, amos_packed_picture, amos_program, amos_resource_bank,
   amos_sample_bank,
   amos_sprite_icon_bank, ansi_art, appimage, bmfont, bmp, creative_voice, d64,
+  fat_disk_image,
   doom_wad, electron_asar, flic, fzx, gif_container, inno_setup, iso9660, jpeg,
   netpbm, openraster, pcx, png_container,
   adobe_swatch_exchange, aseprite, gimp_palette, koala_painter,
@@ -724,6 +725,30 @@ proc adfEntryNode(entry: AmigaAdfEntry, parentPath: string,
     metadata.add integerMetadata("data.length", entry.size)
     result = containedFileNode(path, entry.name, AmigaAdfFileTypeId,
       entry.data, metadata, depth, ignoreWarnings, pcxChannelOrder, warnings)
+
+proc fatEntryNode(entry: FatEntry, parentPath: string,
+    depth: int, ignoreWarnings: bool, pcxChannelOrder: PcxChannelOrder,
+    warnings: var seq[VextInspectionWarning]): VextResourceNode =
+  let path = parentPath & "/" & entry.name
+  let commonMetadata = @[
+    stringMetadata("fat.name", entry.name),
+    integerMetadata("fat.attributes", entry.attributes),
+    integerMetadata("fat.first-cluster", entry.firstCluster)]
+  case entry.kind
+  of fekDirectory:
+    result = VextResourceNode(path: path, typeId: FatDirectoryTypeId,
+      kind: vrnkGroup, metadata: commonMetadata)
+    for child in entry.children:
+      result.children.add fatEntryNode(child, path, depth, ignoreWarnings,
+        pcxChannelOrder, warnings)
+  of fekFile:
+    var metadata = commonMetadata
+    metadata.add integerMetadata("data.length", entry.size)
+    # Filesystem extraction must always materialize the original member bytes.
+    # The ordinary opaque-resource path still permits nested decoding on demand.
+    result = VextResourceNode(path: path, typeId: FatFileTypeId,
+      kind: vrnkOpaque, data: entry.data, rawDataAvailable: true,
+      metadata: metadata)
 
 proc childNamed(parent: VextResourceNode, path: string): VextResourceNode =
   for child in parent.children:
@@ -1517,6 +1542,25 @@ proc inspectSourceDepth(filename: string, data: openArray[byte],
         integerMetadata("data.length", entry.data.len)]
       root.children.add containedFileNode("/disk/" & entry.name, entry.name,
         D64FileTypeId, entry.data, metadata, depth, ignoreWarnings,
+        pcxChannelOrder, result.warnings)
+    result.resources.roots.add root
+  of vhkFatDiskImage:
+    let volume = parsedValue[FatVolume](selectedParsed, vhkFatDiskImage)
+    let root = VextResourceNode(path: "/disk", typeId: FatDiskImageTypeId,
+      kind: vrnkGroup, metadata: @[
+        stringMetadata("filesystem", volume.kind.fatKindName),
+        stringMetadata("volume.label", volume.label),
+        stringMetadata("oem.name", volume.oemName),
+        integerMetadata("bytes-per-sector", volume.bytesPerSector),
+        integerMetadata("sectors-per-cluster", volume.sectorsPerCluster),
+        integerMetadata("reserved-sectors", volume.reservedSectors),
+        integerMetadata("fat.copies", volume.fatCount),
+        integerMetadata("fat.sectors", volume.sectorsPerFat),
+        integerMetadata("root.entries", volume.rootEntryCount),
+        integerMetadata("volume.sectors", volume.totalSectors),
+        integerMetadata("clusters", volume.clusterCount)])
+    for entry in volume.entries:
+      root.children.add fatEntryNode(entry, "/disk", depth, ignoreWarnings,
         pcxChannelOrder, result.warnings)
     result.resources.roots.add root
   of vhkNetpbm:
@@ -2815,7 +2859,7 @@ proc decodeResourceOnDemand*(node: VextResourceNode,
   ## Probes and decodes one lazy opaque resource. This mutates the stable node
   ## in place so frontends can retain their existing selection binding.
   if node.isNil or node.kind != vrnkOpaque or
-      node.lazyPayload.source.isNil or node.nestedInspectionAttempted:
+      not node.rawDataAvailable or node.nestedInspectionAttempted:
     return vddNotApplicable
   node.nestedInspectionAttempted = true
   let filename = node.path.split('/')[^1]
