@@ -1331,3 +1331,37 @@ revision 10358 and chapter 7 revision 10360).
 
 Source:
 * https://agiwiki.sierrahelp.com/index.php/Adventure_Game_Interpreter_Specifications
+
+## Sierra SCI documentation and compatibility corpus
+
+The developer supplied locally saved copies of chapters 1 through 6 of the SCI
+Wiki's *SCI Specifications* under `sci-spec/`, sourced from
+`https://sciwiki.sierrahelp.com/index.php/SCI_Specifications`. Initial
+asset-format research uses chapters 1 through 4: introduction and version
+families, resource map/volume framing and compression, graphics resources, and
+the SCI0 sound resource. Chapters 5 and 6 are retained as supplied context but
+are not authority for an initial script or virtual-machine implementation. No
+internet research or third-party implementation source was used.
+
+On 13 September 2026 the developer additionally supplied the SCI Wiki's
+[*Picture Resource*](https://sciwiki.sierrahelp.com/index.php/Picture_Resource)
+page, whose saved permalink identifies revision 15237 (14 October 2020). It
+clarifies SCI0 drawing opcodes, coordinate encodings, palette operations,
+Bresenham lines, flood-fill boundaries, dither phase, and the texture lookup
+tables. The page's descriptions of later extended operations remain incomplete.
+
+The developer also supplied 35 locally installed SCI games under
+`sierra-sci/`, spanning early SCI0 titles through SCI32-era titles including
+*Gabriel Knight 2*. The collection is compatibility evidence rather than a
+redistributable fixture set. Its acquisition sources and licence terms were not
+supplied; none of its game data is copied into routine tests.
+
+```text
+abc357fbc92b62f783449a3a20439f169dc71de71124a6847a7aff02f0d0a000  SCI Specifications_ Chapter 1 - Introduction - SCI Wiki.html
+f0de77da34741134596d25cccc5d45732863f8975d12968910775486b711bb7a  SCI Specifications_ Chapter 2 - Resource files - SCI Wiki.html
+32d18aa5f99cdfb3cb311418687dddff5d18016a180933eee2b2efbefe9172ae  SCI Specifications_ Chapter 3 - The Graphics subsystem - SCI Wiki.html
+55661330167988dd95f3c02445b5ce2475fef0b544ff7759c8016effda379e03  SCI Specifications_ Chapter 4 - The Sound subsystem - SCI Wiki.html
+58715d2ad01cc532d97d767c870cc40a4e1203ce0d7456f2fdac8fd141c7d22f  SCI Specifications_ Chapter 5 - The SCI Virtual Machine - SCI Wiki.html
+0edda1562d2fad81c24645db1fd4f7dc346dbbb67d696b21c4fb299f8b714ba7  SCI Specifications_ Chapter 6 - SCI in action - SCI Wiki.html
+7d9bcfb469498c5dbf9a7247de523acc67a472f49fd6d778bc5b08234fbd23bd  Picture Resource - SCI Wiki.html
+```

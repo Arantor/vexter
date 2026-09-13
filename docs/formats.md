@@ -2516,3 +2516,54 @@ carry a conservative resolved `PIC N` comment. This is readable intermediate
 recovery, not source reconstruction or execution. The supplied command table's
 `unknown177` name is retained, with Chapter 4's established zero/nonzero menu
 access effect added as a listing comment.
+
+# Sierra SCI game packages
+
+`sierra.sci-game` recognizes directory-backed SCI0 and early SCI1 packages by
+validating `RESOURCE.MAP`, referenced `RESOURCE.NNN` files, resource identities,
+record sizes, and volume bounds. Case-independent lookup rejects ambiguous
+members. SCI0's terminated linear map and SCI1's typed, offset-indexed tables
+are supported. Duplicate SCI0 type/number records remain independently visible
+with stable `-copy-N` paths. Only resource-type groups actually present in the
+map appear in the tree. Volumes are read in bounded ranges.
+
+Every valid entry exposes either decompressed bytes or, for unsupported
+compression, its original stored compressed payload with an explicit
+`payload.representation` value. Method 0 is size-checked. Method 1 uses an
+LSB-first adaptive LZW dictionary with clear/end codes, widths growing from
+9 through 12 bits, and exact declared-output validation. This variant was
+derived by applying Vexter's existing AGI/GIF LZW machinery to the supplied
+SCI corpus: authentic streams begin with the LSB-packed clear code and decode
+to their declared sizes and independently validated font/view structures.
+Method 2 on an
+SCI0-framed map is treated as Huffman only when the supplied MSB-first token
+tree, inline literals, terminator, and declared output size all validate. A
+failed LZW or Huffman probe falls back to the stored payload because an SCI0-style map alone
+does not distinguish SCI0's method 2 Huffman from SCI01's method 2 COMP3. SCI
+COMP3 is not decoded because its supplied specification section contains a
+placeholder rather than an algorithm.
+
+SCI0 VIEW resources expose their decompressed bytes and loop/cel hierarchies.
+Cels decode bounded nibble RLE, including zero no-op bytes observed in the
+supplied authentic corpus, colour-key transparency, signed placement, and loop
+mirroring into native-scale 16-colour indexed rasters. Fixed 68-byte cursor
+resources expose 16x16 images, transparency, SCI0 or SCI1 colour mapping, and
+hotspot metadata. SCI bitmap fonts expose MSB-first monochrome glyphs, native
+character-index mappings, advance widths, and documented line height as
+`VextBitmapFont`. Fonts are accepted with either supported map generation
+because the supplied specification says their format remained unchanged
+through SCI32.
+
+SCI0 pictures expose visual, priority, and control rasters plus their original
+bytes. The renderer implements plane and colour selection, absolute and both
+relative line forms, four-way flood fill over the documented 190-line drawing
+area, solid and textured rectangle/circle patterns, four 40-entry dither-pair
+palettes, palette-entry and complete-palette replacement, and the documented
+pixel-parity dither phase. Circular brushes use the same normalized geometric
+footprint as Vexter's AGI renderer because the supplemental page's intended
+mask is present only as a missing image. Unsupported SCI01 extended operations
+remain recoverable as raw resources with a decoder diagnostic.
+
+This is not a claim of general SCI1, SCI1.1, or SCI32 support. Later container
+families and asset encodings are rejected rather than guessed; required
+documentation is indexed in `docs/outstanding.md`.

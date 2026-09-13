@@ -413,3 +413,52 @@ formats are not included. Detailed format behavior and evidence remain in
 - Deepen LOGIC listings beyond the current typed operand and literal-message
   notation with labels/control-flow structure, vocabulary word resolution, and
   documented interpreter-version opcode-table variants.
+
+# Sierra SCI
+
+The supplied SCI Wiki chapters establish SCI0 and early SCI1 map and volume
+framing, but leave these format-evidence gaps:
+
+- Chapter 2's SCI LZW and COMP3 sections both say `WriteMe`. LZW is now
+  compatibility-derived from existing Vexter LZW machinery and the supplied
+  corpus as LSB-first adaptive 9-to-12-bit coding with clear/end codes and exact
+  output-size validation. An authoritative description is still desirable,
+  particularly for revision-specific transitions. Neither documented map nor
+  volume headers contain a dictionary-width field, and trial decoding wider
+  than 12 bits makes formerly valid authentic streams fail rather than fixing
+  the remaining method-1 streams. COMP3 still needs its bit
+  order, dictionary/model initialization, termination, and postprocessing.
+  In particular, an SCI0-framed map does not discriminate SCI0 method 2
+  Huffman from SCI01 method 2 COMP3; Vexter therefore requires the complete
+  Huffman framing to validate before selecting that interpretation.
+- DCL-EXPLODE is described substantially, including static trees, but methods
+  18-20 belong to a container generation not described sufficiently here.
+  Supply SCI1.1 map and volume headers plus input termination/padding and the
+  semantic differences among methods 18, 19, and 20.
+- Supply later SCI1/SCI1.1 and SCI32 `RESOURCE.MAP`/`RESMAP.NNN` and
+  `RESOURCE.NNN`/`RESSCI.NNN` layouts, including version discrimination. The
+  corpus contains structurally distinct generations unexplained by the two
+  documented layouts.
+- Chapter 3 documents SCI0 VIEWs only. SCI1 and later view headers, palettes,
+  RLE variants, mirrored-loop rules, scaling metadata, and VGA/true-colour
+  variants are needed.
+- The supplemental SCI0 Picture Resource page resolves the main command set,
+  OPX opcode, palette operations, line and fill algorithms, dither phase, and
+  texture tables. Its circular-brush diagram is absent from the saved page, so
+  the exact interpreter mask still needs a textual or tabular source; Vexter
+  currently uses its normalized AGI-style geometric footprint. Clarify whether
+  the page's leading `0x8100` belongs only to standalone/resource-manager files:
+  authentic payloads extracted from the supplied volumes begin directly with
+  drawing opcodes. Complete semantics and layouts are still needed for extended
+  operations 2 through 8 (monochrome, direct colour, embedded cels, and priority
+  bands), and for SCI1 and later picture/palette resources.
+- Chapter 4 expressly covers SCI0 IBM sound only. SCI1, hybrid-interpreter,
+  non-DOS, digital-audio, sync, and speech formats need documentation. SCI0's
+  multi-device MIDI-like stream also needs the planned sequenced-music
+  archetype rather than premature sampled-audio flattening.
+
+Implementation improvements which do not require more format evidence:
+
+- compose SCI0 view loops into animations or sprite sheets; and
+- enable DCL-EXPLODE after a documented container generation using it can be
+  identified and validated.

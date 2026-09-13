@@ -355,7 +355,7 @@ proc exportResource(options: CliOptions) =
   defer: session.close()
   var tree: VextResourceTree
   var exportWarnings: seq[VextInspectionWarning]
-  if session.selectedFormat.typeId == SierraAgiGameTypeId:
+  if session.selectedFormat.typeId in [SierraAgiGameTypeId, SierraSciGameTypeId]:
     tree = session.resourceTree
     exportWarnings = session.warnings
   else:
@@ -427,7 +427,7 @@ proc exportAllResources(options: CliOptions) =
   defer: session.close()
   var tree: VextResourceTree
   var exportWarnings: seq[VextInspectionWarning]
-  if session.selectedFormat.typeId == SierraAgiGameTypeId:
+  if session.selectedFormat.typeId in [SierraAgiGameTypeId, SierraSciGameTypeId]:
     tree = session.resourceTree
     exportWarnings = session.warnings
   else:

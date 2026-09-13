@@ -20,6 +20,11 @@ client, and a dependency-free native Windows GUI. It supports:
   package/member discovery, lazy independently exportable native resources,
   adaptive LZW and v3 picture-packing decompression, and vocabulary text;
 
+- directory-backed Sierra SCI0 and early SCI1 packages, with structurally
+  validated maps, volume records, lazy stored or decoded resources, SCI0
+  LZW and Huffman decompression, SCI0 views and cursors, and revision-independent
+  bitmap fonts;
+
 - classic Amiga Workbench `.info` DiskObjects, including metadata and both
   planar icon states;
 - detection and inspection of generic IFF FORM containers, indexed Amiga ILBM

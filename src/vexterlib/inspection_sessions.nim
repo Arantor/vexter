@@ -10,7 +10,7 @@ import ./metadata
 import ./operations
 import ./resource_tree
 import ./containers/[amiga_adf, amiga_dms, appimage, electron_asar, fat_disk_image, inno_setup, iso9660, lha_archive, openraster,
-  powerpacker, sierra_agi_game, xpk_shri, zip_archive]
+  powerpacker, sierra_agi_game, sierra_sci_game, xpk_shri, zip_archive]
 import ./resources/[ansi_art_image, pcx_image]
 
 type
@@ -445,6 +445,28 @@ proc openInspectionSession*(filename: string, sources: VextSourceCollection,
   result = VextInspectionSession(filename: filename, sources: sources,
     limits: limits, nextId: 0)
   try:
+    if inputFormat.len == 0 or inputFormat == SierraSciGameTypeId:
+      let games = discoverSciGames(sources)
+      if games.len > 1:
+        var candidates: seq[string]
+        for game in games: candidates.add(if game.root.len == 0: "." else: game.root)
+        raise newException(ValueError, "multiple SCI packages found; select one of: " &
+          candidates.join(", "))
+      if games.len == 1:
+        result.selectedFormat = candidate(SierraSciGameTypeId, vdcCertain,
+          "SCI resource map, volume headers, identities, sizes, and bounds validate")
+        result.candidates = @[result.selectedFormat]
+        result.legacyTree = gameResourceTree(sources, games[0])
+        result.kind = vskLegacy
+        for root in result.legacyTree.roots:
+          result.addLegacyNode(root, VextResourceId(0))
+        progress.report(VextSessionProgressEvent(phase: vsppComplete,
+          path: filename, completed: result.descriptors.len,
+          discovered: result.descriptors.len, totalState: vptsFinal,
+          message: "SCI inspection session ready"))
+        return
+      if inputFormat == SierraSciGameTypeId:
+        raise newException(ValueError, "source collection is not a supported SCI0/SCI1 package")
     if inputFormat.len == 0 or inputFormat == SierraAgiGameTypeId:
       let games = discoverAgiGames(sources)
       if games.len > 1:

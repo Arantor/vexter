@@ -19,6 +19,7 @@ task test, "Run the test suite":
   mkDir "build/linux"
   exec "nim c --path:src -o:build/linux/vexter src/vexter.nim"
   exec "nim c -r --path:src tests/test_sierra_agi_game.nim"
+  exec "nim c -r --path:src tests/test_sierra_sci_game.nim"
   exec "nim c -r --path:src tests/test_tracker_archetype.nim"
   exec "nim c -r --path:src tests/test_document_archetype.nim"
   exec "nim c -r --path:src tests/test_wordstar.nim"

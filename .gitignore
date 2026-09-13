@@ -72,4 +72,5 @@
 /tests/test_document_archetype
 /tests/test_protracker_mod
 /tests/test_sierra_agi_game
+/tests/test_sierra_sci_game
 /tests/probe_agi_windows
