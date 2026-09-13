@@ -61,6 +61,7 @@ const AdversarialProfiles = [
   AdversarialProfile(typeId: AmosSpriteBankTypeId, filename: "sprites.abk"),
   AdversarialProfile(typeId: AmosIconBankTypeId, filename: "icons.abk"),
   AdversarialProfile(typeId: ZxSpectrumScreenDumpTypeId, filename: "screen.scr"),
+  AdversarialProfile(typeId: ZxSpectrumGigascreenTypeId, filename: "giga.scr"),
   AdversarialProfile(typeId: ZxSpectrumSnapshotTypeId, filename: "state.sna"),
   AdversarialProfile(typeId: ZxSpectrumTapTypeId, filename: "tape.tap"),
   AdversarialProfile(typeId: ZxSpectrumTzxTypeId, filename: "tape.tzx"),
@@ -129,6 +130,11 @@ suite "adversarial input contract":
         ZxSpectrumScreenSize + 1]:
       expect ValueError:
         discard formatHandler(ZxSpectrumScreenDumpTypeId)[].parse(
+          newSeq[byte](length))
+    for length in [0, 1, ZxSpectrumGigascreenSize - 1,
+        ZxSpectrumGigascreenSize + 1]:
+      expect ValueError:
+        discard formatHandler(ZxSpectrumGigascreenTypeId)[].parse(
           newSeq[byte](length))
     for length in [0, 1, 49178, 49180, 131102, 131104, 147486, 147488]:
       expect ValueError:

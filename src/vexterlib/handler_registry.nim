@@ -15,7 +15,8 @@ import ./containers/[adobe_swatch_exchange, amiga_8svx, amiga_16sv, amiga_acbm,
   inno_setup, iso9660, jpeg, koala_painter, lha_archive, netpbm, openraster,
   paint_net_palette, pcx, png_container, powerpacker, protracker_mod, qoi,
   rgba8_palette, tga, wav, windows_icon, zip_archive,
-  zx_spectrum_screen_dump, zx_spectrum_snapshot, zx_spectrum_tap,
+  zx_spectrum_gigascreen_dump, zx_spectrum_screen_dump, zx_spectrum_snapshot,
+  zx_spectrum_tap,
   zx_spectrum_tzx, xpk_shri]
 import ./containers/amiga_pbm
 import ./format_detection_types
@@ -75,6 +76,7 @@ type
     vhkAmosSpriteBank
     vhkAmosIconBank
     vhkZxSpectrumScreen
+    vhkZxSpectrumGigascreen
     vhkZxSpectrumSnapshot
     vhkZxSpectrumTap
     vhkZxSpectrumTzx
@@ -176,6 +178,8 @@ const FormatHandlers* = [
   VextFormatHandler(typeId: AmosIconBankTypeId, kind: vhkAmosIconBank),
   VextFormatHandler(typeId: ZxSpectrumScreenDumpTypeId,
     kind: vhkZxSpectrumScreen),
+  VextFormatHandler(typeId: ZxSpectrumGigascreenTypeId,
+    kind: vhkZxSpectrumGigascreen),
   VextFormatHandler(typeId: ZxSpectrumSnapshotTypeId,
     kind: vhkZxSpectrumSnapshot),
   VextFormatHandler(typeId: ZxSpectrumTapTypeId, kind: vhkZxSpectrumTap),
@@ -306,6 +310,8 @@ proc parse*(handler: VextFormatHandler,
       raise newException(ValueError,
         "ZX Spectrum screen dump must contain exactly 6912 bytes")
     result = parsed(extractZxSpectrumScreenDump(data))
+  of vhkZxSpectrumGigascreen:
+    result = parsed(parseZxSpectrumGigascreen(data))
   of vhkZxSpectrumSnapshot:
     if not isZxSpectrumSnapshotSize(data.len):
       raise newException(ValueError,

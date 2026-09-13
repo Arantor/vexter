@@ -12,7 +12,8 @@ import ./containers/[amiga_8svx, amiga_16sv, amiga_acbm, amiga_adf, amiga_anim,
   bmfont, bmp, creative_voice, d64, doom_wad, electron_asar, flic, fzx,
   gif_container, gimp_palette, inno_setup, iso9660, jpeg, koala_painter, netpbm,
   paint_net_palette, pcx, png_container, protracker_mod, qoi, rgba8_palette, tga,
-  wav, windows_icon, zip_archive, lha_archive, zx_spectrum_screen_dump,
+  wav, windows_icon, zip_archive, lha_archive, zx_spectrum_gigascreen_dump,
+  zx_spectrum_screen_dump,
   zx_spectrum_snapshot, zx_spectrum_tap, zx_spectrum_tzx]
 import ./containers/xpk_shri
 import ./containers/powerpacker
@@ -644,6 +645,17 @@ proc detectBaseFormats(filename: string, data: openArray[byte]):
       confidence: vdcProbable,
       evidence: evidence
     )
+
+  if filename.hasZxSpectrumGigascreenExtension and
+      isZxSpectrumGigascreen(data):
+    result.add VextDetectionCandidate(
+      typeId: ZxSpectrumGigascreenTypeId,
+      confidence: vdcProbable,
+      evidence: @[
+        VextDetectionEvidence(description: "file size is exactly 7680 bytes"),
+        VextDetectionEvidence(description: "file extension is .scr"),
+        VextDetectionEvidence(description:
+          "file does not begin with a DOS executable header")])
 
   if isZxSpectrumSnapshotSize(data.len):
     var evidence = @[VextDetectionEvidence(

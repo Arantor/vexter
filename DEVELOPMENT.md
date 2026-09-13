@@ -47,7 +47,7 @@ client, and a dependency-free native Windows GUI. It supports:
   structurally recognized Inno Setup executables with bounded loader,
   decoded 5.5/5.6 Unicode file tables, dependency-free LZMA1/LZMA2 payload
   decoding, common split-data resolution, and named whole-container extraction,
-  ZX Spectrum raw screen dumps, SNA snapshots,
+  ZX Spectrum raw screen dumps, ZX Gigascreen images, SNA snapshots,
   TAP and first-pass TZX containers, tokenised BASIC resources, BMFont text descriptors, FZX and Amiga bitmap diskfonts
   (including ColorFonts), standalone AMOS banks, AMOS bank
   sets, and AMOS programs;

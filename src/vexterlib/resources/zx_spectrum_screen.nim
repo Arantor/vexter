@@ -63,6 +63,13 @@ proc decodeFrame(data: openArray[byte], flashPhase: bool): VextIndexedImage =
         result.pixels[y * ZxSpectrumScreenWidth + x] =
           if (bitmap and (0x80'u8 shr bit)) != 0: ink else: paper
 
+proc decodeZxSpectrumScreenImage*(data: openArray[byte]): VextIndexedImage =
+  ## Decodes the natural, non-FLASH phase of one Spectrum screen buffer.
+  if data.len != ZxSpectrumScreenSize:
+    raise newException(ValueError,
+      "ZX Spectrum screen must contain exactly 6912 bytes")
+  decodeFrame(data, false)
+
 proc hasFlashAttributes*(data: openArray[byte]): bool =
   ## Reports syntactic FLASH presence in the 768-byte attribute area.
   if data.len != ZxSpectrumScreenSize:

@@ -63,6 +63,7 @@ import vexterlib/containers/amos_bank_set
 import vexterlib/containers/amos_program
 import vexterlib/containers/amos_sprite_icon_bank
 import vexterlib/containers/zx_spectrum_screen_dump
+import vexterlib/containers/zx_spectrum_gigascreen_dump
 import vexterlib/containers/zx_spectrum_snapshot
 import vexterlib/containers/zx_spectrum_tap
 import vexterlib/containers/zx_spectrum_tzx
@@ -84,6 +85,7 @@ import vexterlib/resources/amiga_workbench_icon_image
 import vexterlib/resources/amiga_diskfont_font
 import vexterlib/resources/amos_listing
 import vexterlib/resources/zx_spectrum_screen
+import vexterlib/resources/zx_spectrum_gigascreen
 import vexterlib/resources/zx_spectrum_basic
 import vexterlib/resources/pcx_image
 import vexterlib/resources/bmp_image
@@ -194,6 +196,8 @@ export amos_sample
 export amos_listing
 export zx_spectrum_screen_dump
 export zx_spectrum_screen
+export zx_spectrum_gigascreen_dump
+export zx_spectrum_gigascreen
 export zx_spectrum_basic
 export pcx_image
 export bmp_image

@@ -1,5 +1,33 @@
 # Third-party material
 
+## zx_giga_view Gigascreen samples
+
+The developer supplied a checkout of mistificator's `zx_giga_view` repository
+under `zx_giga_view/`, from
+`https://github.com/mistificator/zx_giga_view/`. The inspected checkout was
+commit `5d2b26a786b1e36d5953c2f83b7489a5011ca316` (authored by mistificator,
+5 February 2022). Its `mk.scr` and `outrun.scr` examples are compatibility
+samples for the 7,680-byte ZX Gigascreen layout. The accompanying TAP files
+show the standalone viewer and complete example tapes, including the customary
+49152 load address described by the repository README.
+
+No licence or copyright notice is present in the supplied checkout. The
+checkout and its binary samples therefore remain uncommitted third-party test
+material in the working directory and are not redistributed as part of
+Vexter. Routine tests construct compact synthetic Gigascreens; the supplied
+files are used for manual compatibility and end-to-end export checks. Vexter's
+implementation does not include or build the repository's C source.
+
+The supplied-file SHA-256 values are:
+
+```text
+ab5a60988c4e744c944ee3c3f5c2a9cd62f2b616e4c7fbad01e07f9ed5e0fefe  GIGAVIEW.tap
+61c9824628982c4e3546fb109b9c76c5160a2338683e69becf2f81de0549e652  GIGAVIEW_MK.TAP
+8eabf4f329600ca0924487f644ad759eb6d1c719e077797591426f7011aae814  GIGAVIEW_OUTRUN.TAP
+5d058ec57ed924d9e13c8fa6f6093688d442add6d41c13e2cd54155d813418da  mk.scr
+dfdb09b9490d421ded98136be118ee8f12727c527b23e3a02057b11f8d89114d  outrun.scr
+```
+
 ## innoextract source reference
 
 The developer supplied a checkout of Daniel Scharrer's `innoextract` repository

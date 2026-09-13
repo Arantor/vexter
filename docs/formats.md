@@ -1265,6 +1265,39 @@ Tests compare expanded pixel colours and positions, with animated controls
 compared as fully composited frames. Palette ordering, compression, chunk
 layout, frame cropping, and other encoding choices are ignored.
 
+## ZX Gigascreen
+
+Type identifier: `zx-spectrum.gigascreen`
+
+The standalone form uses a 6,144-byte ZX Spectrum bitmap followed by two
+768-byte attribute sets, for exactly 7,680 bytes. Detection requires both that
+size and a case-insensitive `.scr` extension, and excludes files beginning with
+the DOS `MZ` executable signature. With no intrinsic magic, matches remain
+**probable**. Forced-format parsing validates the size and executable exclusion.
+
+The format exposes three independently exportable images beneath `/screen`:
+
+```text
+/screen/palette-a
+/screen/palette-b
+/screen/averaged
+```
+
+The first two are indexed Spectrum images rendered with their corresponding
+attribute sets. `/screen/averaged` is a true-colour image whose red, green, and
+blue components are the integer means of the two displayed pixel colours. It
+is intended as a stable approximation of the visual result rather than a
+timing- or display-accurate simulation of frame alternation.
+
+TAP-contained Gigascreens are not detected. Although common loaders place the
+payload at address 49152, that convention is not dependable enough to identify
+an otherwise unmarked code block.
+
+The supplied `zx_giga_view/bin/mk.scr` and `outrun.scr` samples, and their TAP
+containers and loader, came from the user-provided `zx_giga_view` repository.
+They establish the bitmap-plus-two-attribute-sets layout; no source code from
+that repository is used by the implementation.
+
 ## Generic AMOS banks
 
 Type identifier: `amos.bank`

@@ -24,7 +24,8 @@ import ./containers/[amiga_8svx, amiga_16sv, amiga_acbm, amiga_adf, amiga_anim,
   netpbm, openraster, pcx, png_container,
   adobe_swatch_exchange, aseprite, gimp_palette, koala_painter,
   paint_net_palette, protracker_mod, qoi, rgba8_palette, tga, wav, windows_icon,
-  zip_archive, lha_archive, zx_spectrum_snapshot, zx_spectrum_tap]
+  zip_archive, lha_archive, zx_spectrum_gigascreen_dump, zx_spectrum_snapshot,
+  zx_spectrum_tap]
 import ./containers/xpk_shri
 import ./containers/powerpacker
 import ./metadata
@@ -34,6 +35,7 @@ import ./resources/[amiga_anim_image, amiga_diskfont_font, amiga_ilbm_image,
   flic_animation, gif_image, netpbm_image, png_image, zx_spectrum_basic,
   ansi_art_image, bmfont_font, fzx_font, jpeg_image, koala_painter_image,
   pcx_image, protracker_replay, qoi_image, tga_image, windows_icon_image, zx_spectrum_screen]
+import ./resources/zx_spectrum_gigascreen
 
 type
   VextOperationCancelledError* = object of CatchableError
@@ -2620,6 +2622,24 @@ proc inspectSourceDepth(filename: string, data: openArray[byte],
   of vhkZxSpectrumScreen:
     result.resources.roots.add rasterNode(ZxSpectrumScreenResourcePath,
       parsedValue[seq[byte]](selectedParsed, vhkZxSpectrumScreen))
+  of vhkZxSpectrumGigascreen:
+    let screen = parsedValue[ZxSpectrumGigascreen](selectedParsed,
+      vhkZxSpectrumGigascreen)
+    result.resources.roots.add VextResourceNode(
+      path: ZxSpectrumGigascreenResourcePath,
+      typeId: ZxSpectrumGigascreenTypeId,
+      kind: vrnkGroup,
+      children: @[
+        VextResourceNode(path: ZxSpectrumGigascreenPaletteAPath,
+          typeId: ZxSpectrumGigascreenTypeId, kind: vrnkRaster,
+          raster: VextRaster(kind: vrkIndexedImage, image: screen.paletteA)),
+        VextResourceNode(path: ZxSpectrumGigascreenPaletteBPath,
+          typeId: ZxSpectrumGigascreenTypeId, kind: vrnkRaster,
+          raster: VextRaster(kind: vrkIndexedImage, image: screen.paletteB)),
+        VextResourceNode(path: ZxSpectrumGigascreenAveragedPath,
+          typeId: ZxSpectrumGigascreenTypeId, kind: vrnkRaster,
+          raster: VextRaster(kind: vrkTrueColourImage,
+            trueColourImage: screen.averaged))])
   of vhkZxSpectrumSnapshot:
     let snapshotData = parsedValue[seq[byte]](selectedParsed,
       vhkZxSpectrumSnapshot)
