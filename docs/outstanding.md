@@ -433,6 +433,10 @@ format-evidence gaps:
   In particular, an SCI0-framed map does not discriminate SCI0 method 2
   Huffman from SCI01 method 2 COMP3; Vexter therefore requires the complete
   Huffman framing to validate before selecting that interpretation.
+  The supplied *Police Quest 3* early-SCI1 package uses methods 2, 3, and 4 for
+  897 of its 911 mapped resource entries; their codec and any method-specific
+  postprocessing remain undocumented, so the package is inventoried while
+  those payloads remain stored-compressed.
 - DCL-EXPLODE methods 18-20 share the supplied chapter's decoder and are now
   enabled. All supplied *Dagger of Amon-Ra* method-19 and method-20 resources,
   plus its binary-literal method-18 streams, reach their exact declared output
@@ -452,6 +456,12 @@ format-evidence gaps:
   rejected. Documentation is still needed for those variants, the meanings of
   retained header flags, scaling metadata, early SCI1 and Amiga layouts, and
   later VGA/true-colour forms.
+- A corpus-derived SCI1.1 256-colour bitmap PIC subset now renders the supplied
+  split control/literal streams, embedded RGB palettes, and trailing vector
+  priority/control commands. Documentation is
+  still needed for the main-header and cel-descriptor fields, payload sections
+  following the palette table, protected palette ranges, unsupported run mode 1, other
+  encoding values, early SCI1 and Amiga pictures, and later SCI32 forms.
 - Resolve the supplied cursor chapter's SCI0 truth-table conflict: its table
   makes a clear-bit first plane transparent, while recognizable cursors across
   KQ4, Leisure Suit Larry 2 and 3, and Colonel's Bequest require set bits to be
@@ -468,7 +478,7 @@ format-evidence gaps:
   authentic payloads extracted from the supplied volumes begin directly with
   drawing opcodes. Complete semantics and layouts are still needed for extended
   operations 2 through 8 (monochrome, direct colour, embedded cels, and priority
-  bands), and for SCI1 and later picture/palette resources.
+  bands), and for SCI1 and later vector picture operations.
 - Chapter 4 expressly covers SCI0 IBM sound only. SCI1, hybrid-interpreter,
   non-DOS, standalone digital-audio, sync, and speech formats need
   documentation. Its documented SCI0 appended unsigned-PCM effects are now

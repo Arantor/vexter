@@ -2529,7 +2529,7 @@ otherwise five-byte tables identify SCI1.1. SCI1.1 entries contain a two-byte
 resource number and a three-byte little-endian word offset into `RESOURCE.000`.
 The type comes from the enclosing directory. The first directory offset may
 skip four intervening bytes observed in some supplied games. Duplicate SCI0
-type/number records remain independently visible
+type/number records and repeated early-SCI1 resource numbers remain independently visible
 with stable `-copy-N` paths. Only resource-type groups actually present in the
 map appear in the tree. Volumes are read in bounded ranges.
 
@@ -2583,6 +2583,19 @@ views without one use palette resource 999 when it validates with the same
 structure. This layout is corpus-derived and deliberately rejected when its
 counts, offsets, palette framing, encoding value, or complete pixel coverage
 do not validate.
+SCI1.1 256-colour bitmap pictures using the corresponding observed layout
+expose a visual raster and their original bytes. A 38-byte header identifies
+the embedded palette and bitmap-cel descriptor; the latter supplies dimensions,
+the transparent index, encoding value, and separate control and literal stream
+offsets. The supported control stream uses the same six-bit literal, repeated,
+and transparent runs as the VIEW subset. Embedded RGB palettes retain any
+unlisted entries from palette resource 999; their declared table is bounded
+independently of subsequent picture payload sections. Offsets, stream bounds,
+palette size, run coverage, and the observed encoding value are all validated.
+The header also locates a trailing vector-command stream. It reuses the SCI0
+line, fill, pattern, priority, and control operations, while visual-colour
+selection uses a direct eight-bit palette index. Vexter applies this stream to
+export separate priority and control rasters alongside the bitmap visual.
 Fixed 68-byte cursor
 resources expose 16x16 images, transparency, SCI0 or SCI1 colour mapping, and
 hotspot metadata. Authentic SCI0 cursors from KQ4, Leisure Suit Larry 2 and 3,
@@ -2648,7 +2661,7 @@ child. Resource 994 remains opaque: the supplied specifications do not define
 its 16-bit table, and the user-confirmed SCI Companion view likewise presents
 only a hex dump rather than a semantic interpretation.
 
-SCI0 pictures expose visual, priority, and control rasters plus their original
+SCI0 vector pictures expose visual, priority, and control rasters plus their original
 bytes. The renderer implements plane and colour selection, absolute and both
 relative line forms, four-way flood fill over the documented 190-line drawing
 area, solid and textured rectangle/circle patterns, four 40-entry dither-pair

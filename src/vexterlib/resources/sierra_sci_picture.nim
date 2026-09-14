@@ -4,6 +4,7 @@
 
 import ../archetypes/raster
 import ./sierra_agi_view
+import ./sierra_sci_graphics
 
 const
   SciPictureWidth* = 320
@@ -29,6 +30,87 @@ const
 type SciPicture* = object
   visual*, priority*, control*: VextRaster
 
+proc picLe16(data: openArray[byte], at: int): int =
+  if at < 0 or at > data.len - 2:
+    raise newException(ValueError, "truncated SCI picture word")
+  int(data[at]) or (int(data[at + 1]) shl 8)
+
+proc picLe32(data: openArray[byte], at: int): int =
+  if at < 0 or at > data.len - 4:
+    raise newException(ValueError, "truncated SCI picture dword")
+  int(data[at]) or (int(data[at + 1]) shl 8) or
+    (int(data[at + 2]) shl 16) or (int(data[at + 3]) shl 24)
+
+proc renderSci11PictureVisual(data: openArray[byte],
+    fallbackPalette: openArray[VextRgb] = []): VextRaster =
+  ## Corpus-derived Dagger/SQ4/KQ6 256-colour bitmap PIC subset. It shares
+  ## SCI1.1 VIEW split control/literal runs and palette framing.
+  if data.len < 114 or picLe16(data, 0) != 38:
+    raise newException(ValueError, "invalid SCI1.1 picture header")
+  let paletteAt = picLe32(data, 28)
+  let celAt = picLe32(data, 32)
+  if celAt < 38 or celAt > data.len - 42:
+    raise newException(ValueError, "invalid SCI1.1 picture cel offset")
+  let width = picLe16(data, celAt)
+  let height = picLe16(data, celAt + 2)
+  if width <= 0 or height <= 0 or width > 640 or height > 480 or
+      width > high(int) div height:
+    raise newException(ValueError, "invalid SCI1.1 picture dimensions")
+  if data[celAt + 9] != 10:
+    raise newException(ValueError, "unsupported SCI1.1 picture encoding")
+  let controlSize = picLe32(data, celAt + 16)
+  let controlAt = picLe32(data, celAt + 24)
+  var literalAt = picLe32(data, celAt + 28)
+  if controlSize <= 0 or controlAt < celAt + 42 or
+      controlAt > data.len - controlSize or
+      literalAt < controlAt + controlSize or literalAt > data.len or
+      paletteAt < literalAt or paletteAt > data.len - 37:
+    raise newException(ValueError, "invalid SCI1.1 picture stream bounds")
+  let paletteCount = picLe16(data, paletteAt + 29)
+  let paletteStride = case data[paletteAt + 31]
+    of 1: 3
+    of 3: 4
+    else: raise newException(ValueError,
+      "unsupported SCI1.1 palette representation")
+  let paletteSize = 37 + paletteCount * paletteStride
+  if paletteCount <= 0 or paletteCount > 256 or
+      paletteAt > data.len - paletteSize:
+    raise newException(ValueError, "invalid SCI1.1 picture palette bounds")
+  var palette = parseSci11Palette(data, paletteAt, paletteSize,
+    basePalette = fallbackPalette)
+  var image = VextIndexedImage(width: width, height: height,
+    palette: move(palette), pixels: newSeq[uint8](width * height),
+    alpha: newSeq[uint8](width * height))
+  for value in image.alpha.mitems: value = 255
+  var written = 0
+  for controlIndex in 0 ..< controlSize:
+    let control = data[controlAt + controlIndex]
+    let count = int(control and 0x3f)
+    if count == 0 or written > image.pixels.len - count:
+      raise newException(ValueError, "SCI1.1 picture run exceeds the image")
+    case control shr 6
+    of 0:
+      if literalAt > paletteAt - count:
+        raise newException(ValueError, "truncated SCI1.1 picture literal run")
+      for offset in 0 ..< count:
+        image.pixels[written + offset] = data[literalAt + offset]
+      literalAt += count
+    of 2:
+      if literalAt >= paletteAt:
+        raise newException(ValueError, "truncated SCI1.1 picture repeated literal")
+      for offset in 0 ..< count:
+        image.pixels[written + offset] = data[literalAt]
+      inc literalAt
+    of 3:
+      for offset in 0 ..< count:
+        image.pixels[written + offset] = data[celAt + 8]
+    else:
+      raise newException(ValueError, "unsupported SCI1.1 picture run type")
+    written += count
+  if written != image.pixels.len:
+    raise newException(ValueError, "SCI1.1 picture runs do not fill the image")
+  VextRaster(kind: vrkIndexedImage, image: move(image))
+
 const DefaultPairs = [
   (0'u8, 0'u8), (1'u8, 1'u8), (2'u8, 2'u8), (3'u8, 3'u8),
   (4'u8, 4'u8), (5'u8, 5'u8), (6'u8, 6'u8), (7'u8, 7'u8),
@@ -46,7 +128,7 @@ proc asRaster(pixels: sink seq[uint8]): VextRaster =
     width: SciPictureWidth, height: SciPictureHeight,
     palette: @AgiEgaPalette, pixels: move(pixels)))
 
-proc renderSci0Picture*(data: openArray[byte]): SciPicture =
+proc renderSci0Picture*(data: openArray[byte], directColours = false): SciPicture =
   var visual = newSeq[uint8](SciPictureWidth * SciPictureHeight)
   var priority = newSeq[uint8](visual.len)
   var control = newSeq[uint8](visual.len)
@@ -152,9 +234,13 @@ proc renderSci0Picture*(data: openArray[byte]): SciPicture =
     case command
     of 0xf0:
       let code = byteArgument()
-      if code >= 160:
+      if directColours:
+        colour1 = uint8(code)
+        colour2 = uint8(code)
+      elif code >= 160:
         raise newException(ValueError, "SCI0 picture colour is outside all palettes")
-      (colour1, colour2) = palettes[code div 40][code mod 40]
+      else:
+        (colour1, colour2) = palettes[code div 40][code mod 40]
       enabled = enabled or 1
     of 0xf1: enabled = enabled and not 1
     of 0xf2: priorityValue = uint8(byteArgument() and 0x0f); enabled = enabled or 2
@@ -243,3 +329,17 @@ proc renderSci0Picture*(data: openArray[byte]): SciPicture =
     else:
       raise newException(ValueError, "unknown SCI0 picture operation")
   raise newException(ValueError, "SCI0 picture is missing its end operation")
+
+proc renderSci11Picture*(data: openArray[byte],
+    fallbackPalette: openArray[VextRgb] = []): SciPicture =
+  ## SCI1.1 bitmap visual plus its trailing SCI vector operations. The latter
+  ## retain the earlier priority/control drawing command language.
+  result.visual = renderSci11PictureVisual(data, fallbackPalette)
+  let vectorSize = picLe32(data, 12)
+  let vectorAt = picLe32(data, 16)
+  if vectorSize <= 0 or vectorAt < 38 or vectorAt > data.len - vectorSize:
+    raise newException(ValueError, "invalid SCI1.1 picture vector bounds")
+  let vectorLayers = renderSci0Picture(
+    data.toOpenArray(vectorAt, vectorAt + vectorSize - 1), directColours = true)
+  result.priority = vectorLayers.priority
+  result.control = vectorLayers.control

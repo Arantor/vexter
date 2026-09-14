@@ -24,6 +24,40 @@ proc dclLiteralStream(text: string, distanceBits = 4): seq[byte] =
     result[^1] = result[^1] or byte(bit shl (index mod 8))
 
 suite "Sierra SCI game packages":
+  test "SCI1.1 split streams render an indexed picture":
+    var data = newSeq[byte](157)
+    data[0] = 38
+    data[28 .. 31] = leDwordBytes(84)
+    data[32 .. 35] = leDwordBytes(38)
+    data[38 .. 39] = leBytes(3)
+    data[40 .. 41] = leBytes(1)
+    data[46] = 255
+    data[47] = 10
+    data[54 .. 57] = leDwordBytes(2)
+    data[62 .. 65] = leDwordBytes(80)
+    data[66 .. 69] = leDwordBytes(82)
+    data[80] = 1
+    data[81] = 0x82
+    data[82] = 5
+    data[83] = 6
+    data[113] = 7
+    data[115] = 1
+    data[121 + 5 * 3] = 10
+    data[121 + 5 * 3 + 1] = 20
+    data[121 + 5 * 3 + 2] = 30
+    data[12 .. 15] = leDwordBytes(15)
+    data[16 .. 19] = leDwordBytes(142)
+    data[142 .. 156] = @[0xf1'u8, 0xf2, 15, 0xf4, 0, 0, 0,
+      0xf3, 0xfb, 2, 0xf4, 0, 1, 0, 0xff]
+    let picture = renderSci11Picture(data)
+    check picture.visual.kind == vrkIndexedImage
+    check picture.visual.image.width == 3
+    check picture.visual.image.height == 1
+    check picture.visual.image.pixels == @[5'u8, 6, 6]
+    check picture.visual.image.palette[5] == VextRgb(r: 10, g: 20, b: 30)
+    check picture.priority.image.pixels[0] == 15
+    check picture.control.image.pixels[1] == 2
+
   test "SCI0 map and uncompressed volume entries validate and remain lazy":
     # view 3 in resource.000 at offset zero, followed by the map terminator.
     let map = @[0x03'u8, 0x00, 0, 0, 0, 0, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff]
@@ -61,6 +95,22 @@ suite "Sierra SCI game packages":
     check games.len == 1
     check games[0].version == srmvSci1
     check games[0].entries.len == 5
+
+  test "SCI1 tables retain repeated resource copies":
+    let map = @[0x80'u8, 6, 0, 0xff, 18, 0,
+      9, 0, 0, 0, 0, 0,
+      9, 0, 10, 0, 0, 0]
+    let volume = @[
+      0x80'u8, 9, 0, 5, 0, 1, 0, 0, 0, 1,
+      0x80, 9, 0, 5, 0, 1, 0, 0, 0, 2]
+    let sources = newSourceCollection(relatedSources = @[
+      member("RESOURCE.MAP", map), member("RESOURCE.000", volume)])
+    let games = discoverSciGames(sources)
+    check games.len == 1
+    check games[0].version == srmvSci1
+    check games[0].entries.len == 2
+    check games[0].entries[0].number == 9
+    check games[0].entries[1].number == 9
 
   test "SCI1.1 five-byte entries build font and cursor resources":
     let fontData = @[0'u8, 0, 1, 0, 6, 0, 8, 0, 1, 1, 0x80]

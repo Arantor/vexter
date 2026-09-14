@@ -141,7 +141,7 @@ proc parseSci1Map(data: openArray[byte], version: var SciResourceMapVersion): se
     var entryAt = first
     while entryAt < finish:
       let number = le16(data, entryAt)
-      if number <= previous:
+      if number < previous:
         raise newException(ValueError, "SCI1 resource table is not sorted")
       var volume, offset: int
       if version == srmvSci1:
@@ -608,6 +608,26 @@ proc gameResourceTree*(sources: VextSourceCollection, game: SciGame): VextResour
             VextResourceNode(path: path & "/control",
               typeId: SierraSciGameTypeId & ".picture-control", kind: vrnkRaster,
               raster: picture.control, defaultExportPriority: 10),
+            VextResourceNode(path: path & "/raw",
+              typeId: SierraSciGameTypeId & ".picture-data", kind: vrnkOpaque,
+              rawDataAvailable: true, lazyPayload: node.lazyPayload,
+              defaultExportPriority: 10)]
+          node.lazyPayload = VextPayloadRef()
+        elif e.kind == srkPicture and game.version == srmvSci11:
+          let picture = renderSci11Picture(bytes, sci11FallbackPalette)
+          node.kind = vrnkGroup; node.rawDataAvailable = false
+          node.children = @[
+            VextResourceNode(path: path & "/visual",
+              typeId: SierraSciGameTypeId & ".picture-visual", kind: vrnkRaster,
+              raster: picture.visual,
+              defaultExportPriority: 10),
+            VextResourceNode(path: path & "/priority",
+              typeId: SierraSciGameTypeId & ".picture-priority", kind: vrnkRaster,
+              raster: picture.priority, defaultExportPriority: 10),
+            VextResourceNode(path: path & "/control",
+              typeId: SierraSciGameTypeId & ".picture-control", kind: vrnkRaster,
+              raster: picture.control,
+              defaultExportPriority: 10),
             VextResourceNode(path: path & "/raw",
               typeId: SierraSciGameTypeId & ".picture-data", kind: vrnkOpaque,
               rawDataAvailable: true, lazyPayload: node.lazyPayload,

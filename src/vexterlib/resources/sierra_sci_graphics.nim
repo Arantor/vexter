@@ -112,7 +112,8 @@ proc parseSci0View*(data: openArray[byte]): SciView =
     result.loops.add move(loop)
 
 proc parseSci11Palette*(data: openArray[byte], start = 0,
-    length = -1): seq[VextRgb] =
+    length = -1, allowSevenByteTrailer = false,
+    basePalette: openArray[VextRgb] = []): seq[VextRgb] =
   ## Corpus-derived SCI1.1 palette framing. The supplied Dagger palette 999
   ## and embedded VIEW palettes share this 37-byte header and bounded entry
   ## representation.
@@ -125,9 +126,15 @@ proc parseSci11Palette*(data: openArray[byte], start = 0,
     of 1: 3
     of 3: 4
     else: raise newException(ValueError, "unsupported SCI1.1 palette representation")
-  if count <= 0 or count > 256 or 37 + count * stride != size:
+  let required = 37 + count * stride
+  if count <= 0 or count > 256 or
+      (if allowSevenByteTrailer: size != required and size != required + 7
+       else: size != required):
     raise newException(ValueError, "invalid SCI1.1 palette entry table")
-  result = newSeq[VextRgb](256)
+  result = @basePalette
+  if result.len == 0: result = newSeq[VextRgb](256)
+  if result.len != 256:
+    raise newException(ValueError, "SCI1.1 base palette must contain 256 entries")
   var at = start + 37
   for index in 0 ..< count:
     if stride == 4:

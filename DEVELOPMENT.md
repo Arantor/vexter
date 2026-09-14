@@ -24,7 +24,9 @@ client, and a dependency-free native Windows GUI. It supports:
   packages, with structurally
   validated maps, volume records, lazy stored or decoded resources, SCI0
   LZW and Huffman decompression, documented DCL-EXPLODE decompression,
-  SCI0 views, corpus-derived split-stream SCI1.1 views, cursors, and revision-independent
+  SCI0 views, corpus-derived split-stream SCI1.1 views and bitmap pictures
+  with vector priority/control layers,
+  cursors, and revision-independent
   bitmap fonts, documented SCI0 appended unsigned-PCM sound effects, and
   main/suffix vocabularies, annotated parser grammars, and symbolic debugger
   tables;
