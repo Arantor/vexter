@@ -9,6 +9,20 @@ proc member(path: string, data: seq[byte]): VextRelatedSource =
 proc leBytes(value: int): seq[byte] =
   @[byte(value and 0xff), byte((value shr 8) and 0xff)]
 
+proc leDwordBytes(value: int): seq[byte] =
+  @[byte(value and 0xff), byte((value shr 8) and 0xff),
+    byte((value shr 16) and 0xff), byte((value shr 24) and 0xff)]
+
+proc dclLiteralStream(text: string, distanceBits = 4): seq[byte] =
+  result = @[0'u8, byte(distanceBits)]
+  var bits: seq[int]
+  for ch in text:
+    bits.add 0
+    for bit in 0 ..< 8: bits.add (ord(ch) shr bit) and 1
+  for index, bit in bits:
+    if index mod 8 == 0: result.add 0
+    result[^1] = result[^1] or byte(bit shl (index mod 8))
+
 suite "Sierra SCI game packages":
   test "SCI0 map and uncompressed volume entries validate and remain lazy":
     # view 3 in resource.000 at offset zero, followed by the map terminator.
@@ -34,11 +48,72 @@ suite "Sierra SCI game packages":
     check games[0].entries[0].kind == srkFont
     check resourceBytes(sources, games[0], games[0].entries[0]) == @[1'u8, 2, 3]
 
+  test "six-byte SCI1 entries take precedence when a table also divides by five":
+    var map = @[0x87'u8, 6, 0, 0xff, 36, 0]
+    var volume: seq[byte]
+    for number in 0 ..< 5:
+      map.add leBytes(number)
+      map.add leDwordBytes(number * 10)
+      volume.add @[0x87'u8, byte(number), 0, 5, 0, 1, 0, 0, 0, byte(number)]
+    let sources = newSourceCollection(relatedSources = @[
+      member("RESOURCE.MAP", map), member("RESOURCE.000", volume)])
+    let games = discoverSciGames(sources)
+    check games.len == 1
+    check games[0].version == srmvSci1
+    check games[0].entries.len == 5
+
+  test "SCI1.1 five-byte entries build font and cursor resources":
+    let fontData = @[0'u8, 0, 1, 0, 6, 0, 8, 0, 1, 1, 0x80]
+    var cursorData = newSeq[byte](68)
+    cursorData[0] = 4
+    cursorData[2] = 5
+    cursorData[4] = 0xff
+    cursorData[5] = 0xff
+    let map = @[
+      0x87'u8, 13, 0, 0x88, 18, 0, 0xff, 23, 0,
+      0x34, 0x12, 0, 0,
+      2, 0, 0, 0, 0,
+      3, 0, 11, 0, 0]
+    var volume = @[0x87'u8, 2, 0]
+    volume.add leBytes(fontData.len)
+    volume.add leBytes(fontData.len)
+    volume.add @[0'u8, 0]
+    volume.add fontData
+    volume.add @[0'u8, 0] # SCI1.1 locations are measured in words.
+    volume.add @[0x88'u8, 3, 0]
+    volume.add leBytes(cursorData.len)
+    volume.add leBytes(cursorData.len)
+    volume.add @[0'u8, 0]
+    volume.add cursorData
+    let sources = newSourceCollection(relatedSources = @[
+      member("RESOURCE.MAP", map), member("RESOURCE.000", volume)])
+    let games = discoverSciGames(sources)
+    check games.len == 1
+    check games[0].version == srmvSci11
+    check games[0].entries[0].offset == 0
+    check games[0].entries[1].offset == 22
+    let tree = gameResourceTree(sources, games[0])
+    check tree.findFontResource("/game/fonts/2/font") != nil
+    let cursor = tree.findRasterResource("/game/cursors/3/image")
+    require cursor != nil
+    check cursor.metadata[0].value.integerValue == 4
+    check cursor.metadata[1].value.integerValue == 5
+
   test "Huffman decoder handles tree leaves and literal termination":
     # Root: zero selects leaf 'A'; one selects an inline literal. Bits encode
     # A, A, and literal $FF, with $FF serving as the terminator.
     let encoded = @[0xff'u8, 2, 0, 0x10, byte('A'), 0, 0x3f, 0xe0]
     check huffmanDecode(encoded, 2) == @[byte('A'), byte('A')]
+
+  test "DCL-EXPLODE decodes binary literals and validates parameters":
+    check dclExplodeDecode(dclLiteralStream("ABC"), 3) ==
+      @[byte('A'), byte('B'), byte('C')]
+    # Literal A, followed by a length-two copy at distance one.
+    check dclExplodeDecode(@[0'u8, 4, 0x82, 0x76, 0], 3) ==
+      @[byte('A'), byte('A'), byte('A')]
+    check dclExplodeDecode(@[1'u8, 4, 0x1e], 1) == @[byte(' ')]
+    expect ValueError:
+      discard dclExplodeDecode(@[2'u8, 4, 0], 1)
 
   test "SCI LZW uses LSB-first adaptive codes through twelve bits":
     # clear, literal A, literal B, end, packed as four nine-bit LSB-first codes
@@ -196,6 +271,28 @@ suite "Sierra SCI game packages":
     check animation.frames[0].image.alpha == @[0'u8, 0, 0, 255, 0, 0]
     check animation.frames[1].image.pixels == @[0'u8, 0, 2, 0, 0, 3]
     check animation.frames[1].image.alpha == @[0'u8, 0, 255, 0, 0, 255]
+
+  test "SCI1.1 views decode split control and literal streams":
+    var data = newSeq[byte](71)
+    data[0] = 16
+    data[2] = 1
+    data[20] = 1
+    data[30] = 32
+    data[32] = 3
+    data[34] = 1
+    data[40] = 35
+    data[41] = 10
+    data[48] = 2
+    data[56] = 68
+    data[60] = 70
+    data[68] = 0xc1 # one transparent pixel
+    data[69] = 0x82 # repeat the next literal twice
+    data[70] = 5
+    let view = parseSci11View(data)
+    check view.loops.len == 1
+    check view.loops[0].cels.len == 1
+    check view.loops[0].cels[0].pixels == @[35'u8, 5, 5]
+    check view.loops[0].cels[0].raster.image.alpha == @[0'u8, 255, 255]
 
   test "documented SCI0 picture exposes all three maps":
     let picture = renderSci0Picture(@[0xf0'u8, 0, 0xf8, 0, 0x94, 0x4f, 0xff])

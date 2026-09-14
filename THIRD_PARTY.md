@@ -1356,6 +1356,17 @@ The developer also supplied 35 locally installed SCI games under
 redistributable fixture set. Its acquisition sources and licence terms were not
 supplied; none of its game data is copied into routine tests.
 
+On 14 September 2026 the developer supplied their independently derived SCI1.1
+map notes and an illustrative PHP fragment. These identify typed maps whose
+per-type tables use five-byte entries: a little-endian resource number followed
+by a three-byte little-endian word address into `RESOURCE.000`. The supplied
+corpus independently validates every such entry and its nine-byte volume-header
+identity in *Dagger of Amon-Ra*, both supplied *Freddy Pharkas* installations,
+*King's Quest VI*, *Leisure Suit Larry 6 VGA*, *Quest for Glory III*, *Space
+Quest IV*, and *Space Quest V*. Some of those maps place four uninterpreted
+bytes between the type-directory terminator and the first table; the directory's
+first offset safely skips them.
+
 ```text
 abc357fbc92b62f783449a3a20439f169dc71de71124a6847a7aff02f0d0a000  SCI Specifications_ Chapter 1 - Introduction - SCI Wiki.html
 f0de77da34741134596d25cccc5d45732863f8975d12968910775486b711bb7a  SCI Specifications_ Chapter 2 - Resource files - SCI Wiki.html

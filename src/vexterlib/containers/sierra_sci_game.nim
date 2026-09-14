@@ -1,7 +1,8 @@
-## Sierra SCI0/SCI1 directory-backed resource packages.
+## Sierra SCI0/SCI1/SCI1.1 directory-backed resource packages.
 ## Format facts are derived from supplied SCI Specifications chapters 1-3.
 
 import std/[strutils, tables]
+import ../archetypes/raster
 import ../byte_sources
 import ../metadata
 import ../resource_tree
@@ -13,7 +14,7 @@ import ../resources/sierra_sci_vocabulary
 const SierraSciGameTypeId* = "sierra.sci-game"
 
 type
-  SciResourceMapVersion* = enum srmvSci0, srmvSci1
+  SciResourceMapVersion* = enum srmvSci0, srmvSci1, srmvSci11
   SciResourceKind* = enum
     srkView, srkPicture, srkScript, srkText, srkSound, srkMemory,
     srkVocabulary, srkFont, srkCursor, srkPatch, srkBitmap, srkPalette,
@@ -66,6 +67,11 @@ proc le32(data: openArray[byte], at: int): uint32 =
   uint32(data[at]) or (uint32(data[at + 1]) shl 8) or
     (uint32(data[at + 2]) shl 16) or (uint32(data[at + 3]) shl 24)
 
+proc le24(data: openArray[byte], at: int): int =
+  if at < 0 or at > data.len - 3:
+    raise newException(ValueError, "truncated SCI 24-bit value")
+  int(data[at]) or (int(data[at + 1]) shl 8) or (int(data[at + 2]) shl 16)
+
 proc resourceKind(value: int): SciResourceKind =
   if value in 0 .. 17: SciResourceKind(value) else: srkUnknown
 
@@ -89,7 +95,7 @@ proc parseSci0Map(data: openArray[byte]): seq[SciResourceEntry] =
     at += 6
   raise newException(ValueError, "SCI0 resource map has no terminator")
 
-proc parseSci1Map(data: openArray[byte]): seq[SciResourceEntry] =
+proc parseSci1Map(data: openArray[byte], version: var SciResourceMapVersion): seq[SciResourceEntry] =
   if data.len < 6: raise newException(ValueError, "truncated SCI1 resource map")
   var types: seq[tuple[number, first: int]]
   var at = 0
@@ -107,25 +113,49 @@ proc parseSci1Map(data: openArray[byte]): seq[SciResourceEntry] =
       raise newException(ValueError, "invalid SCI1 resource type table")
     types.add (number: typeByte - 0x80, first: first)
     at += 3
-  if types.len < 2 or types[0].first != at + 3:
-    raise newException(ValueError, "SCI1 resource tables do not follow the type table")
+  let directoryEnd = at + 3
+  if types.len < 2 or types[0].first < directoryEnd:
+    raise newException(ValueError, "SCI1 resource tables overlap the type table")
+  var sci1 = true
+  var sci11 = true
   for index in 0 ..< types.len - 1:
     let first = types[index].first
     let finish = types[index + 1].first
-    if finish < first or (finish - first) mod 6 != 0:
+    if finish < first:
       raise newException(ValueError, "invalid SCI1 resource table bounds")
+    sci1 = sci1 and (finish - first) mod 6 == 0
+    sci11 = sci11 and (finish - first) mod 5 == 0
+  # Prefer SCI1 when both entry widths happen to divide every table length.
+  if sci1:
+    version = srmvSci1
+  elif sci11:
+    version = srmvSci11
+  else:
+    raise newException(ValueError,
+      "SCI resource tables have neither SCI1 nor SCI1.1 entry widths")
+  let entrySize = if version == srmvSci1: 6 else: 5
+  for index in 0 ..< types.len - 1:
+    let first = types[index].first
+    let finish = types[index + 1].first
     var previous = -1
     var entryAt = first
     while entryAt < finish:
       let number = le16(data, entryAt)
       if number <= previous:
         raise newException(ValueError, "SCI1 resource table is not sorted")
-      let location = le32(data, entryAt + 2)
+      var volume, offset: int
+      if version == srmvSci1:
+        let location = le32(data, entryAt + 2)
+        volume = int(location shr 28)
+        offset = int(location and 0x0fffffff'u32)
+      else:
+        volume = 0
+        offset = le24(data, entryAt + 2) * 2
       result.add SciResourceEntry(kind: resourceKind(types[index].number),
         typeNumber: types[index].number, number: number,
-        volume: int(location shr 28), offset: int(location and 0x0fffffff'u32))
+        volume: volume, offset: offset)
       previous = number
-      entryAt += 6
+      entryAt += entrySize
   if types[^1].first != data.len:
     raise newException(ValueError, "SCI1 resource map end offset does not match its length")
 
@@ -163,8 +193,13 @@ proc inspectEntry(sources: VextSourceCollection, game: SciGame,
   entry.compressedSize = le16(header, wordsAt)
   entry.decompressedSize = le16(header, wordsAt + 2)
   entry.compressionMethod = le16(header, wordsAt + 4)
-  let payloadSize = entry.compressedSize - 4
-  if entry.compressedSize < 4 or entry.decompressedSize < 0 or
+  # SCI0/early SCI1 include four identity bytes in the stored-size field.
+  # In the supplied word-addressed SCI1.1 generation it is the number of
+  # payload bytes following the nine-byte header; adjacent map offsets in the
+  # authentic corpus independently confirm that framing.
+  let payloadSize = if game.version == srmvSci11:
+    entry.compressedSize else: entry.compressedSize - 4
+  if payloadSize < 0 or entry.decompressedSize < 0 or
       payloadSize > volume.length - entry.offset - headerSize:
     entry.warning = "resource payload extends beyond volume bounds"
     return
@@ -180,8 +215,7 @@ proc discoverSciGames*(sources: VextSourceCollection): seq[SciGame] =
       let data = sources.readRelated(mapPath)
       var game = SciGame(root: mapPath.dirname, mapPath: mapPath)
       if data.len >= 1 and data[0] in 0x80'u8 .. 0x91'u8:
-        game.version = srmvSci1
-        game.entries = parseSci1Map(data)
+        game.entries = parseSci1Map(data, game.version)
       else:
         game.version = srmvSci0
         game.entries = parseSci0Map(data)
@@ -296,6 +330,142 @@ proc sciLzwDecode*(input: openArray[byte], expected: int): seq[byte] =
   if result.len != expected:
     raise newException(ValueError, "SCI LZW output length mismatch")
 
+const
+  DclAsciiCodes = [73, 127, 126, 125, 124, 123, 122, 121, 120, 29, 35,
+    119, 118, 34, 117, 116, 115, 114, 113, 112, 111, 110, 109, 108, 107,
+    106, 73, 105, 104, 103, 102, 101, 15, 41, 28, 100, 40, 99, 39, 27, 33,
+    32, 26, 27, 31, 37, 30, 25, 29, 36, 28, 27, 26, 25, 24, 24, 23, 23,
+    22, 98, 72, 22, 26, 71, 97, 35, 21, 34, 33, 29, 20, 21, 20, 32, 70,
+    25, 31, 19, 30, 29, 18, 69, 28, 27, 26, 17, 24, 19, 23, 22, 68, 18,
+    67, 21, 96, 17, 95, 28, 25, 24, 23, 27, 22, 21, 20, 26, 66, 16, 25,
+    19, 24, 23, 18, 38, 22, 21, 20, 19, 16, 15, 15, 14, 37, 65, 64, 94,
+    93, 92, 72, 71, 70, 69, 68, 67, 66, 65, 64, 63, 62, 61, 60, 59, 58,
+    57, 56, 55, 54, 53, 52, 51, 50, 49, 48, 47, 46, 45, 44, 43, 42, 41,
+    40, 39, 38, 37, 36, 35, 34, 33, 32, 31, 30, 29, 28, 27, 26, 25, 91,
+    90, 89, 88, 87, 86, 85, 84, 83, 82, 81, 80, 79, 78, 77, 76, 75, 74,
+    73, 72, 71, 70, 69, 68, 67, 66, 65, 64, 63, 62, 61, 60, 59, 58, 57,
+    56, 55, 54, 53, 52, 51, 50, 49, 48, 47, 46, 45, 44, 24, 43, 23, 22,
+    21, 42, 20, 19, 18, 41, 17, 16, 15, 14, 40, 13, 12, 11, 39, 38, 37,
+    10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0]
+  DclAsciiCodeLengths = [11, 12, 12, 12, 12, 12, 12, 12, 12, 8, 7, 12,
+    12, 7, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 13, 12, 12,
+    12, 12, 12, 4, 10, 8, 12, 10, 12, 10, 8, 7, 7, 8, 9, 7, 6, 7, 8,
+    7, 6, 7, 7, 7, 7, 8, 7, 7, 8, 8, 12, 11, 7, 9, 11, 12, 6, 7, 6,
+    6, 5, 7, 8, 8, 6, 11, 9, 6, 7, 6, 6, 7, 11, 6, 6, 6, 7, 9, 8, 9,
+    9, 11, 8, 11, 9, 12, 8, 12, 5, 6, 6, 6, 5, 6, 6, 6, 5, 11, 7, 5,
+    6, 5, 5, 6, 10, 5, 5, 5, 5, 8, 7, 8, 8, 10, 11, 11, 12, 12, 12,
+    13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13,
+    13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13,
+    13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13,
+    13, 13, 13, 13, 13, 13, 13, 13, 12, 12, 12, 12, 12, 12, 12, 12,
+    12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12,
+    12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12,
+    12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 13, 12, 13, 13,
+    13, 12, 13, 13, 13, 12, 13, 13, 13, 13, 12, 13, 13, 13, 12, 12,
+    12, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13]
+
+proc dclExplodeDecode*(input: openArray[byte], expected: int): seq[byte] =
+  ## DCL-EXPLODE as specified in the supplied SCI Specifications chapter 2.
+  ## SCI resources in the supplied corpus use binary literals (P1 = 0).
+  if input.len < 2:
+    raise newException(ValueError, "truncated SCI DCL-EXPLODE parameters")
+  let asciiLiterals = input[0] == 1
+  if input[0] notin 0'u8 .. 1'u8:
+    raise newException(ValueError, "invalid SCI DCL-EXPLODE literal parameter")
+  let distanceBits = int(input[1])
+  if distanceBits notin 4 .. 6:
+    raise newException(ValueError, "invalid SCI DCL-EXPLODE distance parameter")
+  if expected < 0:
+    raise newException(ValueError, "invalid SCI DCL-EXPLODE output size")
+
+  let encoded = @input
+  var bitAt = 16
+  proc takeBit(): int =
+    if bitAt >= encoded.len * 8:
+      raise newException(ValueError, "truncated SCI DCL-EXPLODE bit stream")
+    result = (int(encoded[bitAt div 8]) shr (bitAt mod 8)) and 1
+    inc bitAt
+  proc takeBits(count: int): int =
+    for bit in 0 ..< count:
+      result = result or (takeBit() shl bit)
+  proc asciiLiteral(): byte =
+    var code = 0
+    for width in 1 .. 13:
+      code = (code shl 1) or takeBit()
+      for value in 0 .. 255:
+        if DclAsciiCodeLengths[value] == width and DclAsciiCodes[value] == code:
+          return byte(value)
+    raise newException(ValueError, "invalid SCI DCL-EXPLODE ASCII literal code")
+  proc lengthToken(): int =
+    var code = 0
+    for width in 1 .. 7:
+      code = (code shl 1) or takeBit()
+      case width
+      of 2:
+        if code == 3: return 1
+      of 3:
+        if code == 5: return 0
+        if code == 4: return 2
+        if code == 3: return 3
+      of 4:
+        if code in 3 .. 5: return 9 - code
+      of 5:
+        if code in 2 .. 5: return 12 - code
+      of 6:
+        if code in 1 .. 3: return 14 - code
+      of 7:
+        if code in 0 .. 1: return 15 - code
+      else: discard
+    raise newException(ValueError, "invalid SCI DCL-EXPLODE length code")
+  proc distanceToken(): int =
+    var code = 0
+    for width in 1 .. 8:
+      code = (code shl 1) or takeBit()
+      case width
+      of 2:
+        if code == 3: return 0
+      of 4:
+        if code in 10 .. 11: return 12 - code
+      of 5:
+        if code in 16 .. 19: return 22 - code
+      of 6:
+        if code in 17 .. 31: return 38 - code
+      of 7:
+        if code in 8 .. 33: return 55 - code
+      of 8:
+        if code in 0 .. 15: return 63 - code
+      else: discard
+    raise newException(ValueError, "invalid SCI DCL-EXPLODE distance code")
+
+  while result.len < expected:
+    if takeBit() == 0:
+      result.add(if asciiLiterals: asciiLiteral() else: byte(takeBits(8)))
+    else:
+      let l1 = lengthToken()
+      var length = l1 + 2
+      if l1 > 7:
+        let extra = l1 - 7
+        # M[0] = 7; M[n+1] = M[n] + 2^n.
+        let base = 6 + (1 shl extra)
+        length = takeBits(extra) + base + 2
+      let d1 = distanceToken()
+      let lowBits = if length == 2: 2 else: distanceBits
+      let distance = (d1 shl lowBits or takeBits(lowBits)) + 1
+      if distance > result.len:
+        raise newException(ValueError,
+          "SCI DCL-EXPLODE distance precedes the output")
+      if length > expected - result.len:
+        raise newException(ValueError,
+          "SCI DCL-EXPLODE output exceeds its declared length")
+      for unused in 0 ..< length:
+        result.add result[result.len - distance]
+  if result.len != expected:
+    raise newException(ValueError, "SCI DCL-EXPLODE output length mismatch")
+
+proc payloadSize(game: SciGame, entry: SciResourceEntry): int =
+  if game.version == srmvSci11: entry.compressedSize
+  else: entry.compressedSize - 4
+
 proc resourceBytes*(sources: VextSourceCollection, game: SciGame,
     entry: SciResourceEntry): seq[byte] =
   if not entry.valid: raise newException(ValueError, entry.warning)
@@ -303,16 +473,17 @@ proc resourceBytes*(sources: VextSourceCollection, game: SciGame,
   if volume.isNil: raise newException(ValueError, "SCI resource volume is unavailable")
   defer: volume.close()
   let headerSize = if game.version == srmvSci0: 8 else: 9
-  let payloadSize = entry.compressedSize - 4
-  let stored = volume.readAt(entry.offset + headerSize, payloadSize)
+  let stored = volume.readAt(entry.offset + headerSize, game.payloadSize(entry))
   if entry.compressionMethod == 0:
-    if payloadSize != entry.decompressedSize:
+    if stored.len != entry.decompressedSize:
       raise newException(ValueError, "uncompressed SCI resource sizes disagree")
     return @stored
   if entry.compressionMethod == 1:
     return sciLzwDecode(stored, entry.decompressedSize)
   if game.version == srmvSci0 and entry.compressionMethod == 2:
     return huffmanDecode(stored, entry.decompressedSize)
+  if entry.compressionMethod in 18 .. 20:
+    return dclExplodeDecode(stored, entry.decompressedSize)
   raise newException(ValueError, "SCI compression method " & $entry.compressionMethod &
     " is not documented sufficiently for decoding")
 
@@ -323,7 +494,7 @@ proc storedResourceBytes(sources: VextSourceCollection, game: SciGame,
   if volume.isNil: raise newException(ValueError, "SCI resource volume is unavailable")
   defer: volume.close()
   let headerSize = if game.version == srmvSci0: 8 else: 9
-  volume.readAt(entry.offset + headerSize, entry.compressedSize - 4)
+  volume.readAt(entry.offset + headerSize, game.payloadSize(entry))
 
 proc materializer(sources: VextSourceCollection, game: SciGame,
     entry: SciResourceEntry): VextPayloadMaterializer =
@@ -336,7 +507,10 @@ proc storedMaterializer(sources: VextSourceCollection, game: SciGame,
 proc gameResourceTree*(sources: VextSourceCollection, game: SciGame): VextResourceTree =
   let root = VextResourceNode(path: "/game", typeId: SierraSciGameTypeId,
     kind: vrnkGroup, metadata: @[
-      stringMetadata("sci.resource-map", if game.version == srmvSci0: "SCI0" else: "SCI1"),
+      stringMetadata("sci.resource-map", case game.version
+        of srmvSci0: "SCI0"
+        of srmvSci1: "SCI1"
+        of srmvSci11: "SCI1.1"),
       integerMetadata("resource.count", game.entries.len)])
   var groups: array[SciResourceKind, VextResourceNode]
   var soundsGroup, samplesGroup: VextResourceNode
@@ -359,6 +533,16 @@ proc gameResourceTree*(sources: VextSourceCollection, game: SciGame): VextResour
   for entry in game.entries:
     totals[(entry.typeNumber, entry.number)] =
       totals.getOrDefault((entry.typeNumber, entry.number)) + 1
+  var sci11FallbackPalette: seq[VextRgb]
+  if game.version == srmvSci11:
+    for paletteEntry in game.entries:
+      if paletteEntry.kind == srkPalette and paletteEntry.number == 999:
+        try:
+          sci11FallbackPalette = parseSci11Palette(
+            resourceBytes(sources, game, paletteEntry))
+        except ValueError:
+          discard
+        break
   for entry in game.entries:
     let e = entry
     let key = (e.typeNumber, e.number)
@@ -366,14 +550,14 @@ proc gameResourceTree*(sources: VextSourceCollection, game: SciGame): VextResour
     encountered[key] = copyIndex + 1
     let path = groups[e.kind].path & "/" & $e.number &
       (if totals[key] > 1: "-copy-" & $copyIndex else: "")
-    let supportedCompression = e.valid and (e.compressionMethod in [0, 1] or
+    let supportedCompression = e.valid and (e.compressionMethod in [0, 1, 18, 19, 20] or
       game.version == srmvSci0 and e.compressionMethod == 2)
     var warning = e.warning
     if e.valid and not supportedCompression:
       warning = "compression method " & $e.compressionMethod & " is not documented sufficiently for decoding"
     var metadata = @[integerMetadata("resource.type", e.typeNumber),
       integerMetadata("resource.number", e.number), integerMetadata("volume", e.volume),
-      integerMetadata("volume.offset", e.offset), integerMetadata("stored.size", max(0, e.compressedSize - 4)),
+      integerMetadata("volume.offset", e.offset), integerMetadata("stored.size", max(0, game.payloadSize(e))),
       integerMetadata("uncompressed.size", e.decompressedSize),
       integerMetadata("compression.method", e.compressionMethod),
       stringMetadata("payload.representation", if supportedCompression:
@@ -401,11 +585,11 @@ proc gameResourceTree*(sources: VextSourceCollection, game: SciGame): VextResour
               kind: vrnkOpaque, rawDataAvailable: true, lazyPayload: node.lazyPayload, defaultExportPriority: 10)]
           node.lazyPayload = VextPayloadRef()
         elif e.kind == srkCursor:
-          let hotspot = sciCursorHotspot(bytes, game.version == srmvSci1)
+          let hotspot = sciCursorHotspot(bytes, game.version != srmvSci0)
           node.kind = vrnkGroup; node.rawDataAvailable = false
           node.children = @[
             VextResourceNode(path: path & "/image", typeId: SierraSciGameTypeId & ".cursor",
-              kind: vrnkRaster, raster: decodeSciCursor(bytes, game.version == srmvSci1), metadata: @[
+              kind: vrnkRaster, raster: decodeSciCursor(bytes, game.version != srmvSci0), metadata: @[
                 integerMetadata("hotspot.x", hotspot.x), integerMetadata("hotspot.y", hotspot.y)],
               defaultExportPriority: 10),
             VextResourceNode(path: path & "/raw", typeId: SierraSciGameTypeId & ".cursor-data",
@@ -546,8 +730,9 @@ proc gameResourceTree*(sources: VextSourceCollection, game: SciGame): VextResour
               kind: vrnkOpaque, rawDataAvailable: true,
               lazyPayload: node.lazyPayload, defaultExportPriority: 10)]
           node.lazyPayload = VextPayloadRef()
-        elif e.kind == srkView and game.version == srmvSci0:
-          let view = parseSci0View(bytes)
+        elif e.kind == srkView and game.version in {srmvSci0, srmvSci11}:
+          let view = if game.version == srmvSci0: parseSci0View(bytes)
+            else: parseSci11View(bytes, sci11FallbackPalette)
           node.kind = vrnkGroup; node.rawDataAvailable = false
           node.children.add VextResourceNode(path: path & "/raw",
             typeId: SierraSciGameTypeId & ".view-data", kind: vrnkOpaque,
@@ -581,13 +766,13 @@ proc gameResourceTree*(sources: VextSourceCollection, game: SciGame): VextResour
           # A SCI0-style map does not by itself distinguish SCI0 from SCI01,
           # where the same method number can name a different codec. Failed
           # codec validation must leave the stored bytes recoverable.
-          node.lazyPayload = VextPayloadRef(length: max(0, e.compressedSize - 4),
+          node.lazyPayload = VextPayloadRef(length: max(0, game.payloadSize(e)),
             materializer: storedMaterializer(sources, game, e))
           for item in node.metadata.mitems:
             if item.key == "payload.representation":
               item = stringMetadata("payload.representation", "stored-compressed")
     elif e.valid:
-      node.lazyPayload = VextPayloadRef(length: max(0, e.compressedSize - 4),
+      node.lazyPayload = VextPayloadRef(length: max(0, game.payloadSize(e)),
         materializer: storedMaterializer(sources, game, e))
     groups[e.kind].children.add node
   result.roots = @[root]

@@ -8,6 +8,7 @@ type
   SciViewCel* = object
     width*, height*, xOffset*, yOffset*, transparentColour*: int
     pixels*: seq[uint8]
+    palette*: seq[VextRgb]
   SciViewLoop* = object
     mirrored*: bool
     cels*: seq[SciViewCel]
@@ -18,6 +19,15 @@ proc le16(data: openArray[byte], at: int): int =
   if at < 0 or at > data.len - 2:
     raise newException(ValueError, "truncated SCI little-endian word")
   int(data[at]) or (int(data[at + 1]) shl 8)
+
+proc le32(data: openArray[byte], at: int): int =
+  if at < 0 or at > data.len - 4:
+    raise newException(ValueError, "truncated SCI little-endian dword")
+  int(data[at]) or (int(data[at + 1]) shl 8) or
+    (int(data[at + 2]) shl 16) or (int(data[at + 3]) shl 24)
+
+proc signedWord(value: int): int =
+  if value < 0x8000: value else: value - 0x10000
 
 proc signedByte(value: byte): int =
   if value < 0x80: int(value) else: int(value) - 256
@@ -101,9 +111,126 @@ proc parseSci0View*(data: openArray[byte]): SciView =
       loop.cels.add move(cel)
     result.loops.add move(loop)
 
+proc parseSci11Palette*(data: openArray[byte], start = 0,
+    length = -1): seq[VextRgb] =
+  ## Corpus-derived SCI1.1 palette framing. The supplied Dagger palette 999
+  ## and embedded VIEW palettes share this 37-byte header and bounded entry
+  ## representation.
+  let size = if length < 0: data.len - start else: length
+  if start < 0 or size < 37 or start > data.len - size:
+    raise newException(ValueError, "invalid SCI1.1 palette bounds")
+  let count = le16(data, start + 29)
+  let representation = int(data[start + 31])
+  let stride = case representation
+    of 1: 3
+    of 3: 4
+    else: raise newException(ValueError, "unsupported SCI1.1 palette representation")
+  if count <= 0 or count > 256 or 37 + count * stride != size:
+    raise newException(ValueError, "invalid SCI1.1 palette entry table")
+  result = newSeq[VextRgb](256)
+  var at = start + 37
+  for index in 0 ..< count:
+    if stride == 4:
+      # The leading per-entry value is retained as structurally observed but
+      # not yet assigned semantics; authentic Dagger entries normally use 3.
+      inc at
+    result[index] = VextRgb(r: data[at], g: data[at + 1], b: data[at + 2])
+    at += 3
+
+proc parseSci11View*(data: openArray[byte],
+    fallbackPalette: openArray[VextRgb] = []): SciView =
+  ## Corpus-derived split-stream SCI1.1 VIEW subset, validated against the
+  ## supplied Dagger CD resources. Unknown flag semantics remain unlabelled.
+  if data.len < 16 or le16(data, 0) != 16:
+    raise newException(ValueError, "invalid SCI1.1 VIEW header")
+  let loopCount = int(data[2])
+  if loopCount <= 0 or loopCount > 16 or 16 + loopCount * 16 > data.len:
+    raise newException(ValueError, "invalid SCI1.1 VIEW loop table")
+  var palette = @fallbackPalette
+  let paletteAt = le32(data, 8)
+  if paletteAt != 0:
+    if paletteAt < 4:
+      raise newException(ValueError, "SCI1.1 VIEW palette has no length")
+    let paletteSize = le32(data, paletteAt - 4)
+    palette = parseSci11Palette(data, paletteAt, paletteSize)
+  if palette.len == 0:
+    palette = newSeq[VextRgb](256)
+    for index, colour in AgiEgaPalette: palette[index] = colour
+  if palette.len != 256:
+    raise newException(ValueError, "SCI1.1 VIEW palette must contain 256 entries")
+
+  var loopRecords: seq[tuple[count, celTableAt: int]]
+  for loopIndex in 0 ..< loopCount:
+    let loopAt = 16 + loopIndex * 16
+    loopRecords.add (count: int(data[loopAt + 4]),
+      celTableAt: le16(data, loopAt + 14))
+  for loopIndex in 0 ..< loopCount:
+    var celCount = loopRecords[loopIndex].count
+    let celTableAt = loopRecords[loopIndex].celTableAt
+    var mirrored = false
+    if celCount == 0:
+      for sourceIndex, source in loopRecords:
+        if sourceIndex != loopIndex and source.count > 0 and
+            source.celTableAt == celTableAt:
+          celCount = source.count
+          mirrored = true
+          break
+    if celCount <= 0 or celCount > 64 or celTableAt < 16 + loopCount * 16 or
+        celTableAt > data.len - celCount * 36:
+      raise newException(ValueError, "invalid SCI1.1 VIEW cel table: loop " &
+        $loopIndex & ", count " & $celCount & ", offset " & $celTableAt)
+    var loop = SciViewLoop(mirrored: mirrored)
+    for celIndex in 0 ..< celCount:
+      let celAt = celTableAt + celIndex * 36
+      var cel = SciViewCel(width: le16(data, celAt),
+        height: le16(data, celAt + 2),
+        xOffset: signedWord(le16(data, celAt + 4)),
+        yOffset: signedWord(le16(data, celAt + 6)),
+        transparentColour: int(data[celAt + 8]), palette: palette)
+      if cel.width <= 0 or cel.height <= 0 or cel.width > 640 or
+          cel.height > 480 or cel.width > high(int) div cel.height:
+        raise newException(ValueError, "invalid SCI1.1 VIEW cel dimensions")
+      if data[celAt + 9] != 10:
+        raise newException(ValueError, "unsupported SCI1.1 VIEW cel encoding")
+      let controlSize = le32(data, celAt + 16)
+      let controlAt = le32(data, celAt + 24)
+      var literalAt = le32(data, celAt + 28)
+      if controlSize <= 0 or controlAt < 0 or controlAt > data.len - controlSize or
+          literalAt < 0 or literalAt > data.len:
+        raise newException(ValueError, "invalid SCI1.1 VIEW cel stream bounds")
+      cel.pixels = newSeq[uint8](cel.width * cel.height)
+      var written = 0
+      for controlIndex in 0 ..< controlSize:
+        let control = data[controlAt + controlIndex]
+        let count = int(control and 0x3f)
+        if count == 0 or written > cel.pixels.len - count:
+          raise newException(ValueError, "SCI1.1 VIEW run exceeds the cel")
+        case control shr 6
+        of 0:
+          if literalAt > data.len - count:
+            raise newException(ValueError, "truncated SCI1.1 VIEW literal run")
+          for offset in 0 ..< count: cel.pixels[written + offset] = data[literalAt + offset]
+          literalAt += count
+        of 2:
+          if literalAt >= data.len:
+            raise newException(ValueError, "truncated SCI1.1 VIEW repeated literal")
+          for offset in 0 ..< count: cel.pixels[written + offset] = data[literalAt]
+          inc literalAt
+        of 3:
+          for offset in 0 ..< count:
+            cel.pixels[written + offset] = uint8(cel.transparentColour)
+        else:
+          raise newException(ValueError, "unsupported SCI1.1 VIEW run type")
+        written += count
+      if written != cel.pixels.len:
+        raise newException(ValueError, "SCI1.1 VIEW runs do not fill the cel")
+      loop.cels.add move(cel)
+    result.loops.add move(loop)
+
 proc raster*(cel: SciViewCel, mirrored = false): VextRaster =
   var image = VextIndexedImage(width: cel.width, height: cel.height,
-    palette: @AgiEgaPalette, pixels: newSeq[uint8](cel.pixels.len),
+    palette: (if cel.palette.len > 0: cel.palette else: @AgiEgaPalette),
+    pixels: newSeq[uint8](cel.pixels.len),
     alpha: newSeq[uint8](cel.pixels.len))
   for y in 0 ..< cel.height:
     for x in 0 ..< cel.width:
@@ -136,7 +263,7 @@ proc animation*(loop: SciViewLoop, frameDurationMs = 100): VextRaster =
   for cel in loop.cels:
     let source = cel.raster(loop.mirrored).image
     var image = VextIndexedImage(width: width, height: height,
-      palette: @AgiEgaPalette, pixels: newSeq[uint8](width * height),
+      palette: source.palette, pixels: newSeq[uint8](width * height),
       alpha: newSeq[uint8](width * height))
     let left = cel.xOffset - minX
     let top = cel.yOffset - minY

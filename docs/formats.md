@@ -2519,13 +2519,24 @@ access effect added as a listing comment.
 
 # Sierra SCI game packages
 
-`sierra.sci-game` recognizes directory-backed SCI0 and early SCI1 packages by
+`sierra.sci-game` recognizes directory-backed SCI0, early SCI1, and
+word-addressed SCI1.1 packages by
 validating `RESOURCE.MAP`, referenced `RESOURCE.NNN` files, resource identities,
 record sizes, and volume bounds. Case-independent lookup rejects ambiguous
 members. SCI0's terminated linear map and SCI1's typed, offset-indexed tables
-are supported. Duplicate SCI0 type/number records remain independently visible
+are supported. Within the typed layout, six-byte entry tables are tested first;
+otherwise five-byte tables identify SCI1.1. SCI1.1 entries contain a two-byte
+resource number and a three-byte little-endian word offset into `RESOURCE.000`.
+The type comes from the enclosing directory. The first directory offset may
+skip four intervening bytes observed in some supplied games. Duplicate SCI0
+type/number records remain independently visible
 with stable `-copy-N` paths. Only resource-type groups actually present in the
 map appear in the tree. Volumes are read in bounded ranges.
+
+SCI0 and early SCI1 stored-size fields include four resource-identity bytes;
+the supported SCI1.1 generation's field instead counts the complete payload
+following its nine-byte header. Adjacent word-addressed entries in the supplied
+corpus confirm this generation-specific distinction.
 
 Every valid entry exposes either decompressed bytes or, for unsupported
 compression, its original stored compressed payload with an explicit
@@ -2543,6 +2554,17 @@ does not distinguish SCI0's method 2 Huffman from SCI01's method 2 COMP3. SCI
 COMP3 is not decoded because its supplied specification section contains a
 placeholder rather than an algorithm.
 
+Methods 18 through 20 use the supplied chapter's common DCL-EXPLODE decoder.
+Its two stream parameters select raw or fixed-Huffman literals and four through
+six low distance bits. Tokens are read least-significant bit first, static
+length and distance codes are validated, and overlapping back-references are
+bounded against both existing output and the exact declared output size.
+Binary-literal streams for all three method numbers and the supplied Dagger
+method-19 and method-20 corpus decode to their exact declared sizes. Some
+method-18 ASCII-literal message resources still fail strict decoding and remain
+stored-compressed with diagnostics; that corpus discrepancy is tracked in
+`docs/outstanding.md` rather than relaxed or guessed around.
+
 SCI0 VIEW resources expose their decompressed bytes and loop/cel hierarchies.
 Cels decode bounded nibble RLE, including zero no-op bytes observed in the
 supplied authentic corpus, colour-key transparency, signed placement, and loop
@@ -2551,6 +2573,16 @@ an indexed animation whose common canvas is calculated from all cel dimensions
 and signed placement modifiers. Because VIEW resources contain no frame
 timing, the animation uses a clearly identified synthetic 100 ms preview
 duration; this is presentation metadata rather than recovered source timing.
+The supported SCI1.1 Dagger-family VIEW subset uses a 16-byte header,
+16-byte loop records, and 36-byte cel records. Split control and literal
+streams decode bounded six-bit run lengths as literal copies, repeated
+literals, or transparent pixels. Empty loop records sharing a cel-table
+offset with a populated loop are exposed as mirrored loops. Embedded palettes
+use a 37-byte header and a declared table of RGB or flag-plus-RGB entries;
+views without one use palette resource 999 when it validates with the same
+structure. This layout is corpus-derived and deliberately rejected when its
+counts, offsets, palette framing, encoding value, or complete pixel coverage
+do not validate.
 Fixed 68-byte cursor
 resources expose 16x16 images, transparency, SCI0 or SCI1 colour mapping, and
 hotspot metadata. Authentic SCI0 cursors from KQ4, Leisure Suit Larry 2 and 3,
@@ -2559,7 +2591,7 @@ transparent exterior; this conflicts with the SCI0 truth table in the supplied
 chapter and is retained as cross-game corpus-backed compatibility behavior.
 SCI bitmap fonts expose MSB-first monochrome glyphs, native
 character-index mappings, advance widths, and documented line height as
-`VextBitmapFont`. Fonts are accepted with either supported map generation
+`VextBitmapFont`. Fonts are accepted with any supported map generation
 because the supplied specification says their format remained unchanged
 through SCI32.
 
@@ -2626,6 +2658,6 @@ footprint as Vexter's AGI renderer because the supplemental page's intended
 mask is present only as a missing image. Unsupported SCI01 extended operations
 remain recoverable as raw resources with a decoder diagnostic.
 
-This is not a claim of general SCI1, SCI1.1, or SCI32 support. Later container
-families and asset encodings are rejected rather than guessed; required
-documentation is indexed in `docs/outstanding.md`.
+This is not a claim of general SCI1, SCI1.1, or SCI32 asset support. Later
+container families and undocumented asset encodings are rejected rather than
+guessed; required documentation is indexed in `docs/outstanding.md`.

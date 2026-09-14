@@ -20,9 +20,11 @@ client, and a dependency-free native Windows GUI. It supports:
   package/member discovery, lazy independently exportable native resources,
   adaptive LZW and v3 picture-packing decompression, and vocabulary text;
 
-- directory-backed Sierra SCI0 and early SCI1 packages, with structurally
+- directory-backed Sierra SCI0, early SCI1, and word-addressed SCI1.1
+  packages, with structurally
   validated maps, volume records, lazy stored or decoded resources, SCI0
-  LZW and Huffman decompression, SCI0 views and cursors, and revision-independent
+  LZW and Huffman decompression, documented DCL-EXPLODE decompression,
+  SCI0 views, corpus-derived split-stream SCI1.1 views, cursors, and revision-independent
   bitmap fonts, documented SCI0 appended unsigned-PCM sound effects, and
   main/suffix vocabularies, annotated parser grammars, and symbolic debugger
   tables;

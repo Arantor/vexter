@@ -417,7 +417,9 @@ formats are not included. Detailed format behavior and evidence remain in
 # Sierra SCI
 
 The supplied SCI Wiki chapters establish SCI0 and early SCI1 map and volume
-framing, but leave these format-evidence gaps:
+framing. Developer-supplied layout notes and the authentic corpus additionally
+establish the supported word-addressed SCI1.1 map generation, but leave these
+format-evidence gaps:
 
 - Chapter 2's SCI LZW and COMP3 sections both say `WriteMe`. LZW is now
   compatibility-derived from existing Vexter LZW machinery and the supplied
@@ -431,17 +433,25 @@ framing, but leave these format-evidence gaps:
   In particular, an SCI0-framed map does not discriminate SCI0 method 2
   Huffman from SCI01 method 2 COMP3; Vexter therefore requires the complete
   Huffman framing to validate before selecting that interpretation.
-- DCL-EXPLODE is described substantially, including static trees, but methods
-  18-20 belong to a container generation not described sufficiently here.
-  Supply SCI1.1 map and volume headers plus input termination/padding and the
-  semantic differences among methods 18, 19, and 20.
-- Supply later SCI1/SCI1.1 and SCI32 `RESOURCE.MAP`/`RESMAP.NNN` and
+- DCL-EXPLODE methods 18-20 share the supplied chapter's decoder and are now
+  enabled. All supplied *Dagger of Amon-Ra* method-19 and method-20 resources,
+  plus its binary-literal method-18 streams, reach their exact declared output
+  sizes. A subset of method-18 message resources using the documented ASCII
+  literal tree still fail strict decoding (invalid literal codes, premature
+  back-references, or exhausted input). Determine whether this reflects an
+  additional method-18 variant, framing distinction, or an error in the saved
+  static table; do not weaken bounds or output-size validation to accept them.
+- Supply later SCI1 and SCI32 `RESOURCE.MAP`/`RESMAP.NNN` and
   `RESOURCE.NNN`/`RESSCI.NNN` layouts, including version discrimination. The
-  corpus contains structurally distinct generations unexplained by the two
-  documented layouts.
-- Chapter 3 documents SCI0 VIEWs only. SCI1 and later view headers, palettes,
-  RLE variants, mirrored-loop rules, scaling metadata, and VGA/true-colour
-  variants are needed.
+  corpus contains structurally distinct generations beyond the three supported
+  layouts.
+- Chapter 3 documents SCI0 VIEWs only. A corpus-derived SCI1.1 Dagger-family
+  subset now decodes its bounded loop/cel tables, split literal/RLE streams,
+  mirrored loops, and two observed palette representations. Remaining supplied
+  resources demonstrate other palette and cel-encoding values which are still
+  rejected. Documentation is still needed for those variants, the meanings of
+  retained header flags, scaling metadata, early SCI1 and Amiga layouts, and
+  later VGA/true-colour forms.
 - Resolve the supplied cursor chapter's SCI0 truth-table conflict: its table
   makes a clear-bit first plane transparent, while recognizable cursors across
   KQ4, Leisure Suit Larry 2 and 3, and Colonel's Bequest require set bits to be
