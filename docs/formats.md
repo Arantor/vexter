@@ -2546,7 +2546,12 @@ placeholder rather than an algorithm.
 SCI0 VIEW resources expose their decompressed bytes and loop/cel hierarchies.
 Cels decode bounded nibble RLE, including zero no-op bytes observed in the
 supplied authentic corpus, colour-key transparency, signed placement, and loop
-mirroring into native-scale 16-colour indexed rasters. Fixed 68-byte cursor
+mirroring into native-scale 16-colour indexed rasters. Each loop also exposes
+an indexed animation whose common canvas is calculated from all cel dimensions
+and signed placement modifiers. Because VIEW resources contain no frame
+timing, the animation uses a clearly identified synthetic 100 ms preview
+duration; this is presentation metadata rather than recovered source timing.
+Fixed 68-byte cursor
 resources expose 16x16 images, transparency, SCI0 or SCI1 colour mapping, and
 hotspot metadata. Authentic SCI0 cursors from KQ4, Leisure Suit Larry 2 and 3,
 and Colonel's Bequest establish that a set bit in the first plane marks the

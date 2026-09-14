@@ -183,6 +183,20 @@ suite "Sierra SCI game packages":
     check view.loops[0].cels[0].xOffset == -1
     check view.loops[0].cels[0].pixels == @[1'u8, 2, 2, 1, 1, 1]
 
+  test "SCI0 view loops compose placement-aligned preview animations":
+    let loop = SciViewLoop(cels: @[
+      SciViewCel(width: 2, height: 1, xOffset: -1, yOffset: 1,
+        transparentColour: 0, pixels: @[1'u8, 0]),
+      SciViewCel(width: 1, height: 2, xOffset: 1, yOffset: 0,
+        transparentColour: 0, pixels: @[2'u8, 3])])
+    let animation = loop.animation.animation
+    check (animation.width, animation.height) == (3, 2)
+    check animation.frames.len == 2
+    check animation.frames[0].durationMs == 100
+    check animation.frames[0].image.alpha == @[0'u8, 0, 0, 255, 0, 0]
+    check animation.frames[1].image.pixels == @[0'u8, 0, 2, 0, 0, 3]
+    check animation.frames[1].image.alpha == @[0'u8, 0, 255, 0, 0, 255]
+
   test "documented SCI0 picture exposes all three maps":
     let picture = renderSci0Picture(@[0xf0'u8, 0, 0xf8, 0, 0x94, 0x4f, 0xff])
     check picture.visual.image.pixelAt(148, 79) == 0

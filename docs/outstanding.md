@@ -477,6 +477,7 @@ framing, but leave these format-evidence gaps:
 
 Implementation improvements which do not require more format evidence:
 
-- compose SCI0 view loops into animations or sprite sheets; and
+- optionally expose SCI0 view loops as sprite sheets in addition to their
+  animation and individual-cel forms; and
 - enable DCL-EXPLODE after a documented container generation using it can be
   identified and validated.

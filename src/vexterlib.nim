@@ -85,6 +85,7 @@ import vexterlib/resources/sierra_agi_logic
 import vexterlib/resources/sierra_sci_graphics
 import vexterlib/resources/sierra_sci_picture
 import vexterlib/resources/sierra_sci_sound
+import vexterlib/resources/sierra_sci_vocabulary
 import vexterlib/resources/amiga_ilbm_image
 import vexterlib/resources/amiga_pbm_image
 import vexterlib/resources/amiga_anim_image
@@ -151,6 +152,7 @@ export sierra_agi_logic
 export sierra_sci_graphics
 export sierra_sci_picture
 export sierra_sci_sound
+export sierra_sci_vocabulary
 export ansi_art_image
 export amos_bank
 export amos_music_bank

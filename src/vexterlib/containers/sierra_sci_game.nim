@@ -558,6 +558,14 @@ proc gameResourceTree*(sources: VextSourceCollection, game: SciGame): VextResour
               typeId: SierraSciGameTypeId & ".view-loop", kind: vrnkGroup,
               metadata: @[integerMetadata("cel.count", loop.cels.len),
                 stringMetadata("mirrored", $loop.mirrored)])
+            loopNode.children.add VextResourceNode(
+              path: loopNode.path & "/animation",
+              typeId: SierraSciGameTypeId & ".view-animation",
+              kind: vrnkRaster, raster: loop.animation, metadata: @[
+                integerMetadata("frame.count", loop.cels.len),
+                integerMetadata("preview.frame-duration-ms", 100),
+                stringMetadata("timing.source", "synthetic-preview")],
+              defaultExportPriority: 20)
             for celIndex, cel in loop.cels:
               loopNode.children.add VextResourceNode(path: loopNode.path & "/cels/" & $celIndex,
                 typeId: SierraSciGameTypeId & ".view-cel", kind: vrnkRaster,

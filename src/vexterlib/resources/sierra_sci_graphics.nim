@@ -114,6 +114,43 @@ proc raster*(cel: SciViewCel, mirrored = false): VextRaster =
       image.alpha[target] = if int(value) == cel.transparentColour: 0 else: 255
   VextRaster(kind: vrkIndexedImage, image: image)
 
+proc animation*(loop: SciViewLoop, frameDurationMs = 100): VextRaster =
+  ## Composes differently sized cels around their common placement origin.
+  ## SCI VIEWs carry no timing; callers must identify this duration as synthetic.
+  if loop.cels.len == 0 or frameDurationMs <= 0:
+    raise newException(ValueError, "SCI view animation needs frames and a preview duration")
+  var minX = loop.cels[0].xOffset
+  var minY = loop.cels[0].yOffset
+  var maxX = minX + loop.cels[0].width
+  var maxY = minY + loop.cels[0].height
+  for cel in loop.cels:
+    minX = min(minX, cel.xOffset)
+    minY = min(minY, cel.yOffset)
+    maxX = max(maxX, cel.xOffset + cel.width)
+    maxY = max(maxY, cel.yOffset + cel.height)
+  let width = maxX - minX
+  let height = maxY - minY
+  if width <= 0 or height <= 0 or width > 576 or height > 456:
+    raise newException(ValueError, "SCI view animation canvas is invalid")
+  var animation = VextIndexedAnimation(width: width, height: height)
+  for cel in loop.cels:
+    let source = cel.raster(loop.mirrored).image
+    var image = VextIndexedImage(width: width, height: height,
+      palette: @AgiEgaPalette, pixels: newSeq[uint8](width * height),
+      alpha: newSeq[uint8](width * height))
+    let left = cel.xOffset - minX
+    let top = cel.yOffset - minY
+    for y in 0 ..< source.height:
+      for x in 0 ..< source.width:
+        let sourceAt = y * source.width + x
+        if source.alpha[sourceAt] != 0:
+          let targetAt = (top + y) * width + left + x
+          image.pixels[targetAt] = source.pixels[sourceAt]
+          image.alpha[targetAt] = source.alpha[sourceAt]
+    animation.frames.add VextIndexedAnimationFrame(
+      image: move(image), durationMs: frameDurationMs)
+  VextRaster(kind: vrkIndexedAnimation, animation: move(animation))
+
 proc decodeSciFont*(data: openArray[byte], name = "SCI font"): VextBitmapFont =
   if data.len < 6 or le16(data, 0) != 0:
     raise newException(ValueError, "invalid SCI font header")
