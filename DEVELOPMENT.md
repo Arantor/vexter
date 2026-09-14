@@ -23,7 +23,9 @@ client, and a dependency-free native Windows GUI. It supports:
 - directory-backed Sierra SCI0 and early SCI1 packages, with structurally
   validated maps, volume records, lazy stored or decoded resources, SCI0
   LZW and Huffman decompression, SCI0 views and cursors, and revision-independent
-  bitmap fonts, plus documented SCI0 appended unsigned-PCM sound effects;
+  bitmap fonts, documented SCI0 appended unsigned-PCM sound effects, and
+  main/suffix vocabularies, annotated parser grammars, and symbolic debugger
+  tables;
 
 - classic Amiga Workbench `.info` DiskObjects, including metadata and both
   planar icon states;

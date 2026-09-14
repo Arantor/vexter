@@ -8,6 +8,7 @@ import ../resource_tree
 import ../resources/sierra_sci_graphics
 import ../resources/sierra_sci_picture
 import ../resources/sierra_sci_sound
+import ../resources/sierra_sci_vocabulary
 
 const SierraSciGameTypeId* = "sierra.sci-game"
 
@@ -447,6 +448,104 @@ proc gameResourceTree*(sources: VextSourceCollection, game: SciGame): VextResour
                 sample.pcm.len * 1000 div sample.sampleRate),
               integerMetadata("sample-header.offset", sample.headerOffset)],
             defaultExportPriority: 10)
+        elif e.kind == srkVocabulary and e.number == 0:
+          let vocabulary = parseSciVocabulary(bytes)
+          node.kind = vrnkGroup; node.rawDataAvailable = false
+          node.children = @[
+            VextResourceNode(path: path & "/all",
+              typeId: SierraSciGameTypeId & ".vocabulary-listing",
+              kind: vrnkText, text: vocabulary.completeListing, metadata: @[
+                integerMetadata("words", vocabulary.words.len)],
+              defaultExportPriority: 10),
+            VextResourceNode(path: path & "/raw",
+              typeId: SierraSciGameTypeId & ".vocabulary-data",
+              kind: vrnkOpaque, rawDataAvailable: true,
+              lazyPayload: node.lazyPayload, defaultExportPriority: 10)]
+          node.lazyPayload = VextPayloadRef()
+          let classes = VextResourceNode(path: path & "/classes",
+            typeId: SierraSciGameTypeId & ".vocabulary-classes", kind: vrnkGroup)
+          for classInfo in SciVocabularyClasses:
+            let listing = vocabulary.classListing(classInfo.bit)
+            if listing.len > "word\tgroup\n".len:
+              classes.children.add VextResourceNode(
+                path: classes.path & "/" & classInfo.name,
+                typeId: SierraSciGameTypeId & ".vocabulary-class",
+                kind: vrnkText, text: listing, metadata: @[
+                  integerMetadata("class-mask", classInfo.bit)],
+                defaultExportPriority: 10)
+          node.children.insert(classes, 1)
+        elif e.kind == srkVocabulary and e.number == 900:
+          let grammar = parseSciGrammar(bytes)
+          var mainVocabulary: SciVocabulary
+          var haveMainVocabulary = false
+          for vocabularyEntry in game.entries:
+            if vocabularyEntry.kind == srkVocabulary and
+                vocabularyEntry.number == 0:
+              try:
+                mainVocabulary = parseSciVocabulary(
+                  resourceBytes(sources, game, vocabularyEntry))
+                haveMainVocabulary = true
+              except ValueError:
+                discard
+              break
+          node.kind = vrnkGroup; node.rawDataAvailable = false
+          node.children = @[
+            VextResourceNode(path: path & "/rules",
+              typeId: SierraSciGameTypeId & ".grammar-listing",
+              kind: vrnkText, text: grammar.listing, metadata: @[
+                integerMetadata("rules", grammar.rules.len)],
+              defaultExportPriority: 10),
+            VextResourceNode(path: path & "/raw",
+              typeId: SierraSciGameTypeId & ".grammar-data",
+              kind: vrnkOpaque, rawDataAvailable: true,
+              lazyPayload: node.lazyPayload, defaultExportPriority: 10)]
+          if haveMainVocabulary:
+            node.children.insert(VextResourceNode(path: path & "/grammar",
+              typeId: SierraSciGameTypeId & ".annotated-grammar",
+              kind: vrnkText,
+              text: grammar.annotatedListing(mainVocabulary),
+              defaultExportPriority: 20), 1)
+          node.lazyPayload = VextPayloadRef()
+        elif e.kind == srkVocabulary and e.number == 901:
+          let suffixes = parseSciSuffixes(bytes)
+          node.kind = vrnkGroup; node.rawDataAvailable = false
+          node.children = @[
+            VextResourceNode(path: path & "/suffixes",
+              typeId: SierraSciGameTypeId & ".suffix-listing",
+              kind: vrnkText, text: suffixes.suffixListing, metadata: @[
+                integerMetadata("rules", suffixes.len)],
+              defaultExportPriority: 10),
+            VextResourceNode(path: path & "/raw",
+              typeId: SierraSciGameTypeId & ".suffix-data",
+              kind: vrnkOpaque, rawDataAvailable: true,
+              lazyPayload: node.lazyPayload, defaultExportPriority: 10)]
+          node.lazyPayload = VextPayloadRef()
+        elif e.kind == srkVocabulary and
+            (e.number == 995 or e.number == 997 or e.number == 998 or
+              e.number == 999):
+          let table = parseSciStringTable(bytes)
+          let listingPath = case e.number
+            of 995: "help"
+            of 997: "selectors"
+            of 998: "opcodes"
+            else: "kernel-functions"
+          let listing = case e.number
+            of 995: table.helpListing
+            of 997: table.namedListing("selector")
+            of 998: table.namedListing("opcode", 2)
+            else: table.namedListing("kernel-function")
+          node.kind = vrnkGroup; node.rawDataAvailable = false
+          node.children = @[
+            VextResourceNode(path: path & "/" & listingPath,
+              typeId: SierraSciGameTypeId & ".debug-listing",
+              kind: vrnkText, text: listing, metadata: @[
+                integerMetadata("records", table.records.len)],
+              defaultExportPriority: 10),
+            VextResourceNode(path: path & "/raw",
+              typeId: SierraSciGameTypeId & ".debug-data",
+              kind: vrnkOpaque, rawDataAvailable: true,
+              lazyPayload: node.lazyPayload, defaultExportPriority: 10)]
+          node.lazyPayload = VextPayloadRef()
         elif e.kind == srkView and game.version == srmvSci0:
           let view = parseSci0View(bytes)
           node.kind = vrnkGroup; node.rawDataAvailable = false

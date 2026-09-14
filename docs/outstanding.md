@@ -465,6 +465,15 @@ framing, but leave these format-evidence gaps:
   playable and WAV-exportable. SCI0's multi-device MIDI-like stream still needs
   the planned sequenced-music archetype rather than premature sampled-audio
   flattening.
+- Main vocabulary resource 0 and suffix resource 901 are decoded and exported
+  by class. Resource 901's duplicated, reversed field descriptions are resolved
+  by its worked example and the supplied authentic corpus. Grammar resource
+  900 has both lossless rules and an annotated grammar view; resources 995 and
+  997–999 expose their debugger help, selector, opcode, and kernel names.
+  Resource 994's 16-bit values remain unidentified in the supplied documents;
+  SCI Companion has also been observed to offer only a hex dump. Resource
+  998's two-byte opcode format values are retained but need documentation before
+  their bit-level meaning can be labelled.
 
 Implementation improvements which do not require more format evidence:
 

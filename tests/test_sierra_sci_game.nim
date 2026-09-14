@@ -1,4 +1,4 @@
-import std/unittest
+import std/[strutils, unittest]
 import vexterlib
 
 proc member(path: string, data: seq[byte]): VextRelatedSource =
@@ -98,6 +98,79 @@ suite "Sierra SCI game packages":
     let font = decodeSciFont(fontData)
     check font.glyphs.len == 1
     check font.glyphs[0].bitmap.coverage == @[255'u8, 0, 255, 0, 255, 0]
+
+  test "SCI main vocabulary expands prefixes and packed class/group IDs":
+    var data = newSeq[byte](52)
+    data[0] = 52
+    data.add @[0'u8, byte('a') or 0x80, 0x02, 0x00, 0x18]
+    data.add @[1'u8, byte('b'), byte('o'), byte('v'), byte('e') or 0x80,
+      0x01, 0x00, 0x16]
+    let vocabulary = parseSciVocabulary(data)
+    check vocabulary.words.len == 2
+    check vocabulary.words[0] == SciVocabularyWord(
+      text: "a", classMask: 0x020, group: 0x018)
+    check vocabulary.words[1] == SciVocabularyWord(
+      text: "above", classMask: 0x010, group: 0x016)
+    check vocabulary.classListing(0x020) == "word\tgroup\na\t0x018\n"
+    check vocabulary.classListing(0x010) == "word\tgroup\nabove\t0x016\n"
+
+    let map = @[0x00'u8, 0x30, 0, 0, 0, 0,
+      0xff, 0xff, 0xff, 0xff, 0xff, 0xff]
+    var volume = @[0x00'u8, 0x30]
+    volume.add leBytes(data.len + 4)
+    volume.add leBytes(data.len)
+    volume.add @[0'u8, 0]
+    volume.add data
+    let sources = newSourceCollection(relatedSources = @[
+      member("RESOURCE.MAP", map), member("RESOURCE.000", volume)])
+    let session = openInspectionSession("synthetic-sci-vocabulary", sources)
+    defer: session.close()
+    let allWords = session.resourceAtPath("/game/vocabularies/0/all")
+    check allWords.kind == vrnkText
+    check session.loadResource(allWords.id).resources.roots[0].text.contains(
+      "above\t0x010\t0x016")
+    let articles = session.resourceAtPath(
+      "/game/vocabularies/0/classes/articles")
+    check articles.kind == vrnkText
+    check session.loadResource(articles.id).resources.roots[0].text ==
+      "word\tgroup\na\t0x018\n"
+    expect ValueError:
+      discard session.resourceAtPath("/game/vocabularies/0/classes/nouns")
+    check session.resourceAtPath("/game/vocabularies/0/raw").kind == vrnkOpaque
+
+  test "SCI parser vocabulary exposes fixed grammar rules":
+    var data = newSeq[byte](60) # Includes the corpus-observed zero sentinel.
+    data[0] = 0x3f; data[1] = 0x01
+    data[2] = 0x41; data[3] = 0x01
+    data[4] = 0x3c; data[5] = 0x01
+    data[20] = 0x3c; data[21] = 0x01
+    data[22] = 0x46; data[23] = 0x01
+    data[24] = 0x80; data[25] = 0x00
+    let grammar = parseSciGrammar(data)
+    check grammar.rules.len == 2
+    check grammar.rules[0].nonterminal == 0x13f
+    check grammar.rules[0].terms == @[
+      SciGrammarTerm(semantic: 0x141, symbol: 0x13c)]
+    check grammar.listing ==
+      "rule\tnonterminal\tproduction\n" &
+      "0\t0x13F\tpredicate:0x13C\n" &
+      "1\t0x13C\tclass:0x080\n"
+
+  test "SCI suffixes and debugger string tables decode":
+    let suffixData = @[byte('*'), byte('l'), byte('y'), 0'u8,
+      0x04, 0x00, byte('*'), 0, 0x00, 0x40, 0, 0xff]
+    let suffixes = parseSciSuffixes(suffixData)
+    check suffixes == @[SciSuffixRule(suffix: "*ly", reduction: "*",
+      outputClass: 0x400, stemClass: 0x040)]
+    check "adverbs (0x0400)" in suffixes.suffixListing
+    check "qualifying-adjectives (0x0040)" in suffixes.suffixListing
+
+    let tableData = @[2'u8, 0, 6, 0, 11, 0,
+      3, 0, byte('o'), byte('n'), byte('e'),
+      3, 0, byte('t'), byte('w'), byte('o')]
+    let table = parseSciStringTable(tableData)
+    check table.records.len == 2
+    check table.namedListing("name") == "id\tname\n0\tone\n1\ttwo\n"
 
   test "SCI0 view decodes nibble runs and placement":
     var data = @[1'u8, 0, 0, 0, 0, 0, 0, 0]

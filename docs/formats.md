@@ -2571,6 +2571,46 @@ unsigned 8-bit PCM becomes normal signed archetype samples and WAV export.
 The supplied KQ1 SCI and SQ3 corpora currently expose 13 and 37 such resource
 entries respectively (including repeated volume copies).
 
+Main parser vocabulary resource 0 is decoded from its 26 little-endian letter
+offsets and prefix-compressed word stream. Each word's packed 24-bit value is
+split into its upper 12-bit class mask and lower 12-bit synonym group; the
+packed value's big-endian byte order is confirmed by recognizable words and
+classes in the supplied KQ4 corpus. `/game/vocabularies/0/all` is a complete
+tab-separated listing, while `/game/vocabularies/0/classes` contains only the
+non-empty documented class leaves (numbers, prepositions, articles,
+adjectives, pronouns, nouns, verb forms, adverbs, and the three documented
+special bits). These text nodes are previewable and TXT-exportable. The
+original decoded bytes remain available at `/game/vocabularies/0/raw`.
+
+Parser grammar resource 900 is decoded as the documented sequence of fixed
+20-byte rules. Each rule exposes its left-hand nonterminal and its terminated
+sequence of semantic/symbol pairs, with the documented predicate, subject,
+suffix, reference, class, group, and force-storage semantics named in the
+listing. The supplied KQ4 resource terminates its populated rules with an
+all-zero 20-byte record, which is accepted as a corpus-confirmed sentinel. It
+is previewable and TXT-exportable at
+`/game/vocabularies/900/rules`, with the source bytes retained under `raw`;
+duplicate resources use the normal `900-copy-N` path component.
+
+Suffix resource 901 exposes each suffix pattern, reduced-stem pattern, output
+class, and allowed stem class under `suffixes`. The chapter repeats its layout
+with the two class descriptions reversed; its worked `*ies` example and the
+supplied corpus resolve the order as output class first and allowed reduced
+stem class second. KQ4's `*ly` rule independently confirms this: it produces
+an adverb from a qualifying-adjective stem. The 16-bit masks are big-endian,
+and their set bits are expanded to the same documented class names as resource
+0.
+
+SCI0's vocabulary resource category also contains symbolic debugger data.
+Resources 995, 997, 998, and 999 share bounded count/offset/length framing and
+are exposed respectively as debugger help sections, selector names, opcode
+names, and kernel-function names. Opcode records retain their otherwise
+undocumented two-byte format data as hexadecimal. All listings are text
+previewable and TXT-exportable, and each decoded resource retains a `raw`
+child. Resource 994 remains opaque: the supplied specifications do not define
+its 16-bit table, and the user-confirmed SCI Companion view likewise presents
+only a hex dump rather than a semantic interpretation.
+
 SCI0 pictures expose visual, priority, and control rasters plus their original
 bytes. The renderer implements plane and colour selection, absolute and both
 relative line forms, four-way flood fill over the documented 190-line drawing
