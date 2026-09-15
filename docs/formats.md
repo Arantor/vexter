@@ -2556,8 +2556,17 @@ COMP3. Corpus differentials across PQ3 and QFG2 vocabulary resources establish
 COMP3 as an MSB-first LZW variant with clear code 256, end code 257, dictionary
 entries beginning at 258, and code-width growth when the next slot is one below
 the power-of-two boundary. It is accepted only when it produces the exact
-declared output size. Later vocabulary layouts remain structurally distinct
-from the SCI0 semantic parsers even after their bytes decompress successfully.
+declared output size. Early-SCI1 methods 3 and 4 apply a second reconstruction
+stage after COMP3. Method 3 expands compact VIEW loop/cel tables, resolves
+mirrored loops, converts seven-byte cel headers to their native eight-byte
+form, and interleaves separately stored control and literal streams; its cel
+length table provides exact stream boundaries. Method 4 restores a bitmap
+picture's palette and embedded cel, interleaves the same kinds of streams, and
+moves the retained vector-command suffix after the cel. Comparisons with the
+supplied independent exports are byte-identical for all 924 method-3 views and
+all 45 method-4 pictures in Police Quest 3, Conquests of the Longbow, and Space
+Quest I VGA. Later vocabulary layouts remain structurally distinct from the
+SCI0 semantic parsers even after their bytes decompress successfully.
 
 Methods 18 through 20 use the supplied chapter's common DCL-EXPLODE decoder.
 Its two stream parameters select raw or fixed-Huffman literals and four through

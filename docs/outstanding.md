@@ -436,10 +436,11 @@ format-evidence gaps:
   vocabulary layouts still need semantic documentation.
   The supplied *Police Quest 3* early-SCI1 package uses methods 2, 3, and 4 for
   897 of its 911 mapped resource entries. Method 2 now decompresses exactly;
-  method 3 remains undocumented. The corpus-derived method-4 bitmap-picture
-  reconstruction accepts five of its 25 pictures; the other 20 fail strict
-  stream-bound validation and remain stored-compressed. Other early-SCI1 games
-  likewise show that method 4 has additional framing variants.
+  methods 3 and 4 remain externally undocumented, but their reconstruction is
+  corpus-established. The reconstructed bytes match every supplied independent
+  export for the applicable resources in *Police Quest 3*, *Conquests of the
+  Longbow*, and *Space Quest I VGA*: 924 method-3 views and 45 method-4
+  pictures. An authoritative description is still desirable.
 - DCL-EXPLODE methods 18-20 share the supplied chapter's decoder and are now
   enabled. All supplied *Dagger of Amon-Ra* method-19 and method-20 resources,
   plus its binary-literal method-18 streams, reach their exact declared output

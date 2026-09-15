@@ -447,14 +447,12 @@ proc sciComp3PictureDecode*(input: openArray[byte], expected: int): seq[byte] =
   let vectorSize = embeddedAt - outputVectorAt
   let vectorAt = paletteAt + paletteSize
   let markerAt = vectorAt + vectorSize
-  let literalAt = markerAt + 1
+  let trailingAt = markerAt + 1
+  let literalAt = packed.len - pixelSize
   let controlAt = literalAt + literalSize
-  let controlSize = pixelSize - literalSize
-  if pixelSize <= 0 or literalSize < 0 or literalSize > pixelSize or
-      vectorSize < 0 or markerAt < vectorAt or markerAt >= packed.len or
-      packed[markerAt] != 0xff or controlAt < literalAt or
-      controlSize < 0 or controlAt > packed.len - controlSize or
-      controlAt + controlSize != packed.len:
+  if pixelSize <= 0 or literalSize < 0 or vectorSize < 0 or
+      markerAt < vectorAt or markerAt >= packed.len or
+      literalAt < trailingAt or controlAt < literalAt or controlAt > packed.len:
     raise newException(ValueError, "invalid SCI COMP3 picture stream bounds")
   result = @[0xfe'u8, 0x02]
   for value in 0 .. 255: result.add byte(value)
@@ -495,9 +493,133 @@ proc sciComp3PictureDecode*(input: openArray[byte], expected: int): seq[byte] =
     pixels += count
   if literal != controlAt or pixels != 320 * 190:
     raise newException(ValueError, "SCI COMP3 picture stream coverage mismatch")
-  result.add 0xff
+  result.add packed.toOpenArray(markerAt, literalAt - 1)
   if result.len != expected:
     raise newException(ValueError, "SCI COMP3 picture output length mismatch")
+
+proc sciComp3ViewReconstruct*(packed: openArray[byte], expected: int): seq[byte] =
+  ## SCI1 method 3 stores compact cel headers, a palette, cel control lengths,
+  ## and separate control/literal streams after COMP3 expansion.
+  if packed.len < 12:
+    raise newException(ValueError, "truncated SCI COMP3 view header")
+  let lengthTableAt = le16(packed, 0) + 2
+  let loopCount = int(packed[2])
+  let presentLoopCount = int(packed[3])
+  let mirrorMask = le16(packed, 4)
+  let celTotal = le16(packed, 10)
+  if loopCount <= 0 or loopCount > 16 or presentLoopCount <= 0 or
+      presentLoopCount > loopCount or celTotal <= 0 or
+      (mirrorMask and 1) != 0:
+    raise newException(ValueError, "invalid SCI COMP3 view counts")
+  let countsAt = 12
+  let headersAt = countsAt + presentLoopCount
+  let paletteAt = headersAt + celTotal * 7
+  let havePalette = le16(packed, 8) != 0
+  let paletteSize = if havePalette: 256 * 4 else: 0
+  if headersAt < countsAt or paletteAt < headersAt or
+      paletteAt > packed.len - paletteSize or
+      lengthTableAt != paletteAt + paletteSize or
+      lengthTableAt > packed.len - celTotal * 2:
+    raise newException(ValueError, "invalid SCI COMP3 view table bounds")
+  var countedCels = 0
+  for loop in 0 ..< presentLoopCount:
+    countedCels += int(packed[countsAt + loop])
+  if countedCels != celTotal:
+    raise newException(ValueError, "SCI COMP3 view cel count mismatch")
+  let controlAt = lengthTableAt + celTotal * 2
+  template splitLiteralCount(command: byte): int =
+    (case command shr 6
+      of 0: int(command and 0x3f)
+      of 2: 1
+      else: 0)
+  var literalAt = controlAt
+  for cel in 0 ..< celTotal:
+    let outputSize = le16(packed, lengthTableAt + cel * 2)
+    var produced = 0
+    while produced < outputSize:
+      if literalAt >= packed.len:
+        raise newException(ValueError, "truncated SCI COMP3 view control stream")
+      let command = packed[literalAt]
+      inc literalAt
+      produced += 1 + splitLiteralCount(command)
+    if produced != outputSize:
+      raise newException(ValueError, "invalid SCI COMP3 view cel stream length")
+
+  result = @[packed[2], 0x80'u8]
+  result.add packed.toOpenArray(4, 9)
+  let loopOffsetsAt = result.len
+  result.setLen(result.len + loopCount * 2)
+  var headerAt = headersAt
+  var lengthAt = lengthTableAt
+  var control = controlAt
+  var literal = literalAt
+  var celIndex = 0
+  var presentLoop = 0
+  for loop in 0 ..< loopCount:
+    if (mirrorMask and (1 shl loop)) != 0:
+      result[loopOffsetsAt + loop * 2] = result[loopOffsetsAt + (loop - 1) * 2]
+      result[loopOffsetsAt + loop * 2 + 1] =
+        result[loopOffsetsAt + (loop - 1) * 2 + 1]
+      continue
+    let outputLoopAt = result.len
+    if outputLoopAt > 0xffff:
+      raise newException(ValueError, "SCI COMP3 view loop offset is too large")
+    result[loopOffsetsAt + loop * 2] = byte(outputLoopAt and 0xff)
+    result[loopOffsetsAt + loop * 2 + 1] = byte(outputLoopAt shr 8)
+    if presentLoop >= presentLoopCount:
+      raise newException(ValueError, "SCI COMP3 view loop coverage mismatch")
+    let celCount = int(packed[countsAt + presentLoop])
+    inc presentLoop
+    result.add @[byte(celCount), 0'u8, 0, 0]
+    let celOffsetsAt = result.len
+    result.setLen(result.len + celCount * 2)
+    for cel in 0 ..< celCount:
+      let outputCelAt = result.len
+      if outputCelAt > 0xffff:
+        raise newException(ValueError, "SCI COMP3 view cel offset is too large")
+      result[celOffsetsAt + cel * 2] = byte(outputCelAt and 0xff)
+      result[celOffsetsAt + cel * 2 + 1] = byte(outputCelAt shr 8)
+      result.add packed.toOpenArray(headerAt, headerAt + 6)
+      result.add 0
+      headerAt += 7
+      let outputSize = le16(packed, lengthAt)
+      lengthAt += 2
+      var produced = 0
+      while produced < outputSize:
+        if control >= literalAt:
+          raise newException(ValueError, "truncated SCI COMP3 view control stream")
+        let command = packed[control]
+        inc control
+        result.add command
+        let literalCount = splitLiteralCount(command)
+        if literalCount > 0:
+          let count = literalCount
+          if literal > packed.len - count:
+            raise newException(ValueError, "truncated SCI COMP3 view literal stream")
+          if count > 0:
+            result.add packed.toOpenArray(literal, literal + count - 1)
+            literal += count
+        produced += 1 + literalCount
+      if produced != outputSize:
+        raise newException(ValueError, "invalid SCI COMP3 view cel stream length")
+      inc celIndex
+  if headerAt != paletteAt or lengthAt != controlAt or control != literalAt or
+      literal != packed.len or celIndex != celTotal or
+      presentLoop != presentLoopCount:
+    raise newException(ValueError, "SCI COMP3 view stream coverage mismatch")
+  if havePalette:
+    if result.len + 3 != le16(packed, 8):
+      raise newException(ValueError, "SCI COMP3 view palette offset mismatch")
+    result.add @[byte('P'), byte('A'), byte('L')]
+    for value in 0 .. 255: result.add byte(value)
+    result.add packed.toOpenArray(paletteAt - 4, paletteAt - 1)
+    result.add packed.toOpenArray(paletteAt, paletteAt + paletteSize - 1)
+  if result.len != expected:
+    raise newException(ValueError, "SCI COMP3 view output length mismatch")
+
+proc sciComp3ViewDecode*(input: openArray[byte], expected: int): seq[byte] =
+  sciComp3ViewReconstruct(
+    sciComp3Decode(input, expected, requireExact = false), expected)
 
 const
   DclAsciiCodes = [73, 127, 126, 125, 124, 123, 122, 121, 120, 29, 35,
@@ -657,6 +779,8 @@ proc resourceBytes*(sources: VextSourceCollection, game: SciGame,
         return sciComp3Decode(stored, entry.decompressedSize)
     if game.version == srmvSci1:
       return sciComp3Decode(stored, entry.decompressedSize)
+  if game.version == srmvSci1 and entry.compressionMethod == 3:
+    return sciComp3ViewDecode(stored, entry.decompressedSize)
   if game.version == srmvSci1 and entry.compressionMethod == 4:
     return sciComp3PictureDecode(stored, entry.decompressedSize)
   if entry.compressionMethod in 18 .. 20:
@@ -729,6 +853,7 @@ proc gameResourceTree*(sources: VextSourceCollection, game: SciGame): VextResour
       (if totals[key] > 1: "-copy-" & $copyIndex else: "")
     let supportedCompression = e.valid and (e.compressionMethod in [0, 1, 18, 19, 20] or
       e.compressionMethod == 2 and game.version in {srmvSci0, srmvSci1} or
+      e.compressionMethod == 3 and game.version == srmvSci1 or
       e.compressionMethod == 4 and game.version == srmvSci1)
     var warning = e.warning
     if e.valid and not supportedCompression:

@@ -217,6 +217,19 @@ suite "Sierra SCI game packages":
         if next == (1 shl width) - 1 and width < 12: inc width
     check sciComp3Decode(encoded, 260) == newSeqWith(260, byte('A'))
 
+  test "SCI COMP3 view reconstruction interleaves split cel streams":
+    var packed = @[0x12'u8, 0x04, 1, 1, 0, 0, 0, 0, 30, 0, 1, 0,
+      1, 2, 0, 1, 0, 0, 0, 7]
+    packed.add newSeq[byte](256 * 4)
+    packed.add @[3'u8, 0, 2, 5, 6]
+    var expected = @[1'u8, 0x80, 0, 0, 0, 0, 30, 0, 10, 0,
+      1, 0, 0, 0, 16, 0, 2, 0, 1, 0, 0, 0, 7, 0, 2, 5, 6,
+      byte('P'), byte('A'), byte('L')]
+    for value in 0 .. 255: expected.add byte(value)
+    expected.add @[0'u8, 0, 0, 7]
+    expected.add newSeq[byte](256 * 4)
+    check sciComp3ViewReconstruct(packed, expected.len) == expected
+
   test "SCI cursor planes decode transparency and monochrome colours":
     var cursor = newSeq[byte](68)
     cursor[4] = 0x00; cursor[5] = 0x80
