@@ -2707,7 +2707,10 @@ palettes, palette-entry and complete-palette replacement, and the documented
 pixel-parity dither phase. Circular brushes use the same normalized geometric
 footprint as Vexter's AGI renderer because the supplemental page's intended
 mask is present only as a missing image. SCI0 monochrome-palette and
-direct-colour enable/disable operations are supported. SCI01 embedded cels use
+direct-colour enable/disable operations are supported. The four monochrome
+tables are kept distinct from the ordinary dither-pair palettes: operation 2
+loads a single-colour lookup used by operation 3, while normal `F0` selection
+continues to use the dither palettes. SCI01 embedded cels use
 the corpus-observed eight-byte cel header and bounded nibble runs; its fourteen
 priority-band boundaries are validated and exposed in the priority raster.
 

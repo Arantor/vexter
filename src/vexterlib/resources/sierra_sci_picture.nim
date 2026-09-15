@@ -141,6 +141,7 @@ proc renderSci0Picture*(data: openArray[byte], directColours = false,
   for index, colour in AgiEgaPalette: directPalette[index] = colour
   var enabled = 3 # visual and priority
   var palettes: array[4, array[40, (uint8, uint8)]]
+  var monochromePalettes: array[4, array[40, uint8]]
   for palette in palettes.mitems:
     for index, pair in DefaultPairs: palette[index] = pair
   var colour1, colour2, priorityValue, controlValue = 0'u8
@@ -400,15 +401,16 @@ proc renderSci0Picture*(data: openArray[byte], directColours = false,
         if palette >= 4 or at > data.len - 40:
           raise newException(ValueError, "invalid SCI0 monochrome palette")
         for index in 0 ..< 40:
-          let colours = byteArgument()
-          palettes[palette][index] =
-            (uint8(colours shr 4), uint8(colours and 0x0f))
+          monochromePalettes[palette][index] = uint8(byteArgument())
         continue
       if not sci1Extensions and extended == 3:
         let code = byteArgument()
         if code >= 160:
           raise newException(ValueError, "SCI0 monochrome visual colour is invalid")
-        (colour1, colour2) = palettes[code div 40][code mod 40]
+        let colour = monochromePalettes[code div 40][code mod 40]
+        if colour >= 16:
+          raise newException(ValueError, "SCI0 monochrome palette colour is invalid")
+        colour1 = colour; colour2 = colour
         enabled = enabled or 1
         continue
       if not sci1Extensions and extended == 4:

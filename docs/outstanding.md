@@ -495,9 +495,11 @@ format-evidence gaps:
   raw exports establish the eight-byte embedded-cel header where the prose is
   ambiguous. Authoritative details are still desirable, as are complete
   semantics for SCI1 and later vector picture operations. Comparisons with the
-  supplied rendered BMPs also show that many SCI0 previews are not yet
-  interpreter-pixel-identical; isolate the remaining brush, dither, line, and
-  fill differences rather than attributing them to decompression.
+  supplied rendered BMPs also show that some SCI0 previews are not yet
+  interpreter-pixel-identical, although separating the monochrome lookup tables
+  from normal dither palettes removes the former whole-image colour failures.
+  Isolate the remaining brush, dither, line, and fill differences rather than
+  attributing them to decompression.
 - Chapter 4 expressly covers SCI0 IBM sound only. SCI1, hybrid-interpreter,
   non-DOS, standalone digital-audio, sync, and speech formats need
   documentation. Its documented SCI0 appended unsigned-PCM effects are now

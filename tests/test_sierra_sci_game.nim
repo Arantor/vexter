@@ -486,7 +486,7 @@ suite "Sierra SCI game packages":
   test "SCI0 pictures load monochrome palettes":
     var data = @[0xfe'u8, 2, 0]
     data.add newSeqWith(40, 5'u8)
-    data.add @[0xf0'u8, 0, 0xf9, 0, 0xfa, 0, 0, 0, 0xff]
+    data.add @[0xfe'u8, 3, 0, 0xf9, 0, 0xfa, 0, 0, 0, 0xff]
     let picture = renderSci0Picture(data)
     check picture.visual.image.pixelAt(0, 0) == 5
 
