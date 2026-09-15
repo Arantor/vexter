@@ -1,4 +1,4 @@
-import std/[strutils, unittest]
+import std/[sequtils, strutils, unittest]
 import vexterlib
 
 proc member(path: string, data: seq[byte]): VextRelatedSource =
@@ -82,7 +82,7 @@ suite "Sierra SCI game packages":
     check games[0].entries[0].kind == srkFont
     check resourceBytes(sources, games[0], games[0].entries[0]) == @[1'u8, 2, 3]
 
-  test "six-byte SCI1 entries take precedence when a table also divides by five":
+  test "volume identities disambiguate six-byte SCI1 entries":
     var map = @[0x87'u8, 6, 0, 0xff, 36, 0]
     var volume: seq[byte]
     for number in 0 ..< 5:
@@ -95,6 +95,20 @@ suite "Sierra SCI game packages":
     check games.len == 1
     check games[0].version == srmvSci1
     check games[0].entries.len == 5
+
+  test "volume identities disambiguate five-byte SCI1.1 entries":
+    var map = @[0x87'u8, 6, 0, 0xff, 36, 0]
+    var volume: seq[byte]
+    for number in 0 ..< 6:
+      map.add leBytes(number)
+      map.add @[byte((number * 5) and 0xff), 0'u8, 0]
+      volume.add @[0x87'u8, byte(number), 0, 1, 0, 1, 0, 0, 0, byte(number)]
+    let sources = newSourceCollection(relatedSources = @[
+      member("RESOURCE.MAP", map), member("RESOURCE.000", volume)])
+    let games = discoverSciGames(sources)
+    check games.len == 1
+    check games[0].version == srmvSci11
+    check games[0].entries.len == 6
 
   test "SCI1 tables retain repeated resource copies":
     let map = @[0x80'u8, 6, 0, 0xff, 18, 0,
@@ -169,6 +183,39 @@ suite "Sierra SCI game packages":
     # clear, literal A, literal B, end, packed as four nine-bit LSB-first codes
     check sciLzwDecode(@[0'u8, 0x83, 0x08, 0x09, 0x08], 2) ==
       @[byte('A'), byte('B')]
+
+  test "SCI COMP3 uses MSB-first LZW codes":
+    let codes = [256, 65, 66, 258, 257]
+    var encoded: seq[byte]
+    var bitAt = 0
+    for code in codes:
+      for bit in countdown(8, 0):
+        if bitAt mod 8 == 0: encoded.add 0
+        encoded[^1] = encoded[^1] or
+          byte(((code shr bit) and 1) shl (7 - bitAt mod 8))
+        inc bitAt
+    check sciComp3Decode(encoded, 4) ==
+      @[byte('A'), byte('B'), byte('A'), byte('B')]
+    # Width grows when dictionary slot 511 becomes next.
+    encoded.setLen(0); bitAt = 0
+    var width = 9
+    var next = 258
+    var previous = false
+    for codeIndex in 0 .. 261:
+      let code = if codeIndex == 0: 256
+        elif codeIndex == 261: 257 else: 65
+      for bit in countdown(width - 1, 0):
+        if bitAt mod 8 == 0: encoded.add 0
+        encoded[^1] = encoded[^1] or
+          byte(((code shr bit) and 1) shl (7 - bitAt mod 8))
+        inc bitAt
+      if code == 256:
+        width = 9; next = 258; previous = false
+      elif code != 257:
+        if previous: inc next
+        previous = true
+        if next == (1 shl width) - 1 and width < 12: inc width
+    check sciComp3Decode(encoded, 260) == newSeqWith(260, byte('A'))
 
   test "SCI cursor planes decode transparency and monochrome colours":
     var cursor = newSeq[byte](68)

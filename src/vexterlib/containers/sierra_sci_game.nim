@@ -95,7 +95,7 @@ proc parseSci0Map(data: openArray[byte]): seq[SciResourceEntry] =
     at += 6
   raise newException(ValueError, "SCI0 resource map has no terminator")
 
-proc parseSci1Map(data: openArray[byte], version: var SciResourceMapVersion): seq[SciResourceEntry] =
+proc parseSci1Map(data: openArray[byte], version: SciResourceMapVersion): seq[SciResourceEntry] =
   if data.len < 6: raise newException(ValueError, "truncated SCI1 resource map")
   var types: seq[tuple[number, first: int]]
   var at = 0
@@ -125,14 +125,9 @@ proc parseSci1Map(data: openArray[byte], version: var SciResourceMapVersion): se
       raise newException(ValueError, "invalid SCI1 resource table bounds")
     sci1 = sci1 and (finish - first) mod 6 == 0
     sci11 = sci11 and (finish - first) mod 5 == 0
-  # Prefer SCI1 when both entry widths happen to divide every table length.
-  if sci1:
-    version = srmvSci1
-  elif sci11:
-    version = srmvSci11
-  else:
+  if version == srmvSci1 and not sci1 or version == srmvSci11 and not sci11:
     raise newException(ValueError,
-      "SCI resource tables have neither SCI1 nor SCI1.1 entry widths")
+      "SCI resource tables do not have the requested entry width")
   let entrySize = if version == srmvSci1: 6 else: 5
   for index in 0 ..< types.len - 1:
     let first = types[index].first
@@ -215,14 +210,60 @@ proc discoverSciGames*(sources: VextSourceCollection): seq[SciGame] =
       let data = sources.readRelated(mapPath)
       var game = SciGame(root: mapPath.dirname, mapPath: mapPath)
       if data.len >= 1 and data[0] in 0x80'u8 .. 0x91'u8:
-        game.entries = parseSci1Map(data, game.version)
+        var candidates: seq[tuple[game: SciGame,
+          valid, credible, stored, consistentStored: int]]
+        # Some authentic five-byte SCI1.1 tables also have lengths divisible
+        # by six. Resolve that ambiguity against the volume header identities
+        # instead of assuming the older entry width.
+        for candidateVersion in [srmvSci1, srmvSci11]:
+          try:
+            var candidate = SciGame(root: mapPath.dirname, mapPath: mapPath,
+              version: candidateVersion)
+            candidate.entries = parseSci1Map(data, candidateVersion)
+            var valid = 0
+            var credible = 0
+            var stored = 0
+            var consistentStored = 0
+            for entry in candidate.entries.mitems:
+              sources.inspectEntry(candidate, entry)
+              if entry.valid:
+                inc valid
+                if entry.compressionMethod in {0 .. 4, 18 .. 20}: inc credible
+                if entry.compressionMethod == 0:
+                  inc stored
+                  let payloadSize = if candidateVersion == srmvSci11:
+                    entry.compressedSize else: entry.compressedSize - 4
+                  if payloadSize == entry.decompressedSize: inc consistentStored
+            candidates.add (move(candidate), valid, credible, stored,
+              consistentStored)
+          except CatchableError:
+            discard
+        if candidates.len == 0:
+          raise newException(ValueError, "invalid SCI1 resource map")
+        var best = 0
+        for index in 1 ..< candidates.len:
+          if candidates[index].credible > candidates[best].credible or
+              candidates[index].credible == candidates[best].credible and
+              candidates[index].valid > candidates[best].valid:
+            best = index
+        if candidates[best].credible == 0 or
+            candidates[best].credible * 2 < candidates[best].valid or
+            candidates[best].stored >= 4 and
+              candidates[best].consistentStored * 2 < candidates[best].stored:
+          raise newException(ValueError,
+            "SCI volume headers do not match a supported resource generation")
+        game = move(candidates[best].game)
       else:
         game.version = srmvSci0
         game.entries = parseSci0Map(data)
       var valid = 0
-      for entry in game.entries.mitems:
-        sources.inspectEntry(game, entry)
-        if entry.valid: inc valid
+      if game.version in {srmvSci1, srmvSci11}:
+        for entry in game.entries:
+          if entry.valid: inc valid
+      else:
+        for entry in game.entries.mitems:
+          sources.inspectEntry(game, entry)
+          if entry.valid: inc valid
       if valid > 0: result.add move(game)
     except CatchableError:
       discard
@@ -329,6 +370,134 @@ proc sciLzwDecode*(input: openArray[byte], expected: int): seq[byte] =
     if next == (1 shl width) and width < 12: inc width
   if result.len != expected:
     raise newException(ValueError, "SCI LZW output length mismatch")
+
+proc sciComp3Decode*(input: openArray[byte], expected: int,
+    requireExact = true): seq[byte] =
+  ## Corpus-established COMP3 LZW variant: MSB-first codes and early growth.
+  var prefix: array[4096, int]
+  var suffix: array[4096, byte]
+  var stack: array[4096, byte]
+  var bitAt = 0
+  var width = 9
+  var next = 258
+  var previous = -1
+  template nextCode(): int =
+    block:
+      var decoded = -1
+      if bitAt + width <= input.len * 8:
+        decoded = 0
+        for unused in 0 ..< width:
+          decoded = (decoded shl 1) or
+            ((int(input[bitAt div 8]) shr (7 - bitAt mod 8)) and 1)
+          inc bitAt
+      decoded
+  while result.len < expected:
+    let value = nextCode()
+    if value < 0 or value == 257: break
+    if value == 256:
+      width = 9; next = 258; previous = -1
+      continue
+    if value > next or value >= 4096:
+      raise newException(ValueError, "invalid SCI COMP3 dictionary code")
+    var current = value
+    var top = 0
+    if current == next:
+      if previous < 0:
+        raise newException(ValueError, "invalid SCI COMP3 first code")
+      current = previous
+      while current >= 256:
+        if top >= stack.len:
+          raise newException(ValueError, "cyclic SCI COMP3 dictionary")
+        stack[top] = suffix[current]; inc top; current = prefix[current]
+      let first = byte(current)
+      stack[top] = first; inc top
+      for index in countdown(top - 1, 0): result.add stack[index]
+      result.add first
+      if next < 4096:
+        prefix[next] = previous; suffix[next] = first; inc next
+    else:
+      while current >= 256:
+        if top >= stack.len:
+          raise newException(ValueError, "cyclic SCI COMP3 dictionary")
+        stack[top] = suffix[current]; inc top; current = prefix[current]
+      let first = byte(current)
+      stack[top] = first; inc top
+      for index in countdown(top - 1, 0): result.add stack[index]
+      if previous >= 0 and next < 4096:
+        prefix[next] = previous; suffix[next] = first; inc next
+    if result.len > expected:
+      raise newException(ValueError, "SCI COMP3 output exceeds its declared length")
+    previous = value
+    if next == (1 shl width) - 1 and width < 12: inc width
+  if requireExact and result.len != expected:
+    raise newException(ValueError, "SCI COMP3 output length mismatch")
+
+proc sciComp3PictureDecode*(input: openArray[byte], expected: int): seq[byte] =
+  ## SCI1 method 4: COMP3 followed by reconstruction of the FE02 palette and
+  ## FE01 embedded-cel command stream.
+  let packed = sciComp3Decode(input, expected, requireExact = false)
+  if packed.len < 1037:
+    raise newException(ValueError, "truncated SCI COMP3 picture header")
+  let pixelSize = le16(packed, 0)
+  let embeddedAt = le16(packed, 2)
+  let literalSize = le16(packed, 4)
+  const paletteAt = 13
+  const paletteSize = 256 * 4
+  const outputVectorAt = 2 + 256 + 4 + paletteSize
+  let vectorSize = embeddedAt - outputVectorAt
+  let vectorAt = paletteAt + paletteSize
+  let markerAt = vectorAt + vectorSize
+  let literalAt = markerAt + 1
+  let controlAt = literalAt + literalSize
+  let controlSize = pixelSize - literalSize
+  if pixelSize <= 0 or literalSize < 0 or literalSize > pixelSize or
+      vectorSize < 0 or markerAt < vectorAt or markerAt >= packed.len or
+      packed[markerAt] != 0xff or controlAt < literalAt or
+      controlSize < 0 or controlAt > packed.len - controlSize or
+      controlAt + controlSize != packed.len:
+    raise newException(ValueError, "invalid SCI COMP3 picture stream bounds")
+  result = @[0xfe'u8, 0x02]
+  for value in 0 .. 255: result.add byte(value)
+  result.add @[0'u8, 0, 0, 0]
+  result.add packed.toOpenArray(paletteAt, paletteAt + paletteSize - 1)
+  if vectorSize > 0:
+    result.add packed.toOpenArray(vectorAt, markerAt - 1)
+  if result.len != embeddedAt:
+    raise newException(ValueError, "SCI COMP3 picture embedded-cel offset mismatch")
+  let celSize = pixelSize + 8
+  if celSize > 0xffff:
+    raise newException(ValueError, "SCI COMP3 picture cel is too large")
+  result.add @[0xfe'u8, 0x01, 0, 0, 0,
+    byte(celSize and 0xff), byte(celSize shr 8)]
+  result.add packed.toOpenArray(6, 12)
+  result.add 0
+  var literal = literalAt
+  var pixels = 0
+  for at in controlAt ..< packed.len:
+    let control = packed[at]
+    let count = int(control and 0x3f)
+    if count == 0:
+      raise newException(ValueError, "invalid SCI COMP3 picture zero run")
+    result.add control
+    case control shr 6
+    of 0:
+      if literal > controlAt - count:
+        raise newException(ValueError, "truncated SCI COMP3 picture literals")
+      result.add packed.toOpenArray(literal, literal + count - 1)
+      literal += count
+    of 2:
+      if literal >= controlAt:
+        raise newException(ValueError, "truncated SCI COMP3 picture repeat")
+      result.add packed[literal]; inc literal
+    of 3: discard
+    else:
+      raise newException(ValueError, "unsupported SCI COMP3 picture run type")
+    pixels += count
+  if literal != controlAt or pixels != 320 * 190:
+    raise newException(ValueError, "SCI COMP3 picture stream coverage mismatch")
+  result.add 0xff
+  if result.len != expected:
+    raise newException(ValueError, "SCI COMP3 picture output length mismatch")
 
 const
   DclAsciiCodes = [73, 127, 126, 125, 124, 123, 122, 121, 120, 29, 35,
@@ -480,8 +649,16 @@ proc resourceBytes*(sources: VextSourceCollection, game: SciGame,
     return @stored
   if entry.compressionMethod == 1:
     return sciLzwDecode(stored, entry.decompressedSize)
-  if game.version == srmvSci0 and entry.compressionMethod == 2:
-    return huffmanDecode(stored, entry.decompressedSize)
+  if entry.compressionMethod == 2:
+    if game.version == srmvSci0:
+      try:
+        return huffmanDecode(stored, entry.decompressedSize)
+      except ValueError:
+        return sciComp3Decode(stored, entry.decompressedSize)
+    if game.version == srmvSci1:
+      return sciComp3Decode(stored, entry.decompressedSize)
+  if game.version == srmvSci1 and entry.compressionMethod == 4:
+    return sciComp3PictureDecode(stored, entry.decompressedSize)
   if entry.compressionMethod in 18 .. 20:
     return dclExplodeDecode(stored, entry.decompressedSize)
   raise newException(ValueError, "SCI compression method " & $entry.compressionMethod &
@@ -551,7 +728,8 @@ proc gameResourceTree*(sources: VextSourceCollection, game: SciGame): VextResour
     let path = groups[e.kind].path & "/" & $e.number &
       (if totals[key] > 1: "-copy-" & $copyIndex else: "")
     let supportedCompression = e.valid and (e.compressionMethod in [0, 1, 18, 19, 20] or
-      game.version == srmvSci0 and e.compressionMethod == 2)
+      e.compressionMethod == 2 and game.version in {srmvSci0, srmvSci1} or
+      e.compressionMethod == 4 and game.version == srmvSci1)
     var warning = e.warning
     if e.valid and not supportedCompression:
       warning = "compression method " & $e.compressionMethod & " is not documented sufficiently for decoding"

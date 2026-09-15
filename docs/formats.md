@@ -2524,8 +2524,10 @@ word-addressed SCI1.1 packages by
 validating `RESOURCE.MAP`, referenced `RESOURCE.NNN` files, resource identities,
 record sizes, and volume bounds. Case-independent lookup rejects ambiguous
 members. SCI0's terminated linear map and SCI1's typed, offset-indexed tables
-are supported. Within the typed layout, six-byte entry tables are tested first;
-otherwise five-byte tables identify SCI1.1. SCI1.1 entries contain a two-byte
+are supported. When typed table lengths admit both six-byte SCI1 and five-byte
+SCI1.1 entries, matching resource identities in the referenced volume headers
+select the generation; implausible later-generation header interpretations are
+rejected. SCI1.1 entries contain a two-byte
 resource number and a three-byte little-endian word offset into `RESOURCE.000`.
 The type comes from the enclosing directory. The first directory offset may
 skip four intervening bytes observed in some supplied games. Duplicate SCI0
@@ -2546,13 +2548,16 @@ LSB-first adaptive LZW dictionary with clear/end codes, widths growing from
 derived by applying Vexter's existing AGI/GIF LZW machinery to the supplied
 SCI corpus: authentic streams begin with the LSB-packed clear code and decode
 to their declared sizes and independently validated font/view structures.
-Method 2 on an
-SCI0-framed map is treated as Huffman only when the supplied MSB-first token
-tree, inline literals, terminator, and declared output size all validate. A
-failed LZW or Huffman probe falls back to the stored payload because an SCI0-style map alone
-does not distinguish SCI0's method 2 Huffman from SCI01's method 2 COMP3. SCI
-COMP3 is not decoded because its supplied specification section contains a
-placeholder rather than an algorithm.
+Method 2 on an SCI0-framed map is first treated as Huffman when the supplied
+MSB-first token tree, inline literals, terminator, and declared output size all
+validate. Because that map shape alone does not distinguish SCI0 method 2
+Huffman from SCI01 method 2 COMP3, a failed Huffman validation is tried as
+COMP3. Corpus differentials across PQ3 and QFG2 vocabulary resources establish
+COMP3 as an MSB-first LZW variant with clear code 256, end code 257, dictionary
+entries beginning at 258, and code-width growth when the next slot is one below
+the power-of-two boundary. It is accepted only when it produces the exact
+declared output size. Later vocabulary layouts remain structurally distinct
+from the SCI0 semantic parsers even after their bytes decompress successfully.
 
 Methods 18 through 20 use the supplied chapter's common DCL-EXPLODE decoder.
 Its two stream parameters select raw or fixed-Huffman literals and four through

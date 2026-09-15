@@ -428,15 +428,18 @@ format-evidence gaps:
   particularly for revision-specific transitions. Neither documented map nor
   volume headers contain a dictionary-width field, and trial decoding wider
   than 12 bits makes formerly valid authentic streams fail rather than fixing
-  the remaining method-1 streams. COMP3 still needs its bit
-  order, dictionary/model initialization, termination, and postprocessing.
-  In particular, an SCI0-framed map does not discriminate SCI0 method 2
-  Huffman from SCI01 method 2 COMP3; Vexter therefore requires the complete
-  Huffman framing to validate before selecting that interpretation.
+  the remaining method-1 streams. COMP3 is corpus-established as MSB-first LZW
+  with clear/end codes 256/257, entries beginning at 258, and code-width growth
+  one slot below each power-of-two boundary. An SCI0-framed map does not
+  discriminate SCI0 method 2 Huffman from SCI01 method 2 COMP3, so Vexter
+  requires complete Huffman validation before trying strict COMP3. Later
+  vocabulary layouts still need semantic documentation.
   The supplied *Police Quest 3* early-SCI1 package uses methods 2, 3, and 4 for
-  897 of its 911 mapped resource entries; their codec and any method-specific
-  postprocessing remain undocumented, so the package is inventoried while
-  those payloads remain stored-compressed.
+  897 of its 911 mapped resource entries. Method 2 now decompresses exactly;
+  method 3 remains undocumented. The corpus-derived method-4 bitmap-picture
+  reconstruction accepts five of its 25 pictures; the other 20 fail strict
+  stream-bound validation and remain stored-compressed. Other early-SCI1 games
+  likewise show that method 4 has additional framing variants.
 - DCL-EXPLODE methods 18-20 share the supplied chapter's decoder and are now
   enabled. All supplied *Dagger of Amon-Ra* method-19 and method-20 resources,
   plus its binary-literal method-18 streams, reach their exact declared output
@@ -448,7 +451,13 @@ format-evidence gaps:
 - Supply later SCI1 and SCI32 `RESOURCE.MAP`/`RESMAP.NNN` and
   `RESOURCE.NNN`/`RESSCI.NNN` layouts, including version discrimination. The
   corpus contains structurally distinct generations beyond the three supported
-  layouts.
+  layouts. In particular, *Gabriel Knight 1* has a typed map which can pass the
+  older table-width tests, but its apparent header compression words are mostly
+  nonsensical; generation selection now rejects that false positive. *Quest for
+  Glory 1 VGA* has a six-byte map with method-18 through method-20-looking
+  headers, but neither the stored-size framing nor DCL payload interpretation
+  matches the supported early-SCI1 generation, so its transitional framing
+  still needs evidence and explicit modelling.
 - Chapter 3 documents SCI0 VIEWs only. A corpus-derived SCI1.1 Dagger-family
   subset now decodes its bounded loop/cel tables, split literal/RLE streams,
   mirrored loops, and two observed palette representations. Remaining supplied

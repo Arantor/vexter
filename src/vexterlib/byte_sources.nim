@@ -76,7 +76,7 @@ proc memoryByteSource*(data: sink seq[byte], label = ""): VextByteSource =
       for index in 0 ..< length:
         result[index] = owned[offset + index],
     label,
-    proc() = owned.setLen(0))
+    proc() = owned = @[])
 
 proc sliceByteSource*(source: VextByteSource, offset, length: int,
     label = ""): VextByteSource =
