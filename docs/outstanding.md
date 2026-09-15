@@ -490,9 +490,14 @@ format-evidence gaps:
   currently uses its normalized AGI-style geometric footprint. Clarify whether
   the page's leading `0x8100` belongs only to standalone/resource-manager files:
   authentic payloads extracted from the supplied volumes begin directly with
-  drawing opcodes. Complete semantics and layouts are still needed for extended
-  operations 2 through 8 (monochrome, direct colour, embedded cels, and priority
-  bands), and for SCI1 and later vector picture operations.
+  drawing opcodes. Extended operations 2 through 8 now render the supplied
+  monochrome/direct-colour, embedded-cel, and priority-band corpus; independent
+  raw exports establish the eight-byte embedded-cel header where the prose is
+  ambiguous. Authoritative details are still desirable, as are complete
+  semantics for SCI1 and later vector picture operations. Comparisons with the
+  supplied rendered BMPs also show that many SCI0 previews are not yet
+  interpreter-pixel-identical; isolate the remaining brush, dither, line, and
+  fill differences rather than attributing them to decompression.
 - Chapter 4 expressly covers SCI0 IBM sound only. SCI1, hybrid-interpreter,
   non-DOS, standalone digital-audio, sync, and speech formats need
   documentation. Its documented SCI0 appended unsigned-PCM effects are now

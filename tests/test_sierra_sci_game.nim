@@ -178,8 +178,24 @@ suite "Sierra SCI game packages":
   test "Huffman decoder handles tree leaves and literal termination":
     # Root: zero selects leaf 'A'; one selects an inline literal. Bits encode
     # A, A, and literal $FF, with $FF serving as the terminator.
-    let encoded = @[0xff'u8, 2, 0, 0x10, byte('A'), 0, 0x3f, 0xe0]
+    let encoded = @[2'u8, 0xff, 0, 0x10, byte('A'), 0, 0x3f, 0xe0]
     check huffmanDecode(encoded, 2) == @[byte('A'), byte('A')]
+
+  test "SCI method 1 pictures can use Huffman rather than LZW":
+    let encoded = @[2'u8, 0xff, 0, 0x10, byte('A'), 0, 0x3f, 0xe0]
+    let map = @[0x01'u8, 0x08, 0, 0, 0, 0,
+      0xff, 0xff, 0xff, 0xff, 0xff, 0xff]
+    var volume = @[0x01'u8, 0x08]
+    volume.add leBytes(encoded.len + 4)
+    volume.add leBytes(2)
+    volume.add @[1'u8, 0]
+    volume.add encoded
+    let sources = newSourceCollection(relatedSources = @[
+      member("RESOURCE.MAP", map), member("RESOURCE.000", volume)])
+    let games = discoverSciGames(sources)
+    check games.len == 1
+    check resourceBytes(sources, games[0], games[0].entries[0]) ==
+      @[byte('A'), byte('A')]
 
   test "DCL-EXPLODE decodes binary literals and validates parameters":
     check dclExplodeDecode(dclLiteralStream("ABC"), 3) ==
@@ -466,6 +482,22 @@ suite "Sierra SCI game packages":
       0xfe'u8, 0, 0, 0x12, 0xf0, 0, 0xf6, 0, 1, 1, 0, 2, 1, 0xff])
     check palettePicture.visual.image.pixelAt(1, 1) == 2
     check palettePicture.visual.image.pixelAt(2, 1) == 1
+
+  test "SCI0 pictures load monochrome palettes":
+    var data = @[0xfe'u8, 2, 0]
+    data.add newSeqWith(40, 5'u8)
+    data.add @[0xf0'u8, 0, 0xf9, 0, 0xfa, 0, 0, 0, 0xff]
+    let picture = renderSci0Picture(data)
+    check picture.visual.image.pixelAt(0, 0) == 5
+
+  test "SCI01 pictures render embedded cels and priority bands":
+    var data = @[0xfe'u8, 8]
+    for boundary in 0 ..< 14: data.add byte(boundary)
+    data.add @[0xfe'u8, 7, 0, 2, 3, 9, 0,
+      1, 0, 1, 0, 0, 0, 15, 0, 0x17, 0xff]
+    let picture = renderSci0Picture(data)
+    check picture.visual.image.pixelAt(2, 3) == 7
+    check picture.priority.image.pixelAt(0, 13) == 14
 
   test "underspecified SCI0 extended picture operations are not guessed":
     expect ValueError:

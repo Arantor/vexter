@@ -395,6 +395,92 @@ proc renderSci0Picture*(data: openArray[byte], directColours = false,
               visual[targetY * SciPictureWidth + targetX] = value
         at = streamEnd
         continue
+      if not sci1Extensions and extended == 2:
+        let palette = byteArgument()
+        if palette >= 4 or at > data.len - 40:
+          raise newException(ValueError, "invalid SCI0 monochrome palette")
+        for index in 0 ..< 40:
+          let colours = byteArgument()
+          palettes[palette][index] =
+            (uint8(colours shr 4), uint8(colours and 0x0f))
+        continue
+      if not sci1Extensions and extended == 3:
+        let code = byteArgument()
+        if code >= 160:
+          raise newException(ValueError, "SCI0 monochrome visual colour is invalid")
+        (colour1, colour2) = palettes[code div 40][code mod 40]
+        enabled = enabled or 1
+        continue
+      if not sci1Extensions and extended == 4:
+        enabled = enabled and not 1
+        continue
+      if not sci1Extensions and extended == 5:
+        let colour = byteArgument()
+        if colour >= 16:
+          raise newException(ValueError, "SCI0 direct visual colour is invalid")
+        colour1 = uint8(colour); colour2 = uint8(colour)
+        enabled = enabled or 1
+        continue
+      if not sci1Extensions and extended == 6:
+        enabled = enabled and not 1
+        continue
+      if not sci1Extensions and extended == 7:
+        let origin = coordinates()
+        if at > data.len - 2:
+          raise newException(ValueError, "truncated SCI01 embedded cel size")
+        let celSize = picLe16(data, at); at += 2
+        let celAt = at
+        if celSize < 8 or celAt > data.len - celSize:
+          raise newException(ValueError, "invalid SCI01 embedded cel size")
+        let width = picLe16(data, celAt)
+        let height = picLe16(data, celAt + 2)
+        let xOffset = picSignedByte(data[celAt + 4])
+        let yOffset = picSignedByte(data[celAt + 5])
+        let transparent = data[celAt + 6] and 0x0f
+        if width <= 0 or height <= 0 or width > SciPictureWidth or
+            height > SciPictureHeight or width > high(int) div height:
+          raise newException(ValueError, "invalid SCI01 embedded cel dimensions")
+        var streamAt = celAt + 8
+        let streamEnd = celAt + celSize
+        var written = 0
+        while written < width * height:
+          if streamAt >= streamEnd:
+            raise newException(ValueError, "truncated SCI01 embedded cel data")
+          let run = data[streamAt]; inc streamAt
+          let count = int(run shr 4)
+          let colour = run and 0x0f
+          if count == 0 or written > width * height - count:
+            raise newException(ValueError, "SCI01 embedded cel run " & $run &
+              " exceeds " & $width & "x" & $height & " at pixel " & $written)
+          if colour != transparent:
+            for offset in 0 ..< count:
+              let pixel = written + offset
+              let targetX = origin.x + xOffset + pixel mod width
+              let targetY = origin.y + yOffset + pixel div width
+              if targetX in 0 ..< SciPictureWidth and
+                  targetY in 0 ..< SciPictureHeight:
+                visual[targetY * SciPictureWidth + targetX] = colour
+          written += count
+        at = streamEnd
+        continue
+      if not sci1Extensions and extended == 8:
+        const bandCount = 14
+        if at > data.len - bandCount:
+          raise newException(ValueError, "truncated SCI01 priority bands")
+        var previous = -1
+        for band in 0 ..< bandCount:
+          let boundary = int(data[at + band])
+          if boundary < previous or boundary >= SciPictureHeight:
+            raise newException(ValueError, "invalid SCI01 priority bands")
+          previous = boundary
+        for y in 0 ..< SciPictureHeight:
+          var value = 0'u8
+          for band in 0 ..< bandCount:
+            if y >= int(data[at + band]): value = uint8(band + 1)
+          for x in 0 ..< SciPictureWidth:
+            priority[y * SciPictureWidth + x] = value
+        at += bandCount
+        continue
       case extended
       of 0:
         while at < data.len and data[at] < 0xf0:

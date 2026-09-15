@@ -283,8 +283,8 @@ proc discoverSciGames*(sources: VextSourceCollection): seq[SciGame] =
 
 proc huffmanDecode*(input: openArray[byte], expected: int): seq[byte] =
   if input.len < 2: raise newException(ValueError, "truncated SCI Huffman header")
-  let terminator = input[0]
-  let count = int(input[1])
+  let count = int(input[0])
+  let terminator = input[1]
   if count == 0 or 2 + count * 2 > input.len:
     raise newException(ValueError, "invalid SCI Huffman node table")
   var bitAt = (2 + count * 2) * 8
@@ -783,7 +783,12 @@ proc resourceBytes*(sources: VextSourceCollection, game: SciGame,
       raise newException(ValueError, "uncompressed SCI resource sizes disagree")
     return @stored
   if entry.compressionMethod == 1:
-    return sciLzwDecode(stored, entry.decompressedSize)
+    try:
+      return sciLzwDecode(stored, entry.decompressedSize)
+    except ValueError:
+      if entry.kind == srkPicture:
+        return huffmanDecode(stored, entry.decompressedSize)
+      raise
   if entry.compressionMethod == 2:
     if game.version in {srmvSci0, srmvSci01}:
       try:

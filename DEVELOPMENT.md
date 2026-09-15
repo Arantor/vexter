@@ -23,12 +23,14 @@ client, and a dependency-free native Windows GUI. It supports:
 - directory-backed Sierra SCI0, early SCI1, and word-addressed SCI1.1
   packages, with structurally
   validated maps, volume records, lazy stored or decoded resources, SCI0
-  LZW and Huffman decompression, corpus-established COMP3 LZW decompression,
+  LZW and corrected count/terminator Huffman decompression, corpus-established
+  COMP3 LZW decompression,
   documented DCL-EXPLODE decompression,
   SCI0 views, corpus-derived compact split-stream early-SCI1 views and bitmap
   pictures from both SCI01 linear and typed maps, including native previews,
   and split-stream SCI1.1 views and bitmap pictures with vector
-  priority/control layers,
+  priority/control layers, SCI0/SCI01 monochrome/direct-colour operations,
+  embedded cels, and priority bands,
   cursors, and revision-independent
   bitmap fonts, documented SCI0 appended unsigned-PCM sound effects, and
   main/suffix vocabularies, annotated parser grammars, and symbolic debugger

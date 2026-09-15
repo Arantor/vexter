@@ -2551,11 +2551,19 @@ LSB-first adaptive LZW dictionary with clear/end codes, widths growing from
 derived by applying Vexter's existing AGI/GIF LZW machinery to the supplied
 SCI corpus: authentic streams begin with the LSB-packed clear code and decode
 to their declared sizes and independently validated font/view structures.
+Some SCI0/SCI1 picture records label Huffman payloads as method 1; after strict
+LZW rejection, picture resources alone are tried as strict Huffman streams.
+All 158 such pictures in Police Quest 1 VGA and Quest for Glory II reproduce
+their supplied exports byte-for-byte. A Huffman stream begins with its one-byte
+node count and one-byte terminator, followed by two-byte nodes and MSB-first
+tokens; the previous implementation had those first two fields reversed.
 Method 2 on an SCI0-framed map is first treated as Huffman when the supplied
 MSB-first token tree, inline literals, terminator, and declared output size all
 validate. Because that map shape alone does not distinguish SCI0 method 2
 Huffman from SCI01 method 2 COMP3, a failed Huffman validation is tried as
-COMP3. Corpus differentials across PQ3 and QFG2 vocabulary resources establish
+COMP3. All 1,008 method-2 pictures across the supplied SCI0 corpus reproduce
+their independent exports byte-for-byte after Huffman expansion. Corpus
+differentials across PQ3 and QFG2 vocabulary resources establish
 COMP3 as an MSB-first LZW variant with clear code 256, end code 257, dictionary
 entries beginning at 258, and code-width growth when the next slot is one below
 the power-of-two boundary. It is accepted only when it produces the exact
@@ -2698,8 +2706,10 @@ area, solid and textured rectangle/circle patterns, four 40-entry dither-pair
 palettes, palette-entry and complete-palette replacement, and the documented
 pixel-parity dither phase. Circular brushes use the same normalized geometric
 footprint as Vexter's AGI renderer because the supplemental page's intended
-mask is present only as a missing image. Unsupported SCI01 extended operations
-remain recoverable as raw resources with a decoder diagnostic.
+mask is present only as a missing image. SCI0 monochrome-palette and
+direct-colour enable/disable operations are supported. SCI01 embedded cels use
+the corpus-observed eight-byte cel header and bounded nibble runs; its fourteen
+priority-band boundaries are validated and exposed in the priority raster.
 
 This is not a claim of general SCI1, SCI1.1, or SCI32 asset support. Later
 container families and undocumented asset encodings are rejected rather than
