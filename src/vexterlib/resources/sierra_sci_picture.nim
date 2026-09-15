@@ -41,6 +41,9 @@ proc picLe32(data: openArray[byte], at: int): int =
   int(data[at]) or (int(data[at + 1]) shl 8) or
     (int(data[at + 2]) shl 16) or (int(data[at + 3]) shl 24)
 
+proc picSignedByte(value: byte): int =
+  if value < 0x80: int(value) else: int(value) - 256
+
 proc renderSci11PictureVisual(data: openArray[byte],
     fallbackPalette: openArray[VextRgb] = []): VextRaster =
   ## Corpus-derived Dagger/SQ4/KQ6 256-colour bitmap PIC subset. It shares
@@ -128,11 +131,14 @@ proc asRaster(pixels: sink seq[uint8]): VextRaster =
     width: SciPictureWidth, height: SciPictureHeight,
     palette: @AgiEgaPalette, pixels: move(pixels)))
 
-proc renderSci0Picture*(data: openArray[byte], directColours = false): SciPicture =
+proc renderSci0Picture*(data: openArray[byte], directColours = false,
+    sci1Extensions = false): SciPicture =
   var visual = newSeq[uint8](SciPictureWidth * SciPictureHeight)
   var priority = newSeq[uint8](visual.len)
   var control = newSeq[uint8](visual.len)
-  for pixel in visual.mitems: pixel = 15
+  for pixel in visual.mitems: pixel = uint8(if sci1Extensions: 255 else: 15)
+  var directPalette = newSeq[VextRgb](256)
+  for index, colour in AgiEgaPalette: directPalette[index] = colour
   var enabled = 3 # visual and priority
   var palettes: array[4, array[40, (uint8, uint8)]]
   for palette in palettes.mitems:
@@ -303,6 +309,92 @@ proc renderSci0Picture*(data: openArray[byte], directColours = false): SciPictur
         drawPattern(texture, point.x, point.y)
     of 0xfe:
       let extended = byteArgument()
+      if sci1Extensions and extended == 2:
+        const paletteBytes = 256 + 4 + 256 * 4
+        if at > data.len - paletteBytes:
+          raise newException(ValueError, "truncated early SCI1 picture palette")
+        let indicesAt = at
+        let coloursAt = at + 256 + 4
+        for item in 0 .. 255:
+          let index = int(data[indicesAt + item])
+          let colourAt = coloursAt + item * 4
+          directPalette[index] = VextRgb(r: data[colourAt + 1],
+            g: data[colourAt + 2], b: data[colourAt + 3])
+        at += paletteBytes
+        continue
+      if sci1Extensions and extended == 4:
+        const bandCount = 14
+        if at > data.len - bandCount:
+          raise newException(ValueError, "truncated early SCI1 priority bands")
+        var previous = -1
+        for band in 0 ..< bandCount:
+          let boundary = int(data[at + band])
+          if boundary < previous or boundary >= SciPictureHeight:
+            raise newException(ValueError, "invalid early SCI1 priority bands")
+          previous = boundary
+        for y in 0 ..< SciPictureHeight:
+          var value = 0'u8
+          for band in 0 ..< bandCount:
+            if y >= int(data[at + band]): value = uint8(band + 1)
+          for x in 0 ..< SciPictureWidth:
+            priority[y * SciPictureWidth + x] = value
+        at += bandCount
+        continue
+      if sci1Extensions and extended == 1:
+        if at > data.len - 5:
+          raise newException(ValueError, "truncated early SCI1 picture cel header")
+        let celSize = picLe16(data, at + 3)
+        let celAt = at + 5
+        if celSize < 8 or celAt > data.len - celSize:
+          raise newException(ValueError, "invalid early SCI1 picture cel size")
+        let width = picLe16(data, celAt)
+        let height = picLe16(data, celAt + 2)
+        let xOffset = picSignedByte(data[celAt + 4])
+        let yOffset = picSignedByte(data[celAt + 5])
+        let transparent = data[celAt + 6]
+        if width <= 0 or height <= 0 or width > SciPictureWidth or
+            height > SciPictureHeight or width > high(int) div height:
+          raise newException(ValueError, "invalid early SCI1 picture cel dimensions")
+        var celPixels = newSeq[uint8](width * height)
+        var streamAt = celAt + 8
+        let streamEnd = celAt + celSize
+        var written = 0
+        while written < celPixels.len:
+          if streamAt >= streamEnd:
+            raise newException(ValueError, "truncated early SCI1 picture cel data")
+          let control = data[streamAt]; inc streamAt
+          let count = int(control and 0x3f)
+          if count == 0 or written > celPixels.len - count:
+            raise newException(ValueError, "early SCI1 picture run exceeds the cel")
+          case control shr 6
+          of 0:
+            if streamAt > streamEnd - count:
+              raise newException(ValueError, "truncated early SCI1 picture literal run")
+            for offset in 0 ..< count:
+              celPixels[written + offset] = data[streamAt + offset]
+            streamAt += count
+          of 2:
+            if streamAt >= streamEnd:
+              raise newException(ValueError, "truncated early SCI1 picture repeat")
+            for offset in 0 ..< count: celPixels[written + offset] = data[streamAt]
+            inc streamAt
+          of 3:
+            for offset in 0 ..< count: celPixels[written + offset] = transparent
+          else:
+            raise newException(ValueError, "unsupported early SCI1 picture run type")
+          written += count
+        if streamAt != streamEnd:
+          raise newException(ValueError, "early SCI1 picture cel has trailing data")
+        for y in 0 ..< height:
+          for x in 0 ..< width:
+            let value = celPixels[y * width + x]
+            let targetX = x + xOffset
+            let targetY = y + yOffset
+            if value != transparent and targetX in 0 ..< SciPictureWidth and
+                targetY in 0 ..< SciPictureHeight:
+              visual[targetY * SciPictureWidth + targetX] = value
+        at = streamEnd
+        continue
       case extended
       of 0:
         while at < data.len and data[at] < 0xf0:
@@ -320,9 +412,15 @@ proc renderSci0Picture*(data: openArray[byte], directColours = false): SciPictur
             (uint8(colours shr 4), uint8(colours and 0x0f))
       else:
         raise newException(ValueError,
-          "SCI picture extended operation requires additional documentation")
+          "SCI picture extended operation " & $extended &
+          " requires additional documentation")
     of 0xff:
-      result.visual = asRaster(move(visual))
+      if sci1Extensions:
+        result.visual = VextRaster(kind: vrkIndexedImage,
+          image: VextIndexedImage(width: SciPictureWidth, height: SciPictureHeight,
+            palette: move(directPalette), pixels: move(visual)))
+      else:
+        result.visual = asRaster(move(visual))
       result.priority = asRaster(move(priority))
       result.control = asRaster(move(control))
       return

@@ -23,6 +23,18 @@ proc dclLiteralStream(text: string, distanceBits = 4): seq[byte] =
     if index mod 8 == 0: result.add 0
     result[^1] = result[^1] or byte(bit shl (index mod 8))
 
+proc comp3LiteralStream(data: openArray[byte]): seq[byte] =
+  var bitAt = 0
+  for codeIndex in 0 .. data.len + 1:
+    let code = if codeIndex == 0: 256
+      elif codeIndex == data.len + 1: 257
+      else: int(data[codeIndex - 1])
+    for bit in countdown(8, 0):
+      if bitAt mod 8 == 0: result.add 0
+      result[^1] = result[^1] or
+        byte(((code shr bit) and 1) shl (7 - bitAt mod 8))
+      inc bitAt
+
 suite "Sierra SCI game packages":
   test "SCI1.1 split streams render an indexed picture":
     var data = newSeq[byte](157)
@@ -229,6 +241,38 @@ suite "Sierra SCI game packages":
     expected.add @[0'u8, 0, 0, 7]
     expected.add newSeq[byte](256 * 4)
     check sciComp3ViewReconstruct(packed, expected.len) == expected
+
+  test "SCI01 maps use four volume bits and carry COMP3 views":
+    let packed = @[18'u8, 0, 1, 1, 0, 0, 0, 0, 0, 0, 1, 0,
+      1, 2, 0, 1, 0, 0, 0, 7, 3, 0, 2, 5, 6]
+    let expected = sciComp3ViewReconstruct(packed, 27)
+    let encoded = comp3LiteralStream(packed)
+    let map = @[0'u8, 0, 0, 0, 0, 0x10, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff]
+    var volume = @[0'u8, 0]
+    volume.add leBytes(encoded.len + 4)
+    volume.add leBytes(expected.len)
+    volume.add @[3'u8, 0]
+    volume.add encoded
+    let sources = newSourceCollection(relatedSources = @[
+      member("RESOURCE.MAP", map), member("RESOURCE.001", volume)])
+    let games = discoverSciGames(sources)
+    check games.len == 1
+    check games[0].version == srmvSci01
+    check resourceBytes(sources, games[0], games[0].entries[0]) == expected
+    let view = parseSci1View(expected)
+    check view.loops.len == 1
+    check view.loops[0].cels[0].pixels == @[5'u8, 6]
+
+  test "early SCI1 pictures render embedded cels and priority bands":
+    var picture = @[0xfe'u8, 4]
+    for boundary in 0 ..< 14: picture.add byte(boundary)
+    picture.add @[0xfe'u8, 1, 0, 0, 0, 10, 0,
+      1, 0, 1, 0, 0, 0, 255, 0, 1, 5, 0xff]
+    let rendered = renderSci0Picture(picture, directColours = true,
+      sci1Extensions = true)
+    check rendered.visual.image.pixels[0] == 5
+    check rendered.priority.image.pixels[0] == 1
+    check rendered.priority.image.pixels[13 * 320] == 14
 
   test "SCI cursor planes decode transparency and monochrome colours":
     var cursor = newSeq[byte](68)

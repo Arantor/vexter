@@ -2523,8 +2523,11 @@ access effect added as a listing comment.
 word-addressed SCI1.1 packages by
 validating `RESOURCE.MAP`, referenced `RESOURCE.NNN` files, resource identities,
 record sizes, and volume bounds. Case-independent lookup rejects ambiguous
-members. SCI0's terminated linear map and SCI1's typed, offset-indexed tables
-are supported. When typed table lengths admit both six-byte SCI1 and five-byte
+members. SCI0's terminated linear map uses six volume bits and 26 offset bits;
+the SCI01 linear variant uses four volume bits and 28 offset bits. Candidate
+locations are checked against the referenced volume headers, selecting the
+generation with the most valid identities. SCI1's typed, offset-indexed tables
+are also supported. When typed table lengths admit both six-byte SCI1 and five-byte
 SCI1.1 entries, matching resource identities in the referenced volume headers
 select the generation; implausible later-generation header interpretations are
 rejected. SCI1.1 entries contain a two-byte
@@ -2562,11 +2565,14 @@ mirrored loops, converts seven-byte cel headers to their native eight-byte
 form, and interleaves separately stored control and literal streams; its cel
 length table provides exact stream boundaries. Method 4 restores a bitmap
 picture's palette and embedded cel, interleaves the same kinds of streams, and
-moves the retained vector-command suffix after the cel. Comparisons with the
-supplied independent exports are byte-identical for all 924 method-3 views and
-all 45 method-4 pictures in Police Quest 3, Conquests of the Longbow, and Space
-Quest I VGA. Later vocabulary layouts remain structurally distinct from the
-SCI0 semantic parsers even after their bytes decompress successfully.
+moves the retained vector-command suffix after the cel. These methods occur in
+both SCI01 linear and typed early-SCI1 maps; the volume-header size follows the
+map generation while the inner reconstruction is identical. Comparisons with
+the supplied independent exports are byte-identical for all 965 method-3 views
+and all 47 method-4 pictures in Leisure Suit Larry 1 VGA, Police Quest 3,
+Conquests of the Longbow, and Space Quest I VGA. Later vocabulary layouts
+remain structurally distinct from the SCI0 semantic parsers even after their
+bytes decompress successfully.
 
 Methods 18 through 20 use the supplied chapter's common DCL-EXPLODE decoder.
 Its two stream parameters select raw or fixed-Huffman literals and four through
@@ -2587,6 +2593,16 @@ an indexed animation whose common canvas is calculated from all cel dimensions
 and signed placement modifiers. Because VIEW resources contain no frame
 timing, the animation uses a clearly identified synthetic 100 ms preview
 duration; this is presentation metadata rather than recovered source timing.
+Early SCI1 VIEWs expose their compact loop and cel hierarchy as native-scale
+256-colour cels and synthetic-timed loop animations. Their embedded `PAL`
+section maps 256 indices to flag-plus-RGB entries, and their interleaved
+six-bit runs decode as literal, repeated, or transparent pixels. Early SCI1
+bitmap pictures expose visual, priority, and control rasters. Extended
+operation 2 loads the indexed palette, operation 1 places an RLE bitmap cel,
+and operation 4 supplies fourteen monotonically increasing Y boundaries for
+the priority bands; ordinary vector commands can then modify all three layers.
+All offsets, dimensions, palette sections, runs, and priority boundaries are
+validated before previews are exposed.
 The supported SCI1.1 Dagger-family VIEW subset uses a 16-byte header,
 16-byte loop records, and 36-byte cel records. Split control and literal
 streams decode bounded six-bit run lengths as literal copies, repeated

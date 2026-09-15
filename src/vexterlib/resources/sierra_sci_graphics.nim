@@ -111,6 +111,79 @@ proc parseSci0View*(data: openArray[byte]): SciView =
       loop.cels.add move(cel)
     result.loops.add move(loop)
 
+proc parseSci1View*(data: openArray[byte]): SciView =
+  ## Early SCI1 native VIEW layout reconstructed by COMP3 method 3.
+  if data.len < 10 or data[1] != 0x80:
+    raise newException(ValueError, "invalid early SCI1 view header")
+  let loopCount = int(data[0])
+  let mirrored = le16(data, 2)
+  if loopCount <= 0 or loopCount > 16 or 8 + loopCount * 2 > data.len:
+    raise newException(ValueError, "invalid early SCI1 view loop table")
+  var palette = newSeq[VextRgb](256)
+  for index, colour in AgiEgaPalette: palette[index] = colour
+  let paletteAt = le16(data, 6)
+  if paletteAt != 0:
+    const paletteSize = 256 + 4 + 256 * 4
+    if paletteAt < 3 or paletteAt > data.len - paletteSize or
+        data[paletteAt - 3] != byte('P') or
+        data[paletteAt - 2] != byte('A') or
+        data[paletteAt - 1] != byte('L'):
+      raise newException(ValueError, "invalid early SCI1 view palette")
+    let indicesAt = paletteAt
+    let coloursAt = indicesAt + 256 + 4
+    for item in 0 .. 255:
+      let index = int(data[indicesAt + item])
+      let colourAt = coloursAt + item * 4
+      palette[index] = VextRgb(r: data[colourAt + 1], g: data[colourAt + 2],
+        b: data[colourAt + 3])
+  for loopIndex in 0 ..< loopCount:
+    let loopAt = le16(data, 8 + loopIndex * 2)
+    if loopAt < 8 + loopCount * 2 or loopAt > data.len - 4:
+      raise newException(ValueError, "early SCI1 view loop is outside the resource")
+    let celCount = int(data[loopAt])
+    if celCount <= 0 or loopAt + 4 + celCount * 2 > data.len:
+      raise newException(ValueError, "invalid early SCI1 view cel table")
+    var loop = SciViewLoop(mirrored: (mirrored and (1 shl loopIndex)) != 0)
+    for celIndex in 0 ..< celCount:
+      let celAt = le16(data, loopAt + 4 + celIndex * 2)
+      if celAt < 8 + loopCount * 2 or celAt > data.len - 8:
+        raise newException(ValueError, "early SCI1 view cel is outside the resource")
+      var cel = SciViewCel(width: le16(data, celAt), height: le16(data, celAt + 2),
+        xOffset: signedByte(data[celAt + 4]), yOffset: signedByte(data[celAt + 5]),
+        transparentColour: int(data[celAt + 6]), palette: palette)
+      if cel.width <= 0 or cel.height <= 0 or cel.width > 320 or
+          cel.height > 200 or cel.width > high(int) div cel.height:
+        raise newException(ValueError, "invalid early SCI1 view cel dimensions")
+      cel.pixels = newSeq[uint8](cel.width * cel.height)
+      var at = celAt + 8
+      var written = 0
+      while written < cel.pixels.len:
+        if at >= data.len:
+          raise newException(ValueError, "truncated early SCI1 view cel data")
+        let control = data[at]; inc at
+        let count = int(control and 0x3f)
+        if count == 0 or written > cel.pixels.len - count:
+          raise newException(ValueError, "early SCI1 view run exceeds the cel")
+        case control shr 6
+        of 0:
+          if at > data.len - count:
+            raise newException(ValueError, "truncated early SCI1 view literal run")
+          for offset in 0 ..< count: cel.pixels[written + offset] = data[at + offset]
+          at += count
+        of 2:
+          if at >= data.len:
+            raise newException(ValueError, "truncated early SCI1 view repeated literal")
+          for offset in 0 ..< count: cel.pixels[written + offset] = data[at]
+          inc at
+        of 3:
+          for offset in 0 ..< count:
+            cel.pixels[written + offset] = uint8(cel.transparentColour)
+        else:
+          raise newException(ValueError, "unsupported early SCI1 view run type")
+        written += count
+      loop.cels.add move(cel)
+    result.loops.add move(loop)
+
 proc parseSci11Palette*(data: openArray[byte], start = 0,
     length = -1, allowSevenByteTrailer = false,
     basePalette: openArray[VextRgb] = []): seq[VextRgb] =

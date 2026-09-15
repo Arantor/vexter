@@ -438,9 +438,13 @@ format-evidence gaps:
   897 of its 911 mapped resource entries. Method 2 now decompresses exactly;
   methods 3 and 4 remain externally undocumented, but their reconstruction is
   corpus-established. The reconstructed bytes match every supplied independent
-  export for the applicable resources in *Police Quest 3*, *Conquests of the
-  Longbow*, and *Space Quest I VGA*: 924 method-3 views and 45 method-4
-  pictures. An authoritative description is still desirable.
+  export for the applicable resources in *Leisure Suit Larry 1 VGA*, *Police
+  Quest 3*, *Conquests of the Longbow*, and *Space Quest I VGA*: 965 method-3
+  views and 47 method-4 pictures. LSL1 VGA establishes that these payload
+  methods can accompany an SCI01 linear map and eight-byte volume header as
+  well as the typed early-SCI1 generation. The LSL1 VGA map further establishes
+  its four-bit volume and 28-bit offset split, and all of its VIEWs and pictures
+  now expose native previews. An authoritative description is still desirable.
 - DCL-EXPLODE methods 18-20 share the supplied chapter's decoder and are now
   enabled. All supplied *Dagger of Amon-Ra* method-19 and method-20 resources,
   plus its binary-literal method-18 streams, reach their exact declared output
@@ -451,7 +455,7 @@ format-evidence gaps:
   static table; do not weaken bounds or output-size validation to accept them.
 - Supply later SCI1 and SCI32 `RESOURCE.MAP`/`RESMAP.NNN` and
   `RESOURCE.NNN`/`RESSCI.NNN` layouts, including version discrimination. The
-  corpus contains structurally distinct generations beyond the three supported
+  corpus contains structurally distinct generations beyond the four supported
   layouts. In particular, *Gabriel Knight 1* has a typed map which can pass the
   older table-width tests, but its apparent header compression words are mostly
   nonsensical; generation selection now rejects that false positive. *Quest for
@@ -464,14 +468,14 @@ format-evidence gaps:
   mirrored loops, and two observed palette representations. Remaining supplied
   resources demonstrate other palette and cel-encoding values which are still
   rejected. Documentation is still needed for those variants, the meanings of
-  retained header flags, scaling metadata, early SCI1 and Amiga layouts, and
+  retained header flags, scaling metadata, Amiga layouts, and
   later VGA/true-colour forms.
 - A corpus-derived SCI1.1 256-colour bitmap PIC subset now renders the supplied
   split control/literal streams, embedded RGB palettes, and trailing vector
   priority/control commands. Documentation is
   still needed for the main-header and cel-descriptor fields, payload sections
   following the palette table, protected palette ranges, unsupported run mode 1, other
-  encoding values, early SCI1 and Amiga pictures, and later SCI32 forms.
+  encoding values, Amiga pictures, and later SCI32 forms.
 - Resolve the supplied cursor chapter's SCI0 truth-table conflict: its table
   makes a clear-bit first plane transparent, while recognizable cursors across
   KQ4, Leisure Suit Larry 2 and 3, and Colonel's Bequest require set bits to be

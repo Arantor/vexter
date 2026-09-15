@@ -14,7 +14,7 @@ import ../resources/sierra_sci_vocabulary
 const SierraSciGameTypeId* = "sierra.sci-game"
 
 type
-  SciResourceMapVersion* = enum srmvSci0, srmvSci1, srmvSci11
+  SciResourceMapVersion* = enum srmvSci0, srmvSci01, srmvSci1, srmvSci11
   SciResourceKind* = enum
     srkView, srkPicture, srkScript, srkText, srkSound, srkMemory,
     srkVocabulary, srkFont, srkCursor, srkPatch, srkBitmap, srkPalette,
@@ -75,7 +75,7 @@ proc le24(data: openArray[byte], at: int): int =
 proc resourceKind(value: int): SciResourceKind =
   if value in 0 .. 17: SciResourceKind(value) else: srkUnknown
 
-proc parseSci0Map(data: openArray[byte]): seq[SciResourceEntry] =
+proc parseSci0Map(data: openArray[byte], sci01 = false): seq[SciResourceEntry] =
   if data.len < 6 or data.len mod 6 != 0:
     raise newException(ValueError, "invalid SCI0 resource map length")
   var at = 0
@@ -89,9 +89,11 @@ proc parseSci0Map(data: openArray[byte]): seq[SciResourceEntry] =
     let typeNumber = id shr 11
     if typeNumber > 31:
       raise newException(ValueError, "invalid SCI0 resource type")
+    let volumeShift = if sci01: 28 else: 26
+    let offsetMask = if sci01: 0x0fffffff'u32 else: 0x03ffffff'u32
     result.add SciResourceEntry(kind: resourceKind(typeNumber),
       typeNumber: typeNumber, number: id and 0x7ff,
-      volume: int(location shr 26), offset: int(location and 0x03ffffff'u32))
+      volume: int(location shr volumeShift), offset: int(location and offsetMask))
     at += 6
   raise newException(ValueError, "SCI0 resource map has no terminator")
 
@@ -168,13 +170,14 @@ proc inspectEntry(sources: VextSourceCollection, game: SciGame,
     entry.warning = "missing or ambiguous resource volume"
     return
   defer: volume.close()
-  let headerSize = if game.version == srmvSci0: 8 else: 9
+  let oldHeader = game.version in {srmvSci0, srmvSci01}
+  let headerSize = if oldHeader: 8 else: 9
   if entry.offset < 0 or entry.offset > volume.length - headerSize:
     entry.warning = "resource offset is outside volume bounds"
     return
   let header = volume.readAt(entry.offset, headerSize)
   var id, typeNumber, number: int
-  if game.version == srmvSci0:
+  if oldHeader:
     id = le16(header, 0)
     typeNumber = id shr 11
     number = id and 0x7ff
@@ -184,7 +187,7 @@ proc inspectEntry(sources: VextSourceCollection, game: SciGame,
   if typeNumber != entry.typeNumber or number != entry.number:
     entry.warning = "volume header identity does not match the resource map"
     return
-  let wordsAt = if game.version == srmvSci0: 2 else: 3
+  let wordsAt = if oldHeader: 2 else: 3
   entry.compressedSize = le16(header, wordsAt)
   entry.decompressedSize = le16(header, wordsAt + 2)
   entry.compressionMethod = le16(header, wordsAt + 4)
@@ -254,15 +257,25 @@ proc discoverSciGames*(sources: VextSourceCollection): seq[SciGame] =
             "SCI volume headers do not match a supported resource generation")
         game = move(candidates[best].game)
       else:
-        game.version = srmvSci0
-        game.entries = parseSci0Map(data)
+        var oldCandidates: seq[tuple[game: SciGame, valid: int]]
+        for candidateVersion in [srmvSci0, srmvSci01]:
+          var candidate = SciGame(root: mapPath.dirname, mapPath: mapPath,
+            version: candidateVersion)
+          candidate.entries = parseSci0Map(data, candidateVersion == srmvSci01)
+          var candidateValid = 0
+          for entry in candidate.entries.mitems:
+            sources.inspectEntry(candidate, entry)
+            if entry.valid: inc candidateValid
+          oldCandidates.add (move(candidate), candidateValid)
+        let best = if oldCandidates[1].valid > oldCandidates[0].valid: 1 else: 0
+        game = move(oldCandidates[best].game)
       var valid = 0
       if game.version in {srmvSci1, srmvSci11}:
         for entry in game.entries:
           if entry.valid: inc valid
       else:
         for entry in game.entries.mitems:
-          sources.inspectEntry(game, entry)
+          if not entry.valid: sources.inspectEntry(game, entry)
           if entry.valid: inc valid
       if valid > 0: result.add move(game)
     except CatchableError:
@@ -763,7 +776,7 @@ proc resourceBytes*(sources: VextSourceCollection, game: SciGame,
   let volume = sources.related(sources.volumePath(game, entry.volume))
   if volume.isNil: raise newException(ValueError, "SCI resource volume is unavailable")
   defer: volume.close()
-  let headerSize = if game.version == srmvSci0: 8 else: 9
+  let headerSize = if game.version in {srmvSci0, srmvSci01}: 8 else: 9
   let stored = volume.readAt(entry.offset + headerSize, game.payloadSize(entry))
   if entry.compressionMethod == 0:
     if stored.len != entry.decompressedSize:
@@ -772,16 +785,18 @@ proc resourceBytes*(sources: VextSourceCollection, game: SciGame,
   if entry.compressionMethod == 1:
     return sciLzwDecode(stored, entry.decompressedSize)
   if entry.compressionMethod == 2:
-    if game.version == srmvSci0:
+    if game.version in {srmvSci0, srmvSci01}:
       try:
         return huffmanDecode(stored, entry.decompressedSize)
       except ValueError:
         return sciComp3Decode(stored, entry.decompressedSize)
     if game.version == srmvSci1:
       return sciComp3Decode(stored, entry.decompressedSize)
-  if game.version == srmvSci1 and entry.compressionMethod == 3:
+  if game.version in {srmvSci0, srmvSci01, srmvSci1} and
+      entry.compressionMethod == 3:
     return sciComp3ViewDecode(stored, entry.decompressedSize)
-  if game.version == srmvSci1 and entry.compressionMethod == 4:
+  if game.version in {srmvSci0, srmvSci01, srmvSci1} and
+      entry.compressionMethod == 4:
     return sciComp3PictureDecode(stored, entry.decompressedSize)
   if entry.compressionMethod in 18 .. 20:
     return dclExplodeDecode(stored, entry.decompressedSize)
@@ -794,7 +809,7 @@ proc storedResourceBytes(sources: VextSourceCollection, game: SciGame,
   let volume = sources.related(sources.volumePath(game, entry.volume))
   if volume.isNil: raise newException(ValueError, "SCI resource volume is unavailable")
   defer: volume.close()
-  let headerSize = if game.version == srmvSci0: 8 else: 9
+  let headerSize = if game.version in {srmvSci0, srmvSci01}: 8 else: 9
   volume.readAt(entry.offset + headerSize, game.payloadSize(entry))
 
 proc materializer(sources: VextSourceCollection, game: SciGame,
@@ -810,6 +825,7 @@ proc gameResourceTree*(sources: VextSourceCollection, game: SciGame): VextResour
     kind: vrnkGroup, metadata: @[
       stringMetadata("sci.resource-map", case game.version
         of srmvSci0: "SCI0"
+        of srmvSci01: "SCI01"
         of srmvSci1: "SCI1"
         of srmvSci11: "SCI1.1"),
       integerMetadata("resource.count", game.entries.len)])
@@ -852,9 +868,8 @@ proc gameResourceTree*(sources: VextSourceCollection, game: SciGame): VextResour
     let path = groups[e.kind].path & "/" & $e.number &
       (if totals[key] > 1: "-copy-" & $copyIndex else: "")
     let supportedCompression = e.valid and (e.compressionMethod in [0, 1, 18, 19, 20] or
-      e.compressionMethod == 2 and game.version in {srmvSci0, srmvSci1} or
-      e.compressionMethod == 3 and game.version == srmvSci1 or
-      e.compressionMethod == 4 and game.version == srmvSci1)
+      e.compressionMethod == 2 and game.version in {srmvSci0, srmvSci01, srmvSci1} or
+      e.compressionMethod in [3, 4] and game.version in {srmvSci0, srmvSci01, srmvSci1})
     var warning = e.warning
     if e.valid and not supportedCompression:
       warning = "compression method " & $e.compressionMethod & " is not documented sufficiently for decoding"
@@ -898,8 +913,28 @@ proc gameResourceTree*(sources: VextSourceCollection, game: SciGame): VextResour
             VextResourceNode(path: path & "/raw", typeId: SierraSciGameTypeId & ".cursor-data",
               kind: vrnkOpaque, rawDataAvailable: true, lazyPayload: node.lazyPayload, defaultExportPriority: 10)]
           node.lazyPayload = VextPayloadRef()
-        elif e.kind == srkPicture and game.version == srmvSci0:
+        elif e.kind == srkPicture and game.version == srmvSci0 and
+            e.compressionMethod != 4:
           let picture = renderSci0Picture(bytes)
+          node.kind = vrnkGroup; node.rawDataAvailable = false
+          node.children = @[
+            VextResourceNode(path: path & "/visual",
+              typeId: SierraSciGameTypeId & ".picture-visual", kind: vrnkRaster,
+              raster: picture.visual, defaultExportPriority: 10),
+            VextResourceNode(path: path & "/priority",
+              typeId: SierraSciGameTypeId & ".picture-priority", kind: vrnkRaster,
+              raster: picture.priority, defaultExportPriority: 10),
+            VextResourceNode(path: path & "/control",
+              typeId: SierraSciGameTypeId & ".picture-control", kind: vrnkRaster,
+              raster: picture.control, defaultExportPriority: 10),
+            VextResourceNode(path: path & "/raw",
+              typeId: SierraSciGameTypeId & ".picture-data", kind: vrnkOpaque,
+              rawDataAvailable: true, lazyPayload: node.lazyPayload,
+              defaultExportPriority: 10)]
+          node.lazyPayload = VextPayloadRef()
+        elif e.kind == srkPicture and game.version in {srmvSci01, srmvSci1}:
+          let picture = renderSci0Picture(bytes, directColours = true,
+            sci1Extensions = true)
           node.kind = vrnkGroup; node.rawDataAvailable = false
           node.children = @[
             VextResourceNode(path: path & "/visual",
@@ -1053,9 +1088,12 @@ proc gameResourceTree*(sources: VextSourceCollection, game: SciGame): VextResour
               kind: vrnkOpaque, rawDataAvailable: true,
               lazyPayload: node.lazyPayload, defaultExportPriority: 10)]
           node.lazyPayload = VextPayloadRef()
-        elif e.kind == srkView and game.version in {srmvSci0, srmvSci11}:
-          let view = if game.version == srmvSci0: parseSci0View(bytes)
-            else: parseSci11View(bytes, sci11FallbackPalette)
+        elif e.kind == srkView and
+            game.version in {srmvSci0, srmvSci01, srmvSci1, srmvSci11}:
+          let view = case game.version
+            of srmvSci0: parseSci0View(bytes)
+            of srmvSci01, srmvSci1: parseSci1View(bytes)
+            of srmvSci11: parseSci11View(bytes, sci11FallbackPalette)
           node.kind = vrnkGroup; node.rawDataAvailable = false
           node.children.add VextResourceNode(path: path & "/raw",
             typeId: SierraSciGameTypeId & ".view-data", kind: vrnkOpaque,
