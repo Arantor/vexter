@@ -26,6 +26,16 @@ const
     0x54, 0xa9, 0x70, 0x4b, 0xa4, 0xe2, 0xe6, 0xe5, 0xab, 0xe4,
     0xd2, 0xaa, 0x4c, 0xe3, 0x06, 0x6f, 0xc6, 0x4a, 0x75, 0xa3,
     0x97, 0xe1]
+  CircleRowStarts = [0, 1, 4, 9, 16, 25, 36, 49]
+  CircleHalfWidths = [
+    0,
+    0, 1, 0,
+    1, 2, 2, 2, 1,
+    1, 2, 3, 3, 3, 2, 1,
+    1, 3, 4, 4, 4, 4, 4, 3, 1,
+    1, 3, 4, 4, 5, 5, 5, 4, 4, 3, 1,
+    2, 4, 5, 5, 6, 6, 6, 6, 6, 5, 5, 4, 2,
+    2, 4, 5, 6, 6, 7, 7, 7, 7, 7, 6, 6, 5, 4, 2]
 
 type SciPicture* = object
   visual*, priority*, control*: VextRaster
@@ -226,11 +236,13 @@ proc renderSci0Picture*(data: openArray[byte], directColours = false,
     var textureAt = if textured:
       int(TextureStarts[(texture shr 1) mod TextureStarts.len]) else: 0
     for dy in -size .. size:
-      for dx in -(size div 2) .. (size + 1) div 2:
-        let inside = rectangle or size == 0 or
-          dx * dx * 4 + dy * dy <= size * size + size
+      let left = if rectangle and size == 0: 0 else: -size
+      let right = if rectangle and size == 0: 1 else: size
+      for dx in left .. right:
+        let inside = rectangle or
+          abs(dx) <= CircleHalfWidths[CircleRowStarts[size] + dy + size]
         var enabledPixel = true
-        if textured:
+        if textured and inside:
           enabledPixel = ((TextureBits[textureAt shr 3] shr
             (7 - (textureAt and 7))) and 1) != 0
           textureAt = (textureAt + 1) mod 256

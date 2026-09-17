@@ -483,6 +483,41 @@ suite "Sierra SCI game packages":
     check palettePicture.visual.image.pixelAt(1, 1) == 2
     check palettePicture.visual.image.pixelAt(2, 1) == 1
 
+  test "SCI0 solid rectangular pen size zero draws two horizontal pixels":
+    let picture = renderSci0Picture(@[
+      0xf0'u8, 0, 0xf9, 0x10, 0xfa, 0, 10, 10, 0xff])
+    check picture.visual.image.pixelAt(10, 10) == 0
+    check picture.visual.image.pixelAt(11, 10) == 0
+    check picture.visual.image.pixelAt(12, 10) == 15
+
+  test "SCI0 circular pens use full-width discrete masks":
+    const rowWidths = [
+      @[1, 3, 1],
+      @[3, 5, 5, 5, 3],
+      @[3, 5, 7, 7, 7, 5, 3],
+      @[3, 7, 9, 9, 9, 9, 9, 7, 3],
+      @[3, 7, 9, 9, 11, 11, 11, 9, 9, 7, 3],
+      @[5, 9, 11, 11, 13, 13, 13, 13, 13, 11, 11, 9, 5],
+      @[5, 9, 11, 13, 13, 15, 15, 15, 15, 15, 13, 13, 11, 9, 5]]
+    for size in 1 .. 7:
+      let picture = renderSci0Picture(@[
+        0xf0'u8, 0, 0xf9, uint8(size), 0xfa, 0, 20, 20, 0xff])
+      for dy in -size .. size:
+        let halfWidth = rowWidths[size - 1][dy + size] div 2
+        for dx in -size .. size:
+          let expected = abs(dx) <= halfWidth
+          check (picture.visual.image.pixelAt(20 + dx, 20 + dy) == 0) ==
+            expected
+
+  test "SCI0 textured circles consume bits only inside the brush mask":
+    let picture = renderSci0Picture(@[
+      0xf0'u8, 0, 0xf9, 0x21, 0xfa, 0, 0, 10, 10, 0xff])
+    for dy in -1 .. 1:
+      for dx in -1 .. 1:
+        let expected = dx == 0 and dy == 0
+        check (picture.visual.image.pixelAt(10 + dx, 10 + dy) == 0) ==
+          expected
+
   test "SCI0 pictures load monochrome palettes":
     var data = @[0xfe'u8, 2, 0]
     data.add newSeqWith(40, 5'u8)

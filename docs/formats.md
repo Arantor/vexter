@@ -2704,9 +2704,17 @@ bytes. The renderer implements plane and colour selection, absolute and both
 relative line forms, four-way flood fill over the documented 190-line drawing
 area, solid and textured rectangle/circle patterns, four 40-entry dither-pair
 palettes, palette-entry and complete-palette replacement, and the documented
-pixel-parity dither phase. Circular brushes use the same normalized geometric
-footprint as Vexter's AGI renderer because the supplemental page's intended
-mask is present only as a missing image. SCI0 monochrome-palette and
+pixel-parity dither phase. Circular brushes use the recovered full-width
+discrete scanline masks for all eight sizes; these directly match SCI
+Companion's solid-circle footprints. Patterned pen
+stamps carry a per-stamp texture byte, so otherwise identical SCI Companion
+labels can legitimately affect different pixel subsets. An authentic Sierra
+interpreter capture establishes that texture bits advance only for positions
+inside a circular brush mask, not for the unused positions in its bounding
+square. The low bit of the on-disk texture byte does not change the selected
+offset; the byte selects one of the 120 offsets after division by two. Direct
+comparison establishes that a solid rectangular size-zero pen covers `(x,y)` and
+`(x+1,y)`, rather than collapsing to one pixel. SCI0 monochrome-palette and
 direct-colour enable/disable operations are supported. The four monochrome
 tables are kept distinct from the ordinary dither-pair palettes: operation 2
 loads a single-colour lookup used by operation 3, while normal `F0` selection

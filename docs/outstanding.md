@@ -485,9 +485,10 @@ format-evidence gaps:
   fixed colour.
 - The supplemental SCI0 Picture Resource page resolves the main command set,
   OPX opcode, palette operations, line and fill algorithms, dither phase, and
-  texture tables. Its circular-brush diagram is absent from the saved page, so
-  the exact interpreter mask still needs a textual or tabular source; Vexter
-  currently uses its normalized AGI-style geometric footprint. Clarify whether
+  texture tables. Its circular-brush diagram is absent from the saved page;
+  an authentic *King's Quest IV* interpreter capture now establishes the
+  recovered full-width masks and that texture bits advance only within the
+  circular footprint rather than across its bounding square. Clarify whether
   the page's leading `0x8100` belongs only to standalone/resource-manager files:
   authentic payloads extracted from the supplied volumes begin directly with
   drawing opcodes. Extended operations 2 through 8 now render the supplied
