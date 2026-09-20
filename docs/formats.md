@@ -2659,6 +2659,18 @@ unsigned 8-bit PCM becomes normal signed archetype samples and WAV export.
 The supplied KQ1 SCI and SQ3 corpora currently expose 13 and 37 such resource
 entries respectively (including repeated volume copies).
 
+The corpus-established QFG3/SQ5 `65535.MAP` generation indexes later SOL
+digital-audio records in `RESOURCE.AUD`. Its `0x0090` header is followed by
+six-byte resource-number/absolute-offset entries and an all-ones terminator.
+Validated records appear lazily under `/game/audio-archive/NUMBER`, with an
+independently playable `audio` child and byte-exact `raw` child. SOL headers
+retain the sample rate, codec, and encoded byte count. Codec zero is unsigned
+8-bit PCM; codec one is high-nibble-first four-bit differential PCM using the
+corpus-recovered symmetric delta table. Both decode to mono PCM8 and WAV.
+QFG3 codec-one and SQ5 codec-zero exports are sample-for-sample identical to
+the supplied independent WAV controls. Other archive-map generations are not
+accepted by this parser.
+
 Main parser vocabulary resource 0 is decoded from its 26 little-endian letter
 offsets and prefix-compressed word stream. Each word's packed 24-bit value is
 split into its upper 12-bit class mask and lower 12-bit synonym group; the

@@ -501,10 +501,16 @@ format-evidence gaps:
   from normal dither palettes removes the former whole-image colour failures.
   Isolate the remaining brush, dither, line, and fill differences rather than
   attributing them to decompression.
-- Chapter 4 expressly covers SCI0 IBM sound only. SCI1, hybrid-interpreter,
-  non-DOS, standalone digital-audio, sync, and speech formats need
-  documentation. Its documented SCI0 appended unsigned-PCM effects are now
-  playable and WAV-exportable. SCI0's multi-device MIDI-like stream still needs
+- Chapter 4 expressly covers SCI0 IBM sound only. Its documented SCI0 appended
+  unsigned-PCM effects are playable and WAV-exportable. The supplied QFG3/SQ5
+  corpus now establishes one later `65535.MAP`/`RESOURCE.AUD` generation and
+  SOL codec-zero PCM plus codec-one four-bit differential PCM; these indexed
+  tracks are lazy and WAV-exportable. Other SCI1/later, hybrid-interpreter,
+  non-DOS, standalone digital-audio, speech-map, and sync generations still
+  need documentation or independent controls. In particular, the large Dagger
+  and KQ6 speech archives interleave additional unframed tables between SOL
+  records, and KQ5 `.SYN` resources contain more than a simple fixed-width cue
+  list; neither is guessed. SCI0's multi-device MIDI-like stream still needs
   the planned sequenced-music archetype rather than premature sampled-audio
   flattening.
 - Main vocabulary resource 0 and suffix resource 901 are decoded and exported

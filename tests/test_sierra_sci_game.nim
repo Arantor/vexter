@@ -338,6 +338,44 @@ suite "Sierra SCI game packages":
     check playable.kind == vrnkAudio
     check playable.sampleRate == 3750
 
+  test "SCI SOL audio decodes PCM and high-nibble-first DPCM":
+    let pcm = parseSciAudio(@[0x8d'u8, 0, 0x8d, 0x0b,
+      0x53, 0x4f, 0x4c, 0, 0x11, 0x2b, 0, 3, 0, 0, 0,
+      0, 128, 255])
+    check pcm.sampleRate == 11025
+    check pcm.codec == 0
+    check pcm.sound.buffer.channels[0] == @[-128'i32, 0, 127]
+
+    let dpcm = parseSciAudio(@[0x8d'u8, 0x0b,
+      0x53, 0x4f, 0x4c, 0, 0x11, 0x2b, 1, 2, 0, 0, 0,
+      0x1d, 0x8f])
+    check dpcm.sampleCount == 4
+    check dpcm.sound.buffer.channels[0] == @[1'i32, -1, -22, -22]
+
+  test "SCI companion audio maps expose lazy archive tracks":
+    let map = @[0x01'u8, 0x38, 0, 0, 0, 0,
+      0xff, 0xff, 0xff, 0xff, 0xff, 0xff]
+    var fontData = @[0'u8, 0, 1, 0, 6, 0, 8, 0, 1, 1, 0x80]
+    var volume = @[0x01'u8, 0x38]
+    volume.add leBytes(fontData.len + 4)
+    volume.add leBytes(fontData.len)
+    volume.add @[0'u8, 0]
+    volume.add fontData
+    let audioMap = @[0x90'u8, 0, 7, 0, 0, 0, 0, 0,
+      0xff, 0xff, 0xff, 0xff, 0xff, 0xff]
+    let audio = @[0x8d'u8, 0x0b, 0x53, 0x4f, 0x4c, 0,
+      0x11, 0x2b, 1, 1, 0, 0, 0, 0x1d]
+    let sources = newSourceCollection(relatedSources = @[
+      member("RESOURCE.MAP", map), member("RESOURCE.000", volume),
+      member("65535.MAP", audioMap), member("RESOURCE.AUD", audio)])
+    let session = openInspectionSession("synthetic-sci-audio", sources)
+    defer: session.close()
+    let track = session.resourceAtPath("/game/audio-archive/7/audio")
+    check track.kind == vrnkAudio
+    check track.sampleRate == 11025
+    check track.bitsPerSample == 8
+    check session.resourceAtPath("/game/audio-archive/7/raw").kind == vrnkOpaque
+
   test "SCI font decodes MSB-first glyph rows":
     var fontData = @[0'u8, 0, 1, 0, 6, 0, 8, 0, 3, 2, 0xa0, 0x40]
     let font = decodeSciFont(fontData)

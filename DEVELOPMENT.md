@@ -32,7 +32,9 @@ client, and a dependency-free native Windows GUI. It supports:
   priority/control layers, SCI0/SCI01 monochrome/direct-colour operations,
   embedded cels, and priority bands,
   cursors, and revision-independent
-  bitmap fonts, documented SCI0 appended unsigned-PCM sound effects, and
+  bitmap fonts, documented SCI0 appended unsigned-PCM sound effects,
+  corpus-established indexed SCI SOL digital-audio archives with lazy PCM/DPCM
+  decoding and WAV export, and
   main/suffix vocabularies, annotated parser grammars, and symbolic debugger
   tables;
 

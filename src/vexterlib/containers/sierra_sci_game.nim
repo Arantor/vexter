@@ -2,7 +2,7 @@
 ## Format facts are derived from supplied SCI Specifications chapters 1-3.
 
 import std/[strutils, tables]
-import ../archetypes/raster
+import ../archetypes/[audio, raster]
 import ../byte_sources
 import ../metadata
 import ../resource_tree
@@ -825,6 +825,80 @@ proc storedMaterializer(sources: VextSourceCollection, game: SciGame,
     entry: SciResourceEntry): VextPayloadMaterializer =
   result = proc(): seq[byte] = storedResourceBytes(sources, game, entry)
 
+type SciAudioArchiveEntry = object
+  number, offset, recordSize, sampleRate, codec, sampleCount: int
+
+proc sciAudioArchiveEntries(sources: VextSourceCollection,
+    game: SciGame): tuple[path: string, entries: seq[SciAudioArchiveEntry]] =
+  ## The supplied QFG3/SQ5 generation uses a 0x0090 map header followed by
+  ## six-byte (resource number, absolute archive offset) records and an all-FF
+  ## terminator. Other supplied generations are deliberately rejected here.
+  let mapPath = uniquePath(sources, joined(game.root, "65535.MAP"))
+  result.path = uniquePath(sources, joined(game.root, "RESOURCE.AUD"))
+  if mapPath.len == 0 or result.path.len == 0: return
+  let map = sources.readRelated(mapPath)
+  if map.len < 8 or le16(map, 0) != 0x0090 or (map.len - 2) mod 6 != 0:
+    result.path = ""
+    return
+  let archive = sources.related(result.path)
+  if archive.isNil:
+    result.path = ""
+    return
+  defer: archive.close()
+  var at = 2
+  var previousOffset = -1
+  while at < map.len:
+    let number = le16(map, at)
+    let offset = int(le32(map, at + 2))
+    at += 6
+    if number == 0xffff and uint32(offset) == 0xffffffff'u32:
+      if at != map.len: result.entries.setLen(0); result.path = ""
+      return
+    if number == 0xffff or offset <= previousOffset or
+        offset > archive.length - 13:
+      result.entries.setLen(0); result.path = ""
+      return
+    let header = archive.readAt(offset, min(14, archive.length - offset))
+    try:
+      let typed = header[0] == 0x8d
+      let headerAt = if typed: 1 else: 0
+      if headerAt > header.len - 12 or
+          header[headerAt + 1 .. headerAt + 4] !=
+            [0x53'u8, 0x4f, 0x4c, 0x00]:
+        raise newException(ValueError, "invalid archive audio header")
+      let headerSize = int(header[headerAt]) + 1 + (if typed: 1 else: 0)
+      let encodedSize = int(le32(header, headerAt + 8))
+      let codec = int(header[headerAt + 7])
+      let recordSize = headerSize + encodedSize
+      if headerSize < 12 or encodedSize <= 0 or codec notin [0, 1] or
+          recordSize > archive.length - offset:
+        raise newException(ValueError, "invalid archive audio bounds")
+      result.entries.add SciAudioArchiveEntry(number: number, offset: offset,
+        recordSize: recordSize, sampleRate: le16(header, headerAt + 5),
+        codec: codec, sampleCount: encodedSize * (if codec == 1: 2 else: 1))
+      previousOffset = offset
+    except ValueError:
+      result.entries.setLen(0); result.path = ""
+      return
+  result.entries.setLen(0)
+  result.path = ""
+
+proc archivePayloadMaterializer(sources: VextSourceCollection, path: string,
+    offset, length: int): VextPayloadMaterializer =
+  result = proc(): seq[byte] =
+    let source = sources.related(path)
+    if source.isNil: raise newException(ValueError, "SCI audio archive is unavailable")
+    defer: source.close()
+    source.readAt(offset, length)
+
+proc archiveSoundMaterializer(sources: VextSourceCollection, path: string,
+    offset, length: int): VextSoundMaterializer =
+  result = proc(): VextSound =
+    let source = sources.related(path)
+    if source.isNil: raise newException(ValueError, "SCI audio archive is unavailable")
+    defer: source.close()
+    parseSciAudio(source.readAt(offset, length)).sound
+
 proc gameResourceTree*(sources: VextSourceCollection, game: SciGame): VextResourceTree =
   let root = VextResourceNode(path: "/game", typeId: SierraSciGameTypeId,
     kind: vrnkGroup, metadata: @[
@@ -1141,4 +1215,44 @@ proc gameResourceTree*(sources: VextSourceCollection, game: SciGame): VextResour
       node.lazyPayload = VextPayloadRef(length: max(0, game.payloadSize(e)),
         materializer: storedMaterializer(sources, game, e))
     groups[e.kind].children.add node
+  let audioArchive = sciAudioArchiveEntries(sources, game)
+  if audioArchive.path.len > 0 and audioArchive.entries.len > 0:
+    let archiveGroup = VextResourceNode(path: root.path & "/audio-archive",
+      typeId: SierraSciGameTypeId & ".audio-archive", kind: vrnkGroup,
+      metadata: @[integerMetadata("track.count", audioArchive.entries.len)])
+    var copies: Table[int, int]
+    for entry in audioArchive.entries:
+      let copyIndex = copies.getOrDefault(entry.number)
+      copies[entry.number] = copyIndex + 1
+      let trackPath = archiveGroup.path & "/" & $entry.number &
+        (if copyIndex > 0: "-copy-" & $copyIndex else: "")
+      let track = VextResourceNode(path: trackPath,
+        typeId: SierraSciGameTypeId & ".audio-track", kind: vrnkGroup,
+        metadata: @[integerMetadata("resource.number", entry.number),
+          integerMetadata("archive.offset", entry.offset),
+          integerMetadata("encoded.size", entry.recordSize),
+          integerMetadata("codec", entry.codec),
+          integerMetadata("sample-rate", entry.sampleRate),
+          integerMetadata("samples", entry.sampleCount),
+          integerMetadata("duration-ms",
+            entry.sampleCount * 1000 div entry.sampleRate)])
+      track.children = @[
+        VextResourceNode(path: trackPath & "/audio",
+          typeId: SierraSciGameTypeId & ".audio", kind: vrnkAudio,
+          audioKind: varkSound,
+          soundMaterializer: archiveSoundMaterializer(sources,
+            audioArchive.path, entry.offset, entry.recordSize),
+          derivedAudioChannels: 1, derivedAudioBitsPerSample: 8,
+          derivedAudioSampleRate: entry.sampleRate,
+          derivedAudioMaximumSamples: entry.sampleCount,
+          defaultExportPriority: 20),
+        VextResourceNode(path: trackPath & "/raw",
+          typeId: SierraSciGameTypeId & ".audio-data", kind: vrnkOpaque,
+          rawDataAvailable: true,
+          lazyPayload: VextPayloadRef(length: entry.recordSize,
+            materializer: archivePayloadMaterializer(sources,
+              audioArchive.path, entry.offset, entry.recordSize)),
+          defaultExportPriority: 10)]
+      archiveGroup.children.add track
+    root.children.add archiveGroup
   result.roots = @[root]
