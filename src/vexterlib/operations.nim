@@ -24,7 +24,7 @@ import ./containers/[amiga_8svx, amiga_16sv, amiga_acbm, amiga_adf, amiga_anim,
   doom_wad, electron_asar, flic, fzx, gif_container, inno_setup, iso9660, jpeg,
   netpbm, openraster, pcx, png_container,
   adobe_swatch_exchange, aseprite, gimp_palette, koala_painter,
-  paint_net_palette, protracker_mod, qoi, rgba8_palette, tga, wav, windows_icon,
+  paint_net_palette, protracker_mod, qoi, rgba8_palette, sqlite, tga, wav, windows_icon,
   wordstar, zip_archive, lha_archive, zx_spectrum_gigascreen_dump,
   zx_spectrum_snapshot,
   zx_spectrum_tap]
@@ -246,6 +246,21 @@ proc exportNameForPath(path: string): string =
       if result.len > 0:
         result.add '/'
       result.add normalizedExportSegment(segment)
+
+proc resourcePathSegment(value: string): string =
+  ## Percent-encodes bytes that have structural meaning in resource paths.
+  ## SQLite identifiers are UTF-8 here, so encoding individual bytes is stable
+  ## and reversible without imposing host-filesystem naming rules.
+  const hexadecimal = "0123456789ABCDEF"
+  for character in value:
+    if character.isAlphaNumeric or character in {'-', '_', '.'}:
+      result.add character
+    else:
+      let encoded = ord(character)
+      result.add '%'
+      result.add hexadecimal[(encoded shr 4) and 0xf]
+      result.add hexadecimal[encoded and 0xf]
+  if result.len == 0: result = "%00"
 
 proc validateResourcePattern(pattern: string): seq[string] =
   if pattern.len < 2 or pattern[0] != '/':
@@ -1543,6 +1558,45 @@ proc inspectSourceDepth(filename: string, data: openArray[byte],
       root.children.add containedFileNode("/disk/" & entry.name, entry.name,
         D64FileTypeId, entry.data, metadata, depth, ignoreWarnings,
         pcxChannelOrder, result.warnings)
+    result.resources.roots.add root
+  of vhkSqlite:
+    let database = parsedValue[SqliteDatabase](selectedParsed, vhkSqlite)
+    let root = VextResourceNode(path: "/table", typeId: SqliteTypeId,
+      kind: vrnkGroup, metadata: @[
+        integerMetadata("page-size", database.pageSize),
+        integerMetadata("usable-page-size", database.usablePageSize),
+        integerMetadata("schema-format", database.schemaFormat),
+        integerMetadata("text-encoding", database.encoding),
+        integerMetadata("user-version", database.userVersion),
+        integerMetadata("application-id", database.applicationId),
+        integerMetadata("tables", database.tables.len)])
+    for table in database.tables:
+      let tablePath = "/table/" & resourcePathSegment(table.name)
+      let tableGroup = VextResourceNode(path: tablePath,
+        typeId: SqliteTableTypeId, kind: vrnkGroup, metadata: @[
+          stringMetadata("table.name", table.name),
+          integerMetadata("table.root-page", table.rootPage),
+          integerMetadata("table.without-rowid", ord(table.withoutRowid)),
+          integerMetadata("table.rows", table.rows.len)])
+      tableGroup.children.add VextResourceNode(path: tablePath & "/schema",
+        typeId: SqliteSchemaTypeId, kind: vrnkText, text: table.sql,
+        metadata: @[stringMetadata("table.name", table.name)])
+      if table.rows.len > 0:
+        var rowsText = "Rows: " & $table.rows.len & "\n\n"
+        for row in table.rows:
+          if row.hasRowid: rowsText.add "rowid=" & $row.rowid & "\t"
+          for valueIndex, value in row.values:
+            if valueIndex > 0: rowsText.add '\t'
+            var display = value.sqliteValueText
+            display = display.replace("\\", "\\\\").replace("\t", "\\t").replace("\r", "\\r").replace("\n", "\\n")
+            rowsText.add display
+          rowsText.add '\n'
+        tableGroup.children.add VextResourceNode(path: tablePath & "/rows",
+          typeId: SqliteRowsTypeId, kind: vrnkText, text: rowsText,
+          metadata: @[
+            stringMetadata("table.name", table.name),
+            integerMetadata("table.rows", table.rows.len)])
+      root.children.add tableGroup
     result.resources.roots.add root
   of vhkFatDiskImage:
     let volume = parsedValue[FatVolume](selectedParsed, vhkFatDiskImage)

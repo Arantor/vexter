@@ -68,7 +68,8 @@ client, and a dependency-free native Windows GUI. It supports:
   decoding, common split-data resolution, and named whole-container extraction,
   ZX Spectrum raw screen dumps, ZX Gigascreen images, SNA snapshots,
   TAP and first-pass TZX containers, tokenised BASIC resources, BMFont text descriptors, FZX and Amiga bitmap diskfonts
-  (including ColorFonts), standalone AMOS banks, AMOS bank
+  (including ColorFonts), SQLite 3 databases with table schemas and rows
+  (but no exposed indexes), standalone AMOS banks, AMOS bank
   sets, AMOS programs, and headerless WordStar documents plus the version
   5-or-later headered family;
 - a resource tree containing decoded raster, palette, bitmap-font, audio, and text resources,

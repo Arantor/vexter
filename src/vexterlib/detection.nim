@@ -12,7 +12,7 @@ import ./containers/[amiga_8svx, amiga_16sv, amiga_acbm, amiga_adf, amiga_anim,
   bmfont, bmp, creative_voice, d64, doom_wad, electron_asar, fat_disk_image, flic, fzx,
   gif_container, gimp_palette, inno_setup, iso9660, jpeg, koala_painter, netpbm,
   paint_net_palette, pcx, png_container, protracker_mod, qoi, rgba8_palette, tga,
-  wav, windows_icon, zip_archive, lha_archive, zx_spectrum_gigascreen_dump,
+  sqlite, wav, windows_icon, zip_archive, lha_archive, zx_spectrum_gigascreen_dump,
   zx_spectrum_screen_dump,
   wordstar, zx_spectrum_snapshot, zx_spectrum_tap, zx_spectrum_tzx]
 import ./containers/xpk_shri
@@ -28,6 +28,20 @@ proc detectBaseFormats(filename: string, data: openArray[byte]):
     seq[VextDetectionCandidate] =
   ## Returns every format candidate recognized from currently available
   ## evidence, ordered from strongest to weakest.
+  if isSqlite(data):
+    try:
+      let database = parseSqlite(data)
+      var evidence = @[VextDetectionEvidence(description:
+        "file has a valid SQLite 3 header, schema table, and " &
+        $database.tables.len & " bounded table b-tree(s)")]
+      if filename.hasSqliteExtension:
+        evidence.add VextDetectionEvidence(description:
+          "filename uses a conventional SQLite extension")
+      return @[VextDetectionCandidate(typeId: SqliteTypeId,
+        confidence: vdcCertain, evidence: evidence,
+        derivation: baseDerivation(SqliteTypeId))]
+    except ValueError:
+      discard
   try:
     let installer = parseInnoSetup(data)
     var evidence = @[VextDetectionEvidence(description:

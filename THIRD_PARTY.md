@@ -1,5 +1,16 @@
 # Third-party material
 
+## SQLite database file-format specification
+
+The developer retrieved SQLite's *Database File Format* specification from
+`https://www.sqlite.org/fileformat2.html` on 23 September 2026 and supplied it
+locally as `SQLite File Format.html`. The document informed Vexter's SQLite 3
+database work. No third-party implementation code was used.
+
+```text
+905067afacc30583c9ee86778b532094cc1830c7ec7b5f019bcfd2eb9ded97a2  SQLite File Format.html
+```
+
 ## WordStar documentation and compatibility corpus
 
 On 13 September 2026 the developer supplied three locally saved documents

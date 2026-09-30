@@ -2737,3 +2737,15 @@ priority-band boundaries are validated and exposed in the priority raster.
 This is not a claim of general SCI1, SCI1.1, or SCI32 asset support. Later
 container families and undocumented asset encodings are rejected rather than
 guessed; required documentation is indexed in `docs/outstanding.md`.
+## SQLite 3 databases
+
+SQLite 3 database files are detected from their signature and validated
+header. Vexter exposes each table by name under `/table`, with its CREATE SQL
+in a `/schema` child and decoded data in a `/rows` child when rows exist. This includes
+overflow payloads and `WITHOUT ROWID` table b-trees. SQLite's five storage
+classes are retained in the decoder and rendered as readable text in the
+current GUI. Indexes are deliberately not exposed. UTF-8 databases are
+supported; UTF-16 databases, virtual-table content, and uncheckpointed WAL
+state are current limitations. Implementation was informed by the supplied
+snapshot of SQLite's `fileformat2.html` documentation, sourced from
+`https://www.sqlite.org/fileformat2.html`.

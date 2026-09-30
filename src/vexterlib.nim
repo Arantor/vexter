@@ -73,6 +73,7 @@ import vexterlib/containers/ansi_art
 import vexterlib/containers/doom_wad
 import vexterlib/containers/inno_setup
 import vexterlib/containers/wordstar
+import vexterlib/containers/sqlite
 import vexterlib/containers/fat_disk_image
 import vexterlib/containers/sierra_agi_game
 import vexterlib/containers/sierra_sci_game
@@ -129,6 +130,7 @@ export document
 export font
 export palette
 export tracker
+export sqlite
 export colour_cycle
 export palette_swatch
 export font_preview
