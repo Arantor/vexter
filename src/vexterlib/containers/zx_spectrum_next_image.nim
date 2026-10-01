@@ -111,3 +111,12 @@ proc decodeZxSpectrumNextImage*(source: ZxSpectrumNextImageSource,
           let output = y * result.width + sourceX * 2
           result.pixels[output] = packed shr 4
           result.pixels[output + 1] = packed and 0x0f
+  var hasAlpha = false
+  for colour in palette.colours:
+    if colour.a != 255:
+      hasAlpha = true
+      break
+  if hasAlpha:
+    result.alpha = newSeq[byte](result.pixels.len)
+    for index, paletteIndex in result.pixels:
+      result.alpha[index] = palette.colours[int(paletteIndex)].a

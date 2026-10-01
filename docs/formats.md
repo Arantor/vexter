@@ -1061,15 +1061,20 @@ by ORing those two stored bits. The RGB333 forms store two bytes per colour:
 32 bytes for 16 colours or 512 bytes for 256 colours. The second byte must be
 zero or one and supplies blue's low bit.
 
+A 513-byte `.npl` is the 512-byte, 256-colour RGB333 form followed by one
+palette index. That indexed entry is marked fully transparent while its RGB
+components remain intact. NPL palettes therefore use the normal alpha-bearing
+palette, swatch, GPL, and metadata export paths.
+
 All three-bit components expand to `00`, `24`, `49`, `6d`, `92`, `b6`, `db`,
 or `ff`. The result is an opaque ordered palette at `/palette`, with the source
 colour width retained as metadata.
 
-Automatic detection requires a case-insensitive `.nxp` or `.pal` extension
-because the format has no magic. `.nxp` yields **probable** confidence, while
-the shared `.pal` alias yields **possible** confidence. The exact 32-, 256-, or
-512-byte payload size is required, and nine-bit palettes reject second bytes
-other than zero or one.
+Automatic detection requires a case-insensitive `.nxp`, `.npl`, or `.pal`
+extension because the format has no magic. `.nxp` and `.npl` yield
+**probable** confidence, while the shared `.pal` alias yields **possible**
+confidence. The exact 32-, 256-, 512-, or 513-byte payload size is required,
+and nine-bit palettes reject second bytes other than zero or one.
 
 ## ZX Spectrum Next Layer 2 images
 
@@ -1085,6 +1090,8 @@ A case-insensitively resolved `.nxp` with the same basename overrides that
 palette and selects the mode: a 256-colour palette means 320×256, while a
 16-colour palette means 640×256. An invalid companion produces an inspection
 warning and falls back to the 320×256 synthesized-palette interpretation.
+A same-basename `.npl` is tried when no NXP exists, allowing its transparent
+index to flow into the indexed raster. NXP takes precedence when both exist.
 
 Storage is column-major. In 320×256 mode, source offset `x * 256 + y` is the
 palette index for output pixel `(x, y)`. In 640×256 mode, the byte at that

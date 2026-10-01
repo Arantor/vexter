@@ -386,8 +386,8 @@ Matching case-insensitive extensions add supporting evidence.
   and retains optional name, column, and compatibility metadata;
 
 - `zx_spectrum_next_palette.nim` decodes 16- or 256-colour Layer 2 RGB333 and
-  256-colour RGB332 palettes, including synthesized RGB332 blue and exact
-  three-bit component expansion;
+  256-colour RGB332 palettes, including synthesized RGB332 blue, exact
+  three-bit component expansion, and the NPL trailing transparent index;
 
 - `zx_spectrum_next_image.nim` decodes 81,920-byte Layer 2 images from
   column-major storage, 49,152-byte 256×192 images from row-major storage, and

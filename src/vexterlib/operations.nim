@@ -1896,14 +1896,17 @@ proc inspectSourceDepth(filename: string, data: openArray[byte],
   of vhkZxSpectrumNextPalette:
     let source = parsedValue[ZxSpectrumNextPalette](selectedParsed,
       vhkZxSpectrumNextPalette)
+    var metadata = @[
+      integerMetadata("colours", source.palette.colours.len),
+      integerMetadata("bits-per-colour", source.bitsPerColour)]
+    if source.transparentIndex >= 0:
+      metadata.add integerMetadata("transparent-index", source.transparentIndex)
     result.resources.roots.add VextResourceNode(
       path: ZxSpectrumNextPaletteResourcePath,
       typeId: ZxSpectrumNextPaletteTypeId,
       kind: vrnkPalette,
       palette: source.palette,
-      metadata: @[
-        integerMetadata("colours", source.palette.colours.len),
-        integerMetadata("bits-per-colour", source.bitsPerColour)])
+      metadata: metadata)
   of vhkProtrackerMod:
     let source = parsedValue[ProtrackerMod](selectedParsed, vhkProtrackerMod)
     result.resources.roots.add protrackerNode(ProtrackerModResourcePath, source)
@@ -2823,10 +2826,13 @@ proc inspectSourceDepth(filename: string, data: openArray[byte],
     else:
       palette = synthesizedZxSpectrumNextPalette()
       paletteSource = "synthesized RGB332"
-      let companionName = filename.extractFilename.changeFileExt(".nxp")
       if companionResolver != nil and
           not filename.hasZxSpectrumNextSl2Extension:
-        let companion = companionResolver(companionName)
+        var companionName = filename.extractFilename.changeFileExt(".nxp")
+        var companion = companionResolver(companionName)
+        if companion.len == 0:
+          companionName = filename.extractFilename.changeFileExt(".npl")
+          companion = companionResolver(companionName)
         if companion.len > 0:
           try:
             palette = parseZxSpectrumNextPalette(companion).palette

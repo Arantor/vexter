@@ -162,6 +162,24 @@ suite "ZX Spectrum Next Layer 2 images":
     check inspection.resources.roots[0].metadata[3].value.stringValue ==
       "image.nxp"
 
+  test "NPL companion is used when NXP is absent and retains transparency":
+    var paletteData = newSeq[byte](ZxSpectrumNextRgb333MaskSize)
+    paletteData[ZxSpectrumNextRgb333Size] = 9
+    let resolver: VextCompanionResolver = proc(path: string): seq[byte] =
+      if path == "masked.npl": paletteData else: @[]
+    var imageData = newSeq[byte](ZxSpectrumNextImageSize)
+    imageData[0] = 9
+    let inspection = inspectSource("masked.nxi", imageData,
+      companionResolver = resolver)
+    let image = inspection.resources.rasterResources[0].raster.image
+    check image.width == 320
+    check image.alpha.len == image.width * image.height
+    check image.alphaAt(0, 0) == 0
+    check image.alphaAt(1, 0) == 255
+    check image.palette[9] == VextRgb(r: 0, g: 0, b: 0)
+    check inspection.resources.roots[0].metadata[3].value.stringValue ==
+      "masked.npl"
+
   test "inspection sessions forward source-collection companions":
     let imageData = newSeq[byte](ZxSpectrumNextImageSize)
     let paletteData = newSeq[byte](ZxSpectrumNextRgb333SmallSize)

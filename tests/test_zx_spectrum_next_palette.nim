@@ -61,11 +61,30 @@ suite "ZX Spectrum Next palettes":
     check resource.metadata[1].value.integerValue == 9
     check resource.defaultExportFormat == "palette-swatch"
 
+  test ".npl adds a transparent palette index":
+    var data = newSeq[byte](ZxSpectrumNextRgb333MaskSize)
+    for index in 0 ..< ZxSpectrumNextFullPaletteColours:
+      data[index * 2] = byte(index)
+      data[index * 2 + 1] = byte(index and 1)
+    data[ZxSpectrumNextRgb333Size] = 73
+    let source = parseZxSpectrumNextPalette(data)
+    check source.bitsPerColour == 9
+    check source.transparentIndex == 73
+    check source.palette.colours[72].a == 255
+    check source.palette.colours[73].a == 0
+    check source.palette.colours[74].a == 255
+    let inspection = inspectSource("masked.NPL", data)
+    check inspection.selectedFormat.typeId == ZxSpectrumNextPaletteTypeId
+    check inspection.selectedFormat.confidence == vdcProbable
+    check inspection.resources.roots[0].metadata[2].key == "transparent-index"
+    check inspection.resources.roots[0].metadata[2].value.integerValue == 73
+
   test "size, extension, and RGB333 low bytes are validated":
     check not isZxSpectrumNextPalette(newSeq[byte](255))
     check not isZxSpectrumNextPalette(newSeq[byte](31))
     check not isZxSpectrumNextPalette(newSeq[byte](33))
     check not isZxSpectrumNextPalette(newSeq[byte](511))
+    check not isZxSpectrumNextPalette(newSeq[byte](514))
     check detectFormats("palette.bin", newSeq[byte](256)).len == 0
     check detectFormats("palette.pal", newSeq[byte](256))[0].confidence ==
       vdcPossible

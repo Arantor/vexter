@@ -804,14 +804,19 @@ proc detectBaseFormats(filename: string, data: openArray[byte]):
     let source = parseZxSpectrumNextPalette(data)
     result.add VextDetectionCandidate(
       typeId: ZxSpectrumNextPaletteTypeId,
-      confidence: if filename.hasZxSpectrumNextNxpExtension: vdcProbable
+      confidence: if filename.hasZxSpectrumNextNxpExtension or
+          filename.hasZxSpectrumNextNplExtension: vdcProbable
         else: vdcPossible,
       evidence: @[
-        VextDetectionEvidence(description: if filename.hasZxSpectrumNextNxpExtension:
-          "file extension is .nxp" else: "file extension is .pal"),
+        VextDetectionEvidence(description:
+          if filename.hasZxSpectrumNextNxpExtension: "file extension is .nxp"
+          elif filename.hasZxSpectrumNextNplExtension: "file extension is .npl"
+          else: "file extension is .pal"),
         VextDetectionEvidence(description: "exact payload size and " &
           $(source.bitsPerColour) & "-bit RGB palette encoding describe " &
-          $source.palette.colours.len & " colours")])
+          $source.palette.colours.len & " colours" &
+          (if source.transparentIndex >= 0:
+            " with transparent index " & $source.transparentIndex else: ""))])
 
   for candidate in result:
     if formatHandler(candidate.typeId).isNil:

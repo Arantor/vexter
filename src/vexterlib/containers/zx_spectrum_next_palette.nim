@@ -11,11 +11,13 @@ const
   ZxSpectrumNextRgb333SmallSize* = 32
   ZxSpectrumNextRgb332Size* = 256
   ZxSpectrumNextRgb333Size* = 512
+  ZxSpectrumNextRgb333MaskSize* = 513
   NextComponent8 = [0x00'u8, 0x24, 0x49, 0x6d,
     0x92, 0xb6, 0xdb, 0xff]
 
 type ZxSpectrumNextPalette* = object
   bitsPerColour*: int
+  transparentIndex*: int
   palette*: VextPalette
 
 proc decodeZxSpectrumNextRgb332*(packed: byte): VextRgba =
@@ -29,10 +31,12 @@ proc decodeZxSpectrumNextRgb332*(packed: byte): VextRgba =
 proc parseZxSpectrumNextPalette*(data: openArray[byte]):
     ZxSpectrumNextPalette =
   if data.len notin [ZxSpectrumNextRgb333SmallSize,
-      ZxSpectrumNextRgb332Size, ZxSpectrumNextRgb333Size]:
+      ZxSpectrumNextRgb332Size, ZxSpectrumNextRgb333Size,
+      ZxSpectrumNextRgb333MaskSize]:
     raise newException(ValueError,
-      "ZX Spectrum Next palette must contain exactly 32, 256, or 512 bytes")
+      "ZX Spectrum Next palette must contain exactly 32, 256, 512, or 513 bytes")
 
+  result.transparentIndex = -1
   result.bitsPerColour = if data.len == ZxSpectrumNextRgb332Size: 8 else: 9
   let colourCount = if data.len == ZxSpectrumNextRgb333SmallSize:
     ZxSpectrumNextSmallPaletteColours else: ZxSpectrumNextFullPaletteColours
@@ -51,6 +55,9 @@ proc parseZxSpectrumNextPalette*(data: openArray[byte]):
       let blue = blueHigh shl 1 or int(lowByte)
       result.palette.colours.add VextRgba(r: NextComponent8[red],
         g: NextComponent8[green], b: NextComponent8[blue], a: 255)
+  if data.len == ZxSpectrumNextRgb333MaskSize:
+    result.transparentIndex = int(data[ZxSpectrumNextRgb333Size])
+    result.palette.colours[result.transparentIndex].a = 0
   result.palette.validate
 
 proc isZxSpectrumNextPalette*(data: openArray[byte]): bool =
@@ -62,7 +69,10 @@ proc isZxSpectrumNextPalette*(data: openArray[byte]): bool =
 
 proc hasZxSpectrumNextPaletteExtension*(filename: string): bool =
   let lower = filename.toLowerAscii
-  lower.endsWith(".nxp") or lower.endsWith(".pal")
+  lower.endsWith(".nxp") or lower.endsWith(".npl") or lower.endsWith(".pal")
 
 proc hasZxSpectrumNextNxpExtension*(filename: string): bool =
   filename.toLowerAscii.endsWith(".nxp")
+
+proc hasZxSpectrumNextNplExtension*(filename: string): bool =
+  filename.toLowerAscii.endsWith(".npl")
