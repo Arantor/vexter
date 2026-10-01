@@ -12,6 +12,27 @@ proc readBytes(path: string): seq[byte] =
   for i, value in contents:
     result[i] = byte(value)
 
+proc updatePlus3Checksum(data: var seq[byte]) =
+  var checksum = 0
+  for index in 0 .. 126: checksum = (checksum + int(data[index])) and 0xff
+  data[127] = byte(checksum)
+
+proc headeredScreen(screen: openArray[byte]): seq[byte] =
+  result = newSeq[byte](ZxSpectrumHeaderedScreenSize)
+  for index, value in Plus3DosSignature: result[index] = byte(value)
+  result[8] = Plus3DosSoftEof
+  result[9] = 1
+  let total = uint32(result.len)
+  for index in 0 .. 3: result[11 + index] = byte(total shr (index * 8))
+  result[15] = ZxSpectrumCodeBasicType
+  result[16] = byte(ZxSpectrumScreenSize)
+  result[17] = byte(ZxSpectrumScreenSize shr 8)
+  result[18] = byte(ZxSpectrumScreenLoadAddress)
+  result[19] = byte(ZxSpectrumScreenLoadAddress shr 8)
+  result.updatePlus3Checksum()
+  for index, value in screen:
+    result[Plus3DosHeaderSize + index] = value
+
 proc rgbDigest(image: VextIndexedImage): string =
   var rgb = newStringOfCap(image.width * image.height * 3)
   for paletteIndex in image.pixels:
@@ -87,6 +108,31 @@ suite "ZX Spectrum raw screen":
   test "invalid byte lengths are rejected":
     expect ValueError:
       discard decodeZxSpectrumScreen(newSeq[byte](ZxSpectrumScreenSize - 1))
+
+  test "+3DOS headered screens validate and expose the ordinary payload":
+    let screen = readBytes(FixturePath)
+    let data = headeredScreen(screen)
+    check data.len == 7040
+    check isHeaderedZxSpectrumScreenDump(data)
+    check extractZxSpectrumScreenDump(data) == screen
+    let candidates = detectFormats("colours.SCR", data)
+    check candidates.len == 1
+    check candidates[0].typeId == ZxSpectrumScreenTypeId
+    check candidates[0].confidence == vdcProbable
+    check candidates[0].evidence.len == 2
+    let raster = inspectSource("colours.SCR", data).resources.
+      rasterResources[0].raster
+    check raster.width == 256
+    check raster.height == 192
+
+  test "+3DOS screen BASIC type, length, and load address are required":
+    let valid = headeredScreen(newSeq[byte](ZxSpectrumScreenSize))
+    for offset in [15, 16, 17, 18, 19]:
+      var damaged = valid
+      damaged[offset] = damaged[offset] xor 1
+      damaged.updatePlus3Checksum()
+      check not isHeaderedZxSpectrumScreenDump(damaged)
+      check detectFormats("damaged.scr", damaged).len == 0
 
   test "a non-FLASH screen produces an indexed image":
     var screen = newSeq[byte](ZxSpectrumScreenSize)

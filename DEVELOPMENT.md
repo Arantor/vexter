@@ -561,7 +561,7 @@ Matching case-insensitive extensions add supporting evidence.
 - `amos_sprite_icon_bank.nim` validates standalone `AmSp` and `AmIc` banks,
   extracts their records and shared palette, and retains image hotspots;
 - `zx_spectrum_screen_dump.nim` validates and extracts a standalone 6,912-byte
-  screen dump;
+  screen dump or its 7,040-byte `+3DOS` CODE/SCREEN$ envelope;
 - `zx_spectrum_snapshot.nim` validates supported SNA/SNX sizes, extracts the
   current 6,912-byte display-memory region, and locates BASIC in 48K RAM via
   the `PROG` system variable; and
@@ -1323,7 +1323,8 @@ The routine suites are:
 - `tests/test_amiga_anim.nim`: nested ANIM structure, methods 1–5/7/8, animation
   brush XOR behavior, timing, GIF routing, APNG output, the authentic TheTour
   method-5 control, and failure modes;
-- `tests/test_zx_spectrum_screen.nim`: screen decoding, palette/pixel
+- `tests/test_zx_spectrum_screen.nim`: raw and `+3DOS`-headered screen
+  validation, screen decoding, palette/pixel
   correctness, FLASH behavior, and encoder smoke tests;
 - `tests/test_zx_spectrum_snapshot.nim`: SNA detection and screen extraction;
 - `tests/test_zx_spectrum_basic.nim`: token, graphics, annotation, boundary,

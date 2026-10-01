@@ -331,7 +331,7 @@ proc parse*(handler: VextFormatHandler,
   of vhkZxSpectrumScreen:
     if not isZxSpectrumScreenDump(data):
       raise newException(ValueError,
-        "ZX Spectrum screen dump must contain exactly 6912 bytes")
+        "ZX Spectrum screen dump must contain 6912 raw bytes or a valid 7040-byte +3DOS screen")
     result = parsed(extractZxSpectrumScreenDump(data))
   of vhkZxSpectrumGigascreen:
     result = parsed(parseZxSpectrumGigascreen(data))

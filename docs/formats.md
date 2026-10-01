@@ -1541,6 +1541,14 @@ It has no magic signature. An exact size match, strengthened by a `.scr`
 extension, identifies the format as **probable**, not certain. The container
 exposes one resource:
 
+A `.scr` may instead contain 7,040 bytes: a validated 128-byte `+3DOS` header
+followed by the ordinary 6,912-byte screen. In addition to the generic
+signature, total-length, reserved-byte, and checksum rules, the BASIC header
+must declare type 3 (`CODE`/`SCREEN$`), data length 6,912, and load address
+16,384. The header is removed before the existing screen decoder runs. These
+constraints plus the `.scr` extension identify the enveloped form as
+**probable**.
+
 ```text
 /screen
 ```

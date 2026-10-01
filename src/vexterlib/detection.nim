@@ -694,8 +694,11 @@ proc detectBaseFormats(filename: string, data: openArray[byte]):
       evidence: evidence)
 
   if isZxSpectrumScreenDump(data):
-    var evidence = @[VextDetectionEvidence(
-      description: "file size is exactly 6912 bytes")]
+    var evidence = @[VextDetectionEvidence(description:
+      if data.len == ZxSpectrumScreenSize:
+        "file size is exactly 6912 bytes"
+      else:
+        "valid 128-byte +3DOS CODE header declares a 6912-byte screen at address 16384")]
     if hasZxSpectrumScreenDumpExtension(filename):
       evidence.add VextDetectionEvidence(
         description: "file extension is .scr")
