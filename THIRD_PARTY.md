@@ -1,5 +1,17 @@
 # Third-party material
 
+## Spectrum Next images
+
++3DOS header detection notes used from the following source:
+* https://worldofspectrum.org/ZXSpectrum128+3Manual/chapter8pt27.html
+
+Details of RGB332 and RGB333 palettes supplied by the developer as well as
+explanations of nxp, nxi formats based on available samples.
+
+Some details also supplied from:
+* https://wiki.specnext.dev/File_Formats
+* https://shrek128.itch.io/nxi-scr-viewer (specifically on order of nxi with palette)
+
 ## Windows 3.1 Write compatibility corpus
 
 On 1 October 2026 the developer supplied five `.WRI` documents distributed
