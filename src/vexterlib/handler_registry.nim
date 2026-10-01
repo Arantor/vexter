@@ -4,7 +4,7 @@
 ## registry is the authoritative bridge from a stable type identifier to the
 ## validation and inspection implementation for that format.
 
-import ./containers/[adobe_swatch_exchange, amiga_8svx, amiga_16sv, amiga_acbm,
+import ./containers/[adobe_color_table, adobe_swatch_exchange, amiga_8svx, amiga_16sv, amiga_acbm,
   amiga_adf, amiga_anim, appimage, aseprite,
   amiga_diskfont, amiga_dms, amiga_hunk_executable, amiga_iff, amiga_ilbm,
   amiga_lha_sfx,
@@ -12,7 +12,7 @@ import ./containers/[adobe_swatch_exchange, amiga_8svx, amiga_16sv, amiga_acbm,
   amos_bank_set, amos_program, amos_sprite_icon_bank, ansi_art, bmp, flic,
   gif_container,
   bmfont, creative_voice, d64, doom_wad, electron_asar, fat_disk_image, fzx, gimp_palette,
-  inno_setup, iso9660, jpeg, koala_painter, lha_archive, netpbm, openraster,
+  inno_setup, iso9660, jasc_palette, jpeg, koala_painter, lha_archive, netpbm, openraster,
   paint_net_palette, pcx, png_container, powerpacker, protracker_mod, qoi,
   rgba8_palette, sqlite, tga, wav, windows_icon, windows_write, zip_archive,
   zx_spectrum_gigascreen_dump, zx_spectrum_next_image, zx_spectrum_next_palette,
@@ -61,6 +61,8 @@ type
     vhkGimpPalette
     vhkAseprite
     vhkAdobeSwatchExchange
+    vhkAdobeColorTable
+    vhkJascPalette
     vhkRgba8Palette
     vhkProtrackerMod
     vhkDoomWad
@@ -167,6 +169,9 @@ const FormatHandlers* = [
   VextFormatHandler(typeId: AsepriteTypeId, kind: vhkAseprite),
   VextFormatHandler(typeId: AdobeSwatchExchangeTypeId,
     kind: vhkAdobeSwatchExchange),
+  VextFormatHandler(typeId: AdobeColorTableTypeId,
+    kind: vhkAdobeColorTable),
+  VextFormatHandler(typeId: JascPaletteTypeId, kind: vhkJascPalette),
   VextFormatHandler(typeId: Rgba8PaletteTypeId, kind: vhkRgba8Palette),
   VextFormatHandler(typeId: ProtrackerModTypeId, kind: vhkProtrackerMod),
   VextFormatHandler(typeId: DoomWadTypeId, kind: vhkDoomWad),
@@ -299,6 +304,8 @@ proc parse*(handler: VextFormatHandler,
   of vhkAseprite: result = parsed(parseAseprite(data))
   of vhkAdobeSwatchExchange:
     result = parsed(parseAdobeSwatchExchange(data))
+  of vhkAdobeColorTable: result = parsed(parseAdobeColorTable(data))
+  of vhkJascPalette: result = parsed(parseJascPalette(data))
   of vhkRgba8Palette: result = parsed(parseRgba8Palette(data))
   of vhkProtrackerMod: result = parsed(parseProtrackerMod(data))
   of vhkDoomWad: result = parsed(parseDoomWad(data))

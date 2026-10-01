@@ -52,6 +52,8 @@ import vexterlib/containers/paint_net_palette
 import vexterlib/containers/gimp_palette
 import vexterlib/containers/aseprite
 import vexterlib/containers/adobe_swatch_exchange
+import vexterlib/containers/adobe_color_table
+import vexterlib/containers/jasc_palette
 import vexterlib/containers/protracker_mod
 import vexterlib/containers/qoi
 import vexterlib/containers/koala_painter
@@ -200,6 +202,8 @@ export paint_net_palette
 export gimp_palette
 export aseprite
 export adobe_swatch_exchange
+export adobe_color_table
+export jasc_palette
 export protracker_mod
 export qoi
 export koala_painter

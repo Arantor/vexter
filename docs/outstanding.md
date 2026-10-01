@@ -164,8 +164,8 @@ formats are not included. Detailed format behavior and evidence remain in
 - **Palette interchange**
   - Ordered palettes can currently be exported as PNG swatches and exact
     metadata JSON. GIMP GPL, Aseprite's alpha-bearing GPL modification,
-    Paint.NET text palettes, and Adobe Swatch Exchange RGB palettes are
-    supported as input. GIMP GPL exports standard RGB or Aseprite RGBA
+    Paint.NET and JASC text palettes, Adobe Color Table, and Adobe Swatch
+    Exchange RGB palettes are supported as input. GIMP GPL exports standard RGB or Aseprite RGBA
     automatically; Paint.NET and Adobe ASE are not export formats. Adobe ASE
     CMYK, Lab, and grayscale conversion needs supplied authoritative rules.
   - Brilliance `DRNG` and `BRNG` chunks in palette-only IFF files are not yet

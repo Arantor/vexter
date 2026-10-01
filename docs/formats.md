@@ -1129,6 +1129,34 @@ bytes or a valid headered 49,280 bytes with a case-insensitive `.sl2`
 extension, and reports **probable** confidence. Other NXI/SL2 sizes and layouts
 are intentionally not claimed by this handler.
 
+## JASC palette files
+
+Type identifier: `jasc.palette`
+
+JASC PaintShop Pro text palettes begin with `JASC-PAL`, followed on separate
+lines by version `0100`, a decimal colour count, and exactly that many decimal
+`red green blue` lines. Components are bounded to 0–255, the declared count
+must be positive and no greater than 65,536, and nonblank trailing data is
+rejected. The magic-backed structure gives **certain** detection confidence;
+the conventional `.pal` extension is supporting evidence only.
+
+The ordered opaque colours are exposed at `/palette` and use the generic
+palette-swatch, GPL, metadata, and report paths.
+
+## Adobe Color Table files
+
+Type identifier: `adobe.color-table`
+
+The supplied Adobe Color Table control establishes the basic 768-byte ACT
+form: exactly 256 consecutive RGB8 triplets with no header. Its entries agree
+numerically and in order with the equivalent supplied JASC, GIMP, and Paint.NET
+palettes. Because this form has no magic, automatic detection requires a
+case-insensitive `.act` extension and reports **probable** confidence. Other
+extended ACT layouts are not inferred from this control.
+
+The ordered opaque colours are exposed at `/palette` and use the generic
+palette export paths.
+
 ## Paint.NET palette files
 
 Paint.NET text palettes are identified by the exact opening line

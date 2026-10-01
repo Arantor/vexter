@@ -4,13 +4,13 @@ import std/[os, strutils]
 import ./handler_registry
 import ./format_detection_types
 export format_detection_types
-import ./containers/[amiga_8svx, amiga_16sv, amiga_acbm, amiga_adf, amiga_anim,
+import ./containers/[adobe_color_table, amiga_8svx, amiga_16sv, amiga_acbm, amiga_adf, amiga_anim,
   amiga_diskfont, amiga_dms, amiga_hunk_executable, amiga_iff, amiga_ilbm,
   amiga_lha_sfx, amiga_pbm, amiga_workbench_icon, amos_bank, amos_bank_set,
   amos_program,
   adobe_swatch_exchange, amos_sprite_icon_bank, ansi_art, appimage, aseprite,
   bmfont, bmp, creative_voice, d64, doom_wad, electron_asar, fat_disk_image, flic, fzx,
-  gif_container, gimp_palette, inno_setup, iso9660, jpeg, koala_painter, netpbm,
+  gif_container, gimp_palette, inno_setup, iso9660, jasc_palette, jpeg, koala_painter, netpbm,
   paint_net_palette, pcx, png_container, protracker_mod, qoi, rgba8_palette, tga,
   sqlite, wav, windows_icon, windows_write, zip_archive, lha_archive,
   zx_spectrum_gigascreen_dump,
@@ -439,6 +439,16 @@ proc detectBaseFormats(filename: string, data: openArray[byte]):
     result.add VextDetectionCandidate(typeId: GimpPaletteTypeId,
       confidence: vdcCertain, evidence: evidence)
 
+  if isJascPalette(data):
+    let palette = parseJascPalette(data)
+    var evidence = @[VextDetectionEvidence(description:
+      "file begins with JASC-PAL, declares version 0100, and contains " &
+      $palette.colours.len & " bounded RGB colour entries")]
+    if filename.hasJascPaletteExtension:
+      evidence.add VextDetectionEvidence(description: "file extension is .pal")
+    result.add VextDetectionCandidate(typeId: JascPaletteTypeId,
+      confidence: vdcCertain, evidence: evidence)
+
   if isAseprite(data):
     let source = parseAseprite(data)
     var evidence = @[VextDetectionEvidence(description:
@@ -817,6 +827,14 @@ proc detectBaseFormats(filename: string, data: openArray[byte]):
           $source.palette.colours.len & " colours" &
           (if source.transparentIndex >= 0:
             " with transparent index " & $source.transparentIndex else: ""))])
+
+  if filename.hasAdobeColorTableExtension and isAdobeColorTable(data):
+    result.add VextDetectionCandidate(typeId: AdobeColorTableTypeId,
+      confidence: vdcProbable,
+      evidence: @[
+        VextDetectionEvidence(description: "file extension is .act"),
+        VextDetectionEvidence(description:
+          "exact 768-byte size describes 256 consecutive RGB8 triplets")])
 
   for candidate in result:
     if formatHandler(candidate.typeId).isNil:

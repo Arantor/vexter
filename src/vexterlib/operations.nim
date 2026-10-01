@@ -14,7 +14,7 @@ import ./handler_registry
 import ./exporters/[bmfont, gif, gpl, html_report, markdown, metadata_json, png,
     raw, tracker_json, wav]
 import ./resource_tree
-import ./containers/[amiga_8svx, amiga_16sv, amiga_acbm, amiga_adf, amiga_anim,
+import ./containers/[adobe_color_table, amiga_8svx, amiga_16sv, amiga_acbm, amiga_adf, amiga_anim,
   amiga_diskfont, amiga_dms, amiga_hunk_executable, amiga_iff, amiga_ilbm,
   amiga_lha_sfx, amiga_pbm, amiga_workbench_icon, amos_bank, amos_bank_set,
   amos_music_bank, amos_packed_picture, amos_program, amos_resource_bank,
@@ -22,7 +22,7 @@ import ./containers/[amiga_8svx, amiga_16sv, amiga_acbm, amiga_adf, amiga_anim,
   amos_sprite_icon_bank, ansi_art, appimage, bmfont, bmp, creative_voice, d64,
   fat_disk_image,
   doom_wad, electron_asar, flic, fzx, gif_container, inno_setup, iso9660, jpeg,
-  netpbm, openraster, pcx, png_container,
+  jasc_palette, netpbm, openraster, pcx, png_container,
   adobe_swatch_exchange, aseprite, gimp_palette, koala_painter,
   paint_net_palette, protracker_mod, qoi, rgba8_palette, sqlite, tga, wav,
   zx_spectrum_next_image, zx_spectrum_next_palette,
@@ -1885,6 +1885,19 @@ proc inspectSourceDepth(filename: string, data: openArray[byte],
         path: AdobeSwatchExchangeResourcePath,
         typeId: AdobeSwatchExchangeTypeId, kind: vrnkPalette,
         palette: source.palette, metadata: metadata)
+  of vhkAdobeColorTable:
+    let palette = parsedValue[VextPalette](selectedParsed, vhkAdobeColorTable)
+    result.resources.roots.add VextResourceNode(
+      path: AdobeColorTableResourcePath, typeId: AdobeColorTableTypeId,
+      kind: vrnkPalette, palette: palette,
+      metadata: @[integerMetadata("colours", palette.colours.len)])
+  of vhkJascPalette:
+    let palette = parsedValue[VextPalette](selectedParsed, vhkJascPalette)
+    result.resources.roots.add VextResourceNode(
+      path: JascPaletteResourcePath, typeId: JascPaletteTypeId,
+      kind: vrnkPalette, palette: palette,
+      metadata: @[integerMetadata("colours", palette.colours.len),
+        stringMetadata("version", JascPaletteVersion)])
   of vhkRgba8Palette:
     let palette = parsedValue[VextPalette](selectedParsed, vhkRgba8Palette)
     result.resources.roots.add VextResourceNode(

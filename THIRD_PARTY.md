@@ -1,5 +1,44 @@
 # Third-party material
 
+## zxnext_bmp_tools palette evidence
+
+The developer supplied a local checkout of Stefan Bylund's
+`zxnext_bmp_tools`, published at
+https://github.com/stefanbylund/zxnext_bmp_tools/. Its `palettes/` directory
+provides equivalent ZX Spectrum Next colour sets in GIMP GPL, Paint.NET,
+JASC-PAL, Adobe ACT, and PNG forms. These files establish the observed
+`JASC-PAL` version `0100` text structure and the basic 768-byte ACT sequence of
+256 RGB8 triplets. They were used only as clean-room format evidence and
+cross-format colour controls; no source code or implementation material was
+copied into Vexter. Routine tests use synthetic palettes rather than files
+from the checkout.
+
+The checkout is licensed under the MIT License:
+
+```text
+MIT License
+
+Copyright (c) 2017 Stefan Bylund
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```
+
 ## Spectrum Next images
 
 +3DOS header detection notes used from the following source:

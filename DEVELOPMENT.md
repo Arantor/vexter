@@ -50,8 +50,9 @@ client, and a dependency-free native Windows GUI. It supports:
   and other patch-format graphics,
   PNG, baseline/extended-sequential Huffman JPEG with EXIF orientation,
   OpenRaster layered documents, Windows ICO/CUR collections (including PNG and DIB entries), QOI,
-  generic count-prefixed RGBA8 palettes, Paint.NET and GIMP text palettes,
-  Adobe Swatch Exchange palettes, layered Aseprite sprites with raw,
+  generic count-prefixed RGBA8 palettes, Paint.NET, GIMP, and JASC text
+  palettes, Adobe Color Table and Adobe Swatch Exchange palettes, layered
+  Aseprite sprites with raw,
   compressed, and linked image cels using normal compositing,
   15- and 31-instrument ProTracker-compatible MOD tracker modules and AMOS
   Music banks with four independent channel playlists and bounded replay,
@@ -384,6 +385,12 @@ Matching case-insensitive extensions add supporting evidence.
 - `gimp_palette.nim` validates GIMP Palette headers and ordered RGB entries,
   including Aseprite's marked RGBA modification, infers the format version,
   and retains optional name, column, and compatibility metadata;
+
+- `jasc_palette.nim` validates `JASC-PAL` version `0100`, its declared colour
+  count, and ordered decimal RGB entries;
+
+- `adobe_color_table.nim` decodes the supplied fixed 768-byte ACT layout as
+  256 ordered RGB8 triplets;
 
 - `zx_spectrum_next_palette.nim` decodes 16- or 256-colour Layer 2 RGB333 and
   256-colour RGB332 palettes, including synthesized RGB332 blue, exact
@@ -930,6 +937,8 @@ amos.icon
 zx-spectrum.screen
 zx-spectrum-next.palette
 zx-spectrum-next.layer2-image
+adobe.color-table
+jasc.palette
 zx-spectrum.snapshot
 zx-spectrum.tap
 zx-spectrum.code
@@ -1291,6 +1300,9 @@ The routine suites are:
 - `tests/test_paint_net_palette.nim`: magic-comment detection, optional comment
   metadata, advisory colour counts, mixed-case ARGB entries, alpha-bearing
   swatch and metadata exports, and malformed text palettes;
+- `tests/test_jasc_palette.nim` and `tests/test_adobe_color_table.nim`:
+  magic-backed JASC version/count/component validation, fixed-size ACT RGB8
+  decoding, cross-format colour equivalence, detection, and malformed input;
 - `tests/test_creative_voice.nim`: synthetic version-one and type-8 extended
   mono/stereo PCM, type-9 eight- and sixteen-bit PCM, all three Creative
   eight-bit ADPCM variants, continuation and repeat state, silence, marker,
