@@ -38,6 +38,18 @@ suite "ZX Spectrum SNA snapshot":
     check candidates[0].confidence == vdcProbable
     check candidates[0].evidence.len == 2
 
+  test ".snx is a case-insensitive snapshot extension alias":
+    let snapshot = readBytes(SnapshotFixturePath)
+    let candidates = detectFormats("COLOURS.SNX", snapshot)
+    check hasZxSpectrumSnapshotExtension("COLOURS.SNX")
+    check candidates.len == 1
+    check candidates[0].typeId == ZxSpectrumSnapshotTypeId
+    check candidates[0].confidence == vdcProbable
+    check candidates[0].evidence.len == 2
+    check candidates[0].evidence[1].description == "file extension is .snx"
+    let inspection = inspectSource("COLOURS.SNX", snapshot)
+    check inspection.resources.rasterResources.len > 0
+
   test "screen memory is identical to the raw screen fixture":
     let extracted = extractZxSpectrumSnapshotScreen(
       readBytes(SnapshotFixturePath))

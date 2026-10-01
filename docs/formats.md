@@ -1893,16 +1893,18 @@ and attribution are recorded in [`THIRD_PARTY.md`](../THIRD_PARTY.md).
 
 Type identifier: `zx-spectrum.snapshot`
 
-A 48K `.sna` snapshot is exactly 49,179 bytes long. Its first 27 bytes contain
+A 48K `.sna` or `.snx` snapshot is exactly 49,179 bytes long. Its first 27 bytes contain
 processor registers and execution state, followed by a direct 48K RAM image.
 The first 6,912 bytes of that RAM image are the current Spectrum screen.
 
-128K `.sna` snapshots are exactly 131,103 or 147,487 bytes long, depending on
+128K `.sna`/`.snx` snapshots are exactly 131,103 or 147,487 bytes long, depending on
 which RAM banks are currently paged in. They use the same 27-byte header and
 place the current 6,912-byte screen at the same offset as the 48K layout.
 
-An exact size match, strengthened by a case-insensitive `.sna` extension,
-identifies the format as **probable**. The snapshot container exposes the
+An exact size match, strengthened by a case-insensitive `.sna` or `.snx`
+extension, identifies the format as **probable**. The two extensions differ in
+runtime behavior that is outside Vexter's inspection scope and therefore share
+one type and decoder. The snapshot container exposes the
 embedded display as a `zx-spectrum.screen` resource through the canonical path:
 
 ```text

@@ -1,5 +1,6 @@
 ## Validation and resource extraction for uncompressed ZX Spectrum snapshots.
 
+import std/[os, strutils]
 import ../resources/zx_spectrum_screen
 import ../resources/zx_spectrum_basic
 
@@ -16,6 +17,9 @@ proc isZxSpectrumSnapshotSize*(size: int): bool =
   ## Returns whether `size` is one of the supported 48K or 128K SNA sizes.
   size in [ZxSpectrumSnapshot48Size, ZxSpectrumSnapshot128Size,
     ZxSpectrumSnapshot128ExtendedSize]
+
+proc hasZxSpectrumSnapshotExtension*(filename: string): bool =
+  filename.splitFile.ext.toLowerAscii in [".sna", ".snx"]
 
 proc extractZxSpectrumSnapshotScreen*(data: openArray[byte]): seq[byte] =
   ## Extracts the 6,912-byte display-memory region from a supported SNA snapshot.

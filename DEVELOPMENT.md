@@ -562,7 +562,7 @@ Matching case-insensitive extensions add supporting evidence.
   extracts their records and shared palette, and retains image hotspots;
 - `zx_spectrum_screen_dump.nim` validates and extracts a standalone 6,912-byte
   screen dump;
-- `zx_spectrum_snapshot.nim` validates supported SNA sizes, extracts the
+- `zx_spectrum_snapshot.nim` validates supported SNA/SNX sizes, extracts the
   current 6,912-byte display-memory region, and locates BASIC in 48K RAM via
   the `PROG` system variable; and
 - `zx_spectrum_tap.nim` validates TAP block framing/checksums and extracts

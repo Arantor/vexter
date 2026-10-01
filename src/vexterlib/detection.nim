@@ -736,9 +736,10 @@ proc detectBaseFormats(filename: string, data: openArray[byte]):
   if isZxSpectrumSnapshotSize(data.len):
     var evidence = @[VextDetectionEvidence(
       description: "file size is exactly " & $data.len & " bytes")]
-    if filename.splitFile.ext.toLowerAscii == ".sna":
+    if filename.hasZxSpectrumSnapshotExtension:
+      let extension = filename.splitFile.ext.toLowerAscii
       evidence.add VextDetectionEvidence(
-        description: "file extension is .sna")
+        description: "file extension is " & extension)
     result.add VextDetectionCandidate(
       typeId: ZxSpectrumSnapshotTypeId,
       confidence: vdcProbable,
