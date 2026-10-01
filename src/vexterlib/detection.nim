@@ -711,13 +711,17 @@ proc detectBaseFormats(filename: string, data: openArray[byte]):
       (filename.hasZxSpectrumNextSl2Extension and
       isZxSpectrumNextSl2Image(data)):
     let extension = if filename.hasZxSpectrumNextSl2Extension: ".sl2" else: ".nxi"
+    var evidence = @[
+      VextDetectionEvidence(description: "file size is exactly " &
+        $data.len & " bytes for a recognized Layer 2 layout"),
+      VextDetectionEvidence(description: "file extension is " & extension)]
+    if data.len == ZxSpectrumNextSmallPlus3DosSize:
+      evidence.add VextDetectionEvidence(description:
+        "leading 128-byte +3DOS signature, length, reserved bytes, and checksum validate")
     result.add VextDetectionCandidate(
       typeId: ZxSpectrumNextImageTypeId,
       confidence: vdcProbable,
-      evidence: @[
-        VextDetectionEvidence(description: "file size is exactly " &
-          $data.len & " bytes for a recognized Layer 2 layout"),
-        VextDetectionEvidence(description: "file extension is " & extension)])
+      evidence: evidence)
 
   if isZxSpectrumSnapshotSize(data.len):
     var evidence = @[VextDetectionEvidence(

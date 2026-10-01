@@ -393,7 +393,12 @@ Matching case-insensitive extensions add supporting evidence.
   column-major storage, 49,152-byte 256×192 images from row-major storage, and
   the 49,664-byte variant with its leading RGB333 palette; it also resolves
   same-basename NXP palettes, accepts palette-less 49,152-byte SL2 aliases,
-  and synthesizes RGB332 when no palette is available;
+  validates and strips their 49,280-byte `+3DOS`-headered form, and synthesizes
+  RGB332 when no palette is available;
+
+- `zx_spectrum_plus3dos.nim` validates the reusable 128-byte `PLUS3DOS`
+  signature, declared length, reserved region, and checksum while retaining
+  version and BASIC header fields for format-specific consumers;
 
 - `aseprite.nim` validates `.ase`/`.aseprite` headers, frames, and chunk
   envelopes, applies old and current palette chunks, and exposes the final

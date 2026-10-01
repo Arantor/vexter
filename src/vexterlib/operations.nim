@@ -2837,17 +2837,33 @@ proc inspectSourceDepth(filename: string, data: openArray[byte],
               format: ZxSpectrumNextImageTypeId,
               message: "invalid companion " & companionName & ": " & error.msg)
     let image = decodeZxSpectrumNextImage(source, palette)
+    var metadata = @[
+      integerMetadata("width", image.width),
+      integerMetadata("height", image.height),
+      integerMetadata("colours", image.palette.len),
+      stringMetadata("palette.source", paletteSource),
+      stringMetadata("storage.order", source.storageOrderName)]
+    if source.hasPlus3DosHeader:
+      metadata.add integerMetadata("plus3dos.issue",
+        int(source.plus3DosHeader.issue))
+      metadata.add integerMetadata("plus3dos.version",
+        int(source.plus3DosHeader.version))
+      metadata.add integerMetadata("plus3dos.file-length",
+        int(source.plus3DosHeader.fileLength))
+      metadata.add integerMetadata("plus3dos.basic.type",
+        int(source.plus3DosHeader.basicType))
+      metadata.add integerMetadata("plus3dos.basic.file-length",
+        int(source.plus3DosHeader.basicFileLength))
+      metadata.add integerMetadata("plus3dos.basic.parameter-1",
+        int(source.plus3DosHeader.basicParameter1))
+      metadata.add integerMetadata("plus3dos.basic.parameter-2",
+        int(source.plus3DosHeader.basicParameter2))
     result.resources.roots.add VextResourceNode(
       path: ZxSpectrumNextImageResourcePath,
       typeId: ZxSpectrumNextImageTypeId,
       kind: vrnkRaster,
       raster: VextRaster(kind: vrkIndexedImage, image: image),
-      metadata: @[
-        integerMetadata("width", image.width),
-        integerMetadata("height", image.height),
-        integerMetadata("colours", image.palette.len),
-        stringMetadata("palette.source", paletteSource),
-        stringMetadata("storage.order", source.storageOrderName)])
+      metadata: metadata)
   of vhkZxSpectrumSnapshot:
     let snapshotData = parsedValue[seq[byte]](selectedParsed,
       vhkZxSpectrumSnapshot)

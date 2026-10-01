@@ -67,6 +67,7 @@ import vexterlib/containers/zx_spectrum_screen_dump
 import vexterlib/containers/zx_spectrum_gigascreen_dump
 import vexterlib/containers/zx_spectrum_next_image
 import vexterlib/containers/zx_spectrum_next_palette
+import vexterlib/containers/zx_spectrum_plus3dos
 import vexterlib/containers/zx_spectrum_snapshot
 import vexterlib/containers/zx_spectrum_tap
 import vexterlib/containers/zx_spectrum_tzx
@@ -223,6 +224,7 @@ export zx_spectrum_gigascreen_dump
 export zx_spectrum_gigascreen
 export zx_spectrum_next_image
 export zx_spectrum_next_palette
+export zx_spectrum_plus3dos
 export zx_spectrum_basic
 export pcx_image
 export bmp_image

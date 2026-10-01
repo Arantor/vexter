@@ -1,11 +1,6 @@
 import std/unittest
 import vexterlib
 
-proc readBytes(path: string): seq[byte] =
-  let contents = readFile(path)
-  result = newSeq[byte](contents.len)
-  for index, value in contents: result[index] = byte(value)
-
 suite "ZX Spectrum Next palettes":
   test "RGB332 synthesizes the low blue bit":
     var data = newSeq[byte](ZxSpectrumNextRgb332Size)
@@ -52,7 +47,11 @@ suite "ZX Spectrum Next palettes":
     check inspection.resources.roots[0].metadata[0].value.integerValue == 16
 
   test ".nxp detection exposes the generic palette resource":
-    let inspection = inspectSource("dm.NXP", readBytes("specnext/dm.nxp"))
+    var data = newSeq[byte](ZxSpectrumNextRgb333Size)
+    for index in 0 ..< ZxSpectrumNextFullPaletteColours:
+      data[index * 2] = byte(index)
+      data[index * 2 + 1] = byte(index and 1)
+    let inspection = inspectSource("colours.NXP", data)
     check inspection.selectedFormat.typeId == ZxSpectrumNextPaletteTypeId
     check inspection.selectedFormat.confidence == vdcProbable
     let resource = inspection.resources.roots[0]

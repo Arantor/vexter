@@ -1,10 +1,22 @@
 import std/unittest
 import vexterlib
 
-proc readBytes(path: string): seq[byte] =
-  let contents = readFile(path)
-  result = newSeq[byte](contents.len)
-  for index, value in contents: result[index] = byte(value)
+proc plus3DosSl2(): seq[byte] =
+  result = newSeq[byte](ZxSpectrumNextSmallPlus3DosSize)
+  for index, value in Plus3DosSignature: result[index] = byte(value)
+  result[8] = Plus3DosSoftEof
+  result[9] = 1
+  result[10] = 0
+  let total = uint32(result.len)
+  for index in 0 .. 3: result[11 + index] = byte(total shr (index * 8))
+  result[15] = 3
+  result[16] = 0
+  result[17] = 0xc0
+  result[18] = 0
+  result[19] = 0x40
+  var checksum = 0
+  for index in 0 .. 126: checksum = (checksum + int(result[index])) and 0xff
+  result[127] = byte(checksum)
 
 suite "ZX Spectrum Next Layer 2 images":
   test "320x256 pixels are rotated from column-major storage":
@@ -81,6 +93,34 @@ suite "ZX Spectrum Next Layer 2 images":
     check inspection.resources.roots[0].metadata[3].value.stringValue ==
       "synthesized RGB332"
 
+  test "49280-byte SL2 images validate and strip a +3DOS header":
+    var data = plus3DosSl2()
+    data[Plus3DosHeaderSize] = 4
+    data[Plus3DosHeaderSize + 1] = 5
+    data[Plus3DosHeaderSize + 256] = 6
+    let inspection = inspectSource("headered.sl2", data)
+    let image = inspection.resources.rasterResources[0].raster.image
+    check image.width == 256
+    check image.height == 192
+    check image.pixelAt(0, 0) == 4
+    check image.pixelAt(1, 0) == 5
+    check image.pixelAt(0, 1) == 6
+    check inspection.selectedFormat.evidence.len == 3
+    check inspection.resources.roots[0].metadata[5].key == "plus3dos.issue"
+    check inspection.resources.roots[0].metadata[5].value.integerValue == 1
+    check inspection.resources.roots[0].metadata[7].value.integerValue ==
+      ZxSpectrumNextSmallPlus3DosSize
+
+  test "+3DOS signature, length, reserved bytes, and checksum are required":
+    let valid = plus3DosSl2()
+    check isPlus3DosHeader(valid)
+    check parsePlus3DosHeader(valid).basicType == 3
+    for damagedOffset in [0, 8, 11, 23, 127]:
+      var damaged = valid
+      damaged[damagedOffset] = damaged[damagedOffset] xor 1
+      check not isPlus3DosHeader(damaged)
+      check detectFormats("damaged.sl2", damaged).len == 0
+
   test "49664-byte images use their embedded RGB333 palette":
     var data = newSeq[byte](ZxSpectrumNextSmallEmbeddedPaletteSize)
     for index in 0 ..< ZxSpectrumNextFullPaletteColours:
@@ -104,19 +144,23 @@ suite "ZX Spectrum Next Layer 2 images":
     check inspection.resources.roots[0].metadata[3].value.stringValue ==
       "embedded RGB333"
 
-  test "matching 256-colour companion decodes the supplied image":
-    let paletteData = readBytes("specnext/dm.nxp")
+  test "matching 256-colour companion selects 320x256 decoding":
+    var paletteData = newSeq[byte](ZxSpectrumNextRgb333Size)
+    for index in 0 ..< ZxSpectrumNextFullPaletteColours:
+      paletteData[index * 2] = byte(index)
+      paletteData[index * 2 + 1] = byte(index and 1)
     let resolver: VextCompanionResolver = proc(path: string): seq[byte] =
-      check path == "dm.nxp"
+      check path == "image.nxp"
       paletteData
-    let inspection = inspectSource("dm.nxi", readBytes("specnext/dm.nxi"),
+    let inspection = inspectSource("image.nxi",
+      newSeq[byte](ZxSpectrumNextImageSize),
       companionResolver = resolver)
     let image = inspection.resources.rasterResources[0].raster.image
     check image.width == 320
     check image.height == 256
     check image.palette.len == 256
     check inspection.resources.roots[0].metadata[3].value.stringValue ==
-      "dm.nxp"
+      "image.nxp"
 
   test "inspection sessions forward source-collection companions":
     let imageData = newSeq[byte](ZxSpectrumNextImageSize)
@@ -159,7 +203,8 @@ suite "ZX Spectrum Next Layer 2 images":
     check detectFormats("small.sl2",
       newSeq[byte](ZxSpectrumNextSmallImageSize))[0].typeId ==
       ZxSpectrumNextImageTypeId
-    check detectFormats("headered.sl2", newSeq[byte](49280)).len == 0
+    check detectFormats("headered.sl2", plus3DosSl2())[0].typeId ==
+      ZxSpectrumNextImageTypeId
     check detectFormats("large.sl2", data).len == 0
     let forced = inspectSource("layer.bin", data,
       inputFormat = ZxSpectrumNextImageTypeId)

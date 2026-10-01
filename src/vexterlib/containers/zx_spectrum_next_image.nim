@@ -3,6 +3,7 @@
 import std/[os, strutils]
 import ../archetypes/[palette, raster]
 import ./zx_spectrum_next_palette
+import ./zx_spectrum_plus3dos
 
 const
   ZxSpectrumNextImageTypeId* = "zx-spectrum-next.layer2-image"
@@ -10,6 +11,7 @@ const
   ZxSpectrumNextImageSize* = 81920
   ZxSpectrumNextSmallImageSize* = 49152
   ZxSpectrumNextSmallEmbeddedPaletteSize* = 49664
+  ZxSpectrumNextSmallPlus3DosSize* = 49280
   ZxSpectrumNextEmbeddedPaletteSize* = 512
   ZxSpectrumNextImageHeight* = 256
   ZxSpectrumNextImageWidth256* = 320
@@ -26,6 +28,8 @@ type
     data*: seq[byte]
     layout*: ZxSpectrumNextImageLayout
     embeddedPalette*: VextPalette
+    hasPlus3DosHeader*: bool
+    plus3DosHeader*: Plus3DosHeader
 
 proc hasZxSpectrumNextImageExtension*(filename: string): bool =
   filename.splitFile.ext.toLowerAscii == ".nxi"
@@ -34,7 +38,8 @@ proc hasZxSpectrumNextSl2Extension*(filename: string): bool =
   filename.splitFile.ext.toLowerAscii == ".sl2"
 
 proc isZxSpectrumNextSl2Image*(data: openArray[byte]): bool =
-  data.len == ZxSpectrumNextSmallImageSize
+  data.len == ZxSpectrumNextSmallImageSize or
+    (data.len == ZxSpectrumNextSmallPlus3DosSize and data.isPlus3DosHeader)
 
 proc isZxSpectrumNextImage*(data: openArray[byte]): bool =
   data.len in [ZxSpectrumNextSmallImageSize,
@@ -42,16 +47,22 @@ proc isZxSpectrumNextImage*(data: openArray[byte]): bool =
 
 proc parseZxSpectrumNextImage*(data: openArray[byte]):
     ZxSpectrumNextImageSource =
-  if not data.isZxSpectrumNextImage:
+  if data.len notin [ZxSpectrumNextSmallImageSize,
+      ZxSpectrumNextSmallPlus3DosSize, ZxSpectrumNextSmallEmbeddedPaletteSize,
+      ZxSpectrumNextImageSize]:
     raise newException(ValueError,
-      "ZX Spectrum Next Layer 2 image must contain exactly 49152, 49664, or 81920 bytes")
+      "ZX Spectrum Next Layer 2 image must contain exactly 49152, 49280, 49664, or 81920 bytes")
   if data.len == ZxSpectrumNextImageSize:
     result.layout = znilColumnMajor256
     result.data = @data
   else:
     result.layout = znilRowMajor192
     var imageOffset = 0
-    if data.len == ZxSpectrumNextSmallEmbeddedPaletteSize:
+    if data.len == ZxSpectrumNextSmallPlus3DosSize:
+      result.plus3DosHeader = parsePlus3DosHeader(data)
+      result.hasPlus3DosHeader = true
+      imageOffset = Plus3DosHeaderSize
+    elif data.len == ZxSpectrumNextSmallEmbeddedPaletteSize:
       result.embeddedPalette = parseZxSpectrumNextPalette(
         data.toOpenArray(0, ZxSpectrumNextEmbeddedPaletteSize - 1)).palette
       if result.embeddedPalette.colours.len != ZxSpectrumNextFullPaletteColours:

@@ -1063,9 +1063,7 @@ zero or one and supplies blue's low bit.
 
 All three-bit components expand to `00`, `24`, `49`, `6d`, `92`, `b6`, `db`,
 or `ff`. The result is an opaque ordered palette at `/palette`, with the source
-colour width retained as metadata. The supplied 512-byte palettes are retained
-as compatibility fixtures, with `arantor_preview.png` available as a visual
-reference.
+colour width retained as metadata.
 
 Automatic detection requires a case-insensitive `.nxp` or `.pal` extension
 because the format has no magic. `.nxp` yields **probable** confidence, while
@@ -1102,9 +1100,17 @@ not change this layout and requires every stored index to be below 16.
 
 The same 49,152-byte row-major image may use the `.sl2` extension. SL2 is
 treated as palette-less and always receives the synthesized RGB332 palette;
-Vexter deliberately does not look for a matching NXP companion. The observed
-49,280-byte SL2 variant with a generic 128-byte `+3DOS` header is not yet
-recognized, because that header is shared by formats beyond Layer 2 images.
+Vexter deliberately does not look for a matching NXP companion. The 49,280-byte
+SL2 variant consists of a validated 128-byte `+3DOS` header followed by the
+same pixels. The header is stripped before decoding and retained as metadata.
+
+The reusable `+3DOS` parser requires the `PLUS3DOS` signature, `0x1a` soft EOF,
+a little-endian declared file length equal to the complete source length,
+zeroed reserved bytes 23–126, and the modulo-256 checksum of bytes 0–126. It
+retains the issue, version, and interpreted eight-byte BASIC header fields.
+Because this header is shared by unrelated Spectrum formats, it is supporting
+evidence only and never identifies a Layer 2 image without the SL2 size and
+extension constraints.
 
 A 49,664-byte `.nxi` prepends a mandatory 512-byte, 256-colour RGB333 palette
 to the same 49,152 row-major pixels. This embedded palette takes precedence;
@@ -1112,9 +1118,9 @@ no external companion is consulted.
 
 Automatic detection requires one of the exact 49,152-, 49,664-, or
 81,920-byte sizes and a case-insensitive `.nxi` extension, or exactly 49,152
-bytes and a case-insensitive `.sl2` extension, and reports **probable**
-confidence. Other NXI/SL2 sizes and layouts are intentionally not claimed by
-this handler.
+bytes or a valid headered 49,280 bytes with a case-insensitive `.sl2`
+extension, and reports **probable** confidence. Other NXI/SL2 sizes and layouts
+are intentionally not claimed by this handler.
 
 ## Paint.NET palette files
 
