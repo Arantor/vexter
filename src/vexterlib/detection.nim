@@ -14,6 +14,8 @@ import ./containers/[amiga_8svx, amiga_16sv, amiga_acbm, amiga_adf, amiga_anim,
   paint_net_palette, pcx, png_container, protracker_mod, qoi, rgba8_palette, tga,
   sqlite, wav, windows_icon, windows_write, zip_archive, lha_archive,
   zx_spectrum_gigascreen_dump,
+  zx_spectrum_next_image,
+  zx_spectrum_next_palette,
   zx_spectrum_screen_dump,
   wordstar, zx_spectrum_snapshot, zx_spectrum_tap, zx_spectrum_tzx]
 import ./containers/xpk_shri
@@ -704,6 +706,19 @@ proc detectBaseFormats(filename: string, data: openArray[byte]):
         VextDetectionEvidence(description:
           "file does not begin with a DOS executable header")])
 
+  if (filename.hasZxSpectrumNextImageExtension and
+      isZxSpectrumNextImage(data)) or
+      (filename.hasZxSpectrumNextSl2Extension and
+      isZxSpectrumNextSl2Image(data)):
+    let extension = if filename.hasZxSpectrumNextSl2Extension: ".sl2" else: ".nxi"
+    result.add VextDetectionCandidate(
+      typeId: ZxSpectrumNextImageTypeId,
+      confidence: vdcProbable,
+      evidence: @[
+        VextDetectionEvidence(description: "file size is exactly " &
+          $data.len & " bytes for a recognized Layer 2 layout"),
+        VextDetectionEvidence(description: "file extension is " & extension)])
+
   if isZxSpectrumSnapshotSize(data.len):
     var evidence = @[VextDetectionEvidence(
       description: "file size is exactly " & $data.len & " bytes")]
@@ -779,6 +794,20 @@ proc detectBaseFormats(filename: string, data: openArray[byte]):
         VextDetectionEvidence(description: "little-endian colour count and " &
           "exact RGBA8 payload size describe " & $palette.colours.len &
           " colours")])
+
+  if filename.hasZxSpectrumNextPaletteExtension and
+      isZxSpectrumNextPalette(data):
+    let source = parseZxSpectrumNextPalette(data)
+    result.add VextDetectionCandidate(
+      typeId: ZxSpectrumNextPaletteTypeId,
+      confidence: if filename.hasZxSpectrumNextNxpExtension: vdcProbable
+        else: vdcPossible,
+      evidence: @[
+        VextDetectionEvidence(description: if filename.hasZxSpectrumNextNxpExtension:
+          "file extension is .nxp" else: "file extension is .pal"),
+        VextDetectionEvidence(description: "exact payload size and " &
+          $(source.bitsPerColour) & "-bit RGB palette encoding describe " &
+          $source.palette.colours.len & " colours")])
 
   for candidate in result:
     if formatHandler(candidate.typeId).isNil:

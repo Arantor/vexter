@@ -25,6 +25,7 @@ import ./containers/[amiga_8svx, amiga_16sv, amiga_acbm, amiga_adf, amiga_anim,
   netpbm, openraster, pcx, png_container,
   adobe_swatch_exchange, aseprite, gimp_palette, koala_painter,
   paint_net_palette, protracker_mod, qoi, rgba8_palette, sqlite, tga, wav,
+  zx_spectrum_next_image, zx_spectrum_next_palette,
   windows_icon, windows_write, wordstar, zip_archive, lha_archive,
   zx_spectrum_gigascreen_dump,
   zx_spectrum_snapshot,
@@ -1892,6 +1893,17 @@ proc inspectSourceDepth(filename: string, data: openArray[byte],
       kind: vrnkPalette,
       palette: palette,
       metadata: @[integerMetadata("colours", palette.colours.len)])
+  of vhkZxSpectrumNextPalette:
+    let source = parsedValue[ZxSpectrumNextPalette](selectedParsed,
+      vhkZxSpectrumNextPalette)
+    result.resources.roots.add VextResourceNode(
+      path: ZxSpectrumNextPaletteResourcePath,
+      typeId: ZxSpectrumNextPaletteTypeId,
+      kind: vrnkPalette,
+      palette: source.palette,
+      metadata: @[
+        integerMetadata("colours", source.palette.colours.len),
+        integerMetadata("bits-per-colour", source.bitsPerColour)])
   of vhkProtrackerMod:
     let source = parsedValue[ProtrackerMod](selectedParsed, vhkProtrackerMod)
     result.resources.roots.add protrackerNode(ProtrackerModResourcePath, source)
@@ -2800,6 +2812,42 @@ proc inspectSourceDepth(filename: string, data: openArray[byte],
           typeId: ZxSpectrumGigascreenTypeId, kind: vrnkRaster,
           raster: VextRaster(kind: vrkTrueColourImage,
             trueColourImage: screen.averaged))])
+  of vhkZxSpectrumNextImage:
+    let source = parsedValue[ZxSpectrumNextImageSource](selectedParsed,
+      vhkZxSpectrumNextImage)
+    var palette: VextPalette
+    var paletteSource: string
+    if source.embeddedPalette.colours.len > 0:
+      palette = source.embeddedPalette
+      paletteSource = "embedded RGB333"
+    else:
+      palette = synthesizedZxSpectrumNextPalette()
+      paletteSource = "synthesized RGB332"
+      let companionName = filename.extractFilename.changeFileExt(".nxp")
+      if companionResolver != nil and
+          not filename.hasZxSpectrumNextSl2Extension:
+        let companion = companionResolver(companionName)
+        if companion.len > 0:
+          try:
+            palette = parseZxSpectrumNextPalette(companion).palette
+            paletteSource = companionName
+          except ValueError as error:
+            result.warnings.add VextInspectionWarning(
+              path: ZxSpectrumNextImageResourcePath,
+              format: ZxSpectrumNextImageTypeId,
+              message: "invalid companion " & companionName & ": " & error.msg)
+    let image = decodeZxSpectrumNextImage(source, palette)
+    result.resources.roots.add VextResourceNode(
+      path: ZxSpectrumNextImageResourcePath,
+      typeId: ZxSpectrumNextImageTypeId,
+      kind: vrnkRaster,
+      raster: VextRaster(kind: vrkIndexedImage, image: image),
+      metadata: @[
+        integerMetadata("width", image.width),
+        integerMetadata("height", image.height),
+        integerMetadata("colours", image.palette.len),
+        stringMetadata("palette.source", paletteSource),
+        stringMetadata("storage.order", source.storageOrderName)])
   of vhkZxSpectrumSnapshot:
     let snapshotData = parsedValue[seq[byte]](selectedParsed,
       vhkZxSpectrumSnapshot)

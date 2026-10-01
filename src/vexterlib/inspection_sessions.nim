@@ -522,8 +522,14 @@ proc openInspectionSession*(filename: string, sources: VextSourceCollection,
       leading[1] == byte('Z') and filename.hasInnoSetupExtension
     template selectLegacy() =
       let data = sources.primary.readAll(limits.maximumWorkingBytes)
+      let companionResolver: VextCompanionResolver =
+        proc(relativePath: string): seq[byte] =
+          let companion = sources.companion(relativePath)
+          if companion.isNil: @[]
+          else: companion.readAll(limits.maximumWorkingBytes)
       let legacy = inspectSource(filename, data, inputFormat, ignoreWarnings,
-        pcxChannelOrder, ansiLetterSpacing, ansiAspect)
+        pcxChannelOrder, ansiLetterSpacing, ansiAspect,
+        companionResolver = companionResolver)
       result.selectedFormat = legacy.selectedFormat
       result.candidates = legacy.candidates
       result.warnings = legacy.warnings

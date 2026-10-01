@@ -1050,6 +1050,72 @@ case-insensitive `.pal` extension as well as valid structure and reports only
 magic-backed candidates remain preferred. Callers can force `rgba8.palette`
 for correctly structured data with another filename extension.
 
+## ZX Spectrum Next palette files
+
+Type identifier: `zx-spectrum-next.palette`
+
+Standalone Layer 2 palettes contain either 16 or 256 ordered colours. The
+256-byte form stores 256 colours as RGB332: red occupies bits 7–5, green bits
+4–2, and the two stored blue bits occupy bits 1–0. Blue's low bit is synthesized
+by ORing those two stored bits. The RGB333 forms store two bytes per colour:
+32 bytes for 16 colours or 512 bytes for 256 colours. The second byte must be
+zero or one and supplies blue's low bit.
+
+All three-bit components expand to `00`, `24`, `49`, `6d`, `92`, `b6`, `db`,
+or `ff`. The result is an opaque ordered palette at `/palette`, with the source
+colour width retained as metadata. The supplied 512-byte palettes are retained
+as compatibility fixtures, with `arantor_preview.png` available as a visual
+reference.
+
+Automatic detection requires a case-insensitive `.nxp` or `.pal` extension
+because the format has no magic. `.nxp` yields **probable** confidence, while
+the shared `.pal` alias yields **possible** confidence. The exact 32-, 256-, or
+512-byte payload size is required, and nine-bit palettes reject second bytes
+other than zero or one.
+
+## ZX Spectrum Next Layer 2 images
+
+Type identifier: `zx-spectrum-next.layer2-image`
+
+An 81,920-byte `.nxi` is interpreted as the large Layer 2 layout. Without a
+companion palette it is assumed to be a 320×256, 256-colour indexed image and
+receives a synthesized palette in which every index is decoded as RGB332. The
+synthesized palette follows the same duplicated-blue-bit rule as a 256-byte
+NXP palette.
+
+A case-insensitively resolved `.nxp` with the same basename overrides that
+palette and selects the mode: a 256-colour palette means 320×256, while a
+16-colour palette means 640×256. An invalid companion produces an inspection
+warning and falls back to the 320×256 synthesized-palette interpretation.
+
+Storage is column-major. In 320×256 mode, source offset `x * 256 + y` is the
+palette index for output pixel `(x, y)`. In 640×256 mode, the byte at that
+offset holds two adjacent pixels, with the high nibble followed by the low
+nibble. Both are exposed as conventional row-major indexed rasters at
+`/image`. The 640×256 nibble ordering is an explicit provisional assumption
+pending a supplied control for that rare mode.
+
+A 49,152-byte `.nxi` is a 256×192 image whose one-byte palette indices are
+already stored in conventional row order. It otherwise uses the same matching
+external NXP or synthesized RGB332 palette policy. A 16-colour companion does
+not change this layout and requires every stored index to be below 16.
+
+The same 49,152-byte row-major image may use the `.sl2` extension. SL2 is
+treated as palette-less and always receives the synthesized RGB332 palette;
+Vexter deliberately does not look for a matching NXP companion. The observed
+49,280-byte SL2 variant with a generic 128-byte `+3DOS` header is not yet
+recognized, because that header is shared by formats beyond Layer 2 images.
+
+A 49,664-byte `.nxi` prepends a mandatory 512-byte, 256-colour RGB333 palette
+to the same 49,152 row-major pixels. This embedded palette takes precedence;
+no external companion is consulted.
+
+Automatic detection requires one of the exact 49,152-, 49,664-, or
+81,920-byte sizes and a case-insensitive `.nxi` extension, or exactly 49,152
+bytes and a case-insensitive `.sl2` extension, and reports **probable**
+confidence. Other NXI/SL2 sizes and layouts are intentionally not claimed by
+this handler.
+
 ## Paint.NET palette files
 
 Paint.NET text palettes are identified by the exact opening line

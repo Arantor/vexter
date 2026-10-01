@@ -71,6 +71,8 @@ task test, "Run the test suite":
   exec "nim c -r --path:src tests/test_ansi_art.nim"
   exec "nim c -r --path:src tests/test_zx_spectrum_screen.nim"
   exec "nim c -r --path:src tests/test_zx_spectrum_gigascreen.nim"
+  exec "nim c -r --path:src tests/test_zx_spectrum_next_palette.nim"
+  exec "nim c -r --path:src tests/test_zx_spectrum_next_image.nim"
   exec "nim c -r --path:src tests/test_zx_spectrum_snapshot.nim"
   exec "nim c -r --path:src tests/test_zx_spectrum_basic.nim"
   exec "nim c -r --path:src tests/test_zx_spectrum_tap.nim"

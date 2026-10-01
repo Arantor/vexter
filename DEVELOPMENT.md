@@ -66,7 +66,8 @@ client, and a dependency-free native Windows GUI. It supports:
   structurally recognized Inno Setup executables with bounded loader,
   decoded 5.5/5.6 Unicode file tables, dependency-free LZMA1/LZMA2 payload
   decoding, common split-data resolution, and named whole-container extraction,
-  ZX Spectrum raw screen dumps, ZX Gigascreen images, SNA snapshots,
+  ZX Spectrum raw screen dumps, ZX Gigascreen images, ZX Spectrum Next
+  Layer 2 palettes and base 81,920-byte images, SNA snapshots,
   TAP and first-pass TZX containers, tokenised BASIC resources, BMFont text descriptors, FZX and Amiga bitmap diskfonts
   (including ColorFonts), SQLite 3 databases with table schemas and rows
   (but no exposed indexes), standalone AMOS banks, AMOS bank
@@ -383,6 +384,16 @@ Matching case-insensitive extensions add supporting evidence.
 - `gimp_palette.nim` validates GIMP Palette headers and ordered RGB entries,
   including Aseprite's marked RGBA modification, infers the format version,
   and retains optional name, column, and compatibility metadata;
+
+- `zx_spectrum_next_palette.nim` decodes 16- or 256-colour Layer 2 RGB333 and
+  256-colour RGB332 palettes, including synthesized RGB332 blue and exact
+  three-bit component expansion;
+
+- `zx_spectrum_next_image.nim` decodes 81,920-byte Layer 2 images from
+  column-major storage, 49,152-byte 256×192 images from row-major storage, and
+  the 49,664-byte variant with its leading RGB333 palette; it also resolves
+  same-basename NXP palettes, accepts palette-less 49,152-byte SL2 aliases,
+  and synthesizes RGB332 when no palette is available;
 
 - `aseprite.nim` validates `.ase`/`.aseprite` headers, frames, and chunk
   envelopes, applies old and current palette chunks, and exposes the final
@@ -912,6 +923,8 @@ amos.icon-bank
 amos.sprite
 amos.icon
 zx-spectrum.screen
+zx-spectrum-next.palette
+zx-spectrum-next.layer2-image
 zx-spectrum.snapshot
 zx-spectrum.tap
 zx-spectrum.code

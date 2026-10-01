@@ -65,6 +65,8 @@ import vexterlib/containers/amos_program
 import vexterlib/containers/amos_sprite_icon_bank
 import vexterlib/containers/zx_spectrum_screen_dump
 import vexterlib/containers/zx_spectrum_gigascreen_dump
+import vexterlib/containers/zx_spectrum_next_image
+import vexterlib/containers/zx_spectrum_next_palette
 import vexterlib/containers/zx_spectrum_snapshot
 import vexterlib/containers/zx_spectrum_tap
 import vexterlib/containers/zx_spectrum_tzx
@@ -219,6 +221,8 @@ export zx_spectrum_screen_dump
 export zx_spectrum_screen
 export zx_spectrum_gigascreen_dump
 export zx_spectrum_gigascreen
+export zx_spectrum_next_image
+export zx_spectrum_next_palette
 export zx_spectrum_basic
 export pcx_image
 export bmp_image

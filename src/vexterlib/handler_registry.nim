@@ -15,7 +15,8 @@ import ./containers/[adobe_swatch_exchange, amiga_8svx, amiga_16sv, amiga_acbm,
   inno_setup, iso9660, jpeg, koala_painter, lha_archive, netpbm, openraster,
   paint_net_palette, pcx, png_container, powerpacker, protracker_mod, qoi,
   rgba8_palette, sqlite, tga, wav, windows_icon, windows_write, zip_archive,
-  zx_spectrum_gigascreen_dump, zx_spectrum_screen_dump, zx_spectrum_snapshot,
+  zx_spectrum_gigascreen_dump, zx_spectrum_next_image, zx_spectrum_next_palette,
+  zx_spectrum_screen_dump, zx_spectrum_snapshot,
   zx_spectrum_tap,
   wordstar, zx_spectrum_tzx, xpk_shri]
 import ./containers/amiga_pbm
@@ -78,6 +79,8 @@ type
     vhkAmosIconBank
     vhkZxSpectrumScreen
     vhkZxSpectrumGigascreen
+    vhkZxSpectrumNextImage
+    vhkZxSpectrumNextPalette
     vhkZxSpectrumSnapshot
     vhkZxSpectrumTap
     vhkZxSpectrumTzx
@@ -185,6 +188,10 @@ const FormatHandlers* = [
     kind: vhkZxSpectrumScreen),
   VextFormatHandler(typeId: ZxSpectrumGigascreenTypeId,
     kind: vhkZxSpectrumGigascreen),
+  VextFormatHandler(typeId: ZxSpectrumNextImageTypeId,
+    kind: vhkZxSpectrumNextImage),
+  VextFormatHandler(typeId: ZxSpectrumNextPaletteTypeId,
+    kind: vhkZxSpectrumNextPalette),
   VextFormatHandler(typeId: ZxSpectrumSnapshotTypeId,
     kind: vhkZxSpectrumSnapshot),
   VextFormatHandler(typeId: ZxSpectrumTapTypeId, kind: vhkZxSpectrumTap),
@@ -321,6 +328,10 @@ proc parse*(handler: VextFormatHandler,
     result = parsed(extractZxSpectrumScreenDump(data))
   of vhkZxSpectrumGigascreen:
     result = parsed(parseZxSpectrumGigascreen(data))
+  of vhkZxSpectrumNextImage:
+    result = parsed(parseZxSpectrumNextImage(data))
+  of vhkZxSpectrumNextPalette:
+    result = parsed(parseZxSpectrumNextPalette(data))
   of vhkZxSpectrumSnapshot:
     if not isZxSpectrumSnapshotSize(data.len):
       raise newException(ValueError,
