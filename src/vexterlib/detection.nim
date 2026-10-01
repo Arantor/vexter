@@ -12,7 +12,8 @@ import ./containers/[amiga_8svx, amiga_16sv, amiga_acbm, amiga_adf, amiga_anim,
   bmfont, bmp, creative_voice, d64, doom_wad, electron_asar, fat_disk_image, flic, fzx,
   gif_container, gimp_palette, inno_setup, iso9660, jpeg, koala_painter, netpbm,
   paint_net_palette, pcx, png_container, protracker_mod, qoi, rgba8_palette, tga,
-  sqlite, wav, windows_icon, zip_archive, lha_archive, zx_spectrum_gigascreen_dump,
+  sqlite, wav, windows_icon, windows_write, zip_archive, lha_archive,
+  zx_spectrum_gigascreen_dump,
   zx_spectrum_screen_dump,
   wordstar, zx_spectrum_snapshot, zx_spectrum_tap, zx_spectrum_tzx]
 import ./containers/xpk_shri
@@ -28,6 +29,21 @@ proc detectBaseFormats(filename: string, data: openArray[byte]):
     seq[VextDetectionCandidate] =
   ## Returns every format candidate recognized from currently available
   ## evidence, ordered from strongest to weakest.
+  if isWindowsWrite(data):
+    let source = parseWindowsWrite(data)
+    var evidence = @[VextDetectionEvidence(description:
+      "0x" & source.signatureByte.toHex(2) &
+      "BE signature, text boundary, and page-aligned section boundaries " &
+      "match the supplied Windows 3.1 Write documents")]
+    if source.embeddedImages.len > 0:
+      evidence.add VextDetectionEvidence(description:
+        $source.embeddedImages.len &
+        " bounded Paintbrush BMP object(s) were decoded")
+    if filename.hasWindowsWriteExtension:
+      evidence.add VextDetectionEvidence(description: "file extension is .wri")
+    return @[VextDetectionCandidate(typeId: WindowsWriteTypeId,
+      confidence: vdcProbable, evidence: evidence,
+      derivation: baseDerivation(WindowsWriteTypeId))]
   if isSqlite(data):
     try:
       let database = parseSqlite(data)

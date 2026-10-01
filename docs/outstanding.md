@@ -6,6 +6,34 @@ being listed does not imply priority, and unsupported historical or proposed
 formats are not included. Detailed format behavior and evidence remain in
 [`formats.md`](formats.md).
 
+- **Windows Write documents**
+  - `windows.write` currently recovers plain Windows-1252 text, line breaks,
+    and tabs from the corpus-established `0x31BE` variant. It also recognizes
+    the precisely observed `0x32BE` `PBrush` envelope, exposes its BMP as a
+    raster child, and exports it beside Markdown as a companion PNG.
+  - Character-property and font-table pages are not yet imported. The corpus
+    establishes half-point font sizes, bold, italic, underline, Symbol-font
+    selection, and independently sized superscript/subscript with signed
+    vertical displacement. Implementation still requires complete page-chain,
+    run-boundary, font-identifier, inheritance, and remaining-field decoding,
+    including styles attached to CR/LF and blank lines.
+  - Paragraph and global layout records are not yet imported. Established
+    behavior includes all four alignments, left/right/first-line and hanging
+    indents, single/1½/double spacing, left tab stops, paper and text geometry,
+    and header/footer positions. Their exact record fields, inheritance and
+    traversal must be completed; non-left tab forms, header/footer contents,
+    page-number settings and first-page suppression still need contrasting
+    evidence.
+  - Symbol-font text needs font-aware conversion. The observed `B7` bullet is
+    established as U+2022, but broader Greek, mathematical, arrow and other
+    mappings must come from supplied evidence rather than Windows-1252 guesses.
+  - The observed `0x32BE` `PBrush` envelope is intentionally matched at its
+    bounded descriptor and with the two established 34- and 66-byte suffixes.
+    Further object kinds or envelope layouts still need independent samples
+    before they can be generalized. Optional data-URI Markdown remains a
+    possible projection, but the implemented relative companion-file form is
+    more interoperable.
+
 - **Inno Setup**
   - `windows.inno-setup` currently decodes the supplied 5.5/5.6 Unicode table
     layouts and stored, LZMA1, and LZMA2 chunks. Older layouts, zlib/bzip2

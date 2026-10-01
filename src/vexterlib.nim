@@ -73,6 +73,7 @@ import vexterlib/containers/ansi_art
 import vexterlib/containers/doom_wad
 import vexterlib/containers/inno_setup
 import vexterlib/containers/wordstar
+import vexterlib/containers/windows_write
 import vexterlib/containers/sqlite
 import vexterlib/containers/fat_disk_image
 import vexterlib/containers/sierra_agi_game
@@ -145,6 +146,7 @@ export ansi_art
 export doom_wad
 export inno_setup
 export wordstar
+export windows_write
 export fat_disk_image
 export sierra_agi_game
 export sierra_sci_game

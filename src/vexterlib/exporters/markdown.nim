@@ -5,6 +5,9 @@ import ../archetypes/document
 import ../artifacts
 
 type
+  VextMarkdownImageResolver* = proc(resourcePath,
+    suggestedFilename: string): VextArtifact {.closure.}
+
   VextMarkdownExport* = object
     artifacts*: VextArtifactSet
     warnings*: seq[string]
@@ -42,9 +45,11 @@ proc styledText(item: VextDocumentInline,
   if item.style.bold: result = "**" & result & "**"
 
 proc exportMarkdown*(document: VextFlowDocument,
-    suggestedFilename = "document.md"): VextMarkdownExport =
+    suggestedFilename = "document.md",
+    imageResolver: VextMarkdownImageResolver = nil): VextMarkdownExport =
   document.validate
   var output: string
+  var imageArtifacts: seq[VextArtifact]
   for documentBlock in document.blocks:
     case documentBlock.kind
     of vdbkParagraph:
@@ -83,6 +88,23 @@ proc exportMarkdown*(document: VextFlowDocument,
           output.add "&shy;"
           result.warnings.addWarning(
             "Markdown rendering of discretionary hyphens varies by reader.")
+        of vdikImage:
+          if imageResolver == nil:
+            output.add "[Image"
+            if item.imageAltText.len > 0:
+              output.add ": " & item.imageAltText.escapedMarkdown
+            output.add "]"
+            result.warnings.addWarning(
+              "An embedded document image could not be included in this projection.")
+          else:
+            let artifact = imageResolver(item.imageResourcePath,
+              item.imageSuggestedFilename)
+            if artifact.data.len == 0 or artifact.suggestedFilename.len == 0:
+              raise newException(ValueError,
+                "document image resolver returned an empty artifact")
+            output.add "![" & item.imageAltText.escapedMarkdown & "](" &
+              artifact.suggestedFilename & ")"
+            imageArtifacts.add artifact
         of vdikRetainedControl:
           output.add "<!-- retained control: " &
             item.control.name.safeCommentText & " -->"
@@ -106,3 +128,5 @@ proc exportMarkdown*(document: VextFlowDocument,
   result.artifacts.artifacts.add VextArtifact(
     suggestedFilename: suggestedFilename,
     mediaType: "text/markdown; charset=utf-8", data: textBytes(output))
+  for artifact in imageArtifacts:
+    result.artifacts.artifacts.add artifact

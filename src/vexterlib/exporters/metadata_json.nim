@@ -163,7 +163,7 @@ proc trackerNode(module: VextTrackerModule): JsonNode =
   result["patternSummaries"] = patterns
 
 proc documentNode(document: VextFlowDocument): JsonNode =
-  var paragraphs, pageBreaks, retainedControls, textRuns: int
+  var paragraphs, pageBreaks, retainedControls, textRuns, images: int
   var controls = newJArray()
   for documentBlock in document.blocks:
     case documentBlock.kind
@@ -180,6 +180,7 @@ proc documentNode(document: VextFlowDocument): JsonNode =
             "interpreted": item.control.interpreted,
             "sourceOffset": (if item.source.present: item.source.offset else: -1),
             "sourceLength": (if item.source.present: item.source.length else: 0)}
+        of vdikImage: inc images
         else: discard
     of vdbkPageBreak: inc pageBreaks
     of vdbkRetainedControl:
@@ -194,7 +195,8 @@ proc documentNode(document: VextFlowDocument): JsonNode =
           documentBlock.source.length else: 0)}
   result = %*{"archetype": "VextFlowDocument", "blocks": document.blocks.len,
     "paragraphs": paragraphs, "textRuns": textRuns,
-    "pageBreaks": pageBreaks, "retainedControls": retainedControls}
+    "pageBreaks": pageBreaks, "images": images,
+    "retainedControls": retainedControls}
   result["controlSummaries"] = controls
 
 proc exportMetadataJson*(resource: VextResourceNode,

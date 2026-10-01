@@ -78,6 +78,7 @@ type
     vdikSoftSpace
     vdikBindingSpace
     vdikDiscretionaryHyphen
+    vdikImage
     vdikRetainedControl
 
   VextDocumentInline* = object
@@ -88,6 +89,10 @@ type
       style*: VextCharacterStyle
     of vdikRetainedControl:
       control*: VextDocumentControl
+    of vdikImage:
+      imageResourcePath*: string
+      imageAltText*: string
+      imageSuggestedFilename*: string
     of vdikDiscretionaryHyphen:
       active*: bool
     of vdikTab, vdikLineBreak, vdikSoftLineBreak, vdikSoftSpace,
@@ -145,6 +150,13 @@ proc validate*(document: VextFlowDocument) =
             raise newException(ValueError,
               "document font size cannot be negative")
         of vdikRetainedControl: item.control.validateControl
+        of vdikImage:
+          if item.imageResourcePath.len == 0 or
+              item.imageSuggestedFilename.len == 0 or
+              '/' in item.imageSuggestedFilename or
+              '\\' in item.imageSuggestedFilename:
+            raise newException(ValueError,
+              "document image reference is invalid")
         else: discard
     of vdbkRetainedControl: documentBlock.blockControl.validateControl
     of vdbkPageBreak: discard
@@ -165,6 +177,10 @@ proc plainText*(document: VextFlowDocument): string =
         of vdikSoftLineBreak: discard
         of vdikSoftSpace, vdikBindingSpace: result.add ' '
         of vdikDiscretionaryHyphen: discard
+        of vdikImage:
+          result.add "[Image"
+          if item.imageAltText.len > 0: result.add ": " & item.imageAltText
+          result.add "]"
         of vdikRetainedControl: discard
       previousWasParagraph = true
     of vdbkPageBreak:

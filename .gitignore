@@ -61,6 +61,7 @@
 /tests/test_gui_preview
 /tests/test_fat_disk_image
 /tests/test_wordstar
+/tests/test_windows_write
 /tests/test_zx_spectrum_screen
 /tests/test_zx_spectrum_gigascreen
 /tests/test_zx_spectrum_snapshot

@@ -71,11 +71,14 @@ client, and a dependency-free native Windows GUI. It supports:
   (including ColorFonts), SQLite 3 databases with table schemas and rows
   (but no exposed indexes), standalone AMOS banks, AMOS bank
   sets, AMOS programs, and headerless WordStar documents plus the version
-  5-or-later headered family;
+  5-or-later headered family, and recovery-oriented Windows Write `0x31BE`
+  documents with plain text and paragraph flow plus the observed `0x32BE`
+  Paintbrush/BMP envelope with linked raster resources;
 - a resource tree containing decoded raster, palette, bitmap-font, audio, and text resources,
   identified opaque resources, and metadata;
 - a flow-document archetype with paragraphs, styled text runs, tabs, forced
-  line and page breaks, source byte ranges, source-column or physical margins,
+  line and page breaks, inline image references, source byte ranges,
+  source-column or physical margins,
   justification policy, and retained controls with structured arguments;
 - indexed still-image, indexed-animation, and true-colour image raster
   archetypes;

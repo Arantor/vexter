@@ -1,5 +1,173 @@
 # Third-party material
 
+## Windows 3.1 Write compatibility corpus
+
+On 1 October 2026 the developer supplied five `.WRI` documents distributed
+with Windows 3.1 under `write/`. They establish the observed `31 BE 00 00`
+signature, 128-byte header and page alignment, bounded plain-text region,
+Windows-1252 characters, and trailing document structures used by Vexter's
+initial clean-room Windows Write importer. No external specification or
+third-party implementation code was used. The supplied files remain
+uncommitted compatibility material; routine tests use compact synthetic files
+constructed from the observed invariants.
+
+The developer also inspected `README.WRI` in Windows 3.1 Write on 1 October
+2026. That observation establishes that source CR/LF pairs are line breaks
+rather than paragraph delimiters. It also supplies formatting anchors for
+future decoding: the title is 12-point bold Arial; its underline is 4-point
+bold Arial one line break later; ordinary body copy is 11-point regular Times
+New Roman; “Microsoft Windows User's Guide” is italic; and the following
+“Note:” plus its following space is bold and appears to use Arial.
+
+Further inspection established that formatting also belongs to otherwise
+invisible line-break characters. Before “Using Write to View This Document”
+there are two line breaks: the first retains 11-point Times New Roman, while
+the second, which occupies the blank line, is 10-point bold Arial. The heading
+itself is 12-point bold Arial, including its terminating line break. That is
+followed by a blank line whose terminating break is 10-point regular Arial,
+after which 11-point regular Times New Roman body copy resumes. These anchors
+correspond to short runs and boundaries observed in the first trailing
+formatting area; they are behavioral evidence, not a complete description of
+that area's structure.
+
+The developer identified another character-formatting control in the sentence
+“To move through the document, press PAGE UP or PAGE DOWN”: ordinary text is
+11-point Times New Roman, while the two uppercase key names are 8-point. The
+corresponding appended character-property runs occur at absolute source ranges
+1074–1081 and 1085–1094. Their property records end in `10`, while adjacent
+11-point runs end in `16`; interpreting this byte as a half-point size gives
+the displayed 8 and 11 points exactly. Formatting is therefore stored in
+appended run data rather than being limited to the 128-byte header.
+
+The earlier instruction ending “press ALT+SPACEBAR” provides an independent
+8-point inline anchor at source range 982–994 and exhibits the same size-field
+transition. The italic “Microsoft Windows User's Guide” at 402–432 retains the
+same font and `16` size byte as surrounding 11-point Times New Roman while its
+compact property record changes from `03 00 04 16` to `03 00 06 16`. The
+single `02` bit difference is therefore evidence for italic styling.
+
+In the later PC Tools passage, the source spelling `MS-DOS\x96based` confirms
+that the first separator is an ASCII hyphen-minus and the second byte is
+Windows-1252 `96`, an en dash. Three separately observed bold `/NF` runs occur
+at 22476–22479, 22610–22613, and 22826–22829. Each changes the surrounding
+11-point Times New Roman property from `03 00 04 16` to `03 00 05 16` and
+changes back immediately afterward. The isolated `01` bit difference is
+therefore evidence for bold styling.
+
+Paragraph-format observations provide corresponding physical-layout anchors.
+The phone-number line after “To order the Windows Resource Kit within the
+United States, dial:” has zero left and right indent and a 0.25-inch first-line
+indent. Its appended paragraph record contains signed little-endian values
+`00 00 68 01`, establishing zero left indent followed by a 360-twip first-line
+indent. The two-line “9.0  Using Specific Display Adapters with Windows” /
+“Version 3.1” heading uses a 0.31-inch left indent and −0.31-inch first-line
+indent. Its record contains `C2 01 3E FE`, or +450 and −450 signed twips;
+0.3125 inches is displayed rounded to 0.31 inches. This produces the observed
+hanging number on the first line while retaining the positive left indent on
+the continuation line.
+
+The “9.6  Super VGA” section establishes how apparent lists are represented.
+The introductory bullet and the repeated ATI/CHIPS/Paradise driver items each
+begin with literal bytes `B7 20 20`: byte `B7` followed by two ASCII spaces.
+In Windows-1252, `B7` ordinarily denotes a middle dot rather than a bullet;
+Windows Write displays a bullet because the byte is its own character run with
+property `03 00 08 14`, confirmed in Windows Write as Symbol Regular 10pt.
+The `08` field therefore selects Symbol for this compact record, while `14`
+again encodes 20 half-points. Subsequent spacing changes property, and ordinary
+item text returns to the body property `03 00 04 16`. The outer item and the
+nested driver lines also use distinct nonzero paragraph-indent records. The observed
+list appearance is therefore composed from literal characters, character
+formatting, and paragraph indentation rather than a discrete list object.
+
+The table under section 9.10 supplies a tab-stop control. Its header is stored
+as five text columns separated by literal `09` tab bytes. Windows Write reports
+tab stops at 1.37, 2.12, 2.87, 3.62, and 5.44 inches, with none of their decimal
+checkboxes selected. The paragraph data repeats five position/flags pairs:
+`1980,0`, `3060,0`, `4140,0`, `5213,0`, and `7830,0`. The positions are twips
+and convert to 1.375, 2.125, 2.875, approximately 3.6201, and 5.4375 inches,
+respectively, matching Write's displayed values. The zero flags value is
+therefore evidence for an ordinary left-aligned, non-decimal tab stop.
+
+Windows Write's document settings report US Letter paper, page numbering from
+1, 1.25-inch left, 2.5-inch right, and 1-inch top and bottom margins. Header
+and footer positions are 0.75 inches from their respective page edges, with
+“print on first page” cleared for both. The global layout record contains
+15,840 and 12,240 twips for 11-by-8.5-inch paper; 1,440 and 12,960 for the
+top position and 9-inch text height; 1,800 and 6,840 for the left position and
+4.75-inch text width; and 1,080 and 14,760 for the header and footer positions
+measured from the top. Thus right and bottom margins are derived from paper
+and text extents, while the footer position is stored as 10.25 inches from the
+top. The exact page-number and first-page-suppression fields still require a
+contrasting control.
+
+At the end of `README.WRI`, Windows Write displays a non-selectable visual
+end-of-document marker after the final empty line. The declared text region
+ends at offset 52,157 with four CR/LF pairs: one terminates the final
+“Information about the settings in the WIN.INI file.” line and three represent
+following empty lines. No marker byte occurs within the declared text. The 67
+bytes between that boundary and the next 128-byte page contain stale text
+fragments rather than zero padding, further establishing that the header's
+text-end field—not page alignment—defines selectable document content.
+
+```text
+8251ae1b2fffb607882c8c775a1dcb1f2f8fb9baff37d43c0c52aa128e1a0b32  NETWORKS.WRI
+bf54eaa57fd4d8c67a32774698e8f8e0e49bb77de5312509b030c1e1e168b71b  PRINTERS.WRI
+68729de8c98bfae0de9f0465c6d2066d65094d1873e126050b3307e19e3362b8  README.WRI
+c47a604914bf109a70c1ac84ccff8c4821dbba2cb4d57269b40e80db7ea1639c  SYSINI.WRI
+ede4f26e0167ecfaec183bb5206db4976007a7a64450024c7e90ef06d9ea8511  WININI.WRI
+c7368a5e58a71aa9f34d536960b553af816751771eb17411d2dfd6693dfec774  SAMPLE.WRI
+```
+
+The developer created `SAMPLE.WRI` in Windows Write as a controlled formatting
+fixture on 1 October 2026. Its first four lines respectively use left, centre,
+right, and justified alignment. After one blank line, repeated “Right indent”
+text uses a 0.5-inch right indent. Subsequent labelled wrapping passages use
+single, 1½, and double line spacing, separated by single-spaced blank lines.
+The final labels respectively use underline, superscript, and subscript.
+This version of Write exposes neither strikeout nor overline styling, so their
+absence from the fixture reflects the application's available controls rather
+than an omitted test. The fixture is 1,536 bytes; its declared text ends at
+offset 1,013 and is followed by compact character and paragraph tables suitable
+for controlled field comparisons.
+
+Direct inspection confirms that the fixture's superscript and subscript are
+explicit 8-point runs (`10`, or 16 half-points) with respective signed vertical
+offsets of −4 and +4. Windows Write permits the font size to be changed
+independently, so 8 points is a property of these authored runs rather than an
+intrinsic superscript/subscript size. The offset sign supplies the semantic
+raised/lowered distinction while the size remains an independent value.
+
+The developer also inspected *Gabriel Knight: Sins of the Fathers*'
+`README.WRI` from the supplied Sierra compatibility corpus in Windows 3.1
+Write. It uses the distinct `32 BE 00 00` variant and displays an image after
+“This example illustrates how an Extended MIDI Mapper should be configured:”.
+The object envelope begins at offset 34,528, names `PBrush`, and contains the
+string `0 0 526 417`. A complete BMP begins at 34,611 and is 221,254 bytes:
+526×417, uncompressed indexed 8-bit pixels, and 256 palette entries. It ends at
+255,865, followed by a 34-byte object trailer; selectable text resumes with a
+CR/LF at 255,899 and “NOTE - The above example...”. This establishes a bounded
+embedded Paintbrush/BMP object between ordinary text spans rather than an
+undifferentiated binary text region.
+
+```text
+c47104662e1fe23065bd276b5f0198703416e069dd81acf9eab7f072828e69d1  GK1/README.WRI
+```
+
+The supplied *Gabriel Knight 2* `README.WRI` was subsequently checked against
+the same clean-room importer. It is also a `32 BE 00 00` document with one
+bounded `PBrush` object, but establishes a second envelope layout. The object
+begins at offset 38,665 and is 152,751 bytes long. Its complete BMP begins at
+38,736 and is 152,614 bytes: 491×308, uncompressed indexed 8-bit pixels, using
+the default 256-entry palette. The BMP is followed by a 66-byte suffix before
+ordinary text resumes. Unlike the GK1 object, its BMP begins 71 rather than 83
+bytes after the object start and the human-readable dimensions string is
+absent. These differences are retained as two observed bounded layouts rather
+than generalized into an undocumented object grammar.
+
+```text
+3d0ade90919ddf1144f8f30e0f86e6399d0a4e0b502404b8eb24fd092841c857  GK2/README.WRI
+```
+
 ## SQLite database file-format specification
 
 The developer retrieved SQLite's *Database File Format* specification from

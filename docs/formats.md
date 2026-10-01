@@ -98,6 +98,122 @@ and colour sequences, fields, graphics references, headers and footers remain
 retained controls; and extended-character bytes await supplied mapping tables.
 The Markdown exporter reports the corresponding projection losses.
 
+## Windows Write documents
+
+Container type identifier: `windows.write`
+
+The clean-room importer recognizes the `31 BE 00 00` variant observed in five
+documents supplied with Windows 3.1 and the specifically established
+Paintbrush object form in the `32 BE 00 00` Sierra document. Detection validates the 128-byte
+header, the inferred little-endian text-end field at byte 14, seven monotonic
+128-byte page boundaries, a final boundary matching the file size, and the
+bounded text stream. A `.wri` extension is supporting evidence. Because these
+rules are corpus-derived rather than documented, detection remains probable.
+
+Text begins at byte 128 and is decoded as Windows-1252. Direct observation in
+Windows 3.1 Write establishes that CR/LF pairs are line breaks, with no implied
+paragraph semantics; tabs become document tabs. Source byte ranges remain
+attached to recovered text and flow items. The document is exposed at
+`/document` with Markdown as its default export. Metadata records the text
+range, line-break, tab and extended-character counts, the signature variant, and
+the seven observed section-page values without assigning unsupported meanings
+to those sections.
+
+This is deliberately recovery-oriented. Character and paragraph formatting,
+fonts, headers and footers, other object forms, and the trailing structures
+are not decoded. Direct comparison also shows that source character formatting
+can apply to CR/LF characters and therefore to blank lines; the current flow
+document retains those breaks and their source ranges but not their source
+formatting.
+
+Direct inspection of the `0x32BE` *Gabriel Knight* documents establishes two
+closely related object layouts. In GK1, after ordinary text, an envelope naming `PBrush` contains a
+complete 221,254-byte BMP at absolute offset 34,611. The image is a 526×417,
+uncompressed indexed 8-bit bitmap with 256 palette entries. A 34-byte trailer
+follows it, and ordinary selectable text resumes at offset 255,899. This is
+enough to recognize this bounded embedded Paintbrush/BMP object conservatively,
+but not to generalize the complete `0x32BE` object-envelope grammar.
+The embedded byte range has been passed unchanged through Vexter's existing BMP
+parser and raster decoder, which accept it as a 526×417, 256-colour indexed
+image. No format-specific image decoder is needed. It is exposed as a raster
+child beneath the document plus an inline document reference. Markdown emits
+a relative link and a companion PNG artifact, while a
+self-contained data URI may remain an optional projection rather than the only
+representation.
+
+GK2 contains one corresponding object beginning at offset 38,665. Its BMP
+begins 71 bytes into the object at absolute offset 38,736 and is 152,614 bytes:
+491×308, uncompressed indexed 8-bit pixels with the default 256-entry palette.
+It has no GK1-style dimensions string before the BMP and has a 66-byte suffix.
+The importer therefore bounds its search to the short descriptor following
+the confirmed `PBrush` class name and accepts only the two established suffix
+lengths; it does not scan arbitrary document text for BMP signatures.
+
+The first character-property structure has now been located immediately after
+the text region. It divides absolute text offsets into runs and points to
+compact property records within each 128-byte page. Comparison with 11-point
+body text and embedded 8-point key names establishes that the final property
+byte is a size in half-points (`16` hexadecimal for 11pt and `10` for 8pt).
+Two separate inline key-name runs exhibit this transition. An observed italic
+run keeps the same font and size while its compact property changes from
+`03 00 04 16` to `03 00 06 16`, establishing the differing `02` bit as an
+italic indicator in this record form. Three otherwise identical bold `/NF`
+runs change `03 00 04 16` to `03 00 05 16`, independently establishing the
+`01` bit as bold. A directly inspected `96` byte in `MS-DOS–based` also
+confirms the importer's Windows-1252 en-dash mapping.
+Observed paragraph-property records likewise contain adjacent signed
+little-endian twip values for left and first-line indents. Values `0, 360`
+produce a 0.25-inch first-line indent, while `450, -450` produce an observed
+0.31-inch hanging indent whose continuation line remains 0.3125 inches from
+the left margin.
+Apparent bulleted lists in the inspected document are not separate list
+objects: every item contains a literal `B7` byte followed by two ASCII spaces.
+Although `B7` ordinarily maps to a middle dot in Windows-1252, Write displays
+it as a bullet through a `03 00 08 14` character run, directly confirmed as
+Symbol Regular 10pt. Thus `08` selects Symbol in this compact record and `14`
+is consistent with the established half-point size. The glyph, spacing, and
+body text use separate character runs, while outer and nested items carry
+distinct paragraph indentation.
+An observed five-column table uses literal tab bytes and paragraph tab-stop
+pairs. Positions `1980`, `3060`, `4140`, `5213`, and `7830` twips match Write's
+displayed 1.37, 2.12, 2.87, 3.62, and 5.44 inches. Each position is followed by
+a zero flags word; direct inspection shows left alignment with the decimal
+option cleared, establishing zero as the ordinary left-tab encoding.
+The global layout record uses twips and stores paper dimensions, text origin
+and extent, and header/footer positions. The inspected US Letter document
+contains an 11-by-8.5-inch page, 1-inch top/bottom margins, 1.25-inch left and
+2.5-inch right margins, and header/footer positions 0.75 inches from the page
+edges. Right and bottom margins are derived from the stored 4.75-by-9-inch
+text extent; the footer is stored 10.25 inches from the top. Page numbering
+starts at 1 and both first-page header/footer options are cleared, but their
+specific fields have not yet been isolated through a contrasting document.
+The controlled `SAMPLE.WRI` fixture supplies contrasting paragraph records for
+left, centre, right, and justified alignment; a 0.5-inch right indent; single,
+1½, and double line spacing; and character records for underline, superscript,
+and subscript. Blank lines between spacing controls are explicitly single
+spaced. The inspected Write version has no strikeout or overline control.
+These records are retained as comparison evidence while their individual bits
+and inheritance behavior are decoded.
+The fixture further establishes that superscript and subscript are explicit
+character size plus signed vertical displacement rather than fixed-size style
+toggles. Its runs use 8pt (`10` half-points) with offsets −4 and +4
+respectively. A future importer should retain the authored size independently
+and derive raised/lowered semantics from the displacement sign.
+The non-selectable end-of-document marker drawn by Windows Write is not stored
+in the declared text. In the inspected file, the text ends after four CR/LF
+pairs and the alignment gap before character-property pages contains stale
+text fragments. The importer therefore treats the header's text-end offset as
+authoritative and does not require or expose padding bytes.
+Character decoding must therefore follow the effective run font rather than
+applying Windows-1252 globally. Once styled runs are imported, established
+Symbol-font codes should become their semantic Unicode characters while the
+source byte range and `Symbol` font name remain attached as provenance. The
+only currently established mapping is source byte `B7` to displayed bullet
+U+2022; no broader Symbol mapping is inferred from that single observation.
+This evidence is recorded for continued decoding but is not yet exposed as
+character style because the remaining property fields and complete page-chain
+rules have not been validated across the corpus.
+
 ## ProTracker-compatible MOD import
 
 Container type identifier: `protracker.mod`

@@ -24,8 +24,9 @@ import ./containers/[amiga_8svx, amiga_16sv, amiga_acbm, amiga_adf, amiga_anim,
   doom_wad, electron_asar, flic, fzx, gif_container, inno_setup, iso9660, jpeg,
   netpbm, openraster, pcx, png_container,
   adobe_swatch_exchange, aseprite, gimp_palette, koala_painter,
-  paint_net_palette, protracker_mod, qoi, rgba8_palette, sqlite, tga, wav, windows_icon,
-  wordstar, zip_archive, lha_archive, zx_spectrum_gigascreen_dump,
+  paint_net_palette, protracker_mod, qoi, rgba8_palette, sqlite, tga, wav,
+  windows_icon, windows_write, wordstar, zip_archive, lha_archive,
+  zx_spectrum_gigascreen_dump,
   zx_spectrum_snapshot,
   zx_spectrum_tap]
 import ./containers/xpk_shri
@@ -1200,6 +1201,38 @@ proc inspectSourceDepth(filename: string, data: openArray[byte],
       path: WordStarResourcePath, typeId: WordStarTypeId,
       kind: vrnkDocument, document: source.document, metadata: metadata,
       defaultExportPriority: 10)
+  of vhkWindowsWrite:
+    let source = parsedValue[WindowsWriteSource](selectedParsed,
+      vhkWindowsWrite)
+    var metadata = @[
+      stringMetadata("windows-write.variant",
+        "0x" & source.signatureByte.toHex(2) & "BE"),
+      integerMetadata("windows-write.text.offset", source.textOffset),
+      integerMetadata("windows-write.text.length",
+        source.textEnd - source.textOffset),
+      integerMetadata("windows-write.line-breaks", source.lineBreaks),
+      integerMetadata("windows-write.tabs", source.tabs),
+      integerMetadata("windows-write.extended-characters",
+        source.extendedCharacters)]
+    for index, page in source.sectionPages:
+      metadata.add integerMetadata("windows-write.section-page." & $index,
+        page)
+    let document = VextResourceNode(
+      path: WindowsWriteResourcePath, typeId: WindowsWriteTypeId,
+      kind: vrnkDocument, document: source.document, metadata: metadata,
+      defaultExportPriority: 10)
+    for embedded in source.embeddedImages:
+      document.children.add VextResourceNode(
+        path: embedded.resourcePath, typeId: BmpTypeId,
+        kind: vrnkRaster, raster: decodeBmp(embedded.image), metadata: @[
+          integerMetadata("windows-write.object.offset", embedded.objectOffset),
+          integerMetadata("windows-write.object.length", embedded.objectLength),
+          integerMetadata("windows-write.bmp.offset", embedded.bmpOffset),
+          integerMetadata("windows-write.bmp.length", embedded.bmpLength),
+          integerMetadata("image.width", embedded.image.width),
+          integerMetadata("image.height", embedded.image.height)],
+        defaultExportPriority: 10)
+    result.resources.roots.add document
   of vhkAmigaDiskfontIndex:
     let index = parsedValue[AmigaDiskfontIndex](selectedParsed,
       vhkAmigaDiskfontIndex)
@@ -3062,8 +3095,26 @@ proc exportResource*(tree: VextResourceTree,
     if result.outputFormat != "md":
       raise newException(ValueError,
         "unsupported output format: " & result.outputFormat)
+    let imageResolver: VextMarkdownImageResolver = proc(resourcePath,
+        suggestedFilename: string): VextArtifact =
+      let image = resource.childNamed(resourcePath)
+      if image.isNil or image.kind != vrnkRaster:
+        raise newException(ValueError,
+          "document image resource was not found: " & resourcePath)
+      let encoded = case image.raster.kind
+        of vrkIndexedImage:
+          exportPng(image.raster.image, suggestedFilename)
+        of vrkTrueColourImage:
+          exportPng(image.raster.trueColourImage, suggestedFilename)
+        of vrkIndexedAnimation, vrkTrueColourAnimation:
+          raise newException(ValueError,
+            "document image resource is an animation: " & resourcePath)
+      if encoded.artifacts.len != 1:
+        raise newException(ValueError,
+          "document image export did not produce one PNG")
+      encoded.artifacts[0]
     let exported = exportMarkdown(resource.document,
-      request.suggestedName & ".md")
+      request.suggestedName & ".md", imageResolver)
     result.artifacts = exported.artifacts
     result.warnings = exported.warnings
   of vrnkRaster:

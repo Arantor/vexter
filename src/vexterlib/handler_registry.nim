@@ -14,7 +14,7 @@ import ./containers/[adobe_swatch_exchange, amiga_8svx, amiga_16sv, amiga_acbm,
   bmfont, creative_voice, d64, doom_wad, electron_asar, fat_disk_image, fzx, gimp_palette,
   inno_setup, iso9660, jpeg, koala_painter, lha_archive, netpbm, openraster,
   paint_net_palette, pcx, png_container, powerpacker, protracker_mod, qoi,
-  rgba8_palette, sqlite, tga, wav, windows_icon, zip_archive,
+  rgba8_palette, sqlite, tga, wav, windows_icon, windows_write, zip_archive,
   zx_spectrum_gigascreen_dump, zx_spectrum_screen_dump, zx_spectrum_snapshot,
   zx_spectrum_tap,
   wordstar, zx_spectrum_tzx, xpk_shri]
@@ -83,6 +83,7 @@ type
     vhkZxSpectrumTzx
     vhkAnsiArt
     vhkWordStar
+    vhkWindowsWrite
     vhkSqlite
 
   VextFormatHandler* = object
@@ -190,6 +191,7 @@ const FormatHandlers* = [
   VextFormatHandler(typeId: ZxSpectrumTzxTypeId, kind: vhkZxSpectrumTzx),
   VextFormatHandler(typeId: AnsiArtTypeId, kind: vhkAnsiArt),
   VextFormatHandler(typeId: WordStarTypeId, kind: vhkWordStar),
+  VextFormatHandler(typeId: WindowsWriteTypeId, kind: vhkWindowsWrite),
   VextFormatHandler(typeId: SqliteTypeId, kind: vhkSqlite)
 ]
 
@@ -332,6 +334,7 @@ proc parse*(handler: VextFormatHandler,
     result = parsed(VextParsedZxTap(records: parseZxSpectrumTzx(data).records))
   of vhkAnsiArt: result = parsed(parseAnsiArt(data))
   of vhkWordStar: result = parsed(parseWordStar(data))
+  of vhkWindowsWrite: result = parsed(parseWindowsWrite(data))
   of vhkSqlite: result = parsed(parseSqlite(data))
 
 proc tryParse*(handler: VextFormatHandler,
