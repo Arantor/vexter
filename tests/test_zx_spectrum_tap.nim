@@ -79,6 +79,12 @@ suite "ZX Spectrum TAP container":
     check candidates[0].typeId == ZxSpectrumTapTypeId
     check candidates[0].confidence == vdcProbable
     check candidates[0].evidence.len == 2
+    let tapeCandidates = detectFormats("display.tape", tap)
+    check tapeCandidates.len == 1
+    check tapeCandidates[0].typeId == ZxSpectrumTapTypeId
+    check tapeCandidates[0].evidence.len == 2
+    check tapeCandidates[0].evidence[1].description ==
+      "file extension is .tape"
     let resources = inspectSource("display.TAP", tap).resources.rasterResources
     check resources.len == 1
     check resources[0].path == "/screen"
