@@ -77,12 +77,52 @@ formats are not included. Detailed format behavior and evidence remain in
   - Pathological but valid inputs can make either eager work or later
     selection disproportionately expensive. A concrete motivating case is a
     1.4 GB ZIP containing roughly 1,300 large images.
-  - The unresolved design needs to cover lazy directory enumeration, nested
-    format detection, decoded-resource lifetime and memory pressure,
-    cancellation, progress, caching or eviction, bulk operations, and
-    predictable CLI and GUI behavior. No replacement design has been chosen;
-    this is deliberately deferred rather than treated as an implementation
-    task.
+  - The session currently owns format-specific state for each incrementally
+    indexed container and branches on its format kind during enumeration,
+    materialization, and loading. If this continues to grow, move those
+    operations behind an internal per-format provider contract while retaining
+    resource identities, limits, progress, cancellation, and traversal in the
+    common session. This is an implementation boundary, not a proposed public
+    plugin system.
+  - Depth, working-memory limits, cancellation, progress, and warning policy do
+    not yet travel through every nested inspection as one execution context.
+    Nested eager decoding can consequently restart with default depth or work
+    assumptions. Define and propagate one context before relying on the limits
+    as a complete transitive resource bound.
+  - The primary-source plus flat companion resolver may be insufficient for
+    split archives, package-relative dependencies, nested containers with their
+    own companions, overlays, and case-ambiguous collections. A future source
+    namespace needs explicit scoping and ambiguity rules without assuming that
+    every logical source is a host file.
+  - On-demand decoding can currently change an opaque resource node into a
+    group. Preserve stable physical-member identity as more relationships are
+    introduced, attaching decoded children or representations without making a
+    caller's existing identity depend on how far inspection has progressed.
+  - Original bytes, ordinary decoded media, construction animations, rendered
+    tracker audio, document projections, and exporter-specific materializers
+    are already several forms of alternate representation. Do not generalize
+    them prematurely, but use further concrete formats and archetypes to
+    determine whether a discoverable representation contract is needed.
+  - Session-backed payloads, independently owned loaded values, mutable node
+    caches, and GUI-retained decoded trees currently have different lifetimes.
+    Make ownership, validity after session closure, single-owner mutation, and
+    eventual cache or eviction behavior explicit before adding concurrent
+    consumers.
+  - Bulk export currently accumulates every artifact in memory. Separate output
+    planning and collision resolution from execution so an eager caller can
+    consume one compound artifact set at a time without retaining the complete
+    result.
+  - Parser exceptions and inspection warnings do not yet form one structured
+    diagnostic model. A future diagnostic should be able to retain its stage,
+    resource identity, logical source and byte range, suspected format,
+    severity, and recovery status for consistent CLI and GUI presentation.
+  - Significant architectural replacement remains deliberately deferred. Add
+    diverse file types and new archetypes first, especially formats which
+    exercise compound sources, nested containers, multiple representations,
+    partial recovery, and unfamiliar resource relationships. Treat the
+    resulting implementation friction as design evidence; make only local
+    convergence changes until those examples establish which abstractions are
+    actually common.
 
 - **FAT raw disk images**
   - The current handler supports unpartitioned FAT12/FAT16 filesystems whose
