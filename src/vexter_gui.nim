@@ -1533,8 +1533,14 @@ proc guiSourceCollection(path: string): VextSourceCollection =
         let fullPath = item
         let relative = if prefix.len == 0: item.extractFilename
           else: prefix & "/" & item.extractFilename
-        related.add VextRelatedSource(relativePath: relative,
-          size: int(fullPath.getFileSize), open: guiSourceOpener(fullPath))
+        if relative.safeRelatedPath:
+          try:
+            related.add VextRelatedSource(relativePath: relative,
+              size: int(fullPath.getFileSize), open: guiSourceOpener(fullPath))
+          except OSError:
+            # Related files are optional. A stale or host-incompatible entry
+            # beside the selected input must not prevent opening that input.
+            discard
   directory.addDirectory()
   for kind, item in directory.walkDir:
     if kind == pcDir: item.addDirectory(item.extractFilename)

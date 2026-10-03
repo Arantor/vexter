@@ -89,7 +89,9 @@ proc sliceByteSource*(source: VextByteSource, offset, length: int,
       source.readAt(offset + relativeOffset, readLength),
     label)
 
-proc safeRelatedPath(path: string): bool =
+proc safeRelatedPath*(path: string): bool =
+  ## Reports whether a collection-relative path is safe and canonical enough
+  ## to place in a related-source manifest.
   if path.len == 0 or path[0] in {'/', '\\'} or '\\' in path: return false
   for segment in path.split('/'):
     if segment.len == 0 or segment in [".", ".."]: return false

@@ -14,7 +14,71 @@ proc run(arguments: varargs[string]): tuple[output: string, exitCode: int] =
     command.add " " & quoteShell(argument)
   execCmdEx(command, options = {poUsePath, poStdErrToStdOut})
 
+proc storedLha(name, contents: string): string =
+  let headerSize = 22 + name.len
+  result = newString(headerSize + 2)
+  result[0] = char(headerSize)
+  for index, value in "-lh0-": result[2 + index] = value
+  for index in 0 ..< 4:
+    result[7 + index] = char(contents.len shr (index * 8) and 0xff)
+    result[11 + index] = char(contents.len shr (index * 8) and 0xff)
+  result[20] = char(0)
+  result[21] = char(name.len)
+  for index, value in name: result[22 + index] = value
+  var crc: uint16
+  for value in contents:
+    crc = crc xor uint16(byte(value))
+    for bit in 0 ..< 8:
+      crc = (crc shr 1) xor
+        (if (crc and 1) != 0: 0xa001'u16 else: 0'u16)
+  result[22 + name.len] = char(crc and 0xff)
+  result[23 + name.len] = char(crc shr 8)
+  for index in 2 ..< result.len:
+    result[1] = char((int(result[1]) + int(result[index])) and 0xff)
+  result.add contents
+  result.add char(0)
+
+proc binary(values: openArray[int]): string =
+  for value in values: result.add char(value)
+
 suite "vexter CLI":
+  test "unusable optional neighbours do not prevent opening an LHA":
+    let
+      directory = getTempDir() / "vexter-cli-lha-neighbours"
+      child = directory / "icons"
+      gameOne = directory / "game-one"
+      gameTwo = directory / "game-two"
+      archive = directory / "collection.lha"
+      incompatible = child / "IconArchive\\docs\\ReadMe.info"
+    createDir(directory)
+    createDir(child)
+    createDir(gameOne)
+    createDir(gameTwo)
+    writeFile(archive, storedLha("readme.txt", "hello"))
+    writeFile(incompatible, "unrelated")
+    let
+      sciMap = binary([3, 0, 0, 0, 0, 0, 255, 255, 255, 255, 255, 255])
+      sciVolume = binary([3, 0, 7, 0, 3, 0, 0, 0, 1, 2, 3])
+    for game in [gameOne, gameTwo]:
+      writeFile(game / "RESOURCE.MAP", sciMap)
+      writeFile(game / "RESOURCE.000", sciVolume)
+    defer:
+      if fileExists(incompatible): removeFile(incompatible)
+      if fileExists(archive): removeFile(archive)
+      for game in [gameOne, gameTwo]:
+        if fileExists(game / "RESOURCE.MAP"):
+          removeFile(game / "RESOURCE.MAP")
+        if fileExists(game / "RESOURCE.000"):
+          removeFile(game / "RESOURCE.000")
+        if dirExists(game): removeDir(game)
+      if dirExists(child): removeDir(child)
+      if dirExists(directory): removeDir(directory)
+
+    let inspected = run("inspect", "--json", archive)
+    check inspected.exitCode == 0
+    let document = parseJson(inspected.output)
+    check document["selectedFormat"].getStr == "archive.lha"
+
   test "ignore-warnings is accepted for recursive inspection":
     let inspected = run("inspect", "--ignore-warnings", FixturePath)
     check inspected.exitCode == 0

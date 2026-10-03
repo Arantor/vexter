@@ -117,9 +117,15 @@ proc sourceCollectionFor(path: string): VextSourceCollection =
         let fullPath = item
         let relative = if prefix.len == 0: item.extractFilename
           else: prefix & "/" & item.extractFilename
-        related.add VextRelatedSource(relativePath: relative,
-          size: int(item.getFileSize),
-          open: sourceOpenerFor(fullPath))
+        if relative.safeRelatedPath:
+          try:
+            related.add VextRelatedSource(relativePath: relative,
+              size: int(item.getFileSize),
+              open: sourceOpenerFor(fullPath))
+          except OSError:
+            # Related files are optional. A stale or host-incompatible entry
+            # beside the selected input must not prevent opening that input.
+            discard
   directory.addDirectory()
   # Launchers may sit beside a single immediate child data directory (notably
   # Amiga installations). Deeper traversal remains deliberately out of scope.
