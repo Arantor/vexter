@@ -27,6 +27,30 @@ proc signedLong(data: openArray[byte], offset: int): int64 {.inline.} =
     (uint32(data[offset + 1]) shl 16) or
     (uint32(data[offset + 2]) shl 8) or uint32(data[offset + 3])))
 
+proc parsePerspective(data: openArray[byte]): AmigaIlbmPerspective =
+  if data.len != 104:
+    raise newException(ValueError, "ILBM DPPV chunk must contain 104 bytes")
+  result.rotationType = signedWord(data, 0)
+  for index in 0 ..< 3:
+    result.angles[index] = signedWord(data, 2 + index * 2)
+  result.depth = int(signedLong(data, 8))
+  result.centre[0] = signedWord(data, 12)
+  result.centre[1] = signedWord(data, 14)
+  result.fixedCoordinate = signedWord(data, 16)
+  result.angleStep = signedWord(data, 18)
+  var offset = 20
+  template readPoint(target: untyped) =
+    for index in 0 ..< 3:
+      target[index] = int(signedLong(data, offset))
+      offset += 4
+  readPoint(result.grid)
+  readPoint(result.gridReset)
+  readPoint(result.gridBrushCentre)
+  readPoint(result.permanentBrushCentre)
+  for index in 0 ..< 9:
+    result.rotationMatrix[index] = int(signedLong(data, offset))
+    offset += 4
+
 proc parseColourCycle(chunk: AmigaIffChunk): VextColourCycleRange =
   case chunk.id
   of "CRNG":
@@ -150,6 +174,13 @@ proc parseAmigaBitmapForm*(form: AmigaIffForm, expectedFormType,
         raise newException(ValueError,
           expectedFormType & " CAMG chunk must contain four bytes")
       result.image.camg = beLong(chunk.data)
+    of "DPPV":
+      if expectedFormType != AmigaIlbmFormType:
+        continue
+      if result.image.hasPerspective:
+        raise newException(ValueError, "ILBM may contain only one DPPV chunk")
+      result.image.perspective = parsePerspective(chunk.data)
+      result.image.hasPerspective = true
     of "CRNG", "CCRT":
       let cycle = parseColourCycle(chunk)
       if cycle.stepDurationMs > 0:

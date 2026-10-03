@@ -41,6 +41,52 @@ import ./resources/[amiga_anim_image, amiga_deep_image, amiga_diskfont_font, ami
   pcx_image, protracker_replay, qoi_image, tga_image, windows_icon_image, zx_spectrum_screen]
 import ./resources/zx_spectrum_gigascreen
 
+proc fixed16_16(value: int): string =
+  ## Render exactly: 2^16 divides 10^16, so no floating-point rounding is
+  ## needed and every possible 16.16 value terminates within 16 decimals.
+  let
+    magnitude = abs(int64(value))
+    whole = magnitude shr 16
+    fraction = magnitude and 0xffff
+  result = (if value < 0: "-" else: "") & $whole
+  if fraction == 0: return
+  var digits = align($(fraction * 152_587_890_625'i64), 16, '0')
+  while digits[^1] == '0': digits.setLen(digits.len - 1)
+  result.add "." & digits
+
+proc perspectiveMetadata(source: AmigaIlbmImageSource): seq[VextMetadataEntry] =
+  if not source.hasPerspective: return
+  let perspective = source.perspective
+  result.add integerMetadata("perspective.rotation-type",
+    perspective.rotationType)
+  for index, axis in ["a", "b", "c"]:
+    result.add integerMetadata("perspective.angle." & axis,
+      perspective.angles[index])
+  result.add stringMetadata("perspective.depth", fixed16_16(perspective.depth))
+  result.add integerMetadata("perspective.depth.raw", perspective.depth)
+  result.add integerMetadata("perspective.centre.u", perspective.centre[0])
+  result.add integerMetadata("perspective.centre.v", perspective.centre[1])
+  result.add integerMetadata("perspective.fixed-coordinate",
+    perspective.fixedCoordinate)
+  result.add integerMetadata("perspective.angle-step", perspective.angleStep)
+  template addPoint(name: string, point: untyped) =
+    for index, axis in ["x", "y", "z"]:
+      result.add stringMetadata("perspective." & name & "." & axis,
+        fixed16_16(point[index]))
+      result.add integerMetadata("perspective." & name & "." & axis & ".raw",
+        point[index])
+  addPoint("grid", perspective.grid)
+  addPoint("grid-reset", perspective.gridReset)
+  addPoint("grid-brush-centre", perspective.gridBrushCentre)
+  addPoint("permanent-brush-centre", perspective.permanentBrushCentre)
+  for row in 0 ..< 3:
+    for column in 0 ..< 3:
+      let key = "perspective.rotation-matrix." & $row & "." & $column
+      result.add stringMetadata(key,
+        fixed16_16(perspective.rotationMatrix[row * 3 + column]))
+      result.add integerMetadata(key & ".raw",
+        perspective.rotationMatrix[row * 3 + column])
+
 type
   VextOperationCancelledError* = object of CatchableError
 
@@ -2615,6 +2661,7 @@ proc inspectSourceDepth(filename: string, data: openArray[byte],
         anim.framesPerSecond)
     if anim.hasSequence:
       animMetadata.add integerMetadata("ansq-entries", anim.sequence.len)
+    animMetadata.add perspectiveMetadata(anim.initial.image)
     result.resources.roots.add VextResourceNode(
       path: AmigaAnimResourcePath,
       typeId: AmigaAnimTypeId,
@@ -2712,22 +2759,22 @@ proc inspectSourceDepth(filename: string, data: openArray[byte],
           integerMetadata("camg", int(image.camg))])
       return
     let raster = decodeAmigaIlbmRaster(image)
+    var imageMetadata = @[
+      integerMetadata("planes", image.header.planes),
+      integerMetadata("masking", image.header.masking),
+      integerMetadata("transparent-colour", image.header.transparentColour),
+      integerMetadata("position.x", image.header.x),
+      integerMetadata("position.y", image.header.y),
+      integerMetadata("aspect.x", image.header.xAspect),
+      integerMetadata("aspect.y", image.header.yAspect),
+      integerMetadata("colour-cycle-ranges", raster.colourCycleRanges.len),
+      integerMetadata("camg", int(image.camg))]
+    imageMetadata.add perspectiveMetadata(image)
     result.resources.roots.add VextResourceNode(
       path: AmigaIlbmImageResourcePath,
       typeId: AmigaIlbmImageTypeId,
       kind: vrnkRaster,
-      raster: raster,
-      metadata: @[
-        integerMetadata("planes", image.header.planes),
-        integerMetadata("masking", image.header.masking),
-        integerMetadata("transparent-colour", image.header.transparentColour),
-        integerMetadata("position.x", image.header.x),
-        integerMetadata("position.y", image.header.y),
-        integerMetadata("aspect.x", image.header.xAspect),
-        integerMetadata("aspect.y", image.header.yAspect),
-        integerMetadata("colour-cycle-ranges", raster.colourCycleRanges.len),
-        integerMetadata("camg", int(image.camg))
-      ])
+      raster: raster, metadata: imageMetadata)
   of vhkAmigaPbm:
     let image = parsedValue[AmigaPbm](selectedParsed, vhkAmigaPbm).image
     result.resources.roots.add VextResourceNode(

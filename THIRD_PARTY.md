@@ -23,6 +23,15 @@ flag, and 16,384/60 timing scale. Routine tests use synthetic chunks; the
 bundled Deluxe Paint HAM8 fixtures additionally confirm that cell identifiers
 within the declared minimum and maximum may be sparse.
 
+The Deluxe Paint II perspective-state metadata implementation uses the
+archive's `ILBM/ILBM_DPPV.txt`, submitted in December 1986 by Dan Silva. It
+defines the complete 104-byte `DPPV` record. The developer supplied an attached
+Deluxe Paint source note identifying `LongFrac` as signed 32-bit fixed point
+with 16 fractional bits. Its declaration `LongFrac pi = 0x3243FL` independently
+checks that interpretation: 0x3243F / 65536 is 3.1415863037109375. Vexter
+therefore exposes exact 16.16 decimal strings alongside the lossless signed raw
+integers.
+
 The developer subsequently supplied four `.MPIC` compatibility files under
 `deep/`. All four are canonical uncompressed 60×60 `FORM DEEP` images with
 RGB8 plus `ALPHA`8, one full-display `DLOC`, and a 14,400-byte `DBOD`. Every
@@ -45,6 +54,7 @@ corpus-derived behavior beyond the registry document's bare `RUNLENGTH` name.
 0fb0ece05f527b3ec48108153ecf67698b98bb36725ab96872e61d8568b0bfb4  IFF_FORMS.zip
 a93536f5cbd6c03bf7bf388863a5437d4fed174eb03b5ead94a0f6edef24ccca  IFF_FORMS/other/DEEP.txt
 0c012e9d20c4279c97c22029825db2cfd2afad00ab2de9279c50411f07cde553  IFF_FORMS/ILBM/ILBM_DRNG.txt
+644c82aadaa6c31cdbb9d55ba2bc3ac41ee8fa716373fa20306ab85680ab11d1  IFF_FORMS/ILBM/ILBM_DPPV.txt
 38ee0c746db5a5e948a4c6c9b7258d3673a2e985b78919b14fac7d9ee4d7a50a  IFF_FORMS/REGISTRY_930210.txt
 6edef9c68c42802dd21ede29d802a8d368058b93c7bfe381d7ace075bd30897a  deep/BLUME.JPEG.MPIC
 d4d2f907189dafb2e20c5ac0cf7149d3f8bf9a296fa25d0c5e2f516936346cb2  deep/BLUMEKLEIN.JPEG.MPIC

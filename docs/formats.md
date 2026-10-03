@@ -1487,6 +1487,17 @@ to six effective ranges. Empty or one-cell ranges, ranges referring outside
 the decoded palette, inactive or zero-rate ranges, and ranges whose colours
 are all equal are ignored.
 
+An adjoining Deluxe Paint II `DPPV` chunk is retained as structured metadata
+on an ILBM image, including rotation type and angles, perspective depth and
+centre, fixed coordinate, angle step, four three-dimensional grid/brush
+points, and the complete 3×3 rotation matrix. The documented `WORD` fields are
+signed integers. A supplied Deluxe Paint source note and its `0x3243F` value
+for pi establish `LongFrac` as signed 16.16 fixed point. Depth, point
+coordinates, and matrix elements are exposed as exact decimal strings, with
+companion `.raw` metadata keys retaining their signed 32-bit representation.
+DPPV in the initial ILBM of an ANIM is attached to the resulting animation
+resource as well.
+
 Colour cycling is an optional export transformation. `png` writes the natural
 first image, while ordinary `gif` and `apng` preserve an existing animation
 without applying its ranges. `gif-cycled` and `apng-cycled` combine the source

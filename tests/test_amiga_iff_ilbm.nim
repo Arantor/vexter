@@ -18,6 +18,22 @@ proc addLong(data: var seq[byte], value: int) =
   data.add byte(value shr 8)
   data.add byte(value)
 
+proc addWord(data: var seq[byte], value: int) =
+  data.add byte((value shr 8) and 0xff)
+  data.add byte(value and 0xff)
+
+proc metadataInteger(resource: VextResourceNode, key: string): int =
+  for entry in resource.metadata:
+    if entry.key == key:
+      return entry.value.integerValue
+  raise newException(KeyError, "missing metadata: " & key)
+
+proc metadataString(resource: VextResourceNode, key: string): string =
+  for entry in resource.metadata:
+    if entry.key == key:
+      return entry.value.stringValue
+  raise newException(KeyError, "missing metadata: " & key)
+
 proc chunk(id: string, payload: openArray[byte]): seq[byte] =
   for value in id:
     result.add byte(value)
@@ -145,6 +161,52 @@ suite "Amiga IFF ILBM":
         0, 1, 2, 3, 0, 0])])
     expect ValueError:
       discard parseAmigaIlbm(duplicate)
+
+  test "DPPV perspective state is exposed as lossless image metadata":
+    var perspective: seq[byte]
+    perspective.addWord(1)
+    perspective.addWord(-10)
+    perspective.addWord(20)
+    perspective.addWord(-30)
+    perspective.addLong(0x0003243f)
+    perspective.addWord(123)
+    perspective.addWord(-45)
+    perspective.addWord(2)
+    perspective.addWord(15)
+    for value in 1 .. 21:
+      perspective.addLong(if value == 2: -0x18000 else: value * 0x10000)
+    check perspective.len == 104
+    let data = form("ILBM", [
+      chunk("BMHD", bmhd(16, 1, 1)),
+      chunk("CMAP", @[0'u8, 0, 0, 255, 255, 255]),
+      chunk("DPPV", perspective),
+      chunk("BODY", @[0'u8, 0])])
+    let resource = inspectSource("perspective.iff", data).resources.roots[0]
+    check metadataInteger(resource, "perspective.rotation-type") == 1
+    check metadataInteger(resource, "perspective.angle.a") == -10
+    check metadataInteger(resource, "perspective.angle.c") == -30
+    check metadataInteger(resource, "perspective.depth.raw") == 0x0003243f
+    check metadataString(resource, "perspective.depth") ==
+      "3.1415863037109375"
+    check metadataInteger(resource, "perspective.centre.u") == 123
+    check metadataInteger(resource, "perspective.centre.v") == -45
+    check metadataInteger(resource, "perspective.grid.x.raw") == 0x10000
+    check metadataString(resource, "perspective.grid.x") == "1"
+    check metadataString(resource, "perspective.grid.y") == "-1.5"
+    check metadataInteger(resource,
+      "perspective.permanent-brush-centre.z.raw") == 12 * 0x10000
+    check metadataInteger(resource,
+      "perspective.rotation-matrix.2.2.raw") == 21 * 0x10000
+    check metadataString(resource,
+      "perspective.rotation-matrix.2.2") == "21"
+
+  test "DPPV requires one complete perspective state":
+    let shortState = form("ILBM", [
+      chunk("BMHD", bmhd(16, 1, 1)),
+      chunk("DPPV", newSeq[byte](103)),
+      chunk("BODY", @[0'u8, 0])])
+    expect ValueError:
+      discard parseAmigaIlbm(shortState)
 
   test "King Tut is detected and matches the normalized PNG control":
     let

@@ -30,6 +30,15 @@ type
     xAspect*, yAspect*: int
     pageWidth*, pageHeight*: int
 
+  AmigaIlbmPerspective* = object
+    rotationType*: int
+    angles*: array[3, int]
+    depth*: int
+    centre*: array[2, int]
+    fixedCoordinate*, angleStep*: int
+    grid*, gridReset*, gridBrushCentre*, permanentBrushCentre*: array[3, int]
+    rotationMatrix*: array[9, int]
+
   AmigaIlbmImageSource* = object
     header*: AmigaIlbmHeader
     colourMap*: seq[byte]
@@ -38,6 +47,8 @@ type
     camg*: uint32
     planarLayout*: AmigaPlanarLayout
     colourCycles*: seq[VextColourCycleRange]
+    hasPerspective*: bool
+    perspective*: AmigaIlbmPerspective
 
 proc decodeRow(body: openArray[byte], offset: var int, rowBytes,
     compression: int): seq[byte] =
