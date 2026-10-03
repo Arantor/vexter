@@ -445,14 +445,12 @@ proc openInspectionSession*(filename: string, sources: VextSourceCollection,
   result = VextInspectionSession(filename: filename, sources: sources,
     limits: limits, nextId: 0)
   try:
-    # An explicitly selected, self-contained LHA must be inspected before
-    # looking for directory-backed games. Its parent directory may contain
-    # any number of unrelated packages.
-    let primaryLooksLha = inputFormat.len == 0 and not sources.primary.isNil and
-      sources.primary.length >= 7 and (block:
-        let signature = sources.primary.readAt(0, 7)
-        signature[2] == byte('-') and signature[6] == byte('-'))
-    if not primaryLooksLha and
+    # Automatic package discovery belongs to an explicitly selected directory.
+    # A regular primary file is inspected as that file; callers may still
+    # explicitly force a directory-backed format when supplying its members.
+    let discoverPackages = sources.primary.isNil or
+      inputFormat in [SierraSciGameTypeId, SierraAgiGameTypeId]
+    if discoverPackages and
         (inputFormat.len == 0 or inputFormat == SierraSciGameTypeId):
       let games = discoverSciGames(sources)
       if games.len > 1:
@@ -475,7 +473,7 @@ proc openInspectionSession*(filename: string, sources: VextSourceCollection,
         return
       if inputFormat == SierraSciGameTypeId:
         raise newException(ValueError, "source collection is not a supported SCI0/SCI1 package")
-    if not primaryLooksLha and
+    if discoverPackages and
         (inputFormat.len == 0 or inputFormat == SierraAgiGameTypeId):
       let games = discoverAgiGames(sources)
       if games.len > 1:

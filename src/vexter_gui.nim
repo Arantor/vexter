@@ -1542,8 +1542,9 @@ proc guiSourceCollection(path: string): VextSourceCollection =
             # beside the selected input must not prevent opening that input.
             discard
   directory.addDirectory()
-  for kind, item in directory.walkDir:
-    if kind == pcDir: item.addDirectory(item.extractFilename)
+  if path.dirExists:
+    for kind, item in directory.walkDir:
+      if kind == pcDir: item.addDirectory(item.extractFilename)
   newSourceCollection(if path.fileExists: guiFileSource(path) else: nil,
     if path.fileExists: guiCompanionResolver(path) else: nil, related,
     if path.fileExists: path.extractFilename else: "")

@@ -129,8 +129,11 @@ proc sourceCollectionFor(path: string): VextSourceCollection =
   directory.addDirectory()
   # Launchers may sit beside a single immediate child data directory (notably
   # Amiga installations). Deeper traversal remains deliberately out of scope.
-  for kind, item in directory.walkDir:
-    if kind == pcDir: item.addDirectory(item.extractFilename)
+  # Only an explicitly opened directory is package-discovery scope. Opening a
+  # regular file must not inspect unrelated sibling directories.
+  if path.dirExists:
+    for kind, item in directory.walkDir:
+      if kind == pcDir: item.addDirectory(item.extractFilename)
   let primary = if path.fileExists: fileByteSource(path) else: nil
   newSourceCollection(primary, if path.fileExists:
       companionSourceResolverFor(path) else: nil,

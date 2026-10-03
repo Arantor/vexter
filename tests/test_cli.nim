@@ -42,7 +42,7 @@ proc binary(values: openArray[int]): string =
   for value in values: result.add char(value)
 
 suite "vexter CLI":
-  test "unusable optional neighbours do not prevent opening an LHA":
+  test "opening a file ignores unrelated package neighbours":
     let
       directory = getTempDir() / "vexter-cli-lha-neighbours"
       child = directory / "icons"
@@ -50,6 +50,8 @@ suite "vexter CLI":
       gameTwo = directory / "game-two"
       archive = directory / "collection.lha"
       incompatible = child / "IconArchive\\docs\\ReadMe.info"
+      rootMap = directory / "RESOURCE.MAP"
+      rootVolume = directory / "RESOURCE.000"
     createDir(directory)
     createDir(child)
     createDir(gameOne)
@@ -59,12 +61,16 @@ suite "vexter CLI":
     let
       sciMap = binary([3, 0, 0, 0, 0, 0, 255, 255, 255, 255, 255, 255])
       sciVolume = binary([3, 0, 7, 0, 3, 0, 0, 0, 1, 2, 3])
+    writeFile(rootMap, sciMap)
+    writeFile(rootVolume, sciVolume)
     for game in [gameOne, gameTwo]:
       writeFile(game / "RESOURCE.MAP", sciMap)
       writeFile(game / "RESOURCE.000", sciVolume)
     defer:
       if fileExists(incompatible): removeFile(incompatible)
       if fileExists(archive): removeFile(archive)
+      if fileExists(rootMap): removeFile(rootMap)
+      if fileExists(rootVolume): removeFile(rootVolume)
       for game in [gameOne, gameTwo]:
         if fileExists(game / "RESOURCE.MAP"):
           removeFile(game / "RESOURCE.MAP")
