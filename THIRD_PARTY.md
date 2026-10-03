@@ -1,5 +1,54 @@
 # Third-party material
 
+## IFF FORM registry archive
+
+On 3 October 2026 the developer supplied `IFF_FORMS.zip`, obtained from
+Laurent Clévy's Amiga documentation site at
+<http://lclevy.free.fr/amiga/IFF_FORMS.zip>. The archive is a historical IFF
+FORM registry containing 51 documentation files plus directory entries. It is
+retained as local research material and is not committed to Vexter.
+
+The initial IFF DEEP implementation uses the archive's `other/DEEP.txt` as its
+format authority and `REGISTRY_930210.txt` as provenance for the registry
+entry. `DEEP.txt` records a submission date of 10 September 1991 and credits
+Amiga Centre Scotland; its addendum describes a TecSoft extension used by
+TVPaint. Routine tests use compact synthetic FORM DEEP files constructed from
+the documented fields and do not redistribute the supplied material. No
+external implementation code was used.
+
+The developer subsequently supplied four `.MPIC` compatibility files under
+`deep/`. All four are canonical uncompressed 60×60 `FORM DEEP` images with
+RGB8 plus `ALPHA`8, one full-display `DLOC`, and a 14,400-byte `DBOD`. Every
+stored alpha byte is 255. They confirm byte-interleaved RGBA ordering and body
+length/alignment, but do not establish the meaning or direction of partial
+`ALPHA` values. The files remain uncommitted and are used only for manual
+compatibility checks; routine tests use synthetic DEEP data.
+
+The developer then supplied `deep/retouch.image`, dated 9 April 1993. It is a
+TVPaint 2.0-authored 800×600 RGBA8 DEEP image using compression method 1. Its
+12,640 packets establish method 1 as signed-control run-length encoding over
+complete packed pixels, independently bounded and restarted for each scanline:
+controls 0 through 127 introduce 1 through 128 literal pixels, controls -1
+through -127 repeat one following pixel 2 through 128 times, and -128 is a
+no-op. Decoding consumes its complete 1,753,688-byte DBOD and produces exactly
+1,920,000 bytes. No packet crosses a 3,200-byte decoded row boundary. This is
+corpus-derived behavior beyond the registry document's bare `RUNLENGTH` name.
+
+```text
+0fb0ece05f527b3ec48108153ecf67698b98bb36725ab96872e61d8568b0bfb4  IFF_FORMS.zip
+a93536f5cbd6c03bf7bf388863a5437d4fed174eb03b5ead94a0f6edef24ccca  IFF_FORMS/other/DEEP.txt
+38ee0c746db5a5e948a4c6c9b7258d3673a2e985b78919b14fac7d9ee4d7a50a  IFF_FORMS/REGISTRY_930210.txt
+6edef9c68c42802dd21ede29d802a8d368058b93c7bfe381d7ace075bd30897a  deep/BLUME.JPEG.MPIC
+d4d2f907189dafb2e20c5ac0cf7149d3f8bf9a296fa25d0c5e2f516936346cb2  deep/BLUMEKLEIN.JPEG.MPIC
+5a3093eb13fad47b2ab76f8967706eedaee426d817a11a27b9abb9da295e8750  deep/EIS.JPEG.MPIC
+ab18d37547b8a36a73041a33e12dc2dd9fcf4fc38a032f928163b9071a10b547  deep/ENTERPRISE.JPG.MPIC
+9380d791822dec747e7dca950ab847cfc38b92f3f9b707595f2d7906c5c6a73e  deep/retouch.image
+```
+
+The MPIC files referenced are part of the XiPaint 4.0 bundle.
+
+retouch.image was supplied by https://aminet.net/gfx/edit/TVPEGS2.lha
+
 ## zxnext_bmp_tools palette evidence
 
 The developer supplied a local checkout of Stefan Bylund's

@@ -23,6 +23,7 @@ import vexterlib/containers/amiga_lha_sfx
 import vexterlib/containers/xpk_shri
 import vexterlib/containers/powerpacker
 import vexterlib/containers/amiga_acbm
+import vexterlib/containers/amiga_deep
 import vexterlib/containers/amiga_pbm
 import vexterlib/containers/amiga_8svx
 import vexterlib/containers/amiga_16sv
@@ -94,6 +95,7 @@ import vexterlib/resources/sierra_sci_picture
 import vexterlib/resources/sierra_sci_sound
 import vexterlib/resources/sierra_sci_vocabulary
 import vexterlib/resources/amiga_ilbm_image
+import vexterlib/resources/amiga_deep_image
 import vexterlib/resources/amiga_pbm_image
 import vexterlib/resources/amiga_anim_image
 import vexterlib/resources/amiga_workbench_icon_image
@@ -173,6 +175,7 @@ export amiga_lha_sfx
 export xpk_shri
 export powerpacker
 export amiga_acbm
+export amiga_deep
 export amiga_pbm
 export amiga_8svx
 export amiga_16sv
@@ -182,6 +185,7 @@ export amos_resource_bank
 export amiga_iff
 export amiga_ilbm
 export amiga_ilbm_image
+export amiga_deep_image
 export amiga_pbm_image
 export amiga_anim
 export amiga_workbench_icon

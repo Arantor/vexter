@@ -7,6 +7,7 @@
 /tests/test_amiga_acbm
 /tests/test_amiga_anim
 /tests/test_amiga_pbm
+/tests/test_amiga_deep
 /tests/test_amiga_adf
 /tests/test_amiga_diskfont
 /tests/test_amiga_dms

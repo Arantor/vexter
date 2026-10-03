@@ -41,7 +41,8 @@ client, and a dependency-free native Windows GUI. It supports:
 - classic Amiga Workbench `.info` DiskObjects, including metadata and both
   planar icon states;
 - detection and inspection of generic IFF FORM containers, indexed Amiga ILBM
-  and ACBM images, provisional packed-pixel IFF PBM images, IFF ANIM
+  and ACBM images, raw or pixel-run-length true-colour IFF DEEP images, provisional
+  packed-pixel IFF PBM images, IFF ANIM
   animations, IFF 8SVX and 16SV sampled audio,
   integer PCM WAV and Creative Voice sounds, PCX, TGA, BMP/DIB,
   static DOS ANSI art with optional SAUCE metadata,
@@ -539,6 +540,8 @@ Matching case-insensitive extensions add supporting evidence.
   plane-contiguous `ABIT` image source;
 - `amiga_ilbm.nim` interprets `FORM ILBM` properties and extracts the image
   source while leaving raster decoding separate;
+- `amiga_deep.nim` validates `FORM DEEP` global, component, positioned-body,
+  and positive-duration frame records while retaining body decoding separately;
 - `amiga_pbm.nim` provisionally interprets `FORM PBM ` as an eight-bit chunky
   indexed image using BMHD, CMAP, and BODY chunks;
 - `amiga_anim.nim` parses nested ILBM frame forms, their ANHD/DLTA records,
@@ -708,6 +711,12 @@ indexed raster. Transparent-colour masking is supported. A temporary external
 compatibility corpus confirms eight-bit BMHD depth and ByteRun1 decoding for
 even-width, unmasked images, but committed fixtures remain pending and the raw,
 odd-width, and transparency assumptions are still synthetic-only.
+
+`src/vexterlib/resources/amiga_deep_image.nim` decodes uncompressed or
+scanline-bounded whole-pixel run-length data with most-significant-bit-first
+RGB components and optional OPACITY, composes positioned bodies onto the
+declared display, and emits true-colour stills or positive-duration
+animations. Unknown auxiliary components are skipped.
 
 `src/vexterlib/resources/amiga_anim_image.nim` reconstructs retained planar
 buffers with ANIM delta methods 1 through 5, 7, 8, and ANIM-J/type 74,
@@ -902,6 +911,8 @@ doom.automap
 doom.lump
 amiga.iff
 amiga.acbm
+amiga.deep
+amiga.deep-image
 amiga.pbm
 amiga.pbm-image
 amiga.ilbm
@@ -1317,6 +1328,10 @@ The routine suites are:
   and PNG eligibility;
 - `tests/test_amiga_acbm.nim`: ACBM detection, plane-contiguous raw and
   ByteRun1 ABIT decoding, and structural failure modes;
+- `tests/test_amiga_deep.nim`: direct RGB and OPACITY components, packed
+  component depths, longword body padding, whole-pixel run-length packets,
+  positioned composition, positive millisecond animation timing, detection,
+  and structural failure modes;
 - `tests/test_amiga_pbm.nim`: provisional packed eight-bit rows, word
   alignment, raw and ByteRun1 storage, palettes, transparent indices, and
   explicit header/masking failures;

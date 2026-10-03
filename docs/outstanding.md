@@ -6,6 +6,20 @@ being listed does not imply priority, and unsupported historical or proposed
 formats are not included. Detailed format behavior and evidence remain in
 [`formats.md`](formats.md).
 
+- **IFF DEEP direct-colour images**
+  - `amiga.deep` currently decodes uncompressed and corpus-established
+    pixel-run-length RGB stills and positive-duration animations, including
+    arbitrary one-through-32-bit components, OPACITY, unknown auxiliary fields,
+    and positioned body composition.
+  - The supplied document does not define the streams for compression methods
+    2–4. Its TVDC addendum omits the exact lookup-table serialization and does
+    not reconcile its byte-oriented component lines with arbitrary component
+    depths. These methods need further supplied documentation and authentic
+    controls.
+  - `ALPHA`, CMYK, YCM/YCMB, zero-duration animation, `-1` image-set
+    separation, and repeated `DGBL` scopes remain uninterpreted or rejected
+    where no faithful current archetype or documented semantics exist.
+
 - **Windows Write documents**
   - `windows.write` currently recovers plain Windows-1252 text, line breaks,
     and tabs from the corpus-established `0x31BE` variant. It also recognizes

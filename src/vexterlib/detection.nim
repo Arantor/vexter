@@ -4,7 +4,7 @@ import std/[os, strutils]
 import ./handler_registry
 import ./format_detection_types
 export format_detection_types
-import ./containers/[adobe_color_table, amiga_8svx, amiga_16sv, amiga_acbm, amiga_adf, amiga_anim,
+import ./containers/[adobe_color_table, amiga_8svx, amiga_16sv, amiga_acbm, amiga_adf, amiga_anim, amiga_deep,
   amiga_diskfont, amiga_dms, amiga_hunk_executable, amiga_iff, amiga_ilbm,
   amiga_lha_sfx, amiga_pbm, amiga_workbench_icon, amos_bank, amos_bank_set,
   amos_program,
@@ -579,6 +579,16 @@ proc detectBaseFormats(filename: string, data: openArray[byte]):
       typeId: AmigaAnimTypeId,
       confidence: vdcCertain,
       evidence: evidence)
+  elif isAmigaDeep(data):
+    let deep = parseAmigaDeep(data)
+    var evidence = @[VextDetectionEvidence(description:
+      "file is a valid FORM DEEP direct-colour image with " &
+      $deep.frames.len & " frame(s)")]
+    if hasAmigaDeepExtension(filename):
+      evidence.add VextDetectionEvidence(
+        description: "file extension is associated with IFF DEEP")
+    result.add VextDetectionCandidate(typeId: AmigaDeepTypeId,
+      confidence: vdcCertain, evidence: evidence)
   elif isAmigaPbm(data):
     var evidence = @[VextDetectionEvidence(
       description: "file is a valid FORM PBM packed eight-bit image")]

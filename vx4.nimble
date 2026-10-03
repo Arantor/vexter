@@ -39,6 +39,7 @@ task test, "Run the test suite":
   exec "nim c -r --path:src tests/test_adobe_color_table.nim"
   exec "nim c -r --path:src tests/test_doom_wad.nim"
   exec "nim c -r --path:src tests/test_amiga_acbm.nim"
+  exec "nim c -r --path:src tests/test_amiga_deep.nim"
   exec "nim c -r --path:src tests/test_amiga_pbm.nim"
   exec "nim c -r --path:src tests/test_amiga_anim.nim"
   exec "nim c -r --path:src tests/test_amiga_adf.nim"

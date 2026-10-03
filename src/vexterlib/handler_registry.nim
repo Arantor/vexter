@@ -4,7 +4,7 @@
 ## registry is the authoritative bridge from a stable type identifier to the
 ## validation and inspection implementation for that format.
 
-import ./containers/[adobe_color_table, adobe_swatch_exchange, amiga_8svx, amiga_16sv, amiga_acbm,
+import ./containers/[adobe_color_table, adobe_swatch_exchange, amiga_8svx, amiga_16sv, amiga_acbm, amiga_deep,
   amiga_adf, amiga_anim, appimage, aseprite,
   amiga_diskfont, amiga_dms, amiga_hunk_executable, amiga_iff, amiga_ilbm,
   amiga_lha_sfx,
@@ -29,6 +29,7 @@ type
     vhkAmigaHunkExecutable
     vhkAmigaLhaSfx
     vhkAmigaAcbm
+    vhkAmigaDeep
     vhkAmigaPbm
     vhkAmiga8svx
     vhkAmiga16sv
@@ -135,6 +136,7 @@ const FormatHandlers* = [
     kind: vhkAmigaHunkExecutable),
   VextFormatHandler(typeId: AmigaWorkbenchIconTypeId, kind: vhkWorkbenchIcon),
   VextFormatHandler(typeId: AmigaAcbmTypeId, kind: vhkAmigaAcbm),
+  VextFormatHandler(typeId: AmigaDeepTypeId, kind: vhkAmigaDeep),
   VextFormatHandler(typeId: AmigaPbmTypeId, kind: vhkAmigaPbm),
   VextFormatHandler(typeId: Amiga8svxTypeId, kind: vhkAmiga8svx),
   VextFormatHandler(typeId: Amiga16svTypeId, kind: vhkAmiga16sv),
@@ -267,6 +269,7 @@ proc parse*(handler: VextFormatHandler,
     result = parsed(VextParsedWorkbenchIcon(icon: parseWorkbenchIcon(data),
       glow: parseGlowIcon(data)))
   of vhkAmigaAcbm: result = parsed(parseAmigaAcbm(data))
+  of vhkAmigaDeep: result = parsed(parseAmigaDeep(data))
   of vhkAmigaPbm: result = parsed(parseAmigaPbm(data))
   of vhkAmiga8svx: result = parsed(parseAmiga8svx(data))
   of vhkAmiga16sv: result = parsed(parseAmiga16sv(data))

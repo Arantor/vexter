@@ -12,6 +12,7 @@ const AdversarialProfiles = [
   AdversarialProfile(typeId: AmigaHunkExecutableTypeId, filename: "program"),
   AdversarialProfile(typeId: AmigaWorkbenchIconTypeId, filename: "item.info"),
   AdversarialProfile(typeId: AmigaAcbmTypeId, filename: "image.acbm"),
+  AdversarialProfile(typeId: AmigaDeepTypeId, filename: "image.deep"),
   AdversarialProfile(typeId: AmigaPbmTypeId, filename: "image.pbm"),
   AdversarialProfile(typeId: Amiga8svxTypeId, filename: "sound.8svx"),
   AdversarialProfile(typeId: Amiga16svTypeId, filename: "sound.16sv"),
@@ -31,6 +32,7 @@ const AdversarialProfiles = [
   AdversarialProfile(typeId: QoiTypeId, filename: "image.qoi"),
   AdversarialProfile(typeId: KoalaPainterTypeId, filename: "image.koa"),
   AdversarialProfile(typeId: D64TypeId, filename: "disk.d64"),
+  AdversarialProfile(typeId: FatDiskImageTypeId, filename: "disk.img"),
   AdversarialProfile(typeId: NetpbmTypeId, filename: "image.pnm"),
   AdversarialProfile(typeId: GifTypeId, filename: "image.gif"),
   AdversarialProfile(typeId: FlicTypeId, filename: "movie.flc"),
@@ -44,6 +46,8 @@ const AdversarialProfiles = [
   AdversarialProfile(typeId: GimpPaletteTypeId, filename: "colours.gpl"),
   AdversarialProfile(typeId: AsepriteTypeId, filename: "image.aseprite"),
   AdversarialProfile(typeId: AdobeSwatchExchangeTypeId, filename: "colours.ase"),
+  AdversarialProfile(typeId: AdobeColorTableTypeId, filename: "colours.act"),
+  AdversarialProfile(typeId: JascPaletteTypeId, filename: "colours.pal"),
   AdversarialProfile(typeId: Rgba8PaletteTypeId, filename: "colours.pal"),
   AdversarialProfile(typeId: ProtrackerModTypeId, filename: "music.mod"),
   AdversarialProfile(typeId: DoomWadTypeId, filename: "game.wad"),
@@ -62,10 +66,15 @@ const AdversarialProfiles = [
   AdversarialProfile(typeId: AmosIconBankTypeId, filename: "icons.abk"),
   AdversarialProfile(typeId: ZxSpectrumScreenDumpTypeId, filename: "screen.scr"),
   AdversarialProfile(typeId: ZxSpectrumGigascreenTypeId, filename: "giga.scr"),
+  AdversarialProfile(typeId: ZxSpectrumNextImageTypeId, filename: "image.nxi"),
+  AdversarialProfile(typeId: ZxSpectrumNextPaletteTypeId, filename: "colours.nxp"),
   AdversarialProfile(typeId: ZxSpectrumSnapshotTypeId, filename: "state.sna"),
   AdversarialProfile(typeId: ZxSpectrumTapTypeId, filename: "tape.tap"),
   AdversarialProfile(typeId: ZxSpectrumTzxTypeId, filename: "tape.tzx"),
-  AdversarialProfile(typeId: AnsiArtTypeId, filename: "screen.ans")]
+  AdversarialProfile(typeId: AnsiArtTypeId, filename: "screen.ans"),
+  AdversarialProfile(typeId: WordStarTypeId, filename: "document.ws"),
+  AdversarialProfile(typeId: WindowsWriteTypeId, filename: "document.wri"),
+  AdversarialProfile(typeId: SqliteTypeId, filename: "database.sqlite")]
 
 proc hostileInputs(): seq[seq[byte]] =
   result = @[@[], @[0'u8], @[0xff'u8],

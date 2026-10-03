@@ -1282,7 +1282,7 @@ Type identifier: `adobe.swatch-exchange`
 
 Resource path: `/palette`
 
-## Amiga IFF, ILBM, ACBM, and PBM
+## Amiga IFF, ILBM, ACBM, PBM, and DEEP
 
 An ILBM or ACBM containing a `CMAP` but no bitmap `BODY`/`ABIT` is treated as
 an ordered palette resource; `BMHD` is optional when there is no bitmap data.
@@ -1304,9 +1304,13 @@ Contiguous bitmap type identifier: `amiga.acbm`
 
 Packed bitmap type identifier: `amiga.pbm`
 
+Direct-colour type identifier: `amiga.deep`
+
 Raster type identifier: `amiga.ilbm-image`
 
 Packed bitmap raster type identifier: `amiga.pbm-image`
+
+Direct-colour raster type identifier: `amiga.deep-image`
 
 IFF files begin with `FORM`, a big-endian length covering the four-byte form
 type and all following chunks, and the form type itself. Each chunk has a
@@ -1351,6 +1355,56 @@ rejected because a separate mask layout has not been established. CMAP
 components are currently retained as full eight-bit values. Raw, odd-width,
 and transparent images currently have synthetic coverage only and remain
 subject to fixture confirmation.
+
+An IFF DEEP image is `FORM DEEP`. Vexter validates its mandatory leading
+eight-byte `DGBL`, one `DPEL` component description, optional persistent
+`DLOC` body location, one or more `DBOD` bodies, and optional four-byte `DCHG`
+frame terminators. The decoder supports uncompressed method zero and
+corpus-established run-length method one. Each pixel's ordered components are
+read most-significant-bit first, with the whole pixel padded to a byte
+boundary; each body is required to include the documented padding to a
+four-byte boundary. RGB component values from one through 32 bits are scaled
+across the complete eight-bit output range.
+`OPACITY` becomes per-pixel alpha. Unknown auxiliary components, including
+mask, key, and Z-buffer values, participate in source pixel layout but are
+otherwise skipped.
+Text preceding a zero byte in an `ANNO` chunk is exposed as annotation
+metadata; the compressed control identifies itself there as TVPaint 2.0.
+
+Run-length method one uses signed ByteRun1-style controls whose units are
+complete packed pixels rather than individual bytes. Controls 0 through 127
+copy the following 1 through 128 pixels; controls -1 through -127 repeat one
+following pixel 2 through 128 times; -128 is a no-op. Packets are independently
+bounded by each decoded scanline. This behavior is established by the supplied
+TVPaint 2.0 `retouch.image`, whose 12,640 packets consume the complete DBOD,
+produce the exact declared 800×600×4 bytes, and never cross a row boundary.
+
+Positioned bodies must lie completely inside the `DGBL` display and later
+bodies replace earlier pixels. Pixels outside all bodies remain black; when an
+OPACITY component exists they begin transparent. One unterminated body group
+is a still image. Multiple frames require a positive millisecond `DCHG` after
+every frame and produce a true-colour animation whose natural export is APNG.
+Zero-duration changes and the `-1` non-animation separator are rejected rather
+than assigned invented timing or collection semantics.
+
+Compression methods 2 through 5 remain structurally identifiable but are not
+decoded. The supplied registry document only names Huffman, dynamic-Huffman,
+and JPEG methods without defining their streams. Its TVPaint addendum supplies TVDC byte
+decompression pseudocode but does not establish the serialized lookup-table
+layout or its behavior for non-eight-bit elements. `ALPHA` is retained but not
+interpreted because the document explicitly gives it no precise semantics;
+`OPACITY` is the supported transparency component. CMYK and mentioned YCM/YCMB
+colour models likewise await supplied conversion rules and authentic controls.
+Repeated `DGBL` scopes are permitted by the historical document only for
+exceptional image groups and are not yet supported.
+
+The four locally supplied `.MPIC` controls are uncompressed 60×60 RGBA8 DEEP
+files. Their exact source and decoded-RGB hashes are recorded in
+[`THIRD_PARTY.md`](../THIRD_PARTY.md). They confirm the implemented chunky
+component order and body size. All their `ALPHA` values are 255, so they do not
+resolve the document's stated ambiguity for partial alpha.
+The local `retouch.image` supplies the compression-one evidence above and an
+exact decoded RGB control; its hashes are recorded alongside the MPIC files.
 
 Ordinary indexed images with one through eight planes are supported. A `CAMG`
 EHB flag selects six-plane Extra Half-Brite: palette indices 32 through 63 are

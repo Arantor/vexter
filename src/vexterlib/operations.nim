@@ -14,7 +14,7 @@ import ./handler_registry
 import ./exporters/[bmfont, gif, gpl, html_report, markdown, metadata_json, png,
     raw, tracker_json, wav]
 import ./resource_tree
-import ./containers/[adobe_color_table, amiga_8svx, amiga_16sv, amiga_acbm, amiga_adf, amiga_anim,
+import ./containers/[adobe_color_table, amiga_8svx, amiga_16sv, amiga_acbm, amiga_adf, amiga_anim, amiga_deep,
   amiga_diskfont, amiga_dms, amiga_hunk_executable, amiga_iff, amiga_ilbm,
   amiga_lha_sfx, amiga_pbm, amiga_workbench_icon, amos_bank, amos_bank_set,
   amos_music_bank, amos_packed_picture, amos_program, amos_resource_bank,
@@ -33,7 +33,7 @@ import ./containers/[adobe_color_table, amiga_8svx, amiga_16sv, amiga_acbm, amig
 import ./containers/xpk_shri
 import ./containers/powerpacker
 import ./metadata
-import ./resources/[amiga_anim_image, amiga_diskfont_font, amiga_ilbm_image,
+import ./resources/[amiga_anim_image, amiga_deep_image, amiga_diskfont_font, amiga_ilbm_image,
   amiga_pbm_image, amiga_workbench_icon_image, amos_listing, amos_music_replay,
   amos_packed_picture_image, amos_planar_image, amos_sample, bmp_image,
   flic_animation, gif_image, netpbm_image, png_image, zx_spectrum_basic,
@@ -2730,6 +2730,24 @@ proc inspectSourceDepth(filename: string, data: openArray[byte],
         integerMetadata("position.y", image.header.y),
         integerMetadata("aspect.x", image.header.xAspect),
         integerMetadata("aspect.y", image.header.yAspect)])
+  of vhkAmigaDeep:
+    let source = parsedValue[AmigaDeep](selectedParsed, vhkAmigaDeep)
+    var componentDescription: seq[string]
+    for component in source.components:
+      componentDescription.add $component.componentType & ":" &
+        $component.bitDepth
+    result.resources.roots.add VextResourceNode(
+      path: AmigaDeepImageResourcePath, typeId: AmigaDeepImageTypeId,
+      kind: vrnkRaster, raster: decodeAmigaDeep(source), metadata: @[
+        integerMetadata("display.width", source.global.displayWidth),
+        integerMetadata("display.height", source.global.displayHeight),
+        integerMetadata("compression", source.global.compression),
+        integerMetadata("aspect.x", source.global.xAspect),
+        integerMetadata("aspect.y", source.global.yAspect),
+        integerMetadata("frames", source.frames.len),
+        integerMetadata("components", source.components.len),
+        stringMetadata("component-layout", componentDescription.join(",")),
+        stringMetadata("annotation", source.annotation)])
   of vhkAmigaIff:
     let form = parsedValue[AmigaIffForm](selectedParsed, vhkAmigaIff)
     let group = VextResourceNode(
