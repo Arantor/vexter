@@ -182,9 +182,9 @@ formats are not included. Detailed format behavior and evidence remain in
     Exchange RGB palettes are supported as input. GIMP GPL exports standard RGB or Aseprite RGBA
     automatically; Paint.NET and Adobe ASE are not export formats. Adobe ASE
     CMYK, Lab, and grayscale conversion needs supplied authoritative rules.
-  - Brilliance `DRNG` and `BRNG` chunks in palette-only IFF files are not yet
-    interpreted. Their accompanying `CMAP` colours remain available, but the
-    additional range definitions require documentation and focused controls.
+  - Deluxe Paint IV `DRNG` enhanced colour ranges are interpreted for both
+    bitmap and palette-only IFF files. `BRNG` remains uninterpreted because no
+    definition or focused control for it is present in the supplied material.
 
 - **ProTracker-compatible MOD**
   - Current support is considered sufficient for Vexter's recovery-oriented

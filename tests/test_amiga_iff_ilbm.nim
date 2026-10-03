@@ -104,6 +104,48 @@ suite "Amiga IFF ILBM":
     check exported.outputFormat == "palette-swatch"
     check exported.artifacts.artifacts[0].mediaType == "image/png"
 
+  test "DRNG cycles arbitrary registers and literal colours":
+    let data = form("ILBM", [
+      chunk("CMAP", @[10'u8, 20, 30, 40, 50, 60, 70, 80, 90]),
+      chunk("DRNG", @[
+        4'u8, 7,             # Cell positions 4 through 7.
+        0, 64,               # 64 / 16384 * 60 = 0.234375 steps/s.
+        0, 1,                # Active.
+        2, 2,                # Two literals and two registers.
+        5, 100, 110, 120,    # Cell 5: literal RGB.
+        6, 130, 140, 150,    # Cell 6: literal RGB.
+        4, 0,                # Cell 4: palette register 0.
+        7, 2])])             # Cell 7: palette register 2.
+    let
+      inspection = inspectSource("enhanced-palette.iff", data)
+      palette = inspection.resources.leafResources[0].palette
+      image = VextIndexedImage(width: 1, height: 1,
+        palette: @[VextRgb(r: 10, g: 20, b: 30),
+          VextRgb(r: 40, g: 50, b: 60), VextRgb(r: 70, g: 80, b: 90)],
+        pixels: @[0'u8], colourCycles: palette.colourCycles)
+    check palette.colourCycles.len == 1
+    check palette.colourCycles[0].cells.len == 4
+    check palette.colourCycles[0].stepDurationMs == 4267
+    check palette.colourCycles[0].cells[0].isRegister
+    check palette.colourCycles[0].cells[0].register == 0
+    check palette.colourCycles[0].cells[1].colour ==
+      VextRgb(r: 100, g: 110, b: 120)
+    let advanced = colourCycledImageAt(image, image.colourCycles, 4267)
+    check advanced.palette[0] == VextRgb(r: 70, g: 80, b: 90)
+    check advanced.palette[2] == VextRgb(r: 130, g: 140, b: 150)
+
+  test "DRNG accepts sparse cells and rejects duplicate definitions":
+    let data = form("ILBM", [
+      chunk("CMAP", @[0'u8, 0, 0, 255, 255, 255]),
+      chunk("DRNG", @[0'u8, 2, 0, 64, 0, 1, 0, 2, 0, 0, 2, 1])])
+    check parseAmigaIlbm(data).image.colourCycles[0].cells.len == 2
+    let duplicate = form("ILBM", [
+      chunk("CMAP", @[0'u8, 0, 0, 255, 255, 255]),
+      chunk("DRNG", @[0'u8, 1, 0, 64, 0, 1, 1, 1,
+        0, 1, 2, 3, 0, 0])])
+    expect ValueError:
+      discard parseAmigaIlbm(duplicate)
+
   test "King Tut is detected and matches the normalized PNG control":
     let
       data = readBytes(FixturePath)

@@ -16,6 +16,13 @@ TVPaint. Routine tests use compact synthetic FORM DEEP files constructed from
 the documented fields and do not redistribute the supplied material. No
 external implementation code was used.
 
+The later Deluxe Paint IV enhanced-colour-cycle implementation uses the
+archive's `ILBM/ILBM_DRNG.txt`. It defines the `DRNG` chunk's ordered mixture
+of sparse palette-register cells and literal RGB cells, signed rate, active
+flag, and 16,384/60 timing scale. Routine tests use synthetic chunks; the
+bundled Deluxe Paint HAM8 fixtures additionally confirm that cell identifiers
+within the declared minimum and maximum may be sparse.
+
 The developer subsequently supplied four `.MPIC` compatibility files under
 `deep/`. All four are canonical uncompressed 60×60 `FORM DEEP` images with
 RGB8 plus `ALPHA`8, one full-display `DLOC`, and a 14,400-byte `DBOD`. Every
@@ -37,6 +44,7 @@ corpus-derived behavior beyond the registry document's bare `RUNLENGTH` name.
 ```text
 0fb0ece05f527b3ec48108153ecf67698b98bb36725ab96872e61d8568b0bfb4  IFF_FORMS.zip
 a93536f5cbd6c03bf7bf388863a5437d4fed174eb03b5ead94a0f6edef24ccca  IFF_FORMS/other/DEEP.txt
+0c012e9d20c4279c97c22029825db2cfd2afad00ab2de9279c50411f07cde553  IFF_FORMS/ILBM/ILBM_DRNG.txt
 38ee0c746db5a5e948a4c6c9b7258d3673a2e985b78919b14fac7d9ee4d7a50a  IFF_FORMS/REGISTRY_930210.txt
 6edef9c68c42802dd21ede29d802a8d368058b93c7bfe381d7ace075bd30897a  deep/BLUME.JPEG.MPIC
 d4d2f907189dafb2e20c5ac0cf7149d3f8bf9a296fa25d0c5e2f516936346cb2  deep/BLUMEKLEIN.JPEG.MPIC

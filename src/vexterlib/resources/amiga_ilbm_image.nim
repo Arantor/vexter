@@ -231,14 +231,32 @@ proc renderAmigaIlbmImage*(source: AmigaIlbmImageSource,
   elif result.palette.len > requiredColours:
     result.palette.setLen(requiredColours)
   for cycle in source.colourCycles:
-    if cycle.low < 0 or cycle.high >= result.palette.len or
-        cycle.low >= cycle.high:
-      continue
     var allEqual = true
-    for index in cycle.low + 1 .. cycle.high:
-      if result.palette[index] != result.palette[cycle.low]:
-        allEqual = false
-        break
+    if cycle.cells.len > 0:
+      var first: VextRgb
+      var haveFirst, valid = false
+      for cell in cycle.cells:
+        let colour = if cell.isRegister:
+            if cell.register < 0 or cell.register >= result.palette.len:
+              valid = false
+              break
+            result.palette[cell.register]
+          else: cell.colour
+        if not haveFirst:
+          first = colour
+          haveFirst = true
+          valid = true
+        elif colour != first:
+          allEqual = false
+      if not valid: continue
+    else:
+      if cycle.low < 0 or cycle.high >= result.palette.len or
+          cycle.low >= cycle.high:
+        continue
+      for index in cycle.low + 1 .. cycle.high:
+        if result.palette[index] != result.palette[cycle.low]:
+          allEqual = false
+          break
     if not allEqual and result.colourCycles.len < 6:
       result.colourCycles.add cycle
 

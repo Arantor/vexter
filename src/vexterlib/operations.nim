@@ -2687,9 +2687,20 @@ proc inspectSourceDepth(filename: string, data: openArray[byte],
       for colour in rgbColours: colours.add colour.rgba
       var cycles: seq[VextColourCycleRange]
       for cycle in image.colourCycles:
-        if cycle.low >= 0 and cycle.high < colours.len and
-            cycle.low < cycle.high and cycle.direction in [-1, 1] and
-            cycle.stepDurationMs > 0 and cycles.len < 6:
+        var valid = cycle.direction in [-1, 1] and cycle.stepDurationMs > 0
+        if cycle.cells.len > 0:
+          valid = valid and cycle.cells.len > 1
+          var registerCount = 0
+          for cell in cycle.cells:
+            if cell.isRegister:
+              inc registerCount
+              valid = valid and cell.register >= 0 and
+                cell.register < colours.len
+          valid = valid and registerCount > 0
+        else:
+          valid = valid and cycle.low >= 0 and cycle.high < colours.len and
+            cycle.low < cycle.high
+        if valid and cycles.len < 6:
           cycles.add cycle
       result.resources.roots.add VextResourceNode(
         path: "/palette", typeId: "amiga.iff-palette",

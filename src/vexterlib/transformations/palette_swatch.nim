@@ -44,9 +44,23 @@ proc glyphRows(character: char): array[GlyphHeight, string] =
   else: ["00000", "00000", "00000", "00000", "00000", "00000", "00000"]
 
 proc caption(cycle: VextColourCycleRange, index: int): string =
-  "RANGE " & $(index + 1) & ": " & $cycle.low & "-" & $cycle.high & " " &
+  "RANGE " & $(index + 1) & ": " &
+    (if cycle.cells.len > 0: "ENHANCED" else: $cycle.low & "-" & $cycle.high) & " " &
     (if cycle.direction < 0: "REVERSE " else: "FORWARD ") &
     $cycle.stepDurationMs & "MS"
+
+proc cycleColours(palette: VextPalette,
+    cycle: VextColourCycleRange): seq[VextRgba] =
+  if cycle.cells.len > 0:
+    for cell in cycle.cells:
+      result.add if cell.isRegister: palette.colours[cell.register]
+        else: cell.colour.rgba
+  elif cycle.direction < 0:
+    for colourIndex in countdown(cycle.high, cycle.low):
+      result.add palette.colours[colourIndex]
+  else:
+    for colourIndex in cycle.low .. cycle.high:
+      result.add palette.colours[colourIndex]
 
 proc fillRect(image: var VextTrueColourImage, left, top, width, height: int,
     colour: VextRgba) =
@@ -75,7 +89,7 @@ proc renderPaletteSwatch*(palette: VextPalette): VextTrueColourImage =
     paletteHeight = paletteRows * PaletteSwatchCellSize
   var width = paletteWidth
   for index, cycle in palette.colourCycles:
-    width = max(width, (cycle.high - cycle.low + 1) * PaletteSwatchCellSize)
+    width = max(width, cycleColours(palette, cycle).len * PaletteSwatchCellSize)
     width = max(width, caption(cycle, index).len * GlyphAdvance - 1)
   let height = paletteHeight + palette.colourCycles.len *
     (SectionGap + CaptionHeight + PaletteSwatchCellSize)
@@ -95,18 +109,9 @@ proc renderPaletteSwatch*(palette: VextPalette): VextTrueColourImage =
     top += SectionGap
     result.drawText(caption(cycle, rangeIndex), top + 1)
     top += CaptionHeight
-    if cycle.direction < 0:
-      var position = 0
-      for colourIndex in countdown(cycle.high, cycle.low):
-        result.fillRect(position * PaletteSwatchCellSize, top,
-          PaletteSwatchCellSize, PaletteSwatchCellSize,
-          palette.colours[colourIndex])
-        inc position
-    else:
-      for colourIndex in cycle.low .. cycle.high:
-        result.fillRect((colourIndex - cycle.low) * PaletteSwatchCellSize, top,
-          PaletteSwatchCellSize, PaletteSwatchCellSize,
-          palette.colours[colourIndex])
+    for position, colour in cycleColours(palette, cycle):
+      result.fillRect(position * PaletteSwatchCellSize, top,
+        PaletteSwatchCellSize, PaletteSwatchCellSize, colour)
     top += PaletteSwatchCellSize
 
 proc paletteOf*(image: VextIndexedImage): VextPalette =

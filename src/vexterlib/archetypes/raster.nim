@@ -7,10 +7,18 @@ type
   VextRgba* = object
     r*, g*, b*, a*: uint8
 
+  VextColourCycleCell* = object
+    ## An enhanced cycle cell is either a palette register or a literal RGB
+    ## value. Traditional contiguous ranges leave `cells` empty.
+    isRegister*: bool
+    register*: int
+    colour*: VextRgb
+
   VextColourCycleRange* = object
     low*, high*: int
     direction*: int
     stepDurationMs*: int
+    cells*: seq[VextColourCycleCell]
 
   VextIndexedImage* = object
     width*, height*: int

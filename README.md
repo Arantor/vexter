@@ -36,7 +36,8 @@ sufficiently useful to continue as an ongoing project.
 Decoded resources can be exported as PNG, GIF, APNG, BMFont text plus PNG
 atlases, tracker JSON, self-contained HTML reports, metadata JSON, WAV, text,
 or raw binary.
-ILBM and ANIM colour cycling can optionally be expanded into bounded GIF or
+ILBM and ANIM colour cycling, including Deluxe Paint IV enhanced `DRNG`
+ranges, can optionally be expanded into bounded GIF or
 APNG animations while static and original-animation exports remain available.
 Containers such as ADF, ZIP, LHA, PowerPacker, and XPK are inspected recursively
 when their contents use another supported format. See

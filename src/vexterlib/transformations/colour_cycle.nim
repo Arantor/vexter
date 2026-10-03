@@ -4,6 +4,9 @@ import ../archetypes/raster
 
 const DefaultColourCycleFrameLimit* = 1000
 
+proc colourCycleLength*(cycle: VextColourCycleRange): int {.inline.} =
+  if cycle.cells.len > 0: cycle.cells.len else: cycle.high - cycle.low + 1
+
 proc gcd(a, b: int64): int64 =
   var x = abs(a)
   var y = abs(b)
@@ -29,20 +32,30 @@ proc colourCycledImageAt*(image: VextIndexedImage,
   result.colourCycles.setLen(0)
   for cycle in ranges:
     let
-      length = cycle.high - cycle.low + 1
+      length = cycle.colourCycleLength
       rawShift = int((elapsedMs div int64(cycle.stepDurationMs)) mod int64(length))
       shift = if cycle.direction < 0: (length - rawShift) mod length
         else: rawShift
       palette = @(result.palette)
-    for offset in 0 ..< length:
-      result.palette[cycle.low + ((offset + shift) mod length)] =
-        palette[cycle.low + offset]
+    if cycle.cells.len == 0:
+      for offset in 0 ..< length:
+        result.palette[cycle.low + ((offset + shift) mod length)] =
+          palette[cycle.low + offset]
+    else:
+      var values = newSeq[VextRgb](length)
+      for index, cell in cycle.cells:
+        values[index] = if cell.isRegister: palette[cell.register]
+          else: cell.colour
+      for destination, cell in cycle.cells:
+        if cell.isRegister:
+          let source = (destination - shift + length) mod length
+          result.palette[cell.register] = values[source]
 
 proc colourCyclePeriodMs*(ranges: openArray[VextColourCycleRange]): int64 =
   result = 1
   for cycle in ranges:
     result = lcm(result,
-      int64(cycle.stepDurationMs) * int64(cycle.high - cycle.low + 1))
+      int64(cycle.stepDurationMs) * int64(cycle.colourCycleLength))
 
 proc colourCycleNextBoundaryMs*(ranges: openArray[VextColourCycleRange],
     elapsedMs: int64): int64 =
@@ -88,7 +101,7 @@ proc expandColourCycles*(raster: VextRaster,
     dec combinedPeriod
   for cycle in ranges:
     combinedPeriod = lcm(combinedPeriod,
-      int64(cycle.stepDurationMs) * int64(cycle.high - cycle.low + 1))
+      int64(cycle.stepDurationMs) * int64(cycle.colourCycleLength))
 
   result = VextIndexedAnimation(width: baseFrames[0].image.width,
     height: baseFrames[0].image.height)

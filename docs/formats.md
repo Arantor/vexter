@@ -1477,12 +1477,15 @@ relative times are Amiga vertical-blank jiffies: explicit PAL CAMG monitor
 modes use 50 Hz and explicit NTSC modes use 60 Hz. Files without a monitor ID
 retain the ANIM specification's 60 Hz default.
 
-ILBM `CRNG` and `CCRT` palette ranges are retained for indexed ILBM and ANIM
-resources. Active CRNG rates use the format's 16,384/60 rate scale; CCRT uses
-its seconds/microseconds interval and signed direction. Vexter retains up to
-six effective ranges. Empty or one-colour ranges, ranges outside the decoded
-palette, inactive or zero-rate ranges, and ranges whose colours are all equal
-are ignored.
+ILBM `CRNG`, `CCRT`, and Deluxe Paint IV `DRNG` palette ranges are retained
+for indexed ILBM and ANIM resources. Active CRNG and DRNG rates use the
+format's 16,384/60 rate scale; CCRT uses its seconds/microseconds interval and
+signed direction. DRNG preserves its ordered, potentially sparse mixture of
+palette-register cells and literal RGB cells, allowing non-contiguous register
+cycles and a single register cycled through stored colours. Vexter retains up
+to six effective ranges. Empty or one-cell ranges, ranges referring outside
+the decoded palette, inactive or zero-rate ranges, and ranges whose colours
+are all equal are ignored.
 
 Colour cycling is an optional export transformation. `png` writes the natural
 first image, while ordinary `gif` and `apng` preserve an existing animation

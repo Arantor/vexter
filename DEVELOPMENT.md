@@ -104,7 +104,7 @@ client, and a dependency-free native Windows GUI. It supports:
   sampled instruments;
 - Markdown projection of flow documents with explicit loss warnings;
 - self-contained HTML reports with embedded normalized media and metadata;
-- optional CRNG/CCRT colour-cycle expansion with a 1,000-frame safety limit;
+- optional CRNG/CCRT/DRNG colour-cycle expansion with a 1,000-frame safety limit;
 - byte-identical BIN export for opaque resources that retain raw data; and
 - bulk export of all exportable leaves or a union of segment-wildcard resource
   patterns, preserving a safe resource-path hierarchy; and

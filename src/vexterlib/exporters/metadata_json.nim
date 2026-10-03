@@ -22,8 +22,18 @@ proc metadataNode(entries: openArray[VextMetadataEntry]): JsonNode =
 proc cyclesNode(cycles: openArray[VextColourCycleRange]): JsonNode =
   result = newJArray()
   for cycle in cycles:
-    result.add %*{"low": cycle.low, "high": cycle.high,
+    var node = %*{"low": cycle.low, "high": cycle.high,
       "direction": cycle.direction, "stepDurationMs": cycle.stepDurationMs}
+    if cycle.cells.len > 0:
+      var cells = newJArray()
+      for cell in cycle.cells:
+        if cell.isRegister:
+          cells.add %*{"kind": "register", "index": cell.register}
+        else:
+          cells.add %*{"kind": "colour", "r": cell.colour.r,
+            "g": cell.colour.g, "b": cell.colour.b}
+      node["cells"] = cells
+    result.add node
 
 proc paletteNode(palette: VextPalette): JsonNode =
   result = %*{"archetype": "VextPalette",

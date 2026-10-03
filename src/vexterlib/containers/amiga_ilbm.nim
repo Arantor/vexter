@@ -61,6 +61,53 @@ proc parseColourCycle(chunk: AmigaIffChunk): VextColourCycleRange =
   else:
     discard
 
+proc parseDrng(chunk: AmigaIffChunk): VextColourCycleRange =
+  if chunk.data.len < 8:
+    raise newException(ValueError, "ILBM DRNG chunk is shorter than DRange")
+  let
+    minimum = int(chunk.data[0])
+    maximum = int(chunk.data[1])
+    rate = signedWord(chunk.data, 2)
+    flags = beWord(chunk.data, 4)
+    trueColours = int(chunk.data[6])
+    registers = int(chunk.data[7])
+    expected = 8 + trueColours * 4 + registers * 2
+  if chunk.data.len != expected:
+    raise newException(ValueError, "ILBM DRNG chunk has an invalid length")
+  if maximum < minimum:
+    raise newException(ValueError, "ILBM DRNG cell range is reversed")
+  let cellCount = maximum - minimum + 1
+  var
+    slots = newSeq[VextColourCycleCell](cellCount)
+    defined = newSeq[bool](cellCount)
+    offset = 8
+  for unused in 0 ..< trueColours:
+    let position = int(chunk.data[offset]) - minimum
+    if position notin 0 ..< cellCount or defined[position]:
+      raise newException(ValueError, "ILBM DRNG has an invalid colour cell")
+    slots[position] = VextColourCycleCell(colour: VextRgb(
+      r: chunk.data[offset + 1], g: chunk.data[offset + 2],
+      b: chunk.data[offset + 3]))
+    defined[position] = true
+    offset += 4
+  for unused in 0 ..< registers:
+    let position = int(chunk.data[offset]) - minimum
+    if position notin 0 ..< cellCount or defined[position]:
+      raise newException(ValueError, "ILBM DRNG has an invalid register cell")
+    slots[position] = VextColourCycleCell(isRegister: true,
+      register: int(chunk.data[offset + 1]))
+    defined[position] = true
+    offset += 2
+  var cells: seq[VextColourCycleCell]
+  for position, isDefined in defined:
+    if isDefined: cells.add slots[position]
+  if rate == 0 or (flags and 1) == 0 or registers == 0 or cells.len < 2:
+    return
+  result = VextColourCycleRange(low: minimum, high: maximum,
+    direction: (if rate < 0: -1 else: 1),
+    stepDurationMs: max(1,
+      (16_384_000 + abs(rate) * 30) div (abs(rate) * 60)), cells: cells)
+
 proc parseAmigaBitmapHeader*(data: openArray[byte]): AmigaIlbmHeader =
   if data.len != 20:
     raise newException(ValueError, "ILBM BMHD chunk must contain 20 bytes")
@@ -105,6 +152,10 @@ proc parseAmigaBitmapForm*(form: AmigaIffForm, expectedFormType,
       result.image.camg = beLong(chunk.data)
     of "CRNG", "CCRT":
       let cycle = parseColourCycle(chunk)
+      if cycle.stepDurationMs > 0:
+        result.image.colourCycles.add cycle
+    of "DRNG":
+      let cycle = parseDrng(chunk)
       if cycle.stepDurationMs > 0:
         result.image.colourCycles.add cycle
     else:
