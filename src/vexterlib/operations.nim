@@ -2918,7 +2918,7 @@ proc inspectSourceDepth(filename: string, data: openArray[byte],
   of vhkZxSpectrumTap, vhkZxSpectrumTzx:
     let tap = parsedValue[VextParsedZxTap](selectedParsed, selectedHandler.kind)
     var screenCount, codeCount, listingCount, numberArrayCount,
-      characterArrayCount: int
+      characterArrayCount, unknownBlockCount: int
     for record in tap.records:
       case record.kind
       of ztrkScreen: inc screenCount
@@ -2926,8 +2926,9 @@ proc inspectSourceDepth(filename: string, data: openArray[byte],
       of ztrkProgram: inc listingCount
       of ztrkNumberArray: inc numberArrayCount
       of ztrkCharacterArray: inc characterArrayCount
+      of ztrkUnknown: inc unknownBlockCount
     var screenIndex, codeIndex, listingIndex, numberArrayIndex,
-      characterArrayIndex: int
+      characterArrayIndex, unknownBlockIndex: int
     for record in tap.records:
       case record.kind
       of ztrkScreen:
@@ -3003,6 +3004,23 @@ proc inspectSourceDepth(filename: string, data: openArray[byte],
             integerMetadata("array.parameter-1", record.startAddress),
             integerMetadata("array.parameter-2", record.parameter2),
             integerMetadata("data.length", record.declaredLength)
+          ])
+      of ztrkUnknown:
+        inc unknownBlockIndex
+        let path = if unknownBlockCount == 1:
+          ZxSpectrumTapUnknownBlockResourcePath
+        else:
+          ZxSpectrumTapUnknownBlockResourcePath & "/" & $unknownBlockIndex
+        result.resources.roots.add VextResourceNode(
+          path: path,
+          typeId: ZxSpectrumTapUnknownBlockTypeId,
+          kind: vrnkOpaque,
+          data: record.data,
+          rawDataAvailable: true,
+          metadata: @[
+            integerMetadata("tap.checkbit-valid",
+              if record.checkbitValid: 1 else: 0),
+            integerMetadata("data.length", record.data.len)
           ])
 proc inspectSource*(filename: string, data: openArray[byte],
     inputFormat = "", ignoreWarnings = false,

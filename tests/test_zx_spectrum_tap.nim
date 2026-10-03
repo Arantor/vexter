@@ -203,10 +203,22 @@ suite "ZX Spectrum TAP container":
       suggestedName: "numbers")).artifacts.artifacts[0].data ==
       @[1'u8, 2, 3]
 
-  test "bad checksums, truncation, and mismatched lengths are rejected":
-    var badChecksum = screenRecord("BAD", 0)
-    badChecksum[^1] = badChecksum[^1] xor 1
-    check not isZxSpectrumTap(badChecksum)
+  test "a bad checkbit is retained as an opaque block":
+    var badCheckbit = tapBlock(ZxSpectrumTapDataFlag,
+      @[1'u8, 2, 3])
+    badCheckbit[^1] = badCheckbit[^1] xor 0x40
+    check isZxSpectrumTap(badCheckbit)
+    let tree = inspectSource("custom.tape", badCheckbit).resources
+    check tree.roots.len == 1
+    check tree.roots[0].path == ZxSpectrumTapUnknownBlockResourcePath
+    check tree.roots[0].typeId == ZxSpectrumTapUnknownBlockTypeId
+    check tree.roots[0].kind == vrnkOpaque
+    check tree.roots[0].rawDataAvailable
+    check tree.roots[0].data == badCheckbit[2 .. ^1]
+    check tree.roots[0].metadata[0].key == "tap.checkbit-valid"
+    check tree.roots[0].metadata[0].value.integerValue == 0
+
+  test "truncation and mismatched standard-record lengths are rejected":
 
     let truncated = screenRecord("SHORT", 0)[0 .. ^2]
     check not isZxSpectrumTap(truncated)

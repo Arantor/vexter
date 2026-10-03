@@ -12,6 +12,8 @@ const
   ZxSpectrumTapNumberArrayResourcePath* = "/number-array"
   ZxSpectrumTapCharacterArrayTypeId* = "zx-spectrum.character-array"
   ZxSpectrumTapCharacterArrayResourcePath* = "/character-array"
+  ZxSpectrumTapUnknownBlockTypeId* = "zx-spectrum.tap-unknown-block"
+  ZxSpectrumTapUnknownBlockResourcePath* = "/unknown-block"
   ZxSpectrumTapHeaderBlockSize* = 19
   ZxSpectrumTapHeaderFlag* = 0x00'u8
   ZxSpectrumTapDataFlag* = 0xff'u8
@@ -25,6 +27,7 @@ const
 type
   ZxSpectrumTapBlock = object
     bytes: seq[byte]
+    checkbitValid: bool
 
   ZxSpectrumTapScreen* = object
     name*: string
@@ -47,6 +50,7 @@ type
     ztrkCharacterArray
     ztrkScreen
     ztrkCode
+    ztrkUnknown
 
   ZxSpectrumTapRecord* = object
     kind*: ZxSpectrumTapRecordKind
@@ -55,6 +59,7 @@ type
     declaredLength*: int
     parameter2*: int
     data*: seq[byte]
+    checkbitValid*: bool
 
 proc parseZxSpectrumTapRecords*(data: openArray[byte]):
     seq[ZxSpectrumTapRecord]
@@ -75,13 +80,13 @@ proc parseBlocks(data: openArray[byte]): seq[ZxSpectrumTapBlock] =
     if blockSize > data.len - offset:
       raise newException(ValueError, "truncated ZX Spectrum TAP block")
 
-    var checksum = 0'u8
+    var checkbit = 0'u8
     for index in offset ..< offset + blockSize:
-      checksum = checksum xor data[index]
-    if checksum != 0:
-      raise newException(ValueError, "invalid ZX Spectrum TAP block checksum")
+      checkbit = checkbit xor data[index]
 
-    result.add ZxSpectrumTapBlock(bytes: @data[offset ..< offset + blockSize])
+    result.add ZxSpectrumTapBlock(
+      bytes: @data[offset ..< offset + blockSize],
+      checkbitValid: checkbit == 0)
     offset += blockSize
 
   if result.len == 0:
@@ -111,19 +116,28 @@ proc asciiName(headerBytes: openArray[byte]): string =
 
 proc parseZxSpectrumTapRecords*(data: openArray[byte]):
     seq[ZxSpectrumTapRecord] =
-  ## Validates every TAP block and returns supported header/data records in
-  ## their physical tape order. Array records remain valid but unrepresented.
+  ## Validates TAP length framing and returns semantic or opaque records in
+  ## physical tape order. A mismatched ROM checkbit does not invalidate the
+  ## container; an affected block remains available as opaque bytes.
   let blocks = parseBlocks(data)
   var index = 0
   while index < blocks.len:
     let header = blocks[index].bytes
-    if header.len == ZxSpectrumTapHeaderBlockSize and
+    if blocks[index].checkbitValid and
+        header.len == ZxSpectrumTapHeaderBlockSize and
         header[0] == ZxSpectrumTapHeaderFlag:
       let declaredLength = littleEndianWord(header, 12)
       if index + 1 >= blocks.len:
         raise newException(ValueError,
           "ZX Spectrum TAP header is missing its data block")
       let payloadBlock = blocks[index + 1].bytes
+      if not blocks[index + 1].checkbitValid:
+        result.add ZxSpectrumTapRecord(kind: ztrkUnknown,
+          data: header, checkbitValid: true)
+        result.add ZxSpectrumTapRecord(kind: ztrkUnknown,
+          data: payloadBlock, checkbitValid: false)
+        index += 2
+        continue
       if payloadBlock[0] != ZxSpectrumTapDataFlag:
         raise newException(ValueError,
           "ZX Spectrum TAP header is not followed by a data block")
@@ -159,6 +173,8 @@ proc parseZxSpectrumTapRecords*(data: openArray[byte]):
           startAddress: startAddress, parameter2: parameter2, data: payload)
       index += 2
     else:
+      result.add ZxSpectrumTapRecord(kind: ztrkUnknown,
+        data: header, checkbitValid: blocks[index].checkbitValid)
       inc index
 
 proc parseZxSpectrumTapScreens*(data: openArray[byte]): seq[ZxSpectrumTapScreen] =

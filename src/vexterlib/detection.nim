@@ -761,7 +761,7 @@ proc detectBaseFormats(filename: string, data: openArray[byte]):
 
   if isZxSpectrumTap(data):
     var evidence = @[VextDetectionEvidence(
-      description: "all TAP blocks have valid lengths and checksums")]
+      description: "TAP block lengths exactly frame the source")]
     let extension = filename.splitFile.ext.toLowerAscii
     if extension in [".tap", ".tape"]:
       evidence.add VextDetectionEvidence(
