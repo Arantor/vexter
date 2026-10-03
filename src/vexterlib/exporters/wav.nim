@@ -28,6 +28,9 @@ proc exportWav*(sound: VextSound,
     channelCount = sound.buffer.channels.len
     bytesPerSample = sound.buffer.bitsPerSample div 8
     blockAlign = channelCount * bytesPerSample
+  if blockAlign > int(high(uint16)):
+    raise newException(ValueError, "WAV block alignment is too large")
+  let
     dataLength = sound.buffer.sampleCount * blockAlign
     paddingLength = dataLength and 1
   if dataLength > int(high(uint32)) - 36 - paddingLength:

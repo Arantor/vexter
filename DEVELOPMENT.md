@@ -341,6 +341,13 @@ DMS currently exposes its reconstructed ADF hierarchy for inspection but does
 not advertise extraction because that legacy reconstructed-tree path cannot yet
 retain every physical file payload independently.
 
+`src/vexter_output.nim` shares filesystem output preflight between the CLI
+and GUI. Exports and extraction reject live or broken symbolic links in the
+destination and its complete parent chain, including the chosen output root.
+All compound-export destinations are checked for file/directory conflicts
+before the first artifact is written. `--force` permits existing regular files
+to be overwritten but does not bypass these path checks.
+
 The CLI uses a session walk for inspection. The Windows GUI retains the session
 for the open document, adds descriptor children on demand, and performs expand
 and load requests on a worker thread so message processing is not blocked.

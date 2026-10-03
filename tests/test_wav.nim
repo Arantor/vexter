@@ -143,3 +143,14 @@ suite "WAV import and export":
     expect ValueError:
       discard exportWav(VextSound(buffer: VextAudioBuffer(
         bitsPerSample: 8, channels: @[@[128'i32]]), sampleRate: 8000))
+
+  test "block alignment must fit its sixteen-bit WAV field":
+    for bits in [16, 24, 32]:
+      let bytesPerSample = bits div 8
+      var buffer = VextAudioBuffer(bitsPerSample: bits,
+        channels: newSeq[seq[int32]](int(high(uint16)) div bytesPerSample))
+      let data = exportWav(VextSound(buffer: buffer, sampleRate: 1)).artifacts[0].data
+      check le16(data, 32) == buffer.channels.len * bytesPerSample
+      buffer.channels.add @[]
+      expect ValueError:
+        discard exportWav(VextSound(buffer: buffer, sampleRate: 1))

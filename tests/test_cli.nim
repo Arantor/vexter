@@ -1,4 +1,4 @@
-import std/[json, os, osproc, strutils, unittest]
+import std/[json, os, osproc, strutils, tempfiles, unittest]
 
 const
   VexterCliPath {.strdefine.} = "build/linux/vexter"
@@ -42,6 +42,71 @@ proc binary(values: openArray[int]): string =
   for value in values: result.add char(value)
 
 suite "vexter CLI":
+  test "compound export preflights every artifact before writing":
+    let
+      base = createTempDir("vexter-cli-compound-", "")
+      source = base / "font.fzx"
+      destination = base / "output"
+    defer: removeDir(base)
+    # One one-pixel glyph, followed by the terminal offset and bitmap.
+    writeFile(source, binary([9, 2, 32, 5, 0, 0, 3, 0, 128]))
+    let exported = run("export", "-o", destination, source)
+    require exported.exitCode == 0
+    var page: string
+    for kind, path in walkDir(destination):
+      if kind == pcFile and path.endsWith(".png"): page = path
+    require page.len > 0
+    removeFile(destination / "font.fnt")
+    removeFile(page)
+    createDir(page)
+    let refused = run("export", "--force", "-o", destination, source)
+    check refused.exitCode == 1
+    check "output path is a directory" in refused.output
+    check not fileExists(destination / "font.fnt")
+
+  when defined(posix):
+    test "output preflight rejects live and broken links even with force":
+      let
+        base = createTempDir("vexter-cli-links-", "")
+        source = base / "sample.lha"
+        outside = base / "outside"
+        output = base / "output"
+      defer: removeDir(base)
+      writeFile(source, storedLha("readme.txt", "hello"))
+      createDir(outside)
+      createSymlink(outside, output)
+      for command in ["extract", "export-all"]:
+        let refused = run(command, "--force", "-o", output, source)
+        check refused.exitCode == 1
+        check "symbolic link" in refused.output
+      check not fileExists(outside / "readme.txt")
+      removeFile(output)
+      createDir(output)
+      # A parent link below the output root must also be rejected.
+      createSymlink(outside, output / "linked")
+      let nested = run("extract", "--force", "-o",
+        output / "linked" / "new", source)
+      check nested.exitCode == 1
+      check not dirExists(outside / "new")
+      let target = outside / "keep.png"
+      let link = output / "screen.png"
+      writeFile(target, "keep")
+      createSymlink(target, link)
+      let refused = run("export-all", "--format", "png", "--force",
+        "-o", output, FixturePath)
+      check refused.exitCode == 1
+      check "symbolic link" in refused.output
+      check readFile(target) == "keep"
+      removeFile(target)
+      let broken = run("export-all", "--format", "png", "--force",
+        "-o", output, FixturePath)
+      check broken.exitCode == 1
+      check not fileExists(target)
+      let single = run("export", "--format", "png", "--force",
+        "-o", link, FixturePath)
+      check single.exitCode == 1
+      check not fileExists(target)
+
   test "opening a file ignores unrelated package neighbours":
     let
       directory = getTempDir() / "vexter-cli-lha-neighbours"

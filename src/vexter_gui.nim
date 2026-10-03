@@ -5,6 +5,7 @@ when not defined(windows):
 
 import std/[math, os, strformat, strutils, widestrs]
 import vexterlib
+import vexter_output
 import vexterlib/gui_preview
 
 {.passC: "-D_WIN32_WINNT=0x0601 -DWINVER=0x0601 -include windows.h".}
@@ -1400,34 +1401,11 @@ proc extractionWorker(job: ExtractionJob) {.thread.} =
     {.cast(gcsafe).}:
       let plan = job.session.extractionPlan()
       completed.warnings = plan.warnings
+      preflightOutput(job.destination, directory = true, force = job.overwrite)
       for entry in plan.entries:
         let destination = job.destination / entry.relativePath
-        if symlinkExists(destination):
-          raise newException(IOError,
-            "extraction destination is a symbolic link: " & destination)
-        case entry.kind
-        of veekDirectory:
-          if destination.fileExists:
-            raise newException(IOError,
-              "cannot create directory over an existing file: " & destination)
-        of veekFile:
-          if destination.dirExists:
-            raise newException(IOError,
-              "cannot extract file over an existing directory: " & destination)
-          if destination.fileExists and not job.overwrite:
-            raise newException(IOError,
-              "output file already exists: " & destination)
-          var parent = destination.parentDir
-          while parent.len > 0 and parent != job.destination:
-            if symlinkExists(parent):
-              raise newException(IOError,
-                "an extraction parent is a symbolic link: " & parent)
-            if parent.fileExists:
-              raise newException(IOError,
-                "a parent path is an existing file: " & parent)
-            let next = parent.parentDir
-            if next == parent: break
-            parent = next
+        preflightOutput(destination, directory = entry.kind == veekDirectory,
+          force = job.overwrite)
       createDir(job.destination)
       for entry in plan.entries:
         let destination = job.destination / entry.relativePath
@@ -1636,9 +1614,8 @@ proc doExport() =
     for artifactIndex, artifact in exported.artifacts.artifacts:
       let artifactDestination = if artifactIndex == 0: destination
         else: destination.parentDir / artifact.suggestedFilename
-      if artifactIndex > 0 and fileExists(artifactDestination):
-        raise newException(ValueError,
-          "companion output already exists: " & artifactDestination)
+      preflightOutput(artifactDestination, directory = false,
+        force = artifactIndex == 0)
     for artifactIndex, artifact in exported.artifacts.artifacts:
       let artifactDestination = if artifactIndex == 0: destination
         else: destination.parentDir / artifact.suggestedFilename

@@ -2,6 +2,7 @@
 
 import std/[json, os, strformat, strutils, terminal]
 import vexterlib
+import vexter_output
 
 type
   CliError = object of CatchableError
@@ -394,13 +395,10 @@ proc exportResource(options: CliOptions) =
     if options.output.len == 0:
       raise newException(CliError,
         "export produced multiple artifacts; specify an output directory with -o")
-    if fileExists(options.output):
-      raise newException(CliError, "output path is not a directory: " & options.output)
+    preflightOutput(options.output, directory = true, force = options.force)
     for artifact in artifacts.artifacts:
       let destination = options.output / artifact.suggestedFilename
-      if fileExists(destination) and not options.force:
-        raise newException(CliError,
-          "output already exists (use --force): " & destination)
+      preflightOutput(destination, directory = false, force = options.force)
     createDir(options.output)
     for artifact in artifacts.artifacts:
       let destination = options.output / artifact.suggestedFilename
@@ -417,18 +415,14 @@ proc exportResource(options: CliOptions) =
     else: exported.outputFormat
   let destination = if options.output.len > 0: options.output
                     else: options.input.changeFileExt(extension)
-  if fileExists(destination) and not options.force:
-    raise newException(CliError,
-      "output already exists (use --force): " & destination)
+  preflightOutput(destination, directory = false, force = options.force)
   writeFile(destination, bytesToString(artifact.data))
   echo destination
 
 proc exportAllResources(options: CliOptions) =
   if options.output.len == 0:
     raise newException(CliError, "export-all requires -o DIRECTORY")
-  if fileExists(options.output):
-    raise newException(CliError,
-      "export-all output is not a directory: " & options.output)
+  preflightOutput(options.output, directory = true, force = options.force)
 
   let session = openInspectionSession(options.input, sourceCollectionFor(options.input),
     options.inputFormat, options.ignoreWarnings, options.pcxChannelOrder,
@@ -467,12 +461,7 @@ proc exportAllResources(options: CliOptions) =
   for item in exported.exports:
     for artifact in item.artifacts.artifacts:
       let destination = options.output / artifact.suggestedFilename
-      if dirExists(destination):
-        raise newException(CliError,
-          "output path is a directory: " & destination)
-      if fileExists(destination) and not options.force:
-        raise newException(CliError,
-          "output already exists (use --force): " & destination)
+      preflightOutput(destination, directory = false, force = options.force)
       destinations.add destination
       relativeNames.add artifact.suggestedFilename
       artifacts.add artifact
@@ -483,15 +472,6 @@ proc exportAllResources(options: CliOptions) =
           other.toLowerAscii & "/"):
         raise newException(CliError,
           "output paths conflict: " & other & " and " & name)
-    var parent = destinations[index].parentDir
-    while parent.len > 0 and parent != options.output:
-      if fileExists(parent):
-        raise newException(CliError,
-          "output parent is a file: " & parent)
-      let next = parent.parentDir
-      if next == parent:
-        break
-      parent = next
 
   createDir(options.output)
   for index, artifact in artifacts:
@@ -505,9 +485,7 @@ proc exportAllResources(options: CliOptions) =
 proc extractContainer(options: CliOptions) =
   if options.output.len == 0:
     raise newException(CliError, "extract requires -o DIRECTORY")
-  if fileExists(options.output):
-    raise newException(CliError,
-      "extraction output is not a directory: " & options.output)
+  preflightOutput(options.output, directory = true, force = options.force)
   let session = openInspectionSession(options.input,
     sourceCollectionFor(options.input), options.inputFormat)
   defer: session.close()
@@ -519,31 +497,8 @@ proc extractContainer(options: CliOptions) =
   # materializing a potentially expensive member.
   for entry in plan.entries:
     let destination = options.output / entry.relativePath
-    if symlinkExists(destination):
-      raise newException(CliError,
-        "extraction destination is a symbolic link: " & destination)
-    if entry.kind == veekDirectory:
-      if fileExists(destination):
-        raise newException(CliError,
-          "extraction directory conflicts with a file: " & destination)
-    else:
-      if dirExists(destination):
-        raise newException(CliError,
-          "extraction file conflicts with a directory: " & destination)
-      if fileExists(destination) and not options.force:
-        raise newException(CliError,
-          "output already exists (use --force): " & destination)
-    var parent = destination.parentDir
-    while parent.len > 0 and parent != options.output:
-      if symlinkExists(parent):
-        raise newException(CliError,
-          "extraction parent is a symbolic link: " & parent)
-      if fileExists(parent):
-        raise newException(CliError,
-          "extraction parent is a file: " & parent)
-      let next = parent.parentDir
-      if next == parent: break
-      parent = next
+    preflightOutput(destination, directory = entry.kind == veekDirectory,
+      force = options.force)
 
   createDir(options.output)
   for entry in plan.entries:
