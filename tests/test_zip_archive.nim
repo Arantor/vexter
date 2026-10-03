@@ -143,6 +143,24 @@ suite "ZIP archives":
       loaded.resources.roots[0].failureMessage
     session.close()
 
+  test "eager session trees enumerate topology and retain lazy payloads":
+    let archive = zipFixture([
+      FixtureEntry(name: "docs/readme.txt",
+        data: @[byte('h'), byte('i')])])
+    let session = openInspectionSession("eager.zip",
+      newSourceCollection(memoryByteSource(archive)))
+    let tree = session.resourceTree()
+    check tree.roots.len == 1
+    check tree.roots[0].path == "/archive"
+    check tree.leafResources.len == 1
+    let member = tree.leafResources[0]
+    check member.path == "/archive/docs/readme.txt"
+    check member.rawDataAvailable
+    check member.retainedByteLength == 2
+    check member.resourceBytes == @[byte('h'), byte('i')]
+    session.close()
+    expect ValueError: discard member.resourceBytes
+
   test "extraction plans preserve hierarchy and materialize payloads only":
     let archive = zipFixture([
       FixtureEntry(name: "docs/readme.txt",

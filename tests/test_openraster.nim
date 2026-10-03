@@ -129,3 +129,14 @@ suite "OpenRaster packages":
     expect ValueError:
       discard session.loadResource(layer.id)
     session.close()
+
+  test "eager session trees decode semantic representations":
+    let session = openInspectionSession("painting.ora",
+      newSourceCollection(memoryByteSource(openRasterFixture())))
+    let tree = session.resourceTree()
+    let layer = tree.findRasterResource("/layers/0")
+    check not layer.isNil
+    check layer.typeId == OpenRasterLayerTypeId
+    check layer.raster.width == 2
+    check tree.findRasterResource("/thumbnail") != nil
+    session.close()

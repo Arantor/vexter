@@ -325,6 +325,10 @@ random-access providers: opening validates only the carrier or manifest,
 expanding reads one directory, and loading reads one member. Packed wrappers
 defer their unpacking until their synthetic content root is expanded or loaded.
 Callers own each loaded result and may discard it independently of the session.
+`resourceTree` is the eager adapter for consumers that want the complete
+currently exposed topology: it walks the same session descriptors, decodes
+representation-bearing leaves, and leaves ordinary container payloads backed
+by the live session. Such a tree must not outlive its session.
 
 Archive extraction is deliberately separate from semantic resource export.
 An extractable physical root advertises `vrcExtractTree`; its directory
@@ -348,8 +352,9 @@ All compound-export destinations are checked for file/directory conflicts
 before the first artifact is written. `--force` permits existing regular files
 to be overwritten but does not bypass these path checks.
 
-The CLI uses a session walk for inspection. The Windows GUI retains the session
-for the open document, adds descriptor children on demand, and performs expand
+The CLI uses sessions for inspection and eager resource-tree export, so both
+interaction styles share detection, indexing, limits, and format selection.
+The Windows GUI retains the session for the open document, adds descriptor children on demand, and performs expand
 and load requests on a worker thread so message processing is not blocked.
 
 `src/vexterlib/transformations/colour_cycle.nim` combines up to six effective

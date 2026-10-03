@@ -1447,12 +1447,56 @@ proc walkTopology*(session: VextInspectionSession,
     completed: completed, discovered: completed, pending: 0,
     totalState: vptsFinal, message: "Resource topology complete"))
 
-proc resourceTree*(session: VextInspectionSession): VextResourceTree =
+proc resourceTree*(session: VextInspectionSession,
+    progress: VextSessionProgressCallback = nil): VextResourceTree =
+  ## Builds the complete currently exposed topology through the session API.
+  ## Representation-bearing leaves are decoded, while ordinary container
+  ## members retain session-backed payload materializers. The returned tree
+  ## must therefore not outlive `session` if it contains such members.
   session.ensureOpen()
-  if session.kind != vskLegacy:
-    raise newException(ValueError,
-      "this incremental container must be loaded resource by resource")
-  session.legacyTree
+  if session.kind == vskLegacy:
+    return session.legacyTree
+
+  proc build(id: VextResourceId): VextResourceNode =
+    let descriptor = session.descriptor(id)
+    if descriptor.kind == vrnkGroup:
+      result = VextResourceNode(path: descriptor.path,
+        typeId: descriptor.typeId, kind: vrnkGroup,
+        metadata: descriptor.metadata)
+      let delta = session.expandResource(id, progress)
+      for child in delta.children:
+        result.children.add build(child.id)
+      return
+
+    if vrcDecodeRepresentation in descriptor.capabilities:
+      let loaded = session.loadResource(id, progress)
+      if loaded.resources.roots.len != 1:
+        raise newException(ValueError,
+          "decoded representation did not produce exactly one resource: " &
+          descriptor.path)
+      result = loaded.resources.roots[0]
+      result.path = descriptor.path
+      result.typeId = descriptor.typeId
+      result.metadata = descriptor.metadata & result.metadata
+      for warning in loaded.warnings:
+        session.warnings.add warning
+      return
+
+    result = VextResourceNode(path: descriptor.path,
+      typeId: descriptor.typeId, kind: descriptor.kind,
+      metadata: descriptor.metadata,
+      failureFormat: descriptor.failureFormat,
+      failureMessage: descriptor.failureMessage)
+    if vrcMaterializePayload in descriptor.capabilities:
+      let resourceId = id
+      let expectedLength = descriptor.estimatedBytes
+      result.rawDataAvailable = true
+      result.lazyPayload = VextPayloadRef(length: expectedLength,
+        materializer: proc(): seq[byte] =
+          session.materializePayload(resourceId))
+
+  for root in session.rootDescriptors:
+    result.roots.add build(root.id)
 
 const ExtractionDeviceNames = [
   "con", "prn", "aux", "nul", "com1", "com2", "com3", "com4", "com5",

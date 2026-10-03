@@ -43,19 +43,6 @@ proc usage(): string =
                     [--ansi-aspect auto|legacy|square] INPUT
   vexter extract [--input-format FORMAT] -o DIRECTORY [--force] INPUT"""
 
-proc readBytes(path: string): seq[byte] {.gcsafe.} =
-  let length = int(path.getFileSize)
-  result = newSeq[byte](length)
-  if length == 0: return
-  let input = open(path, fmRead)
-  defer: input.close()
-  var offset = 0
-  while offset < length:
-    let amount = input.readBuffer(addr result[offset], length - offset)
-    if amount <= 0:
-      raise newException(IOError, "short read from " & path)
-    offset += amount
-
 proc fileByteSource(path: string): VextByteSource =
   let length = int(path.getFileSize)
   var input = open(path, fmRead)
@@ -86,25 +73,6 @@ proc companionSourceResolverFor(path: string): VextCompanionSourceResolver =
       if match.len == 0: return nil
       candidate = match
     if candidate.fileExists: fileByteSource(candidate) else: nil
-
-proc companionResolverFor(path: string): VextCompanionResolver =
-  let directory = path.parentDir
-  result = proc(relativePath: string): seq[byte] {.gcsafe.} =
-    var candidate = directory
-    for segment in relativePath.split('/'):
-      let exact = candidate / segment
-      if exact.fileExists or exact.dirExists:
-        candidate = exact
-        continue
-      var match = ""
-      if candidate.dirExists:
-        for kind, item in candidate.walkDir:
-          if item.extractFilename.cmpIgnoreCase(segment) == 0:
-            if match.len > 0: return @[] # ambiguous on a case-sensitive host
-            match = item
-      if match.len == 0: return @[]
-      candidate = match
-    if candidate.fileExists: readBytes(candidate) else: @[]
 
 proc sourceOpenerFor(path: string): VextRelatedSourceOpen =
   result = proc(): VextByteSource = fileByteSource(path)
@@ -363,19 +331,8 @@ proc exportResource(options: CliOptions) =
     options.inputFormat, options.ignoreWarnings, options.pcxChannelOrder,
     options.ansiLetterSpacing, options.ansiAspect)
   defer: session.close()
-  var tree: VextResourceTree
-  var exportWarnings: seq[VextInspectionWarning]
-  if session.selectedFormat.typeId in [SierraAgiGameTypeId, SierraSciGameTypeId]:
-    tree = session.resourceTree
-    exportWarnings = session.warnings
-  else:
-    session.close()
-    var bytes = readBytes(options.input)
-    let legacy = inspectOwnedSource(options.input, move(bytes), options.inputFormat,
-      options.ignoreWarnings, options.pcxChannelOrder, options.ansiLetterSpacing,
-      options.ansiAspect, companionResolver = companionResolverFor(options.input))
-    tree = legacy.resources
-    exportWarnings = legacy.warnings
+  let tree = session.resourceTree()
+  let exportWarnings = session.warnings
   for warning in exportWarnings:
     stderr.writeLine(&"vexter: warning: {warning.path} " &
       &"({warning.format}): {warning.message}")
@@ -428,19 +385,8 @@ proc exportAllResources(options: CliOptions) =
     options.inputFormat, options.ignoreWarnings, options.pcxChannelOrder,
     options.ansiLetterSpacing, options.ansiAspect)
   defer: session.close()
-  var tree: VextResourceTree
-  var exportWarnings: seq[VextInspectionWarning]
-  if session.selectedFormat.typeId in [SierraAgiGameTypeId, SierraSciGameTypeId]:
-    tree = session.resourceTree
-    exportWarnings = session.warnings
-  else:
-    session.close()
-    var bytes = readBytes(options.input)
-    let legacy = inspectOwnedSource(options.input, move(bytes), options.inputFormat,
-      options.ignoreWarnings, options.pcxChannelOrder, options.ansiLetterSpacing,
-      options.ansiAspect, companionResolver = companionResolverFor(options.input))
-    tree = legacy.resources
-    exportWarnings = legacy.warnings
+  let tree = session.resourceTree()
+  let exportWarnings = session.warnings
   for warning in exportWarnings:
     stderr.writeLine(&"vexter: warning: {warning.path} " &
       &"({warning.format}): {warning.message}")
