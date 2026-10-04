@@ -1,8 +1,8 @@
 ## Registry of input formats understood by the operations layer.
 ##
 ## Detection remains evidence-based and may return several candidates.  This
-## registry is the authoritative bridge from a stable type identifier to the
-## validation and inspection implementation for that format.
+## registry is the authoritative bridge from a stable type identifier to its
+## support level and, when available, its validation and inspection parser.
 
 import ./containers/[adobe_color_table, adobe_swatch_exchange, amiga_8svx, amiga_16sv, amiga_acbm, amiga_deep,
   amiga_adf, amiga_anim, amiga_dr2d, appimage, aseprite,
@@ -13,13 +13,14 @@ import ./containers/[adobe_color_table, adobe_swatch_exchange, amiga_8svx, amiga
   gif_container,
   bmfont, creative_voice, d64, doom_wad, electron_asar, fat_disk_image, fzx, gimp_palette,
   inno_setup, iso9660, jasc_palette, jpeg, koala_painter, lha_archive, netpbm, openraster,
-  paint_net_palette, pcx, png_container, powerpacker, protracker_mod, qoi,
+  paint_net_palette, pcx, pdf, png_container, powerpacker, protracker_mod, qoi,
   rgba8_palette, sqlite, tga, wav, windows_icon, windows_write, zip_archive,
   zx_spectrum_gigascreen_dump, zx_spectrum_next_image, zx_spectrum_next_palette,
   zx_spectrum_screen_dump, zx_spectrum_snapshot,
   zx_spectrum_tap,
   wordstar, zx_spectrum_tzx, xpk_shri]
 import ./containers/amiga_pbm
+import ./byte_sources
 import ./format_detection_types
 type
   VextHandlerKind* = enum
@@ -96,6 +97,7 @@ type
   VextFormatHandler* = object
     typeId*: string
     kind*: VextHandlerKind
+    support*: VextFormatSupport
     ## Empty for physical formats; semantic formats name the parsed carrier
     ## through which their registered refiner must be invoked.
     carrierTypeId*: string
@@ -108,6 +110,9 @@ type
     value*: T
 
   VextRefinementMatch* = object
+    ## `matched` distinguishes an intentional detection-only refinement from
+    ## the default no-match value when no parsed representation is produced.
+    matched*: bool
     confidence*: VextDetectionConfidence
     evidence*: seq[VextDetectionEvidence]
     parsed*: VextParsedContainer
@@ -115,11 +120,19 @@ type
   VextRefinementProbe* = proc(filename: string, data: openArray[byte],
     carrier: VextParsedContainer): VextRefinementMatch {.closure.}
 
+  VextSourceRefinementProbe* = proc(filename: string,
+    source: VextByteSource, carrier: VextParsedContainer):
+    VextRefinementMatch {.closure.}
+
   VextFormatRefiner* = object
     ## A semantic format probe that consumes an already parsed carrier.
     typeId*: string
     carrierTypeId*: string
     probe*: VextRefinementProbe
+    ## Optional random-access equivalent used by incremental sessions. A
+    ## detection-only carrier profile should provide this whenever its evidence
+    ## can be collected without materializing the complete carrier.
+    sourceProbe*: VextSourceRefinementProbe
 
   VextParsedWorkbenchIcon* = object
     icon*: WorkbenchIcon
@@ -127,6 +140,10 @@ type
 
   VextParsedZxTap* = object
     records*: seq[ZxSpectrumTapRecord]
+
+func detectionOnlyHandler*(typeId: string): VextFormatHandler =
+  ## Declares a recognized physical format which deliberately has no parser.
+  VextFormatHandler(typeId: typeId, support: vfsDetectionOnly)
 
 const FormatHandlers* = [
   VextFormatHandler(typeId: AmigaDiskfontIndexTypeId,
@@ -208,6 +225,7 @@ const FormatHandlers* = [
   VextFormatHandler(typeId: AnsiArtTypeId, kind: vhkAnsiArt),
   VextFormatHandler(typeId: WordStarTypeId, kind: vhkWordStar),
   VextFormatHandler(typeId: WindowsWriteTypeId, kind: vhkWindowsWrite),
+  detectionOnlyHandler(PdfTypeId),
   VextFormatHandler(typeId: SqliteTypeId, kind: vhkSqlite)
 ]
 
@@ -216,6 +234,9 @@ proc formatHandler*(typeId: string): ptr VextFormatHandler =
   for index in 0 .. FormatHandlers.high:
     if FormatHandlers[index].typeId == typeId:
       return unsafeAddr FormatHandlers[index]
+
+func isInspectable*(handler: VextFormatHandler): bool =
+  handler.support == vfsInspectable
 
 proc parsedValue*[T](parsed: VextParsedContainer,
     expectedKind: VextHandlerKind): T =
@@ -245,6 +266,7 @@ proc formatRefiners*(): seq[VextFormatRefiner] =
     if not archive.hasOpenRasterMimeMarker(data): return
     let document = parseOpenRaster(archive, data)
     result = VextRefinementMatch(confidence: vdcCertain,
+      matched: true,
       evidence: @[VextDetectionEvidence(description:
       "ZIP begins with the stored image/openraster MIME marker and " &
       "contains a valid baseline OpenRaster document")],
@@ -254,6 +276,9 @@ proc formatRefiners*(): seq[VextFormatRefiner] =
 proc parse*(handler: VextFormatHandler,
     data: openArray[byte]): VextParsedContainer =
   ## Structurally validates and retains one format-specific parsed value.
+  if not handler.isInspectable:
+    raise newException(ValueError,
+      "format is recognized for detection only: " & handler.typeId)
   if handler.carrierTypeId.len > 0:
     raise newException(Defect,
       "semantic format handlers must be parsed through their carrier refiner")

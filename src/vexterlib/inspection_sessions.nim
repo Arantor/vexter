@@ -6,6 +6,7 @@ import ./archetypes/raster
 import ./archetypes/audio
 import ./detection
 import ./format_detection_types
+import ./handler_registry
 import ./metadata
 import ./operations
 import ./resource_tree
@@ -25,6 +26,7 @@ type
     vrcExtractTree
 
   VextValidationLevel* = enum
+    vvlEvidence
     vvlStructural
     vvlManifest
     vvlPayload
@@ -234,7 +236,8 @@ proc rootDescriptors*(session: VextInspectionSession):
   for id in session.roots: result.add session.descriptors[id]
 
 proc addLegacyNode(session: VextInspectionSession, node: VextResourceNode,
-    parent: VextResourceId) =
+    parent: VextResourceId,
+    validation = vvlRepresentation) =
   var capabilities = if node.kind == vrnkGroup: {vrcEnumerateChildren}
     elif node.kind == vrnkOpaque and node.rawDataAvailable:
       {vrcMaterializePayload, vrcProbeNested}
@@ -247,7 +250,7 @@ proc addLegacyNode(session: VextInspectionSession, node: VextResourceNode,
         max(1, node.derivedAudioBitsPerSample div 8)
     else: node.retainedByteLength
   let item = session.allocateDescriptor(node.path, node.typeId, node.kind,
-    capabilities, vvlRepresentation, estimatedBytes, node.metadata)
+    capabilities, validation, estimatedBytes, node.metadata)
   var described = item
   case node.kind
   of vrnkRaster:
@@ -296,7 +299,8 @@ proc addLegacyNode(session: VextInspectionSession, node: VextResourceNode,
   session.legacyNodeById[described.id] = node
   if uint64(parent) == 0: session.roots.add described.id
   else: session.children.mgetOrPut(parent, @[]).add described.id
-  for child in node.children: session.addLegacyNode(child, described.id)
+  for child in node.children:
+    session.addLegacyNode(child, described.id, validation)
   session.expanded.incl described.id
 
 proc addManifestElement(session: VextInspectionSession,
@@ -342,6 +346,16 @@ proc selectZip(session: VextInspectionSession, filename: string,
     except ValueError as error:
       session.warnings.add VextInspectionWarning(path: "/",
         format: OpenRasterTypeId, message: error.msg)
+  if refine and session.kind == vskZip:
+    let carrier = VextDetectedFormat(candidate: zipCandidate,
+      parsed: VextParsedValue[ZipArchive](kind: vhkZip,
+        value: session.zip))
+    let refinements = applySourceFormatRefiners(filename,
+      session.sources.primary, carrier, formatRefiners())
+    for index in countdown(refinements.high, 0):
+      session.candidates.insert(refinements[index].candidate, 0)
+    if refinements.len > 0:
+      session.selectedFormat = refinements[0].candidate
 
 proc selectIso(session: VextInspectionSession) =
   session.isoSource = session.sources.primary
@@ -437,6 +451,18 @@ proc selectDeferredWrapper(session: VextInspectionSession, typeId,
   session.deferredRootPath = rootPath
   session.kind = vskDeferredWrapper
 
+proc selectDetectionOnly(session: VextInspectionSession,
+    item: VextDetectionCandidate) =
+  let
+    source = session.sources.primary
+    maximumBytes = session.limits.maximumWorkingBytes
+    inspection = inspectionForDetectionOnly(item, source.length,
+      proc(): seq[byte] = source.readAll(maximumBytes))
+  session.selectedFormat = item
+  session.candidates = @[item]
+  session.legacyTree = inspection.resources
+  session.kind = vskLegacy
+
 proc openInspectionSession*(filename: string, sources: VextSourceCollection,
     inputFormat = "", ignoreWarnings = false,
     pcxChannelOrder = pcoRgb, ansiLetterSpacing = alsAuto,
@@ -522,32 +548,49 @@ proc openInspectionSession*(filename: string, sources: VextSourceCollection,
       result.legacyTree = legacy.resources
       result.kind = vskLegacy
     if inputFormat.len > 0:
-      case inputFormat
-      of ZipArchiveTypeId: result.selectZip(filename, progress, false)
-      of OpenRasterTypeId:
-        result.selectZip(filename, progress)
-        if result.kind != vskOpenRaster:
+      let requestedHandler = formatHandler(inputFormat)
+      if not requestedHandler.isNil and not requestedHandler[].isInspectable and
+          requestedHandler[].carrierTypeId.len == 0:
+        var matched = false
+        for item in detectionInput.detectDetectionOnlyFormats:
+          if item.typeId == inputFormat:
+            result.selectDetectionOnly(item)
+            matched = true
+            break
+        if not matched:
           raise newException(ValueError,
-            "source is not a valid OpenRaster package")
-      of Iso9660TypeId: result.selectIso()
-      of AppImageType1TypeId: result.selectAppImageType1()
-      of AppImageTypeId: result.selectAppImage()
-      of LhaArchiveTypeId: result.selectLha()
-      of ElectronAsarTypeId: result.selectElectronAsar()
-      of AmigaAdfTypeId: result.selectAmigaAdf()
-      of InnoSetupTypeId: result.selectInnoSetup()
-      of AmigaDmsTypeId:
-        result.selectDeferredWrapper(AmigaDmsTypeId, "/disk",
-          "source has valid checksummed DMS track framing")
-      of XpkTypeId:
-        result.selectDeferredWrapper(XpkTypeId, "/content",
-          "source has valid XPK master and chunk framing")
-      of PowerPackerTypeId:
-        result.selectDeferredWrapper(PowerPackerTypeId, "/content",
-          "source has valid PowerPacker framing")
-      else: selectCompleteInput()
+            "input does not match forced format: " & inputFormat)
+      else:
+        case inputFormat
+        of ZipArchiveTypeId: result.selectZip(filename, progress, false)
+        of OpenRasterTypeId:
+          result.selectZip(filename, progress)
+          if result.kind != vskOpenRaster:
+            raise newException(ValueError,
+              "source is not a valid OpenRaster package")
+        of Iso9660TypeId: result.selectIso()
+        of AppImageType1TypeId: result.selectAppImageType1()
+        of AppImageTypeId: result.selectAppImage()
+        of LhaArchiveTypeId: result.selectLha()
+        of ElectronAsarTypeId: result.selectElectronAsar()
+        of AmigaAdfTypeId: result.selectAmigaAdf()
+        of InnoSetupTypeId: result.selectInnoSetup()
+        of AmigaDmsTypeId:
+          result.selectDeferredWrapper(AmigaDmsTypeId, "/disk",
+            "source has valid checksummed DMS track framing")
+        of XpkTypeId:
+          result.selectDeferredWrapper(XpkTypeId, "/content",
+            "source has valid XPK master and chunk framing")
+        of PowerPackerTypeId:
+          result.selectDeferredWrapper(PowerPackerTypeId, "/content",
+            "source has valid PowerPacker framing")
+        else: selectCompleteInput()
     else:
       var selected = false
+      let detectionOnly = detectionInput.detectDetectionOnlyFormats
+      if detectionOnly.len > 0:
+        result.selectDetectionOnly(detectionOnly[0])
+        selected = true
       for kind in detectionInput.sourceDetectionOrder:
         if selected: break
         if kind == vsdkCompleteInput:
@@ -580,10 +623,18 @@ proc openInspectionSession*(filename: string, sources: VextSourceCollection,
 
     case result.kind
     of vskZip:
-      let root = result.allocateDescriptor("/archive", ZipArchiveTypeId,
-        vrnkGroup, {vrcEnumerateChildren, vrcExtractTree}, vvlStructural, metadata = @[
+      var metadata = @[
           integerMetadata("entries", result.zip.entries.len),
-          stringMetadata("comment", result.zip.comment)])
+          stringMetadata("comment", result.zip.comment)]
+      if result.selectedFormat.typeId != ZipArchiveTypeId:
+        metadata.add stringMetadata("carrier.type", ZipArchiveTypeId)
+        metadata.add stringMetadata("inspection.status", "detection-only")
+        metadata.add stringMetadata("inspection.message",
+          "format recognized; format-specific structural inspection is not implemented")
+      let root = result.allocateDescriptor("/archive",
+        result.selectedFormat.typeId, vrnkGroup,
+        {vrcEnumerateChildren, vrcExtractTree}, vvlStructural,
+        metadata = metadata)
       result.commit(root)
       result.roots.add root.id
     of vskOpenRaster:
@@ -780,8 +831,11 @@ proc openInspectionSession*(filename: string, sources: VextSourceCollection,
       result.commit(root)
       result.roots.add root.id
     of vskLegacy:
+      let validation = if result.selectedFormat.support == vfsDetectionOnly:
+          vvlEvidence
+        else: vvlRepresentation
       for root in result.legacyTree.roots:
-        result.addLegacyNode(root, VextResourceId(0))
+        result.addLegacyNode(root, VextResourceId(0), validation)
     progress.report(VextSessionProgressEvent(phase: vsppComplete,
       path: filename, completed: result.descriptors.len,
       discovered: result.descriptors.len, totalState: vptsFinal,

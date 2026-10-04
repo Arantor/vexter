@@ -50,6 +50,22 @@ basic bold, italic, and strikeout styling. It emits comments for page breaks
 and retained controls and reports warnings for layout, typography, tabs, and
 other properties that Markdown cannot reliably reproduce.
 
+## Adobe PDF documents
+
+Container type identifier: `adobe.pdf`
+
+PDF is currently detection-only. Recognition requires an eight-byte header at
+byte zero consisting of `%PDF-` followed by version `1.0` through `1.7`, or
+`2.0`. A case-insensitive `.pdf` extension is recorded as supporting evidence,
+but is neither required nor sufficient. A recognized header produces certain
+confidence and exposes the complete source as an opaque `/file` resource for
+byte-identical BIN export.
+
+No PDF objects, cross-reference data, document subsets, pages, text, images,
+metadata, encryption, or later structural invariants are inspected yet. Header
+forms outside the supplied core version set are deliberately not identified as
+PDF until their acceptance criteria are established.
+
 ## WordStar documents
 
 Container type identifier: `wordstar.document`

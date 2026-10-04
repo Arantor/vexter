@@ -116,3 +116,41 @@ suite "format carrier refinement":
     expect ValueError:
       discard forceFormatWith("ordinary.zip", data, "test.zip-profile",
         @[profile])
+
+  test "a package refinement can be detection-only":
+    let data = storedZip("profile.marker", "semantic-package")
+    let profile = VextFormatRefiner(typeId: "test.detected-profile",
+      carrierTypeId: ZipArchiveTypeId,
+      sourceProbe: proc(filename: string, source: VextByteSource,
+          carrier: VextParsedContainer): VextRefinementMatch =
+        let archive = parsedValue[ZipArchive](carrier, vhkZip)
+        if archive.entries.len == 1 and
+            archive.entries[0].name == "profile.marker" and
+            source.readAt(0, 4) ==
+              @[byte('P'), byte('K'), 3'u8, 4'u8]:
+          result = VextRefinementMatch(matched: true,
+            confidence: vdcCertain,
+            evidence: @[VextDetectionEvidence(
+              description: "synthetic detection-only marker is present")]))
+    let detected = detectParsedFormatsWith("package.zip", data, @[profile])
+    check detected.len == 2
+    check detected[0].candidate.typeId == "test.detected-profile"
+    check detected[0].candidate.support == vfsDetectionOnly
+    check detected[0].parsed.isNil
+    check detected[0].candidate.derivation.stages.len == 2
+    check detected[1].candidate.typeId == ZipArchiveTypeId
+
+    let carrier = forceFormatWith("package.zip", data,
+      ZipArchiveTypeId, @[profile])
+    let source = memoryByteSource(data)
+    let sourceDetected = applySourceFormatRefiners("package.zip", source,
+      carrier, @[profile])
+    check sourceDetected.len == 1
+    check sourceDetected[0].candidate.typeId == "test.detected-profile"
+    check sourceDetected[0].candidate.support == vfsDetectionOnly
+    source.close()
+
+    let forced = forceFormatWith("package.zip", data,
+      "test.detected-profile", @[profile])
+    check forced.candidate.support == vfsDetectionOnly
+    check forced.parsed.isNil

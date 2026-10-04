@@ -74,7 +74,8 @@ client, and a dependency-free native Windows GUI. It supports:
   TAP and first-pass TZX containers, tokenised BASIC resources, BMFont text descriptors, FZX and Amiga bitmap diskfonts
   (including ColorFonts), SQLite 3 databases with table schemas and rows
   (but no exposed indexes), standalone AMOS banks, AMOS bank
-  sets, AMOS programs, and headerless WordStar documents plus the version
+  sets, AMOS programs, detection-only Adobe PDF documents identified from
+  their core version headers, and headerless WordStar documents plus the version
   5-or-later headered family, and recovery-oriented Windows Write `0x31BE`
   documents with plain text and paragraph flow plus the observed `0x32BE`
   Paintbrush/BMP envelope with linked raster resources;
@@ -241,11 +242,14 @@ nice -n 15 nimble cli
 The CLI artifacts are `build/linux/vexter` and
 `build/win32/vexter-cli.exe`. The task builds them sequentially.
 
-The handler registry is authoritative for physical format identifiers and parser
-dispatch. It also exposes a carrier-refinement registry for semantic package
+The handler registry is authoritative for physical format identifiers,
+explicit detection-only/inspectable capability, and parser dispatch.
+Detection-only entries use `detectionOnlyHandler`; calling their parser is a
+contract error rather than an invitation to fabricate a parsed value. The
+registry also exposes a carrier-refinement registry for semantic package
 formats: a handler can declare that it is carried by another registered format,
-and its refiner receives the already parsed carrier. No semantic package
-refiners are registered yet. ADF, ZIP, and LHA files also perform bounded
+and its refiner receives the already parsed carrier. OpenRaster currently
+refines ZIP in this way. ADF, ZIP, and LHA files also perform bounded
 recursive inspection of recognized contained files. The broader option surface
 shown in `PLAN.md` remains future work.
 
@@ -338,6 +342,30 @@ records, carrier manifests, or combinations of those signals. Source-backed
 carrier routing and ordinary whole-input detection both consume the same
 detection input, and the legacy filename-and-bytes entry points are compatibility
 wrappers over it.
+
+Registered formats explicitly distinguish `inspectable` support from
+`detection-only` support. A detection-only candidate carries the same stable
+identifier, confidence, evidence, and derivation as an inspectable candidate,
+but owns no fabricated parser result. Inspection exposes the original bytes as
+one raw opaque resource with an explicit `inspection.status=detection-only`
+marker. Both frontends therefore report successful recognition while stating
+that structural inspection is not implemented, and raw export remains
+available. Forced detection-only formats must still match their registered
+detection rule; the override never assigns an unvalidated label.
+Carrier refiners can likewise report an explicit match without inventing a
+parsed representation, allowing package identities such as ZIP profiles to be
+detection-only while retaining their physical-carrier derivation.
+Such profiles can provide a source-aware refinement probe. Incremental carrier
+sessions run those probes against the already parsed carrier and its bounded
+random-access source, preserving generic carrier browsing and extraction
+without forcing complete input materialization.
+
+Adding a detection-only format therefore requires a stable type identifier, a
+`detectionOnlyHandler` registry entry, and a detector which returns confidence
+plus concrete evidence from `VextDetectionInput`. A semantic carrier profile
+instead registers a refiner with `matched=true`; it should provide
+`sourceProbe` when bounded carrier evidence is available. Neither path requires
+a placeholder parser or an adversarial parser profile.
 
 `src/vexterlib/byte_sources.nim` defines bounded random-access byte sources and
 source collections. A collection owns its primary source and any companions
@@ -1284,6 +1312,9 @@ indexed raster that can be sent to GIF.
 
 The routine suites are:
 
+- `tests/test_pdf_detection.nim`: detection-only Adobe PDF core-version
+  headers, extension evidence, malformed and unsupported identifiers, forced
+  validation, opaque BIN exposure, and bounded lazy session reads;
 - `tests/test_sierra_agi_game.nim`: v2/v3 package discovery, bounded lazy
   resource access, LZW and packed-picture expansion, PIC line/fill rendering,
   drawing GIF selection, VIEW cel RLE and mirroring, LOGIC instructions,

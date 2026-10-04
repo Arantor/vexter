@@ -92,6 +92,7 @@ proc sameCandidates(left, right: seq[VextDetectionCandidate]): bool =
   if left.len != right.len: return false
   for index in 0 ..< left.len:
     if left[index].typeId != right[index].typeId or
+        left[index].support != right[index].support or
         left[index].confidence != right[index].confidence or
         left[index].evidence.len != right[index].evidence.len or
         left[index].derivation.stages.len != right[index].derivation.stages.len:
@@ -108,17 +109,23 @@ proc sameCandidates(left, right: seq[VextDetectionCandidate]): bool =
 
 suite "adversarial input contract":
   test "every registered handler has exactly one adversarial profile":
-    check AdversarialProfiles.len == FormatHandlers.len
+    var inspectableHandlers = 0
     for handler in FormatHandlers:
       var matches = 0
       for profile in AdversarialProfiles:
         if profile.typeId == handler.typeId: inc matches
-      check matches == 1
+      if handler.isInspectable:
+        inc inspectableHandlers
+        check matches == 1
+      else:
+        check matches == 0
+    check AdversarialProfiles.len == inspectableHandlers
 
   test "small hostile inputs cannot escape parser exception boundaries":
     for profile in AdversarialProfiles:
       let handler = formatHandler(profile.typeId)
       check not handler.isNil
+      check handler[].isInspectable
       for data in hostileInputs():
         try:
           if handler[].carrierTypeId.len == 0:

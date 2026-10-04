@@ -131,6 +131,7 @@ type
   VextDemandDecodeResult* = enum
     vddNotApplicable
     vddUnrecognized
+    vddDetectionOnly
     vddDecoded
     vddFailed
 
@@ -162,6 +163,53 @@ proc reportProgress(callback: VextProgressCallback,
   if callback != nil and not callback(VextProgressEvent(phase: phase,
       path: path, completed: completed, total: total, message: message)):
     raise newException(VextOperationCancelledError, "operation cancelled")
+
+proc detectionOnlyMetadata(candidate: VextDetectionCandidate,
+    dataLength: int): seq[VextMetadataEntry] =
+  if candidate.support != vfsDetectionOnly:
+    raise newException(ValueError,
+      "candidate is not registered as detection-only: " & candidate.typeId)
+  result = @[
+    stringMetadata("inspection.status", "detection-only"),
+    stringMetadata("inspection.message",
+      "format recognized; structural inspection is not implemented"),
+    integerMetadata("data.length", dataLength)]
+  for index, item in candidate.evidence:
+    result.add stringMetadata("detection.evidence." & $index,
+      item.description)
+
+proc inspectionForDetectionOnly*(candidate: VextDetectionCandidate,
+    dataLength: int, materializer: VextPayloadMaterializer): VextInspection =
+  ## Builds a lazy opaque result for source-backed incremental consumers.
+  result.selectedFormat = candidate
+  result.candidates = @[candidate]
+  let resource = VextResourceNode(path: "/file", typeId: candidate.typeId,
+    kind: vrnkOpaque, rawDataAvailable: true,
+    nestedInspectionAttempted: true,
+    metadata: candidate.detectionOnlyMetadata(dataLength),
+    lazyPayload: VextPayloadRef(length: dataLength,
+      materializer: materializer))
+  result.resources.roots = @[resource]
+
+proc inspectionForDetectionOnly*(candidate: VextDetectionCandidate,
+    data: openArray[byte], backingSource: VextPayloadSource = nil):
+    VextInspection =
+  ## Builds the intentionally opaque inspection result for a candidate already
+  ## validated by its registered detector. This does not itself assign a label
+  ## to arbitrary bytes.
+  result.selectedFormat = candidate
+  result.candidates = @[candidate]
+  let resource = VextResourceNode(path: "/file", typeId: candidate.typeId,
+    kind: vrnkOpaque, rawDataAvailable: true,
+    nestedInspectionAttempted: true,
+    metadata: candidate.detectionOnlyMetadata(data.len))
+  if backingSource.isNil:
+    resource.data = @data
+  else:
+    resource.lazyPayload = VextPayloadRef(source: backingSource,
+      spans: @[VextPayloadSpan(offset: 0, length: data.len)],
+      length: data.len)
+  result.resources.roots = @[resource]
 
 proc exportFormatsFor*(resource: VextResourceNode): seq[VextExportFormat] =
   ## Describes every format accepted by `exportResource` for one resource.
@@ -1162,6 +1210,12 @@ proc inspectSourceDepth(filename: string, data: openArray[byte],
   if selectedHandler.isNil:
     raise newException(ValueError,
       "unsupported input format: " & result.selectedFormat.typeId)
+  if not selectedHandler[].isInspectable:
+    let allCandidates = result.candidates
+    result = inspectionForDetectionOnly(result.selectedFormat, data,
+      backingSource)
+    result.candidates = allCandidates
+    return
   case selectedHandler.kind
   of vhkInnoSetup:
     let installer = parsedValue[InnoSetupInstaller](selectedParsed,
@@ -3163,6 +3217,14 @@ proc decodeResourceOnDemand*(node: VextResourceNode,
   if candidates.len == 0:
     node.metadata.add stringMetadata("decode.status", "format not recognized")
     return vddUnrecognized
+  if candidates[0].support == vfsDetectionOnly:
+    node.typeId = candidates[0].typeId
+    node.metadata.add stringMetadata("decode.format", node.typeId)
+    node.metadata.add stringMetadata("decode.status", "detection-only")
+    for index, item in candidates[0].evidence:
+      node.metadata.add stringMetadata("detection.evidence." & $index,
+        item.description)
+    return vddDetectionOnly
   try:
     let nested = inspectSourceDepth(filename, data, "", 1, ignoreWarnings,
       pcxChannelOrder, alsAuto, apaAuto, nil)

@@ -11,6 +11,7 @@ suite "vexterlib operations":
       check handler.typeId.len > 0
       check not formatHandler(handler.typeId).isNil
       check formatHandler(handler.typeId)[].kind == handler.kind
+      check formatHandler(handler.typeId)[].support == handler.support
       for otherIndex in index + 1 .. FormatHandlers.high:
         check handler.typeId != FormatHandlers[otherIndex].typeId
 
@@ -20,7 +21,7 @@ suite "vexterlib operations":
       check not target.isNil
       check not carrier.isNil
       check target[].carrierTypeId == refiner.carrierTypeId
-      check not refiner.probe.isNil
+      check not refiner.probe.isNil or not refiner.sourceProbe.isNil
 
     let candidates = detectFormats("display.scr",
       newSeq[byte](ZxSpectrumScreenSize))
@@ -28,6 +29,29 @@ suite "vexterlib operations":
     check not formatHandler(candidates[0].typeId).isNil
     check candidates[0].derivation.stages.len == 1
     check candidates[0].derivation.stages[0].typeId == candidates[0].typeId
+    check candidates[0].support == vfsInspectable
+
+  test "detection-only handlers produce an explicit opaque inspection":
+    let handler = detectionOnlyHandler("example.detected")
+    check not handler.isInspectable
+    expect ValueError:
+      discard handler.parse(@[1'u8, 2, 3])
+
+    let candidate = VextDetectionCandidate(typeId: handler.typeId,
+      support: handler.support, confidence: vdcProbable,
+      evidence: @[VextDetectionEvidence(
+        description: "test extension and exact size agree")],
+      derivation: baseDerivation(handler.typeId))
+    let inspection = inspectionForDetectionOnly(candidate, @[1'u8, 2, 3])
+    check inspection.selectedFormat.support == vfsDetectionOnly
+    check inspection.resources.roots.len == 1
+    let resource = inspection.resources.roots[0]
+    check resource.typeId == handler.typeId
+    check resource.kind == vrnkOpaque
+    check resource.rawDataAvailable
+    check resource.resourceBytes == @[1'u8, 2, 3]
+    check resource.metadata[0].key == "inspection.status"
+    check resource.metadata[0].value.stringValue == "detection-only"
 
   test "detected and forced handlers retain checked parsed containers":
     let data = newSeq[byte](ZxSpectrumScreenSize)

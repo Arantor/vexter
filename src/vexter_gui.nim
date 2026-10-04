@@ -853,7 +853,10 @@ proc rebuildTree() =
     # as the label of every payload resource.
     let binding = TreeBinding(childrenLoaded: true,
       metadataText: "File: " & filename & "\r\nFormat: " &
-        currentSession.selectedFormat.typeId & "\r\n")
+        currentSession.selectedFormat.typeId & "\r\n" &
+        (if currentSession.selectedFormat.support == vfsDetectionOnly:
+          "Support: detection-only; structural inspection is not implemented\r\n"
+        else: ""))
     bindings.add binding
     let wide = w(filename)
     var insert = TVINSERTSTRUCTW(hParent: TVI_ROOT, hInsertAfter: TVI_LAST,

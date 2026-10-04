@@ -12,7 +12,8 @@ import ./containers/[adobe_color_table, amiga_8svx, amiga_16sv, amiga_acbm, amig
   adobe_swatch_exchange, amos_sprite_icon_bank, ansi_art, appimage, aseprite,
   bmfont, bmp, creative_voice, d64, doom_wad, electron_asar, fat_disk_image, flic, fzx,
   gif_container, gimp_palette, inno_setup, iso9660, jasc_palette, jpeg, koala_painter, netpbm,
-  paint_net_palette, pcx, png_container, protracker_mod, qoi, rgba8_palette, tga,
+  paint_net_palette, pcx, pdf, png_container, protracker_mod, qoi,
+  rgba8_palette, tga,
   sqlite, wav, windows_icon, windows_write, zip_archive, lha_archive,
   zx_spectrum_gigascreen_dump,
   zx_spectrum_next_image,
@@ -180,10 +181,29 @@ proc sourceDetectionOrder*(input: VextDetectionInput):
   if preferZip: return @[vsdkZip, vsdkIso9660, vsdkCompleteInput]
   @[vsdkIso9660, vsdkZip, vsdkCompleteInput]
 
+proc detectDetectionOnlyFormats*(input: VextDetectionInput):
+    seq[VextDetectionCandidate] =
+  ## Recognizes physical formats whose bounded evidence does not require a
+  ## parser. Incremental sessions can use this before considering eager paths.
+  let filename = input.filename
+  if input.length >= PdfHeaderLength:
+    let version = input.readWindow(0, PdfHeaderLength).pdfVersion
+    if version.len > 0:
+      var evidence = @[VextDetectionEvidence(description:
+        "file begins with %PDF-" & version &
+        ", a recognized core PDF version header")]
+      if filename.hasPdfExtension:
+        evidence.add VextDetectionEvidence(description: "file extension is .pdf")
+      return @[VextDetectionCandidate(typeId: PdfTypeId,
+        support: vfsDetectionOnly, confidence: vdcCertain,
+        evidence: evidence, derivation: baseDerivation(PdfTypeId))]
+
 proc detectBaseFormats(input: VextDetectionInput):
     seq[VextDetectionCandidate] =
   ## Returns every format candidate recognized from currently available
   ## evidence, ordered from strongest to weakest.
+  let detectionOnly = input.detectDetectionOnlyFormats
+  if detectionOnly.len > 0: return detectionOnly
   let filename = input.filename
   let data = input.completeBytes
   if isWindowsWrite(data):
@@ -1022,6 +1042,7 @@ proc detectBaseFormats(input: VextDetectionInput):
         "detector returned an unregistered input format: " & candidate.typeId)
 
   for candidate in result.mitems:
+    candidate.support = formatHandler(candidate.typeId)[].support
     candidate.derivation = baseDerivation(candidate.typeId)
 
 proc applyFormatRefiners*(filename: string, data: openArray[byte],
@@ -1032,30 +1053,94 @@ proc applyFormatRefiners*(filename: string, data: openArray[byte],
   if depth >= 8: return
   for refiner in refiners:
     if refiner.carrierTypeId != carrier.candidate.typeId or
-        refiner.probe.isNil:
+        (refiner.probe.isNil and refiner.sourceProbe.isNil):
       continue
     var repeated = false
     for stage in carrier.candidate.derivation.stages:
       if stage.typeId == refiner.typeId: repeated = true
     if repeated: continue
-    let matched = refiner.probe(filename, data, carrier.parsed)
-    if matched.parsed.isNil: continue
+    var matched: VextRefinementMatch
+    if not refiner.probe.isNil:
+      matched = refiner.probe(filename, data, carrier.parsed)
+    else:
+      let source = memoryByteSource(@data, filename)
+      try:
+        matched = refiner.sourceProbe(filename, source, carrier.parsed)
+      finally:
+        source.close()
+    if not matched.matched and matched.parsed.isNil: continue
+    let target = formatHandler(refiner.typeId)
+    let support = if target.isNil:
+        (if matched.parsed.isNil: vfsDetectionOnly else: vfsInspectable)
+      else: target[].support
+    if support == vfsInspectable and matched.parsed.isNil:
+      raise newException(Defect,
+        "inspectable semantic refinement produced no parsed value: " &
+          refiner.typeId)
     let refined = VextDetectedFormat(candidate: VextDetectionCandidate(
-      typeId: refiner.typeId, confidence: matched.confidence,
+      typeId: refiner.typeId, support: support,
+      confidence: matched.confidence,
       evidence: matched.evidence,
       derivation: carrier.candidate.derivation.refinedDerivation(
           refiner.typeId)),
       parsed: matched.parsed)
-    result.add applyFormatRefiners(filename, data, refined, refiners, depth + 1)
+    if not refined.parsed.isNil:
+      result.add applyFormatRefiners(filename, data, refined, refiners,
+        depth + 1)
+    result.add refined
+
+proc applySourceFormatRefiners*(filename: string, source: VextByteSource,
+    carrier: VextDetectedFormat, refiners: openArray[VextFormatRefiner],
+    depth = 0): seq[VextDetectedFormat] =
+  ## Applies refiners which explicitly support bounded random-access carrier
+  ## evidence. Incremental sessions use this without materializing the carrier.
+  if depth >= 8: return
+  for refiner in refiners:
+    if refiner.carrierTypeId != carrier.candidate.typeId or
+        refiner.sourceProbe.isNil:
+      continue
+    var repeated = false
+    for stage in carrier.candidate.derivation.stages:
+      if stage.typeId == refiner.typeId: repeated = true
+    if repeated: continue
+    let matched = refiner.sourceProbe(filename, source, carrier.parsed)
+    if not matched.matched and matched.parsed.isNil: continue
+    let target = formatHandler(refiner.typeId)
+    let support = if target.isNil:
+        (if matched.parsed.isNil: vfsDetectionOnly else: vfsInspectable)
+      else: target[].support
+    if support == vfsInspectable and matched.parsed.isNil:
+      raise newException(Defect,
+        "inspectable source refinement produced no parsed value: " &
+          refiner.typeId)
+    let refined = VextDetectedFormat(candidate: VextDetectionCandidate(
+      typeId: refiner.typeId, support: support,
+      confidence: matched.confidence, evidence: matched.evidence,
+      derivation: carrier.candidate.derivation.refinedDerivation(
+        refiner.typeId)), parsed: matched.parsed)
+    if not refined.parsed.isNil:
+      result.add applySourceFormatRefiners(filename, source, refined,
+        refiners, depth + 1)
     result.add refined
 
 proc detectParsedFormatsWith*(input: VextDetectionInput,
     refiners: openArray[VextFormatRefiner]): seq[VextDetectedFormat] =
   ## Detection entry point used by the registered path and focused tests.
-  ## Every base parser runs once; refiners receive and may retain that value.
-  let data = input.completeBytes
-  for candidate in detectBaseFormats(input):
+  ## Every inspectable base parser runs once; detection-only matches retain no
+  ## fabricated parsed value. Refiners receive and may retain parsed carriers.
+  for baseCandidate in detectBaseFormats(input):
+    var candidate = baseCandidate
     let handler = formatHandler(candidate.typeId)
+    if handler.isNil:
+      raise newException(Defect,
+        "detector returned an unregistered input format: " & candidate.typeId)
+    candidate.support = handler[].support
+    if candidate.derivation.stages.len == 0:
+      candidate.derivation = baseDerivation(candidate.typeId)
+    if not handler[].isInspectable:
+      result.add VextDetectedFormat(candidate: candidate)
+      continue
+    let data = input.completeBytes
     let carrier = VextDetectedFormat(candidate: candidate,
       parsed: handler[].parse(data))
     result.add applyFormatRefiners(input.filename, data, carrier, refiners)
@@ -1071,6 +1156,9 @@ proc detectParsedFormats*(input: VextDetectionInput):
       raise newException(Defect,
         "refiner does not match its registered semantic handler: " &
           refiner.typeId)
+    if refiner.probe.isNil and refiner.sourceProbe.isNil:
+      raise newException(Defect,
+        "refiner has no evidence probe: " & refiner.typeId)
   detectParsedFormatsWith(input, refiners)
 
 proc detectParsedFormatsWith*(filename: string, data: openArray[byte],
@@ -1103,6 +1191,16 @@ proc forceFormatWithDepth(input: VextDetectionInput,
       "format refinement exceeds the maximum derivation depth")
   let direct = formatHandler(typeId)
   if not direct.isNil and direct[].carrierTypeId.len == 0:
+    if not direct[].isInspectable:
+      for baseCandidate in detectBaseFormats(input):
+        var candidate = baseCandidate
+        if candidate.typeId == typeId:
+          candidate.support = direct[].support
+          if candidate.derivation.stages.len == 0:
+            candidate.derivation = baseDerivation(candidate.typeId)
+          return VextDetectedFormat(candidate: candidate)
+      raise newException(ValueError,
+        "input does not match forced format: " & typeId)
     let data = input.completeBytes
     result = VextDetectedFormat(candidate: VextDetectionCandidate(
       typeId: typeId,

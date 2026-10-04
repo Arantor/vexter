@@ -149,6 +149,7 @@ proc inspect(options: CliOptions) =
         derivation.add %stage.typeId
       candidateNodes.add %*{
         "type": candidate.typeId,
+        "support": $candidate.support,
         "confidence": $candidate.confidence,
         "derivation": derivation,
         "evidence": evidence
@@ -216,6 +217,8 @@ proc inspect(options: CliOptions) =
     echo options.input
     echo &"Format: {session.selectedFormat.typeId} " &
       &"({session.selectedFormat.confidence})"
+    if session.selectedFormat.support == vfsDetectionOnly:
+      echo "Support: detection-only; structural inspection is not implemented"
     if session.selectedFormat.derivation.stages.len > 1:
       var stages: seq[string]
       for stage in session.selectedFormat.derivation.stages:
