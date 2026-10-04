@@ -16,6 +16,16 @@ TVPaint. Routine tests use compact synthetic FORM DEEP files constructed from
 the documented fields and do not redistribute the supplied material. No
 external implementation code was used.
 
+The initial IFF DR2D implementation uses the archive's `other/DR2D.txt` as its
+format authority. The document describes drawing bounds, palettes, layers,
+attributes, open and closed polygons, cubic sections and subpaths, simple and
+path-following text, nested groups and object fills, arrow definitions, and
+external ILBM references. Routine tests use compact synthetic FORM DR2D files
+constructed from those records. The separately referenced OFNT font files and
+external ILBM payloads were not supplied as part of a DR2D sample set, so the
+first implementation retains their references without substituting host fonts
+or resolving filesystem paths.
+
 The later Deluxe Paint IV enhanced-colour-cycle implementation uses the
 archive's `ILBM/ILBM_DRNG.txt`. It defines the `DRNG` chunk's ordered mixture
 of sparse palette-register cells and literal RGB cells, signed rate, active
@@ -53,6 +63,7 @@ corpus-derived behavior beyond the registry document's bare `RUNLENGTH` name.
 ```text
 0fb0ece05f527b3ec48108153ecf67698b98bb36725ab96872e61d8568b0bfb4  IFF_FORMS.zip
 a93536f5cbd6c03bf7bf388863a5437d4fed174eb03b5ead94a0f6edef24ccca  IFF_FORMS/other/DEEP.txt
+abfbc9e311ee35a5e1c0632b855385a027b013f1ce48ce78ad33358a8f8e8ebc  IFF_FORMS/other/DR2D.txt
 0c012e9d20c4279c97c22029825db2cfd2afad00ab2de9279c50411f07cde553  IFF_FORMS/ILBM/ILBM_DRNG.txt
 644c82aadaa6c31cdbb9d55ba2bc3ac41ee8fa716373fa20306ab85680ab11d1  IFF_FORMS/ILBM/ILBM_DPPV.txt
 38ee0c746db5a5e948a4c6c9b7258d3673a2e985b78919b14fac7d9ee4d7a50a  IFF_FORMS/REGISTRY_930210.txt

@@ -44,6 +44,7 @@ client, and a dependency-free native Windows GUI. It supports:
   and ACBM images, raw or pixel-run-length true-colour IFF DEEP images, provisional
   packed-pixel IFF PBM images, IFF ANIM
   animations, IFF 8SVX and 16SV sampled audio,
+  IFF DR2D vector drawings with bounded PNG path previews,
   integer PCM WAV and Creative Voice sounds, PCX, TGA, BMP/DIB,
   static DOS ANSI art with optional SAUCE metadata,
   classic DOOM IWAD/PWAD containers with palettes, flats, sprites, patches,
@@ -93,6 +94,9 @@ client, and a dependency-free native Windows GUI. It supports:
 - a bitmap-font archetype with mono, indexed, or true-colour glyphs, explicit
   Unicode mappings, bearings, advances, line metrics, kerning, substitutions,
   and ligatures;
+- a vector-drawing archetype with coordinate bounds, layers, move/line/cubic
+  paths, even-odd subpaths, fill and stroke styles, text records, external
+  image references, and nested groups;
 - PNG export for a still image or an animation's natural first frame, plus
   ordered palette swatches for palette resources and indexed rasters;
 - GIMP GPL export for palette resources and indexed rasters, automatically
@@ -538,6 +542,8 @@ Matching case-insensitive extensions add supporting evidence.
   fields, and xRGB palettes;
 - `amiga_iff.nim` validates generic IFF `FORM` lengths, chunk boundaries, and
   even-byte padding;
+- `amiga_dr2d.nim` validates `FORM DR2D` definitions and objects and maps its
+  drawing semantics into the format-neutral vector archetype;
 - `amiga_8svx.nim` interprets `FORM 8SVX` voice headers, channels, loop and
   playback metadata, and raw or Fibonacci-delta sample bodies;
 - `amiga_16sv.nim` interprets the compatible `FORM 16SV` structure and its
@@ -787,6 +793,12 @@ Indexed and true-colour images may carry an orthogonal per-pixel eight-bit
 alpha channel; an omitted channel means fully opaque. `alphaAt`, `rgbaAt`, and
 `hasAlpha` provide representation-independent access and validation.
 
+`src/vexterlib/archetypes/vector.nim` contains the generic two-dimensional
+drawing contract. It retains source-space bounds, layers, path commands and
+styles, simple or path-following text, external image references, and nested
+groups. `resources/vector_preview.nim` supplies a bounded dependency-free PNG
+projection without teaching the archetype about DR2D.
+
 `src/vexterlib/archetypes/palette.nim` defines an ordered collection of
 `VextRgba` entries plus optional colour-cycle ranges. Palette-entry alpha is
 intrinsic to each colour. It is distinct from an indexed raster's per-pixel
@@ -922,6 +934,8 @@ doom.sound
 doom.automap
 doom.lump
 amiga.iff
+amiga.dr2d
+amiga.dr2d-drawing
 amiga.acbm
 amiga.deep
 amiga.deep-image
@@ -977,6 +991,11 @@ structurally valid and are ignored by the current image decoder. HAM/HAM8
 bitmaps expose a
 `VextTrueColourImage` at the same path. True-colour PNG export is supported;
 GIF export requires a future colour-quantization stage.
+
+Supported DR2D forms expose one vector drawing at `/drawing`. The generic
+vector preview renders paths to true colour for the GUI and PNG exporter;
+external fonts and bitmaps remain structured dependencies and produce explicit
+loss warnings when absent.
 
 IFF 8SVX forms expose a sampled instrument at `/instrument`. Its BODY is
 decoded to signed eight-bit PCM, split from the format's channel-major stereo
@@ -1311,6 +1330,9 @@ The routine suites are:
   ByteRun1 decoding, one-through-eight-plane indexed images, legacy palette
   expansion, EHB, focused HAM6/HAM8 cases, and authentic Deluxe Paint HAM6/HAM8
   controls;
+- `tests/test_amiga_dr2d.nim`: synthetic FORM DR2D detection, vector resource
+  construction, polygon and cubic command decoding, text-on-path retention,
+  bounded PNG rendering/export, and malformed record rejection;
 - `tests/test_amiga_8svx.nim`: raw mono/stereo samples, sampled-instrument
   metadata, Fibonacci-delta expansion, detection, WAV routing, and malformed
   input;

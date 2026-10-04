@@ -14,7 +14,7 @@ sufficiently useful to continue as an ongoing project.
 ## Supported formats
 
 - Amiga: Workbench icons, ADF and DMS disks, PowerPacker, XPK/SHRI, IFF
-  ILBM/ACBM/PBM, ANIM, 8SVX/16SV audio, monochrome and colour bitmap diskfonts,
+  ILBM/ACBM/PBM and DR2D drawings, ANIM, 8SVX/16SV audio, monochrome and colour bitmap diskfonts,
   AMOS programs and banks, Hunk
   executables, and LHA self-extractors
 - Images and animations: BMP/DIB, PCX, TGA, PNG/APNG, GIF, QOI, Netpbm,

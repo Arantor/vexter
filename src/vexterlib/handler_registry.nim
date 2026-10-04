@@ -5,7 +5,7 @@
 ## validation and inspection implementation for that format.
 
 import ./containers/[adobe_color_table, adobe_swatch_exchange, amiga_8svx, amiga_16sv, amiga_acbm, amiga_deep,
-  amiga_adf, amiga_anim, appimage, aseprite,
+  amiga_adf, amiga_anim, amiga_dr2d, appimage, aseprite,
   amiga_diskfont, amiga_dms, amiga_hunk_executable, amiga_iff, amiga_ilbm,
   amiga_lha_sfx,
   amiga_workbench_icon, amos_bank,
@@ -38,6 +38,7 @@ type
     vhkXpk
     vhkPowerPacker
     vhkAmigaAnim
+    vhkAmigaDr2d
     vhkAmigaIlbm
     vhkAmigaIff
     vhkBmp
@@ -145,6 +146,7 @@ const FormatHandlers* = [
   VextFormatHandler(typeId: XpkTypeId, kind: vhkXpk),
   VextFormatHandler(typeId: PowerPackerTypeId, kind: vhkPowerPacker),
   VextFormatHandler(typeId: AmigaAnimTypeId, kind: vhkAmigaAnim),
+  VextFormatHandler(typeId: AmigaDr2dTypeId, kind: vhkAmigaDr2d),
   VextFormatHandler(typeId: AmigaIlbmTypeId, kind: vhkAmigaIlbm),
   VextFormatHandler(typeId: AmigaIffTypeId, kind: vhkAmigaIff),
   VextFormatHandler(typeId: BmpTypeId, kind: vhkBmp),
@@ -278,6 +280,7 @@ proc parse*(handler: VextFormatHandler,
   of vhkXpk: result = parsed(parseXpk(data))
   of vhkPowerPacker: result = parsed(parsePowerPacker(data))
   of vhkAmigaAnim: result = parsed(parseAmigaAnim(data))
+  of vhkAmigaDr2d: result = parsed(parseAmigaDr2d(data))
   of vhkAmigaIlbm: result = parsed(parseAmigaIlbm(data))
   of vhkAmigaIff: result = parsed(parseAmigaIff(data))
   of vhkBmp: result = parsed(parseBmp(data))

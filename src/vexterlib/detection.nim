@@ -4,7 +4,7 @@ import std/[os, strutils]
 import ./handler_registry
 import ./format_detection_types
 export format_detection_types
-import ./containers/[adobe_color_table, amiga_8svx, amiga_16sv, amiga_acbm, amiga_adf, amiga_anim, amiga_deep,
+import ./containers/[adobe_color_table, amiga_8svx, amiga_16sv, amiga_acbm, amiga_adf, amiga_anim, amiga_deep, amiga_dr2d,
   amiga_diskfont, amiga_dms, amiga_hunk_executable, amiga_iff, amiga_ilbm,
   amiga_lha_sfx, amiga_pbm, amiga_workbench_icon, amos_bank, amos_bank_set,
   amos_program,
@@ -611,6 +611,16 @@ proc detectBaseFormats(filename: string, data: openArray[byte]):
       typeId: AmigaAcbmTypeId,
       confidence: vdcCertain,
       evidence: evidence)
+  elif isAmigaDr2d(data):
+    let drawing = parseAmigaDr2d(data)
+    var evidence = @[VextDetectionEvidence(description:
+      "file is a valid FORM DR2D drawing with " & $drawing.pathCount &
+      " vector path(s)")]
+    if hasAmigaDr2dExtension(filename):
+      evidence.add VextDetectionEvidence(
+        description: "file extension is associated with IFF DR2D")
+    result.add VextDetectionCandidate(typeId: AmigaDr2dTypeId,
+      confidence: vdcCertain, evidence: evidence)
   elif isAmigaIlbm(data):
     let ilbm = parseAmigaIlbm(data)
     var evidence = @[VextDetectionEvidence(description:

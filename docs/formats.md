@@ -1282,7 +1282,7 @@ Type identifier: `adobe.swatch-exchange`
 
 Resource path: `/palette`
 
-## Amiga IFF, ILBM, ACBM, PBM, and DEEP
+## Amiga IFF, ILBM, ACBM, PBM, DEEP, and DR2D
 
 An ILBM or ACBM containing a `CMAP` but no bitmap `BODY`/`ABIT` is treated as
 an ordered palette resource; `BMHD` is optional when there is no bitmap data.
@@ -1312,12 +1312,35 @@ Packed bitmap raster type identifier: `amiga.pbm-image`
 
 Direct-colour raster type identifier: `amiga.deep-image`
 
+Vector drawing type identifier: `amiga.dr2d`
+
+Vector drawing resource type identifier: `amiga.dr2d-drawing`
+
 IFF files begin with `FORM`, a big-endian length covering the four-byte form
 type and all following chunks, and the form type itself. Each chunk has a
 four-byte identifier, big-endian payload length, payload, and one external pad
 byte when the payload length is odd. Generic, structurally valid forms expose
 an inspectable `/chunks` group with numbered opaque chunk resources and chunk
 identifier/length metadata.
+
+An IFF DR2D drawing is `FORM DR2D`. Vexter requires its single 16-byte `DRHD`
+drawing bounds and validates documented `CMAP`, `DASH`, `FONS`, `LAYR`,
+`ATTR`, `CPLY`, `OPLY`, `STXT`, `TPTH`, `VBM `, and nested DR2D records. It
+exposes `/drawing` as a `VextVectorDrawing`: source coordinates and possibly
+reversed axes remain in the drawing bounds, polygons become move, line, cubic,
+and close commands, MOVETO indicators retain even-odd subpaths, and hidden
+layers suppress their objects. Named font references, text-on-path geometry,
+external ILBM paths, and group structure remain semantic values rather than
+being flattened during import.
+
+PNG preview and export rasterize colour fills, solid or dashed edges, cubic
+paths, alpha, source-axis orientation, and document order into a bounded
+true-colour image. Text is omitted with a loss warning because DR2D names an
+external OFNT rather than embedding font outlines. External `VBM ` images are
+also omitted with a warning instead of following a source path implicitly.
+Object fill patterns and arrowhead references are reported in metadata but are
+not rendered yet. The importer and renderer currently have synthetic coverage;
+authentic compatibility files remain pending.
 
 An ILBM is `FORM ILBM`. Vexter requires a 20-byte `BMHD` before its single
 `BODY`; optional `CMAP` and four-byte `CAMG` properties must also precede the

@@ -180,6 +180,8 @@ Expected archetypes include:
 - collections of images;
 - colours and palettes;
 - animations, including frames, composition, and explicit durations;
+- two-dimensional vector drawings with paths, layers, text, and external
+  resource references;
 - fonts with mono, indexed, or true-colour glyphs, metrics, and kerning;
 - audio samples, buffers, sampled instruments, and sounds; and
 - structured metadata associated with containers, resources, representations,

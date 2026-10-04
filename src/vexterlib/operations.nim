@@ -7,6 +7,7 @@ import ./archetypes/raster
 import ./archetypes/audio
 import ./archetypes/palette
 import ./archetypes/tracker
+import ./archetypes/vector
 import ./transformations/colour_cycle
 import ./transformations/palette_swatch
 import ./detection
@@ -14,7 +15,7 @@ import ./handler_registry
 import ./exporters/[bmfont, gif, gpl, html_report, markdown, metadata_json, png,
     raw, tracker_json, wav]
 import ./resource_tree
-import ./containers/[adobe_color_table, amiga_8svx, amiga_16sv, amiga_acbm, amiga_adf, amiga_anim, amiga_deep,
+import ./containers/[adobe_color_table, amiga_8svx, amiga_16sv, amiga_acbm, amiga_adf, amiga_anim, amiga_deep, amiga_dr2d,
   amiga_diskfont, amiga_dms, amiga_hunk_executable, amiga_iff, amiga_ilbm,
   amiga_lha_sfx, amiga_pbm, amiga_workbench_icon, amos_bank, amos_bank_set,
   amos_music_bank, amos_packed_picture, amos_program, amos_resource_bank,
@@ -38,7 +39,7 @@ import ./resources/[amiga_anim_image, amiga_deep_image, amiga_diskfont_font, ami
   amos_packed_picture_image, amos_planar_image, amos_sample, bmp_image,
   flic_animation, gif_image, netpbm_image, png_image, zx_spectrum_basic,
   ansi_art_image, bmfont_font, fzx_font, jpeg_image, koala_painter_image,
-  pcx_image, protracker_replay, qoi_image, tga_image, windows_icon_image, zx_spectrum_screen]
+  pcx_image, protracker_replay, qoi_image, tga_image, vector_preview, windows_icon_image, zx_spectrum_screen]
 import ./resources/zx_spectrum_gigascreen
 
 proc fixed16_16(value: int): string =
@@ -168,6 +169,9 @@ proc exportFormatsFor*(resource: VextResourceNode): seq[VextExportFormat] =
   if resource.isNil:
     return
   case resource.kind
+  of vrnkVector:
+    result = @[VextExportFormat(id: "png", displayName: "PNG preview",
+      extensions: @["png"], mediaTypes: @["image/png"], isDefault: true)]
   of vrnkRaster:
     case resource.raster.kind
     of vrkIndexedImage:
@@ -2723,6 +2727,18 @@ proc inspectSourceDepth(filename: string, data: openArray[byte],
         stringMetadata("copyright", source.copyright),
         stringMetadata("version", source.version)
       ])
+  of vhkAmigaDr2d:
+    let source = parsedValue[AmigaDr2d](selectedParsed, vhkAmigaDr2d)
+    result.resources.roots.add VextResourceNode(
+      path: AmigaDr2dResourcePath, typeId: AmigaDr2dResourceTypeId,
+      kind: vrnkVector, vector: source.drawing, metadata: @[
+        stringMetadata("units", source.drawing.units),
+        integerMetadata("palette.entries", source.paletteEntries),
+        integerMetadata("paths", source.pathCount),
+        integerMetadata("text.objects", source.textCount),
+        integerMetadata("external-images", source.imageCount),
+        integerMetadata("unsupported.pattern-fills", source.unsupportedPatternFills),
+        integerMetadata("unsupported.arrow-references", source.arrowReferences)])
   of vhkAmigaAcbm, vhkAmigaIlbm:
     let image = if selectedHandler.kind == vhkAmigaAcbm:
       parsedValue[AmigaAcbm](selectedParsed, vhkAmigaAcbm).image
@@ -3172,7 +3188,7 @@ proc exportResource*(tree: VextResourceTree,
   else:
     for item in tree.leafResources:
       if item.kind in {vrnkRaster, vrnkText, vrnkDocument, vrnkAudio, vrnkFont,
-          vrnkPalette, vrnkTracker} or
+          vrnkPalette, vrnkTracker, vrnkVector} or
           (item.kind == vrnkOpaque and item.rawDataAvailable):
         available.add item
   var resource: VextResourceNode
@@ -3226,6 +3242,8 @@ proc exportResource*(tree: VextResourceTree,
   if result.outputFormat == "html-report":
     result.artifacts = exportHtmlReport(resource,
       request.suggestedName & ".html")
+    if resource.kind == vrnkVector:
+      result.warnings = resource.vector.vectorPreviewWarnings
     return
   if result.outputFormat in ["palette-swatch", "gpl"]:
     let palette = case resource.kind
@@ -3248,6 +3266,13 @@ proc exportResource*(tree: VextResourceTree,
         result.warnings.add "GPL cannot preserve colour-cycle ranges."
     return
   case resource.kind
+  of vrnkVector:
+    if result.outputFormat != "png":
+      raise newException(ValueError,
+        "unsupported output format: " & result.outputFormat)
+    result.warnings = resource.vector.vectorPreviewWarnings
+    result.artifacts = exportPng(renderVectorDrawing(resource.vector),
+      request.suggestedName & ".png")
   of vrnkOpaque:
     if not resource.rawDataAvailable:
       raise newException(ValueError, "resource is not exportable: " &
@@ -3377,7 +3402,7 @@ proc exportAllResources*(tree: VextResourceTree,
   for resource in candidates:
     if request.outputFormat notin ["metadata-json", "html-report"] and
         not (resource.kind in {vrnkRaster, vrnkText, vrnkDocument, vrnkAudio,
-          vrnkFont, vrnkPalette, vrnkTracker} or
+          vrnkFont, vrnkPalette, vrnkTracker, vrnkVector} or
         (resource.kind == vrnkOpaque and resource.rawDataAvailable)):
       continue
     if patterns.len == 0:

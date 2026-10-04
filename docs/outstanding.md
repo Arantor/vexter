@@ -20,6 +20,26 @@ formats are not included. Detailed format behavior and evidence remain in
     separation, and repeated `DGBL` scopes remain uninterpreted or rejected
     where no faithful current archetype or documented semantics exist.
 
+- **IFF DR2D vector drawings**
+  - `amiga.dr2d` currently validates the documented IFF structure and exposes
+    paths, cubic sections, even-odd subpaths, layers, colours, dash patterns,
+    text records, nested groups, and external bitmap references through the
+    generic vector-drawing archetype. PNG preview and export render path fills
+    and edges.
+  - Text is retained but omitted from previews until a supplied OFNT companion
+    can be resolved and decoded. `VBM ` records likewise retain their external
+    ILBM paths without following untrusted source paths. Preview/export reports
+    both omissions.
+  - Object-oriented tiled `FILL` patterns and `AROW` endpoint decorations are
+    counted and reported but not rendered. Stroke joins currently use the
+    bounded rasterizer's distance coverage rather than distinct miter, bevel,
+    and round geometry. Authentic DR2D files are still needed to check writer
+    variations, coordinate orientation, nesting, and rendered output.
+  - SVG export remains a useful future projection after font companion
+    handling is established. Emitting text with an arbitrary host-font
+    fallback would make the geometry machine-dependent; outlining decoded
+    source glyphs or preserving explicit unresolved-font metadata avoids that.
+
 - **Windows Write documents**
   - `windows.write` currently recovers plain Windows-1252 text, line breaks,
     and tabs from the corpus-established `0x31BE` variant. It also recognizes

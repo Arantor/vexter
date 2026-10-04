@@ -175,6 +175,7 @@ proc descriptorKind(item: VextResourceDescriptor): string =
   of vrnkFont: "font"
   of vrnkPalette: "palette"
   of vrnkTracker: "tracker"
+  of vrnkVector: "vector"
   of vrnkOpaque: "opaque"
 
 proc inspect(options: CliOptions) =
@@ -245,6 +246,8 @@ proc inspect(options: CliOptions) =
         resource["archetype"] = %"VextPalette"
         resource["colours"] = %item.colours
         resource["colourCycleRanges"] = %item.colourCycleRanges
+      elif item.kind == vrnkVector:
+        resource["archetype"] = %item.archetype
       if item.failureMessage.len > 0:
         resource["failure"] = %*{
           "format": item.failureFormat,
@@ -305,6 +308,12 @@ proc inspect(options: CliOptions) =
       elif item.kind == vrnkPalette:
         description.add &" -> VextPalette {item.colours} colour(s), " &
           &"{item.colourCycleRanges} cycling range(s)"
+      elif item.kind == vrnkVector:
+        description.add " -> VextVectorDrawing"
+      elif item.kind == vrnkTracker:
+        description.add " -> VextTrackerModule"
+      elif item.kind == vrnkGroup:
+        description.add " (group)"
       else:
         description.add " (opaque)"
       echo description

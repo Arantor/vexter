@@ -5,6 +5,7 @@ import ../archetypes/[document, font, raster]
 import ../artifacts
 import ../resource_tree
 import ../resources/font_preview
+import ../resources/vector_preview
 import ../transformations/palette_swatch
 import ./[metadata_json, png, wav]
 
@@ -54,6 +55,15 @@ proc exportHtmlReport*(resource: VextResourceNode,
   var body = "<header><h1>" & title.escaped & "</h1><p><code>" &
     resource.typeId.escaped & "</code></p></header>"
   case resource.kind
+  of vrnkVector:
+    let preview = exportPng(renderVectorDrawing(resource.vector),
+      "preview.png").artifacts[0]
+    body.add imageSection("Preview", preview)
+    let warnings = resource.vector.vectorPreviewWarnings
+    if warnings.len > 0:
+      body.add "<section><h2>Preview limitations</h2><ul>"
+      for warning in warnings: body.add "<li>" & warning.escaped & "</li>"
+      body.add "</ul></section>"
   of vrnkRaster:
     body.add imageSection("Preview", resource.rasterArtifact)
   of vrnkFont:

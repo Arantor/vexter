@@ -6,9 +6,11 @@ import vexterlib/archetypes/document
 import vexterlib/archetypes/font
 import vexterlib/archetypes/palette
 import vexterlib/archetypes/tracker
+import vexterlib/archetypes/vector
 import vexterlib/transformations/colour_cycle
 import vexterlib/transformations/palette_swatch
 import vexterlib/resources/font_preview
+import vexterlib/resources/vector_preview
 import vexterlib/resources/protracker_replay
 import vexterlib/resources/amos_music_replay
 import vexterlib/artifacts
@@ -31,6 +33,7 @@ import vexterlib/containers/amos_packed_picture
 import vexterlib/containers/amos_sample_bank
 import vexterlib/containers/amos_resource_bank
 import vexterlib/containers/amiga_iff
+import vexterlib/containers/amiga_dr2d
 import vexterlib/containers/amiga_ilbm
 import vexterlib/containers/amiga_anim
 import vexterlib/containers/amiga_workbench_icon
@@ -138,10 +141,12 @@ export document
 export font
 export palette
 export tracker
+export vector
 export sqlite
 export colour_cycle
 export palette_swatch
 export font_preview
+export vector_preview
 export protracker_replay
 export amos_music_replay
 export artifacts
@@ -183,6 +188,7 @@ export amos_packed_picture
 export amos_sample_bank
 export amos_resource_bank
 export amiga_iff
+export amiga_dr2d
 export amiga_ilbm
 export amiga_ilbm_image
 export amiga_deep_image

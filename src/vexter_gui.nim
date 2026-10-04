@@ -560,6 +560,10 @@ proc currentRasterImage(maximumWidth = 0): VextTrueColourImage =
   if not selected.isNil and not selected.node.isNil and
       selected.node.kind == vrnkPalette:
     return renderPaletteSwatch(selected.node.palette)
+  if not selected.isNil and not selected.node.isNil and
+      selected.node.kind == vrnkVector:
+    return renderVectorDrawing(selected.node.vector,
+      max(1, if maximumWidth > 0: maximumWidth else: 1024))
   if selected.isNil or selected.node.isNil or selected.node.kind != vrnkRaster:
     return
   let raster = selected.node.raster
@@ -1038,7 +1042,7 @@ proc selectBinding(binding: TreeBinding) =
   elif binding.node.kind == vrnkTracker:
     currentView = vkText
     discard SetWindowTextW(textView, w(trackerDetails(binding.node.tracker)))
-  elif binding.node.kind in {vrnkRaster, vrnkPalette}:
+  elif binding.node.kind in {vrnkRaster, vrnkPalette, vrnkVector}:
     currentView = vkRaster
   elif binding.node.kind == vrnkFont:
     currentView = vkFont

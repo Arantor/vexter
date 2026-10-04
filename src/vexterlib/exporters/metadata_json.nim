@@ -1,7 +1,7 @@
 ## Machine-readable metadata export for any resource node.
 
 import std/json
-import ../archetypes/[audio, document, font, palette, raster, tracker]
+import ../archetypes/[audio, document, font, palette, raster, tracker, vector]
 import ../[artifacts, metadata, resource_tree]
 
 proc textBytes(value: string): seq[byte] =
@@ -222,6 +222,7 @@ proc exportMetadataJson*(resource: VextResourceNode,
     of vrnkFont: "font"
     of vrnkPalette: "palette"
     of vrnkTracker: "tracker"
+    of vrnkVector: "vector"
     of vrnkOpaque: "opaque"
   var document = %*{"schema": "vexter.resource-metadata.v1",
     "path": resource.path, "type": resource.typeId, "kind": kind,
@@ -240,6 +241,18 @@ proc exportMetadataJson*(resource: VextResourceNode,
     of vrnkFont: fontNode(resource.font)
     of vrnkPalette: paletteNode(resource.palette)
     of vrnkTracker: trackerNode(resource.tracker)
+    of vrnkVector:
+      let counts = resource.vector.vectorElementCounts
+      %*{"archetype": "VextVectorDrawing",
+        "bounds": {"left": resource.vector.bounds.left,
+          "top": resource.vector.bounds.top,
+          "right": resource.vector.bounds.right,
+          "bottom": resource.vector.bounds.bottom},
+        "units": resource.vector.units,
+        "fonts": resource.vector.fonts.len,
+        "layers": resource.vector.layers.len,
+        "paths": counts.paths, "texts": counts.texts,
+        "externalImages": counts.images, "groups": counts.groups}
     of vrnkAudio: audioNode(resource)
     of vrnkText: %*{"archetype": "text", "utf8Bytes": resource.text.len}
     of vrnkDocument: documentNode(resource.document)

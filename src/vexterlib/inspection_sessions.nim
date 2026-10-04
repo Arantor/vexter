@@ -284,6 +284,8 @@ proc addLegacyNode(session: VextInspectionSession, node: VextResourceNode,
   of vrnkTracker:
     described.archetype = "VextTrackerModule"
     described.channels = node.tracker.channels.len
+  of vrnkVector:
+    described.archetype = "VextVectorDrawing"
   of vrnkDocument:
     described.archetype = "VextFlowDocument"
   else: discard

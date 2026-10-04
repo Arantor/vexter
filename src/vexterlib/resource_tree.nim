@@ -6,6 +6,7 @@ import ./archetypes/document
 import ./archetypes/font
 import ./archetypes/palette
 import ./archetypes/tracker
+import ./archetypes/vector
 import ./metadata
 
 type
@@ -35,6 +36,7 @@ type
     vrnkFont
     vrnkPalette
     vrnkTracker
+    vrnkVector
     vrnkOpaque
 
   VextAudioResourceKind* = enum
@@ -59,6 +61,7 @@ type
     font*: VextBitmapFont
     palette*: VextPalette
     tracker*: VextTrackerModule
+    vector*: VextVectorDrawing
     ## Base path for sampled-instrument resources referenced by tracker JSON.
     ## Child pattern views may share the parent module's sample collection.
     trackerSampleResourcePath*: string
