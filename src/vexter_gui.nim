@@ -6,6 +6,7 @@ when not defined(windows):
 import std/[math, os, strformat, strutils, widestrs]
 import vexterlib
 import vexter_output
+import vexter_session_input
 import vexterlib/gui_preview
 
 {.passC: "-D_WIN32_WINNT=0x0601 -DWINVER=0x0601 -include windows.h".}
@@ -1483,60 +1484,11 @@ proc finishExtraction(result: ptr ExtractionResult) =
     discard MessageBoxW(mainWindow, w(message), w("Vexter"),
       if completed.warnings.len > 0: 0x30 else: 0x40)
 
-proc guiFileSource(path: string): VextByteSource =
-  let length = int(path.getFileSize)
-  var input = open(path, fmRead)
-  newByteSource(length,
-    proc(offset, amount: int): seq[byte] =
-      input.setFilePos(offset)
-      result = newSeq[byte](amount)
-      if amount > 0 and input.readBuffer(addr result[0], amount) != amount:
-        raise newException(IOError, "short read from " & path),
-    path, proc() = input.close())
-
-proc guiCompanionResolver(path: string): VextCompanionSourceResolver =
-  let directory = path.parentDir
-  result = proc(relativePath: string): VextByteSource =
-    let companionPath = directory / relativePath
-    if companionPath.fileExists: guiFileSource(companionPath) else: nil
-
-proc guiSourceOpener(path: string): VextRelatedSourceOpen =
-  result = proc(): VextByteSource = guiFileSource(path)
-
-proc guiSourceCollection(path: string): VextSourceCollection =
-  let directory = if path.dirExists: path else: path.parentDir
-  var related: seq[VextRelatedSource]
-  proc addDirectory(base: string, prefix = "") =
-    for kind, item in base.walkDir:
-      if kind == pcFile:
-        # Snapshot the iterator value before putting it in a lazy closure.
-        # Capturing `item` directly can make every opener refer to the final
-        # directory entry, depending on the compiler/backend.
-        let fullPath = item
-        let relative = if prefix.len == 0: item.extractFilename
-          else: prefix & "/" & item.extractFilename
-        if relative.safeRelatedPath:
-          try:
-            related.add VextRelatedSource(relativePath: relative,
-              size: int(fullPath.getFileSize), open: guiSourceOpener(fullPath))
-          except OSError:
-            # Related files are optional. A stale or host-incompatible entry
-            # beside the selected input must not prevent opening that input.
-            discard
-  directory.addDirectory()
-  if path.dirExists:
-    for kind, item in directory.walkDir:
-      if kind == pcDir: item.addDirectory(item.extractFilename)
-  newSourceCollection(if path.fileExists: guiFileSource(path) else: nil,
-    if path.fileExists: guiCompanionResolver(path) else: nil, related,
-    if path.fileExists: path.extractFilename else: "")
-
 proc loadWorker(job: LoadJob) {.thread.} =
   var loaded = LoadResult(filename: job.filename)
   try:
     {.cast(gcsafe).}:
-      loaded.session = openInspectionSession(job.filename,
-        guiSourceCollection(job.filename))
+      loaded.session = openFilesystemInspectionSession(job.filename)
   except CatchableError as error:
     loaded.error = error.msg
   job.result[] = loaded

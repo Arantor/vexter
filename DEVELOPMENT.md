@@ -297,6 +297,12 @@ Nim's ARC memory manager because decoded acyclic resource trees cross from its
 inspection worker to the UI thread; ORC's thread-local cycle tracking must not
 be used for that transfer.
 
+`src/vexter_session_input.nim` is the shared filesystem adapter for both
+frontends. It constructs the random-access primary source, case-independent
+companion resolver, and bounded related-source manifest, then opens the common
+inspection session. The CLI consumes that session eagerly while the GUI retains
+it and requests expansion and loading incrementally.
+
 `src/vexterlib/operations.nim` brokers high-level library work:
 
 - `inspectSource` detects or validates a format and builds a decoded resource

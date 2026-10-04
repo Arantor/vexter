@@ -3,6 +3,7 @@
 import std/[json, os, strformat, strutils, terminal]
 import vexterlib
 import vexter_output
+import vexter_session_input
 
 type
   CliError = object of CatchableError
@@ -42,71 +43,6 @@ proc usage(): string =
                     [--ansi-letter-spacing auto|8|9]
                     [--ansi-aspect auto|legacy|square] INPUT
   vexter extract [--input-format FORMAT] -o DIRECTORY [--force] INPUT"""
-
-proc fileByteSource(path: string): VextByteSource =
-  let length = int(path.getFileSize)
-  var input = open(path, fmRead)
-  result = newByteSource(length,
-    proc(offset, amount: int): seq[byte] =
-      input.setFilePos(offset)
-      result = newSeq[byte](amount)
-      if amount > 0 and input.readBuffer(addr result[0], amount) != amount:
-        raise newException(IOError, "short read from " & path),
-    path,
-    proc() = input.close())
-
-proc companionSourceResolverFor(path: string): VextCompanionSourceResolver =
-  let directory = path.parentDir
-  result = proc(relativePath: string): VextByteSource =
-    var candidate = directory
-    for segment in relativePath.split('/'):
-      let exact = candidate / segment
-      if exact.fileExists or exact.dirExists:
-        candidate = exact
-        continue
-      var match = ""
-      if candidate.dirExists:
-        for kind, item in candidate.walkDir:
-          if item.extractFilename.cmpIgnoreCase(segment) == 0:
-            if match.len > 0: return nil
-            match = item
-      if match.len == 0: return nil
-      candidate = match
-    if candidate.fileExists: fileByteSource(candidate) else: nil
-
-proc sourceOpenerFor(path: string): VextRelatedSourceOpen =
-  result = proc(): VextByteSource = fileByteSource(path)
-
-proc sourceCollectionFor(path: string): VextSourceCollection =
-  let directory = if path.dirExists: path else: path.parentDir
-  var related: seq[VextRelatedSource]
-  proc addDirectory(base: string, prefix = "") =
-    for kind, item in base.walkDir:
-      if kind == pcFile:
-        let fullPath = item
-        let relative = if prefix.len == 0: item.extractFilename
-          else: prefix & "/" & item.extractFilename
-        if relative.safeRelatedPath:
-          try:
-            related.add VextRelatedSource(relativePath: relative,
-              size: int(item.getFileSize),
-              open: sourceOpenerFor(fullPath))
-          except OSError:
-            # Related files are optional. A stale or host-incompatible entry
-            # beside the selected input must not prevent opening that input.
-            discard
-  directory.addDirectory()
-  # Launchers may sit beside a single immediate child data directory (notably
-  # Amiga installations). Deeper traversal remains deliberately out of scope.
-  # Only an explicitly opened directory is package-discovery scope. Opening a
-  # regular file must not inspect unrelated sibling directories.
-  if path.dirExists:
-    for kind, item in directory.walkDir:
-      if kind == pcDir: item.addDirectory(item.extractFilename)
-  let primary = if path.fileExists: fileByteSource(path) else: nil
-  newSourceCollection(primary, if path.fileExists:
-      companionSourceResolverFor(path) else: nil,
-    related, if path.fileExists: path.extractFilename else: "")
 
 proc parseOptions(arguments: seq[string]): CliOptions =
   var index = 0
@@ -179,7 +115,6 @@ proc descriptorKind(item: VextResourceDescriptor): string =
   of vrnkOpaque: "opaque"
 
 proc inspect(options: CliOptions) =
-  let sources = sourceCollectionFor(options.input)
   let progress: VextSessionProgressCallback =
     if stderr.isatty:
       proc(event: VextSessionProgressEvent): bool =
@@ -190,7 +125,7 @@ proc inspect(options: CliOptions) =
         if event.phase == vsppComplete: stderr.write("\r" & repeat(' ', 72) & "\r")
         true
     else: nil
-  let session = openInspectionSession(options.input, sources,
+  let session = openFilesystemInspectionSession(options.input,
     options.inputFormat, options.ignoreWarnings, options.pcxChannelOrder,
     options.ansiLetterSpacing, options.ansiAspect, progress = progress)
   defer: session.close()
@@ -336,7 +271,7 @@ proc exportResource(options: CliOptions) =
   if options.resources.len > 1:
     raise newException(CliError,
       "--resource may be repeated only with export-all")
-  let session = openInspectionSession(options.input, sourceCollectionFor(options.input),
+  let session = openFilesystemInspectionSession(options.input,
     options.inputFormat, options.ignoreWarnings, options.pcxChannelOrder,
     options.ansiLetterSpacing, options.ansiAspect)
   defer: session.close()
@@ -390,7 +325,7 @@ proc exportAllResources(options: CliOptions) =
     raise newException(CliError, "export-all requires -o DIRECTORY")
   preflightOutput(options.output, directory = true, force = options.force)
 
-  let session = openInspectionSession(options.input, sourceCollectionFor(options.input),
+  let session = openFilesystemInspectionSession(options.input,
     options.inputFormat, options.ignoreWarnings, options.pcxChannelOrder,
     options.ansiLetterSpacing, options.ansiAspect)
   defer: session.close()
@@ -441,8 +376,8 @@ proc extractContainer(options: CliOptions) =
   if options.output.len == 0:
     raise newException(CliError, "extract requires -o DIRECTORY")
   preflightOutput(options.output, directory = true, force = options.force)
-  let session = openInspectionSession(options.input,
-    sourceCollectionFor(options.input), options.inputFormat)
+  let session = openFilesystemInspectionSession(options.input,
+    options.inputFormat)
   defer: session.close()
   let plan = session.extractionPlan()
   for warning in plan.warnings:
