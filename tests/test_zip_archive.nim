@@ -94,6 +94,20 @@ suite "ZIP archives":
     let parsed = parseZipArchive(archive)
     check extractZipEntry(archive, parsed.entries[0]) ==
       @[byte('h'), byte('e'), byte('l'), byte('l'), byte('o')]
+    var largestRead, progressCompleted, progressTotal: int
+    let source = newByteSource(archive.len,
+      proc(offset, amount: int): seq[byte] =
+        largestRead = max(largestRead, amount)
+        @archive[offset ..< offset + amount])
+    check extractZipEntry(source, parsed.entries[0], 1024,
+      proc(completed, total: int) =
+        progressCompleted = completed
+        progressTotal = total) ==
+      @[byte('h'), byte('e'), byte('l'), byte('l'), byte('o')]
+    check largestRead == parsed.entries[0].compressedSize
+    check progressCompleted == parsed.entries[0].compressedSize
+    check progressTotal == parsed.entries[0].compressedSize
+    source.close()
 
   test "a contained decoder failure does not invalidate its ZIP carrier":
     var brokenPcx = newSeq[byte](128)
@@ -142,6 +156,30 @@ suite "ZIP archives":
     check "truncated PCX image data" in
       loaded.resources.roots[0].failureMessage
     session.close()
+
+  test "nested ZIP members reopen through retained child sessions":
+    let inner = zipFixture([
+      FixtureEntry(name: "pages/one.txt",
+        data: @[byte('o'), byte('n'), byte('e')]),
+      FixtureEntry(name: "pages/two.txt",
+        data: @[byte('t'), byte('w'), byte('o')])])
+    let outer = zipFixture([
+      FixtureEntry(name: "collection.zip", data: inner)])
+    let session = openInspectionSession("outer.zip",
+      newSourceCollection(memoryByteSource(outer)))
+    let member = session.expandResource(session.rootDescriptors[0].id).
+      children[0]
+    let loaded = session.loadResource(member.id)
+    check loaded.resources.roots.len == 1
+    check loaded.resources.roots[0].typeId == ZipArchiveTypeId
+    check loaded.resources.leafResources.len == 2
+    check loaded.resources.leafResources[0].lazyPayload.source.isNil
+    check loaded.resources.leafResources[0].lazyPayload.materializer != nil
+    check loaded.resources.leafResources[0].resourceBytes ==
+      @[byte('o'), byte('n'), byte('e')]
+    let retainedLeaf = loaded.resources.leafResources[1]
+    session.close()
+    expect ValueError: discard retainedLeaf.resourceBytes
 
   test "eager session trees enumerate topology and retain lazy payloads":
     let archive = zipFixture([

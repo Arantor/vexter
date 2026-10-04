@@ -29,6 +29,13 @@ proc dwordAt(data: openArray[byte], offset: int): int64 {.inline.} =
   int64(data[offset]) or (int64(data[offset + 1]) shl 8) or
     (int64(data[offset + 2]) shl 16) or (int64(data[offset + 3]) shl 24)
 
+proc hasValidTapeCheckbit(data: openArray[byte]): bool =
+  if data.len < 2: return false
+  var checkbit = 0'u8
+  for value in data:
+    checkbit = checkbit xor value
+  checkbit == 0
+
 proc parseZxSpectrumTzx*(data: openArray[byte]): ZxSpectrumTzx =
   if data.len < 10:
     raise newException(ValueError, "truncated ZX Spectrum TZX header")
@@ -44,6 +51,10 @@ proc parseZxSpectrumTzx*(data: openArray[byte]): ZxSpectrumTzx =
   var standardBlocks: seq[seq[byte]]
   template flushStandardBlocks() =
     if standardBlocks.len > 0:
+      for tapeBlock in standardBlocks:
+        if not hasValidTapeCheckbit(tapeBlock):
+          raise newException(ValueError,
+            "invalid ZX Spectrum TZX standard-speed data checksum")
       result.records.add parseZxSpectrumTapeBlocks(standardBlocks)
       standardBlocks.setLen(0)
   while offset < data.len:

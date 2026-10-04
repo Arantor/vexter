@@ -321,6 +321,24 @@ it and requests expansion and loading incrementally.
   of resource patterns, assigns safe hierarchical names, resolves normalized
   filename collisions deterministically, and returns all artifacts in memory.
 
+`src/vexterlib/detection.nim` owns the shared evidence input used by every
+byte-backed detector. An input records the filename and source length, caches
+absolute byte windows requested through the detection broker, and materializes
+the complete source at most once when an existing whole-input parser requires
+it. In-memory callers use the same API with an already-complete input. A
+detection working limit bounds complete materialization. The initial session
+probe reads only the small leading window needed to choose ordered source-backed
+carrier attempts; trailer evidence is requested explicitly because an
+unconditional tail read can overlap payload data in front-indexed archives.
+
+Evidence strength remains format-specific. Structural validation is not a
+universal stage: exact size plus extension can be the natural evidence for an
+unstructured raw format, while other candidates use magic values, bounded
+records, carrier manifests, or combinations of those signals. Source-backed
+carrier routing and ordinary whole-input detection both consume the same
+detection input, and the legacy filename-and-bytes entry points are compatibility
+wrappers over it.
+
 `src/vexterlib/byte_sources.nim` defines bounded random-access byte sources and
 source collections. A collection owns its primary source and any companions
 opened through its resolver, so an inspection session has one explicit
@@ -334,11 +352,21 @@ unknown, growing, or final. ZIP/OpenRaster, Electron ASAR, ISO 9660, LHA, and AD
 random-access providers: opening validates only the carrier or manifest,
 expanding reads one directory, and loading reads one member. Packed wrappers
 defer their unpacking until their synthetic content root is expanded or loaded.
+Recognized contained files reopen through retained child sessions, so nested
+source-backed containers use the same indexed path rather than returning to the
+whole-input eager inspector. Closing the parent closes these child sessions and
+invalidates their lazy payload references.
 Callers own each loaded result and may discard it independently of the session.
 `resourceTree` is the eager adapter for consumers that want the complete
 currently exposed topology: it walks the same session descriptors, decodes
 representation-bearing leaves, and leaves ordinary container payloads backed
 by the live session. Such a tree must not outlive its session.
+
+Source-backed ZIP materialization reads DEFLATE input in one-MiB windows,
+reports compressed-byte progress, and uses zlib's native CRC implementation.
+The uncompressed member remains one contiguous allocation because it becomes
+the byte source for possible nested inspection; the complete compressed member
+is no longer retained beside it.
 
 Archive extraction is deliberately separate from semantic resource export.
 An extractable physical root advertises `vrcExtractTree`; its directory

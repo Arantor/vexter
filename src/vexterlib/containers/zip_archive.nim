@@ -10,6 +10,8 @@ const
   ZipMaximumNameCharacters* = 255
 
 type
+  ZipMaterializationProgress* = proc(completed, total: int) {.closure.}
+
   ZipEntry* = object
     name*: string
     segments*: seq[string]
@@ -56,6 +58,8 @@ proc inflate(stream: ptr ZStream, flush: cint): cint
     {.cdecl, importc, dynlib: ZlibLibrary.}
 proc inflateEnd(stream: ptr ZStream): cint
     {.cdecl, importc, dynlib: ZlibLibrary.}
+proc zlibCrc32(crc: culong, data: pointer, length: uint32): culong
+    {.cdecl, importc: "crc32", dynlib: ZlibLibrary.}
 
 proc leWord(data: openArray[byte], offset: int): uint16 {.inline.} =
   uint16(data[offset]) or (uint16(data[offset + 1]) shl 8)
@@ -65,13 +69,13 @@ proc leDword(data: openArray[byte], offset: int): uint32 {.inline.} =
     (uint32(data[offset + 2]) shl 16) or (uint32(data[offset + 3]) shl 24)
 
 proc crc32(data: openArray[byte]): uint32 =
-  result = 0xffffffff'u32
-  for value in data:
-    result = result xor uint32(value)
-    for bit in 0 ..< 8:
-      result = (result shr 1) xor
-        (if (result and 1) != 0: 0xedb88320'u32 else: 0'u32)
-  result = result xor 0xffffffff'u32
+  var checksum = zlibCrc32(0, nil, 0)
+  var offset = 0
+  while offset < data.len:
+    let amount = min(data.len - offset, int(high(uint32)))
+    checksum = zlibCrc32(checksum, unsafeAddr data[offset], uint32(amount))
+    offset += amount
+  uint32(checksum)
 
 proc rawInflate(source: openArray[byte], expectedSize: int): seq[byte] =
   result = newSeq[byte](expectedSize)
@@ -87,6 +91,45 @@ proc rawInflate(source: openArray[byte], expectedSize: int): seq[byte] =
   let status = inflate(addr stream, 4)
   discard inflateEnd(addr stream)
   if status != 1 or int(stream.totalOut) != expectedSize or stream.availIn != 0:
+    raise newException(ValueError, "invalid or truncated ZIP DEFLATE data")
+
+proc rawInflate(source: VextByteSource, sourceOffset, compressedSize,
+    expectedSize: int, progress: ZipMaterializationProgress): seq[byte] =
+  ## Inflates from bounded source windows so a large member does not retain a
+  ## second, complete copy of its compressed representation.
+  const InputChunkSize = 1024 * 1024
+  result = newSeq[byte](expectedSize)
+  var stream: ZStream
+  if inflateInit2(addr stream, -15, zlibVersion(), cint(sizeof(ZStream))) != 0:
+    raise newException(ValueError, "could not initialize ZIP DEFLATE decoder")
+  defer: discard inflateEnd(addr stream)
+
+  var input: seq[byte]
+  var supplied, produced: int
+  var status = 0.cint
+  while status != 1:
+    if stream.availIn == 0 and supplied < compressedSize:
+      let amount = min(InputChunkSize, compressedSize - supplied)
+      input = source.readAt(sourceOffset + supplied, amount)
+      stream.nextIn = addr input[0]
+      stream.availIn = uint32(amount)
+      supplied += amount
+    if stream.availOut == 0 and produced < expectedSize:
+      let amount = min(expectedSize - produced, int(high(uint32)))
+      stream.nextOut = addr result[produced]
+      stream.availOut = uint32(amount)
+    let beforeOut = stream.availOut
+    status = inflate(addr stream, 0)
+    produced += int(beforeOut - stream.availOut)
+    if progress != nil:
+      progress(supplied - int(stream.availIn), compressedSize)
+    if status notin [0.cint, 1.cint]:
+      raise newException(ValueError, "invalid or truncated ZIP DEFLATE data")
+    if status == 0 and stream.availIn == 0 and supplied == compressedSize and
+        (stream.availOut > 0 or produced == expectedSize):
+      raise newException(ValueError, "invalid or truncated ZIP DEFLATE data")
+  if produced != expectedSize or
+      supplied - int(stream.availIn) != compressedSize:
     raise newException(ValueError, "invalid or truncated ZIP DEFLATE data")
 
 proc decodeName(data: openArray[byte]): string =
@@ -373,20 +416,22 @@ proc extractZipEntry*(data: openArray[byte], entry: ZipEntry): seq[byte] =
     raise newException(ValueError, "ZIP entry CRC-32 does not match: " & entry.name)
 
 proc extractZipEntry*(source: VextByteSource, entry: ZipEntry,
-    maximumSize = high(int)): seq[byte] =
+    maximumSize = high(int),
+    progress: ZipMaterializationProgress = nil): seq[byte] =
   ## Materializes one indexed member without retaining the archive itself.
   if entry.isDirectory:
     raise newException(ValueError, "cannot extract a ZIP directory")
   if entry.uncompressedSize > maximumSize:
     raise newException(ValueError,
       "ZIP member exceeds the permitted materialization size: " & entry.name)
-  let packed = source.readAt(entry.payloadOffset, entry.compressedSize)
   if entry.compressionMethod == 0:
-    result = packed
+    result = source.readAt(entry.payloadOffset, entry.compressedSize)
     if result.len != entry.uncompressedSize:
       raise newException(ValueError, "invalid stored ZIP entry size")
+    if progress != nil: progress(entry.compressedSize, entry.compressedSize)
   elif entry.compressionMethod == 8:
-    result = rawInflate(packed, entry.uncompressedSize)
+    result = rawInflate(source, entry.payloadOffset, entry.compressedSize,
+      entry.uncompressedSize, progress)
   else:
     raise newException(ValueError,
       "unsupported ZIP compression method: " & $entry.compressionMethod)

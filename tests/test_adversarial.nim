@@ -21,6 +21,7 @@ const AdversarialProfiles = [
   AdversarialProfile(typeId: XpkTypeId, filename: "packed.xpk"),
   AdversarialProfile(typeId: PowerPackerTypeId, filename: "packed.pp20"),
   AdversarialProfile(typeId: AmigaAnimTypeId, filename: "movie.anim"),
+  AdversarialProfile(typeId: AmigaDr2dTypeId, filename: "drawing.dr2d"),
   AdversarialProfile(typeId: AmigaIlbmTypeId, filename: "image.ilbm"),
   AdversarialProfile(typeId: AmigaIffTypeId, filename: "data.iff"),
   AdversarialProfile(typeId: BmpTypeId, filename: "image.bmp"),

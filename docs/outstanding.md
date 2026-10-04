@@ -96,7 +96,10 @@ formats are not included. Detailed format behavior and evidence remain in
     loading model across archives and filesystems.
   - Pathological but valid inputs can make either eager work or later
     selection disproportionately expensive. A concrete motivating case is a
-    1.4 GB ZIP containing roughly 1,300 large images.
+    1.4 GB ZIP containing roughly 1,300 large images. Nested ZIPs now reopen as
+    retained source-backed child sessions, and an enclosing DEFLATE member is
+    read in bounded compressed windows, but the complete uncompressed inner
+    archive is still retained as that child session's random-access source.
   - The session currently owns format-specific state for each incrementally
     indexed container and branches on its format kind during enumeration,
     materialization, and loading. If this continues to grow, move those

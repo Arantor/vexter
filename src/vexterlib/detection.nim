@@ -1,6 +1,7 @@
 ## Evidence-based input format detection.
 
 import std/[os, strutils]
+import ./byte_sources
 import ./handler_registry
 import ./format_detection_types
 export format_detection_types
@@ -23,14 +24,168 @@ import ./containers/powerpacker
 import ./resources/zx_spectrum_screen
 
 type
+  VextDetectionWindow* = object
+    offset*: int
+    data*: seq[byte]
+
+  VextDetectionRead* = proc(offset, amount: int): seq[byte] {.closure.}
+
+  VextDetectionInput* = ref object
+    ## One bounded, reusable evidence view shared by every detector. Windows
+    ## carry absolute source offsets; complete data is cached on first demand.
+    filename*: string
+    length*: int
+    windows*: seq[VextDetectionWindow]
+    completeAvailable*: bool
+    completeData: seq[byte]
+    read: VextDetectionRead
+    maximumBytes: int
+
+  VextSourceDetectionKind* = enum
+    vsdkCompleteInput
+    vsdkZip
+    vsdkIso9660
+    vsdkAppImageType1
+    vsdkAppImage
+    vsdkLha
+    vsdkElectronAsar
+    vsdkAmigaAdf
+    vsdkInnoSetup
+    vsdkAmigaDms
+    vsdkXpk
+    vsdkPowerPacker
+
   VextDetectedFormat* = object
     candidate*: VextDetectionCandidate
     parsed*: VextParsedContainer
 
-proc detectBaseFormats(filename: string, data: openArray[byte]):
+proc addWindow(input: VextDetectionInput, offset: int, data: seq[byte]) =
+  if data.len == 0: return
+  for window in input.windows:
+    if window.offset == offset and window.data.len == data.len: return
+  input.windows.add VextDetectionWindow(offset: offset, data: data)
+
+proc newDetectionInput*(filename: string, data: openArray[byte]):
+    VextDetectionInput =
+  ## Creates an already-complete input for in-memory callers.
+  let owned = @data
+  result = VextDetectionInput(filename: filename, length: owned.len,
+    completeAvailable: true, completeData: owned,
+    maximumBytes: owned.len)
+  result.addWindow(0, owned)
+
+proc newDetectionInput*(filename: string, source: VextByteSource,
+    maximumBytes: int, leadingBytes = 11, trailingBytes = 0,
+    completeThreshold = 0): VextDetectionInput =
+  ## Creates a bounded random-access input. Requested leading and trailing
+  ## evidence is read once; callers may opt to make small inputs complete.
+  if source.isNil:
+    raise newException(ValueError, "detection requires a byte source")
+  result = VextDetectionInput(filename: filename, length: source.length,
+    maximumBytes: maximumBytes,
+    read: proc(offset, amount: int): seq[byte] = source.readAt(offset, amount))
+  if completeThreshold > 0 and source.length <= completeThreshold and
+      source.length <= maximumBytes:
+    result.completeData = source.readAll(maximumBytes)
+    result.completeAvailable = true
+    result.addWindow(0, result.completeData)
+  else:
+    let initialBudget = max(0, maximumBytes)
+    let leadingLength = min(min(leadingBytes, source.length), initialBudget)
+    result.addWindow(0, source.readAt(0, leadingLength))
+    let trailingLength = min(min(trailingBytes,
+      source.length - leadingLength), initialBudget - leadingLength)
+    let trailingOffset = source.length - trailingLength
+    if trailingLength > 0:
+      result.addWindow(trailingOffset,
+        source.readAt(trailingOffset, trailingLength))
+
+proc readWindow*(input: VextDetectionInput, offset, amount: int): seq[byte] =
+  ## Returns one cached absolute range, reading it through the shared broker
+  ## only when the initial windows do not already contain it.
+  if input.isNil or offset < 0 or amount < 0 or offset > input.length or
+      amount > input.length - offset:
+    raise newException(ValueError, "detection range is outside the source")
+  if amount == 0: return @[]
+  if input.completeAvailable:
+    return input.completeData[offset ..< offset + amount]
+  for window in input.windows:
+    if offset >= window.offset and
+        offset + amount <= window.offset + window.data.len:
+      let first = offset - window.offset
+      return window.data[first ..< first + amount]
+  if input.read.isNil:
+    raise newException(ValueError, "detection range is not available")
+  result = input.read(offset, amount)
+  input.addWindow(offset, result)
+
+proc completeBytes*(input: VextDetectionInput): seq[byte] =
+  ## Materializes the input at most once. Detectors still using whole-input
+  ## parsers therefore share one bounded read while they migrate to windows.
+  if input.isNil:
+    raise newException(ValueError, "detection input is not available")
+  if not input.completeAvailable:
+    if input.length > input.maximumBytes:
+      raise newException(ValueError,
+        "input exceeds the detection working-data limit")
+    if input.read.isNil:
+      raise newException(ValueError, "complete detection data is unavailable")
+    input.completeData = input.read(0, input.length)
+    input.completeAvailable = true
+    input.windows.setLen(0)
+    input.addWindow(0, input.completeData)
+  input.completeData
+
+proc sourceDetectionOrder*(input: VextDetectionInput):
+    seq[VextSourceDetectionKind] =
+  ## Cheap carrier routing shared by incremental sessions. Each attempted
+  ## parser still validates its structure before a candidate is accepted.
+  let leading = input.readWindow(0, min(11, input.length))
+  let preferAppImage = leading.len >= 11 and leading[0] == 0x7f and
+    leading[1] == byte('E') and leading[2] == byte('L') and
+    leading[3] == byte('F')
+  let preferZip = leading.len >= 4 and leading[0] == byte('P') and
+    leading[1] == byte('K') and leading[2] in [1'u8, 3'u8, 5'u8, 7'u8] and
+    leading[3] in [2'u8, 4'u8, 6'u8, 8'u8]
+  let preferLha = leading.len >= 7 and leading[2] == byte('-') and
+    leading[6] == byte('-')
+  let preferAsar = input.filename.hasElectronAsarExtension and
+    leading.len >= 4 and leading[0] == 4 and leading[1] == 0 and
+    leading[2] == 0 and leading[3] == 0
+  let preferAdf = leading.len >= 4 and leading[0] == byte('D') and
+    leading[1] == byte('O') and leading[2] == byte('S') and leading[3] <= 5 and
+    input.length in [AmigaAdfDdSize, AmigaAdfHdSize]
+  let preferDms = leading.len >= 4 and leading[0] == byte('D') and
+    leading[1] == byte('M') and leading[2] == byte('S') and
+    leading[3] == byte('!')
+  let preferXpk = leading.len >= 4 and leading[0] == byte('X') and
+    leading[1] == byte('P') and leading[2] == byte('K') and
+    leading[3] == byte('F')
+  let preferPowerPacker = leading.len >= 4 and leading[0] == byte('P') and
+    leading[1] == byte('P') and leading[2] in [byte('1'), byte('2')] and
+    leading[3] in [byte('1'), byte('0')]
+  let preferInno = leading.len >= 2 and leading[0] == byte('M') and
+    leading[1] == byte('Z') and input.filename.hasInnoSetupExtension
+  if preferInno: return @[vsdkInnoSetup, vsdkCompleteInput]
+  if preferAppImage:
+    return @[(if leading[8] == byte('A') and leading[9] == byte('I') and
+      leading[10] == 2: vsdkAppImage else: vsdkAppImageType1),
+      vsdkCompleteInput]
+  if preferDms: return @[vsdkAmigaDms, vsdkCompleteInput]
+  if preferXpk: return @[vsdkXpk, vsdkCompleteInput]
+  if preferAsar: return @[vsdkElectronAsar, vsdkCompleteInput]
+  if preferPowerPacker: return @[vsdkPowerPacker, vsdkCompleteInput]
+  if preferAdf: return @[vsdkAmigaAdf, vsdkCompleteInput]
+  if preferLha: return @[vsdkLha, vsdkCompleteInput]
+  if preferZip: return @[vsdkZip, vsdkIso9660, vsdkCompleteInput]
+  @[vsdkIso9660, vsdkZip, vsdkCompleteInput]
+
+proc detectBaseFormats(input: VextDetectionInput):
     seq[VextDetectionCandidate] =
   ## Returns every format candidate recognized from currently available
   ## evidence, ordered from strongest to weakest.
+  let filename = input.filename
+  let data = input.completeBytes
   if isWindowsWrite(data):
     let source = parseWindowsWrite(data)
     var evidence = @[VextDetectionEvidence(description:
@@ -894,18 +1049,19 @@ proc applyFormatRefiners*(filename: string, data: openArray[byte],
     result.add applyFormatRefiners(filename, data, refined, refiners, depth + 1)
     result.add refined
 
-proc detectParsedFormatsWith*(filename: string, data: openArray[byte],
+proc detectParsedFormatsWith*(input: VextDetectionInput,
     refiners: openArray[VextFormatRefiner]): seq[VextDetectedFormat] =
   ## Detection entry point used by the registered path and focused tests.
   ## Every base parser runs once; refiners receive and may retain that value.
-  for candidate in detectBaseFormats(filename, data):
+  let data = input.completeBytes
+  for candidate in detectBaseFormats(input):
     let handler = formatHandler(candidate.typeId)
     let carrier = VextDetectedFormat(candidate: candidate,
       parsed: handler[].parse(data))
-    result.add applyFormatRefiners(filename, data, carrier, refiners)
+    result.add applyFormatRefiners(input.filename, data, carrier, refiners)
     result.add carrier
 
-proc detectParsedFormats*(filename: string, data: openArray[byte]):
+proc detectParsedFormats*(input: VextDetectionInput):
     seq[VextDetectedFormat] =
   ## Detects physical formats plus registered semantic refinements.
   let refiners = formatRefiners()
@@ -915,14 +1071,29 @@ proc detectParsedFormats*(filename: string, data: openArray[byte]):
       raise newException(Defect,
         "refiner does not match its registered semantic handler: " &
           refiner.typeId)
-  detectParsedFormatsWith(filename, data, refiners)
+  detectParsedFormatsWith(input, refiners)
+
+proc detectParsedFormatsWith*(filename: string, data: openArray[byte],
+    refiners: openArray[VextFormatRefiner]): seq[VextDetectedFormat] =
+  ## Compatibility entry point for callers that already own complete bytes.
+  detectParsedFormatsWith(newDetectionInput(filename, data), refiners)
+
+proc detectParsedFormats*(filename: string, data: openArray[byte]):
+    seq[VextDetectedFormat] =
+  ## Compatibility entry point for callers that already own complete bytes.
+  detectParsedFormats(newDetectionInput(filename, data))
+
+proc detectFormats*(input: VextDetectionInput):
+    seq[VextDetectionCandidate] =
+  for detected in detectParsedFormats(input):
+    result.add detected.candidate
 
 proc detectFormats*(filename: string, data: openArray[byte]):
     seq[VextDetectionCandidate] =
-  for detected in detectParsedFormats(filename, data):
-    result.add detected.candidate
+  ## Compatibility entry point for callers that already own complete bytes.
+  detectFormats(newDetectionInput(filename, data))
 
-proc forceFormatWithDepth(filename: string, data: openArray[byte],
+proc forceFormatWithDepth(input: VextDetectionInput,
     typeId: string, refiners: openArray[VextFormatRefiner],
     depth: int): VextDetectedFormat =
   ## Forces either a physical handler or a semantic refinement. Forcing a
@@ -932,6 +1103,7 @@ proc forceFormatWithDepth(filename: string, data: openArray[byte],
       "format refinement exceeds the maximum derivation depth")
   let direct = formatHandler(typeId)
   if not direct.isNil and direct[].carrierTypeId.len == 0:
+    let data = input.completeBytes
     result = VextDetectedFormat(candidate: VextDetectionCandidate(
       typeId: typeId,
       confidence: vdcProbable, evidence: @[VextDetectionEvidence(
@@ -940,6 +1112,7 @@ proc forceFormatWithDepth(filename: string, data: openArray[byte],
     return
   for refiner in refiners:
     if refiner.typeId != typeId: continue
+    let data = input.completeBytes
     let carrierHandler = formatHandler(refiner.carrierTypeId)
     let carrier = if not carrierHandler.isNil and
         carrierHandler[].carrierTypeId.len == 0:
@@ -950,18 +1123,28 @@ proc forceFormatWithDepth(filename: string, data: openArray[byte],
           derivation: baseDerivation(refiner.carrierTypeId)),
           parsed: carrierHandler[].parse(data))
       else:
-        forceFormatWithDepth(filename, data, refiner.carrierTypeId, refiners,
+        forceFormatWithDepth(input, refiner.carrierTypeId, refiners,
           depth + 1)
-    for refined in applyFormatRefiners(filename, data, carrier, refiners):
+    for refined in applyFormatRefiners(input.filename, data, carrier, refiners):
       if refined.candidate.typeId == typeId: return refined
     raise newException(ValueError,
       "input does not match forced format: " & typeId)
   raise newException(ValueError, "unsupported input format: " & typeId)
 
+proc forceFormatWith*(input: VextDetectionInput, typeId: string,
+    refiners: openArray[VextFormatRefiner]): VextDetectedFormat =
+  forceFormatWithDepth(input, typeId, refiners, 0)
+
+proc forceFormat*(input: VextDetectionInput,
+    typeId: string): VextDetectedFormat =
+  forceFormatWith(input, typeId, formatRefiners())
+
 proc forceFormatWith*(filename: string, data: openArray[byte], typeId: string,
     refiners: openArray[VextFormatRefiner]): VextDetectedFormat =
-  forceFormatWithDepth(filename, data, typeId, refiners, 0)
+  ## Compatibility entry point for callers that already own complete bytes.
+  forceFormatWith(newDetectionInput(filename, data), typeId, refiners)
 
 proc forceFormat*(filename: string, data: openArray[byte],
     typeId: string): VextDetectedFormat =
-  forceFormatWith(filename, data, typeId, formatRefiners())
+  ## Compatibility entry point for callers that already own complete bytes.
+  forceFormat(newDetectionInput(filename, data), typeId)

@@ -1151,7 +1151,8 @@ proc startLoadBinding(binding: TreeBinding, item: HTREEITEM): bool =
     return true
   if not binding.node.isNil:
     if binding.node.kind == vrnkOpaque and
-        not binding.node.lazyPayload.source.isNil and
+        (not binding.node.lazyPayload.source.isNil or
+          binding.node.lazyPayload.materializer != nil) and
         not binding.node.nestedInspectionAttempted:
       result = startSessionJob(sjkDecodeLoaded, binding, item)
       if result:
@@ -1258,6 +1259,19 @@ proc finishSessionJob(result: ptr SessionResult) =
           vrcEnumerateChildren notin completed.binding.descriptor.capabilities:
         completed.binding.childrenLoaded = false
         ensureLoadingPlaceholder(completed.item)
+        # Selection initiated the nested inspection, so reveal its first
+        # structural layer when that work completes instead of leaving a
+        # second, easily missed "Loading…" expansion step behind.
+        discard SendMessageW(treeView, TVM_EXPAND, TVE_EXPAND,
+          cast[LPARAM](completed.item))
+      if completed.loaded.warnings.len > 0:
+        showTreeItemFailure(completed.item)
+        var message = "The contained resource opened with warnings:\n\n"
+        for warning in completed.loaded.warnings:
+          message.add "- " & warning.path & " (" & warning.format & "): " &
+            warning.message & "\n"
+        discard MessageBoxW(mainWindow, w(message),
+          w("Vexter inspection warning"), 0x30)
       if selected == completed.binding:
         selectBinding(completed.binding)
     of sjkDecodeLoaded:

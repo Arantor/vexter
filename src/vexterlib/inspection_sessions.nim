@@ -168,6 +168,7 @@ type
     deferredRootPath: string
     legacyTree: VextResourceTree
     legacyNodeById: Table[VextResourceId, VextResourceNode]
+    nestedSessions: seq[VextInspectionSession]
     closed: bool
 
 proc `==`*(left, right: VextResourceId): bool {.borrow.}
@@ -503,34 +504,10 @@ proc openInspectionSession*(filename: string, sources: VextSourceCollection,
     progress.report(VextSessionProgressEvent(phase: vsppDetecting,
       path: filename, totalState: vptsUnknown,
       message: "Detecting input format"))
-    let leading = sources.primary.readAt(0, min(11, sources.primary.length))
-    let preferAppImage = leading.len >= 11 and leading[0] == 0x7f and
-      leading[1] == byte('E') and leading[2] == byte('L') and
-      leading[3] == byte('F')
-    let preferZip = leading.len >= 4 and leading[0] == byte('P') and
-      leading[1] == byte('K') and leading[2] in [1'u8, 3'u8, 5'u8, 7'u8] and
-      leading[3] in [2'u8, 4'u8, 6'u8, 8'u8]
-    let preferLha = leading.len >= 7 and leading[2] == byte('-') and
-      leading[6] == byte('-')
-    let preferAsar = filename.hasElectronAsarExtension and leading.len >= 4 and
-      leading[0] == 4 and leading[1] == 0 and leading[2] == 0 and
-      leading[3] == 0
-    let preferAdf = leading.len >= 4 and leading[0] == byte('D') and
-      leading[1] == byte('O') and leading[2] == byte('S') and leading[3] <= 5 and
-      sources.primary.length in [AmigaAdfDdSize, AmigaAdfHdSize]
-    let preferDms = leading.len >= 4 and leading[0] == byte('D') and
-      leading[1] == byte('M') and leading[2] == byte('S') and
-      leading[3] == byte('!')
-    let preferXpk = leading.len >= 4 and leading[0] == byte('X') and
-      leading[1] == byte('P') and leading[2] == byte('K') and
-      leading[3] == byte('F')
-    let preferPowerPacker = leading.len >= 4 and leading[0] == byte('P') and
-      leading[1] == byte('P') and leading[2] in [byte('1'), byte('2')] and
-      leading[3] in [byte('1'), byte('0')]
-    let preferInno = leading.len >= 2 and leading[0] == byte('M') and
-      leading[1] == byte('Z') and filename.hasInnoSetupExtension
-    template selectLegacy() =
-      let data = sources.primary.readAll(limits.maximumWorkingBytes)
+    let detectionInput = newDetectionInput(filename, sources.primary,
+      limits.maximumWorkingBytes)
+    template selectCompleteInput() =
+      let data = detectionInput.completeBytes
       let companionResolver: VextCompanionResolver =
         proc(relativePath: string): seq[byte] =
           let companion = sources.companion(relativePath)
@@ -568,54 +545,38 @@ proc openInspectionSession*(filename: string, sources: VextSourceCollection,
       of PowerPackerTypeId:
         result.selectDeferredWrapper(PowerPackerTypeId, "/content",
           "source has valid PowerPacker framing")
-      else: selectLegacy()
-    elif preferInno:
-      try: result.selectInnoSetup()
-      except ValueError: selectLegacy()
-    elif preferAppImage:
-      try:
-        if leading[8] == byte('A') and leading[9] == byte('I') and
-            leading[10] == 2: result.selectAppImage()
-        else: result.selectAppImageType1()
-      except ValueError, LibraryError: selectLegacy()
-    elif preferDms:
-      try:
-        result.selectDeferredWrapper(AmigaDmsTypeId, "/disk",
-          "source has valid checksummed DMS track framing")
-      except ValueError: selectLegacy()
-    elif preferXpk:
-      try:
-        result.selectDeferredWrapper(XpkTypeId, "/content",
-          "source has valid XPK master and chunk framing")
-      except ValueError: selectLegacy()
-    elif preferAsar:
-      try: result.selectElectronAsar()
-      except ValueError: selectLegacy()
-    elif preferPowerPacker:
-      try:
-        result.selectDeferredWrapper(PowerPackerTypeId, "/content",
-          "source has valid PowerPacker framing")
-      except ValueError: selectLegacy()
-    elif preferAdf:
-      try: result.selectAmigaAdf()
-      except ValueError: selectLegacy()
-    elif preferLha:
-      try: result.selectLha()
-      except ValueError: selectLegacy()
-    elif preferZip:
-      try:
-        result.selectZip(filename, progress)
-      except ValueError:
-        try: result.selectIso()
-        except ValueError: selectLegacy()
+      else: selectCompleteInput()
     else:
-      # ISO has a fixed descriptor location. Prefer it for non-PK sources so a
-      # disc image never incurs ZIP's variable-size EOCD tail search.
-      try:
-        result.selectIso()
-      except ValueError:
-        try: result.selectZip(filename, progress)
-        except ValueError: selectLegacy()
+      var selected = false
+      for kind in detectionInput.sourceDetectionOrder:
+        if selected: break
+        if kind == vsdkCompleteInput:
+          selectCompleteInput()
+          selected = true
+          break
+        try:
+          case kind
+          of vsdkZip: result.selectZip(filename, progress)
+          of vsdkIso9660: result.selectIso()
+          of vsdkAppImageType1: result.selectAppImageType1()
+          of vsdkAppImage: result.selectAppImage()
+          of vsdkLha: result.selectLha()
+          of vsdkElectronAsar: result.selectElectronAsar()
+          of vsdkAmigaAdf: result.selectAmigaAdf()
+          of vsdkInnoSetup: result.selectInnoSetup()
+          of vsdkAmigaDms:
+            result.selectDeferredWrapper(AmigaDmsTypeId, "/disk",
+              "source has valid checksummed DMS track framing")
+          of vsdkXpk:
+            result.selectDeferredWrapper(XpkTypeId, "/content",
+              "source has valid XPK master and chunk framing")
+          of vsdkPowerPacker:
+            result.selectDeferredWrapper(PowerPackerTypeId, "/content",
+              "source has valid PowerPacker framing")
+          of vsdkCompleteInput: discard
+          selected = true
+        except ValueError, LibraryError:
+          discard
 
     case result.kind
     of vskZip:
@@ -1204,6 +1165,9 @@ proc findZipEntry(archive: ZipArchive, name: string): int =
     if entry.name == name and not entry.isDirectory: return index
   -1
 
+proc resourceTree*(session: VextInspectionSession,
+    progress: VextSessionProgressCallback = nil): VextResourceTree
+
 proc materializePayload*(session: VextInspectionSession, id: VextResourceId,
     progress: VextSessionProgressCallback = nil,
     maximumWorkingBytes = 0): seq[byte] =
@@ -1232,7 +1196,12 @@ proc materializePayload*(session: VextInspectionSession, id: VextResourceId,
     if entryIndex < 0:
       raise newException(ValueError, "resource has no ZIP payload")
     result = extractZipEntry(session.sources.primary,
-      session.zip.entries[entryIndex], workingLimit)
+      session.zip.entries[entryIndex], workingLimit,
+      proc(completed, total: int) =
+        progress.report(VextSessionProgressEvent(phase: vsppMaterializing,
+          path: descriptor.path, completed: completed, discovered: total,
+          pending: total - completed, totalState: vptsFinal,
+          message: "Expanding ZIP member")))
   of vskOpenRaster:
     let sourcePath = session.manifestSourceById.getOrDefault(id)
     let entryIndex = session.zip.findZipEntry(sourcePath)
@@ -1380,44 +1349,54 @@ proc loadResource*(session: VextInspectionSession, id: VextResourceId,
   else:
     result.data = session.materializePayload(id, progress, workingLimit)
   let leafName = result.descriptor.path.split('/')[^1]
-  var candidates: seq[VextDetectionCandidate]
+  var nestedSources: VextSourceCollection
   try:
-    candidates = detectFormats(leafName, result.data)
+    # A contained file enters the same source-backed session path as a
+    # top-level file. This is particularly important for large nested archives:
+    # their carrier can be indexed without running every whole-input detector
+    # and their lazy payload nodes remain backed by the retained child session.
+    var nestedData = result.data
+    nestedSources = newSourceCollection(memoryByteSource(move(nestedData),
+      leafName))
+    let nested = openInspectionSession(leafName, nestedSources,
+      limits = session.limits, progress = progress)
+    result.resources = nested.resourceTree(progress)
+    result.warnings = nested.warnings
+    result.descriptor.validatedThrough = vvlRepresentation
+    session.nestedSessions.add nested
+    progress.report(VextSessionProgressEvent(phase: vsppComplete,
+      path: result.descriptor.path, completed: 1, discovered: 1,
+      totalState: vptsFinal, message: "Resource loaded"))
+    return
   except CatchableError as error:
-    result.resources = VextResourceTree(roots: @[VextResourceNode(
-      path: result.descriptor.path, typeId: result.descriptor.typeId,
-      kind: vrnkOpaque, data: result.data, rawDataAvailable: true,
-      failureFormat: "recognized contained format",
-      failureMessage: error.msg,
-      metadata: @[stringMetadata("decode.warning", error.msg)])])
-    result.descriptor.failureFormat = "recognized contained format"
-    result.descriptor.failureMessage = error.msg
-    result.descriptor.validatedThrough = vvlPayload
-  if result.resources.roots.len == 0:
-    if candidates.len == 0:
+    if not nestedSources.isNil: nestedSources.close()
+    var failureFormat = "recognized contained format"
+    var recognized = false
+    try:
+      let candidates = detectFormats(leafName, result.data)
+      if candidates.len > 0:
+        recognized = true
+        failureFormat = candidates[0].typeId
+    except CatchableError:
+      discard
+    if recognized:
       result.resources = VextResourceTree(roots: @[VextResourceNode(
         path: result.descriptor.path, typeId: result.descriptor.typeId,
         kind: vrnkOpaque, data: result.data, rawDataAvailable: true,
-        metadata: @[stringMetadata("decode.status", "format not recognized")])])
-      result.descriptor.validatedThrough = vvlPayload
+        failureFormat: failureFormat,
+        failureMessage: error.msg,
+        metadata: @[
+          stringMetadata("decode.format", failureFormat),
+          stringMetadata("decode.warning", error.msg)])])
+      result.descriptor.failureFormat = failureFormat
+      result.descriptor.failureMessage = error.msg
     else:
-      try:
-        let inspection = inspectSource(leafName, result.data)
-        result.resources = inspection.resources
-        result.warnings = inspection.warnings
-        result.descriptor.validatedThrough = vvlRepresentation
-      except CatchableError as error:
-        result.resources = VextResourceTree(roots: @[VextResourceNode(
-          path: result.descriptor.path, typeId: result.descriptor.typeId,
-          kind: vrnkOpaque, data: result.data, rawDataAvailable: true,
-          failureFormat: candidates[0].typeId,
-          failureMessage: error.msg,
-          metadata: @[
-            stringMetadata("decode.format", candidates[0].typeId),
-            stringMetadata("decode.warning", error.msg)])])
-        result.descriptor.failureFormat = candidates[0].typeId
-        result.descriptor.failureMessage = error.msg
-        result.descriptor.validatedThrough = vvlPayload
+      result.resources = VextResourceTree(roots: @[VextResourceNode(
+        path: result.descriptor.path, typeId: result.descriptor.typeId,
+        kind: vrnkOpaque, data: result.data, rawDataAvailable: true,
+        metadata: @[stringMetadata("decode.status",
+          "format not recognized")])])
+    result.descriptor.validatedThrough = vvlPayload
   progress.report(VextSessionProgressEvent(phase: vsppComplete,
     path: result.descriptor.path, completed: 1, discovered: 1,
     totalState: vptsFinal, message: "Resource loaded"))
@@ -1450,7 +1429,7 @@ proc walkTopology*(session: VextInspectionSession,
     totalState: vptsFinal, message: "Resource topology complete"))
 
 proc resourceTree*(session: VextInspectionSession,
-    progress: VextSessionProgressCallback = nil): VextResourceTree =
+    progress: VextSessionProgressCallback): VextResourceTree =
   ## Builds the complete currently exposed topology through the session API.
   ## Representation-bearing leaves are decoded, while ordinary container
   ## members retain session-backed payload materializers. The returned tree
@@ -1589,6 +1568,8 @@ proc extractionPlan*(session: VextInspectionSession,
 proc close*(session: VextInspectionSession) =
   if session.isNil or session.closed: return
   session.closed = true
+  for nested in session.nestedSessions: nested.close()
+  session.nestedSessions.setLen(0)
   session.sources.close()
   session.descriptors.clear()
   session.children.clear()

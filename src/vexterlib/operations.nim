@@ -1143,12 +1143,13 @@ proc inspectSourceDepth(filename: string, data: openArray[byte],
     ansiAspect: AnsiPresentationAspect,
     companionResolver: VextCompanionResolver,
     backingSource: VextPayloadSource): VextInspection =
-  let detected = detectParsedFormats(filename, data)
+  let detectionInput = newDetectionInput(filename, data)
+  let detected = detectParsedFormats(detectionInput)
   for item in detected:
     result.candidates.add item.candidate
   var selectedParsed: VextParsedContainer
   if inputFormat.len > 0:
-    let forced = forceFormat(filename, data, inputFormat)
+    let forced = forceFormat(detectionInput, inputFormat)
     result.selectedFormat = forced.candidate
     selectedParsed = forced.parsed
   else:
