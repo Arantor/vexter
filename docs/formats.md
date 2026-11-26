@@ -230,6 +230,33 @@ This evidence is recorded for continued decoding but is not yet exposed as
 character style because the remaining property fields and complete page-chain
 rules have not been validated across the corpus.
 
+## TFMX music
+
+`tfmx.song` recognizes the `TFMX-SONG ` signature and validates section and
+subsong ranges. Both the supplied unpacked layout and relocated pointer tables
+are supported. Opening `mdat.NAME` resolves sibling `smpl.NAME`; `NAME.mdat`
+also resolves `NAME.smpl`, using the shared case-independent filesystem adapter.
+
+`/module` contains metadata, original `/music-data` and `/sample-data` BIN
+resources, and `/module/songs/N/rendered-audio` for each exposed source-numbered
+subsong. Previews are derived on demand as stereo 22,050 Hz, signed 16-bit PCM,
+playable in the GUI and exportable as WAV. Song zero has default export priority.
+Missing samples produce a warning while retaining structural/raw inspection.
+
+Replay independently interprets patterns, macros, waits, loops, calls, note
+transposition, detuning, period/volume effects, master fades and sample repeat
+register changes. Each preview ends at the first subsong end or 300 seconds.
+Classic additive period effects are the default, validated against the
+user-supplied UADE recordings; the renderer also exposes an explicit
+Professional proportional-effects mode. Four-times oversampling and a fixed
+4.5 kHz one-pole low-pass approximate the references' treble roll-off.
+Seven-voice and SID commands fail explicitly when executed. Rendering remains
+an approximation. Original command streams are
+retained rather than forced into a shared MOD pattern model.
+
+Sources, version-specific decisions, local corpus provenance and limitations
+are recorded in [tfmx.md](tfmx.md).
+
 ## ProTracker-compatible MOD import
 
 Container type identifier: `protracker.mod`

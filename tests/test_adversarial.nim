@@ -50,6 +50,7 @@ const AdversarialProfiles = [
   AdversarialProfile(typeId: AdobeColorTableTypeId, filename: "colours.act"),
   AdversarialProfile(typeId: JascPaletteTypeId, filename: "colours.pal"),
   AdversarialProfile(typeId: Rgba8PaletteTypeId, filename: "colours.pal"),
+  AdversarialProfile(typeId: TfmxTypeId, filename: "mdat.test"),
   AdversarialProfile(typeId: ProtrackerModTypeId, filename: "music.mod"),
   AdversarialProfile(typeId: DoomWadTypeId, filename: "game.wad"),
   AdversarialProfile(typeId: InnoSetupTypeId, filename: "setup.exe"),

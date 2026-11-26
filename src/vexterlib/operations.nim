@@ -25,7 +25,7 @@ import ./containers/[adobe_color_table, amiga_8svx, amiga_16sv, amiga_acbm, amig
   doom_wad, electron_asar, flic, fzx, gif_container, inno_setup, iso9660, jpeg,
   jasc_palette, netpbm, openraster, pcx, png_container,
   adobe_swatch_exchange, aseprite, gimp_palette, koala_painter,
-  paint_net_palette, protracker_mod, qoi, rgba8_palette, sqlite, tga, wav,
+  paint_net_palette, protracker_mod, tfmx, qoi, rgba8_palette, sqlite, tga, wav,
   zx_spectrum_next_image, zx_spectrum_next_palette,
   windows_icon, windows_write, wordstar, zip_archive, lha_archive,
   zx_spectrum_gigascreen_dump,
@@ -39,7 +39,7 @@ import ./resources/[amiga_anim_image, amiga_deep_image, amiga_diskfont_font, ami
   amos_packed_picture_image, amos_planar_image, amos_sample, bmp_image,
   flic_animation, gif_image, netpbm_image, png_image, zx_spectrum_basic,
   ansi_art_image, bmfont_font, fzx_font, jpeg_image, koala_painter_image,
-  pcx_image, protracker_replay, qoi_image, tga_image, vector_preview, windows_icon_image, zx_spectrum_screen]
+  pcx_image, protracker_replay, tfmx_replay, qoi_image, tga_image, vector_preview, windows_icon_image, zx_spectrum_screen]
 import ./resources/zx_spectrum_gigascreen
 
 proc fixed16_16(value: int): string =
@@ -1128,6 +1128,12 @@ proc diskfontNode(source: AmigaDiskfontSource, path, fallbackName: string,
   VextResourceNode(path: path, typeId: AmigaDiskfontResourceTypeId,
     kind: vrnkFont, font: font, metadata: metadata)
 
+proc tfmxSoundMaterializer(music: TfmxModule, samples: seq[byte],
+    songIndex: int): VextSoundMaterializer =
+  # Capture a fresh invocation's arguments: loop-local lets otherwise share
+  # closure storage across subsongs in Nim.
+  result = proc(): VextSound = renderTfmx(music, samples, songIndex).sound
+
 proc safeCompanionPath(path: string): bool =
   if path.len == 0 or path[0] in {'/', '\\'} or ':' in path or '\0' in path:
     return false
@@ -2025,6 +2031,56 @@ proc inspectSourceDepth(filename: string, data: openArray[byte],
       kind: vrnkPalette,
       palette: source.palette,
       metadata: metadata)
+  of vhkTfmx:
+    let music = parsedValue[TfmxModule](selectedParsed, vhkTfmx)
+    let root = VextResourceNode(path: "/module", typeId: TfmxTypeId,
+      kind: vrnkGroup, metadata: @[
+        stringMetadata("text", music.text),
+        integerMetadata("songs", music.songs.len),
+        stringMetadata("preview", "bounded four-voice approximation")])
+    result.resources.roots.add root
+    let baseName = filename.extractFilename
+    var sampleName = ""
+    if baseName.toLowerAscii.startsWith("mdat."):
+      sampleName = "smpl." & baseName[5 .. ^1]
+    elif baseName.toLowerAscii.endsWith(".mdat"):
+      sampleName = baseName[0 ..< baseName.len-5] & ".smpl"
+    var samples: seq[byte]
+    if sampleName.len > 0 and safeCompanionPath(sampleName) and companionResolver != nil:
+      samples = companionResolver(sampleName)
+    root.metadata.add stringMetadata("sample-companion", sampleName)
+    if samples.len == 0:
+      result.warnings.add VextInspectionWarning(path: "/module", format: TfmxTypeId,
+        message: "TFMX sample companion missing: " & sampleName)
+    root.children.add VextResourceNode(path: "/module/music-data",
+      typeId: "tfmx.music-data", kind: vrnkOpaque,
+      data: music.data, rawDataAvailable: true)
+    if samples.len > 0:
+      root.children.add VextResourceNode(path: "/module/sample-data",
+        typeId: "tfmx.sample-data", kind: vrnkOpaque,
+        data: samples, rawDataAvailable: true)
+    for song in music.songs:
+      let path = "/module/songs/" & $song.index
+      let group = VextResourceNode(path: path, typeId: "tfmx.subsong", kind: vrnkGroup,
+        metadata: @[integerMetadata("song", song.index),
+          integerMetadata("first-trackstep", song.first),
+          integerMetadata("last-trackstep", song.last),
+          integerMetadata("initial-tempo", song.tempo)])
+      root.children.add group
+      if samples.len > 0:
+        group.children.add VextResourceNode(path: path & "/rendered-audio",
+          typeId: "tfmx.rendered-audio", kind: vrnkAudio, audioKind: varkSound,
+          defaultExportPriority: if song.index == 0: 10 else: 0,
+          soundMaterializer: tfmxSoundMaterializer(music, samples, song.index),
+          derivedAudioChannels: 2, derivedAudioBitsPerSample: 16,
+          derivedAudioSampleRate: TfmxReplaySampleRate,
+          derivedAudioMaximumSamples: TfmxReplaySampleRate * MaximumTfmxReplaySeconds,
+          metadata: @[integerMetadata("maximum-seconds", MaximumTfmxReplaySeconds),
+            stringMetadata("effects", "classic additive period effects"),
+            stringMetadata("filter", "fixed one-pole low-pass approximation"),
+            integerMetadata("filter-cutoff-hz", int(TfmxReplayFilterCutoffHz)),
+            integerMetadata("mixer-oversampling", 4),
+            stringMetadata("rendering", "derived on demand; approximate four-voice replay")])
   of vhkProtrackerMod:
     let source = parsedValue[ProtrackerMod](selectedParsed, vhkProtrackerMod)
     result.resources.roots.add protrackerNode(ProtrackerModResourcePath, source)

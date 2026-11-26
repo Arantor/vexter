@@ -13,7 +13,7 @@ import ./containers/[adobe_color_table, adobe_swatch_exchange, amiga_8svx, amiga
   gif_container,
   bmfont, creative_voice, d64, doom_wad, electron_asar, fat_disk_image, fzx, gimp_palette,
   inno_setup, iso9660, jasc_palette, jpeg, koala_painter, lha_archive, netpbm, openraster,
-  paint_net_palette, pcx, pdf, png_container, powerpacker, protracker_mod, qoi,
+  paint_net_palette, pcx, pdf, png_container, powerpacker, protracker_mod, tfmx, qoi,
   rgba8_palette, sqlite, tga, wav, windows_icon, windows_write, zip_archive,
   zx_spectrum_gigascreen_dump, zx_spectrum_next_image, zx_spectrum_next_palette,
   zx_spectrum_screen_dump, zx_spectrum_snapshot,
@@ -68,6 +68,7 @@ type
     vhkJascPalette
     vhkRgba8Palette
     vhkProtrackerMod
+    vhkTfmx
     vhkDoomWad
     vhkInnoSetup
     vhkElectronAsar
@@ -194,6 +195,7 @@ const FormatHandlers* = [
     kind: vhkAdobeColorTable),
   VextFormatHandler(typeId: JascPaletteTypeId, kind: vhkJascPalette),
   VextFormatHandler(typeId: Rgba8PaletteTypeId, kind: vhkRgba8Palette),
+  VextFormatHandler(typeId: TfmxTypeId, kind: vhkTfmx),
   VextFormatHandler(typeId: ProtrackerModTypeId, kind: vhkProtrackerMod),
   VextFormatHandler(typeId: DoomWadTypeId, kind: vhkDoomWad),
   VextFormatHandler(typeId: InnoSetupTypeId, kind: vhkInnoSetup),
@@ -338,6 +340,7 @@ proc parse*(handler: VextFormatHandler,
   of vhkAdobeColorTable: result = parsed(parseAdobeColorTable(data))
   of vhkJascPalette: result = parsed(parseJascPalette(data))
   of vhkRgba8Palette: result = parsed(parseRgba8Palette(data))
+  of vhkTfmx: result = parsed(parseTfmx(data))
   of vhkProtrackerMod: result = parsed(parseProtrackerMod(data))
   of vhkDoomWad: result = parsed(parseDoomWad(data))
   of vhkInnoSetup: result = parsed(parseInnoSetup(data))

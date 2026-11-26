@@ -58,6 +58,7 @@ client, and a dependency-free native Windows GUI. It supports:
   compressed, and linked image cels using normal compositing,
   15- and 31-instrument ProTracker-compatible MOD tracker modules and AMOS
   Music banks with four independent channel playlists and bounded replay,
+  paired TFMX MDAT/SMPL songs with on-demand bounded four-voice audio previews,
   unpartitioned FAT12/FAT16 raw disk images, Commodore 1540/1541 D64 disk
   images, Commodore 64 KoalaPainter images,
   Netpbm P1–P7, GIF87a/GIF89a, and FLI/FLC-family animations,
@@ -1540,3 +1541,15 @@ names there when adding suites, or direct their output into `/tmp`.
   selecting a lazy file probes it once and inserts successfully decoded
   descendants beneath the existing tree node. Smaller discs retain the
   512-file/128 MiB eager probing bounds.
+
+TFMX `tfmx.song` parsing lives in `containers/tfmx.nim`; format-specific replay
+lives in `resources/tfmx_replay.nim`. Operations resolves the optional sample
+companion and exposes lazy generic sounds per subsong, requiring no frontend
+format branches. See `docs/tfmx.md` for supplied-source provenance and limits.
+
+TFMX previews default to classic additive period effects, with explicit
+Professional proportional effects available through the renderer API. The
+preview mixer oversamples four times and applies a fixed 4.5 kHz low-pass
+approximation before returning 22,050 Hz PCM. Macro wait deferral and DMA effect
+startup are independent state; do not combine them. Supplied UADE controls and
+comparison observations are recorded in `docs/tfmx.md`.

@@ -249,6 +249,19 @@ formats are not included. Detailed format behavior and evidence remain in
     bitmap and palette-only IFF files. `BRNG` remains uninterpreted because no
     definition or focused control for it is present in the supplied material.
 
+- **TFMX music**
+  - Four-voice bounded preview is implemented from the supplied player source;
+    classic pitch effects and timing have been checked against supplied UADE
+    WAVs. Fixed-filter response, DMA start latency and hardware timing remain
+    approximate. Classic/Professional effect semantics require explicit
+    selection in the renderer; the GUI uses classic effects. Seven-voice and SID sample manipulation
+    fail explicitly on execution.
+  - Secondary 0/0 subsong slots are omitted as conventionally unused; genuine
+    one-position secondary songs need a selection policy. Stale nonzero slots
+    can remain visible. Tracker projection and inferred individual sample
+    extraction are not implemented; original MDAT/SMPL bytes are recoverable.
+  - See [tfmx.md](tfmx.md) for evidence and preview bounds.
+
 - **ProTracker-compatible MOD**
   - Current support is considered sufficient for Vexter's recovery-oriented
     scope: modules expose complete tracker data, independently selectable

@@ -11,6 +11,7 @@ import vexterlib/transformations/colour_cycle
 import vexterlib/transformations/palette_swatch
 import vexterlib/resources/font_preview
 import vexterlib/resources/vector_preview
+import vexterlib/resources/tfmx_replay
 import vexterlib/resources/protracker_replay
 import vexterlib/resources/amos_music_replay
 import vexterlib/artifacts
@@ -58,6 +59,7 @@ import vexterlib/containers/aseprite
 import vexterlib/containers/adobe_swatch_exchange
 import vexterlib/containers/adobe_color_table
 import vexterlib/containers/jasc_palette
+import vexterlib/containers/tfmx
 import vexterlib/containers/protracker_mod
 import vexterlib/containers/qoi
 import vexterlib/containers/koala_painter
@@ -276,3 +278,5 @@ export html_report
 export gpl
 export tracker_json
 export markdown
+
+export tfmx, tfmx_replay

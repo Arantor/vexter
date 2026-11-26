@@ -12,7 +12,7 @@ import ./containers/[adobe_color_table, amiga_8svx, amiga_16sv, amiga_acbm, amig
   adobe_swatch_exchange, amos_sprite_icon_bank, ansi_art, appimage, aseprite,
   bmfont, bmp, creative_voice, d64, doom_wad, electron_asar, fat_disk_image, flic, fzx,
   gif_container, gimp_palette, inno_setup, iso9660, jasc_palette, jpeg, koala_painter, netpbm,
-  paint_net_palette, pcx, pdf, png_container, protracker_mod, qoi,
+  paint_net_palette, pcx, pdf, png_container, protracker_mod, tfmx, qoi,
   rgba8_palette, tga,
   sqlite, wav, windows_icon, windows_write, zip_archive, lha_archive,
   zx_spectrum_gigascreen_dump,
@@ -644,6 +644,11 @@ proc detectBaseFormats(input: VextDetectionInput):
       evidence.add VextDetectionEvidence(description: "file extension is .ase")
     result.add VextDetectionCandidate(typeId: AdobeSwatchExchangeTypeId,
       confidence: vdcCertain, evidence: evidence)
+
+  if isTfmx(data):
+    result.add VextDetectionCandidate(typeId: TfmxTypeId,
+      confidence: vdcCertain, evidence: @[VextDetectionEvidence(
+        description: "TFMX-SONG signature and bounded song/section tables")])
 
   if isProtrackerMod(data):
     let source = parseProtrackerMod(data)

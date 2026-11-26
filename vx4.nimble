@@ -27,6 +27,7 @@ task test, "Run the test suite":
   exec "nim c -r --path:src tests/test_pdf_detection.nim"
   exec "nim c -r --path:src tests/test_sqlite.nim"
   exec "nim c -r --path:src tests/test_fat_disk_image.nim"
+  exec "nim c -r --path:src tests/test_tfmx.nim"
   exec "nim c -r --path:src tests/test_protracker_mod.nim"
   exec "nim c -r --path:src tests/test_amiga_iff_ilbm.nim"
   exec "nim c -r --path:src tests/test_amiga_8svx.nim"
